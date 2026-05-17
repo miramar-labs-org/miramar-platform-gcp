@@ -463,6 +463,31 @@ YAML
 
   cat <<YAML | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: namespace-manager-${namespace}
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: github-namespace-manager-${namespace}
+subjects:
+  - kind: User
+    name: ${sa_email}
+    apiGroup: rbac.authorization.k8s.io
+  - kind: User
+    name: serviceAccount:${sa_email}
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: namespace-manager-${namespace}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: namespace-deployer
