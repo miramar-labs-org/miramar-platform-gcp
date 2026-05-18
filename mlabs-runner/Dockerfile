@@ -64,6 +64,17 @@ RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm
 
 LABEL org.opencontainers.image.version="${RUNNER_VERSION}"
 
+# ML pipeline test dependencies (used by mlops-torch-triton-gke-pipeline pytest step)
+RUN pip3 install --no-cache-dir \
+    torch \
+    transformers \
+    datasets \
+    mlflow \
+    onnx \
+    onnxscript \
+    dill \
+    pytest
+
 RUN useradd -m -s /bin/bash runner \
     && echo "runner ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
