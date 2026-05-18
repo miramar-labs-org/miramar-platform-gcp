@@ -7,6 +7,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RUNNER_USER=runner \
     RUNNER_HOME=/home/runner
 
+# Install runner runtime deps explicitly so installdependencies.sh is not
+# needed (running it under QEMU during arm64 cross-builds is unreliable).
+# Package list matches what installdependencies.sh installs on Ubuntu 22.04.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -18,6 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         lsb-release \
         apt-transport-https \
         gnupg \
+        libssl3 \
+        libkrb5-3 \
+        zlib1g \
+        libicu70 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash runner \
@@ -34,9 +41,7 @@ RUN case "${TARGETARCH}" in \
         "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz" \
         -o runner.tar.gz \
     && tar xzf runner.tar.gz \
-    && rm runner.tar.gz \
-    && ./bin/installdependencies.sh \
-    && rm -rf /var/lib/apt/lists/*
+    && rm runner.tar.gz
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
