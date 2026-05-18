@@ -49,7 +49,7 @@ cleanup() {
         else
             REMOVE_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/remove-token"
         fi
-        FRESH_TOKEN=$(curl -fsS \
+        FRESH_TOKEN=$(curl -sS \
             -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GITHUB_PAT}" \
