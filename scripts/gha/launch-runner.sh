@@ -146,6 +146,9 @@ fi
 echo "Pulling latest image..."
 docker pull "${IMAGE}"
 
+RUNNER_VERSION=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "${IMAGE}" 2>/dev/null || echo "unknown")
+echo "Runner version : ${RUNNER_VERSION}"
+
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     -v /var/run/docker.sock:/var/run/docker.sock \
