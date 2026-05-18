@@ -48,6 +48,24 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser. Th
 
 ---
 
+## Required Environment Variables
+
+Two GitHub classic PATs must be set as environment variables on each machine. Create them at [github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)**.
+
+| Variable | Scope required | Purpose |
+|---|---|---|
+| `GITHUB_ORG_PAT` | `read:packages` | Pull the `mlabs-runner` image from GHCR |
+| `GITHUB_ADMIN_PAT` | `admin:org` | Manage self-hosted runners (list, unregister, clean deregistration on shutdown) |
+
+Add both to `~/.bashrc` or `~/.zshrc` on each machine:
+
+```sh
+export GITHUB_ORG_PAT=ghp_...
+export GITHUB_ADMIN_PAT=ghp_...
+```
+
+---
+
 ## GHA Self-Hosted Runners
 
 Docker-based GitHub Actions runners for self-hosted machines. Supports `amd64` (x86_64) and `arm64` (aarch64) via a single multi-arch image.
@@ -69,7 +87,7 @@ Docker automatically pulls the correct variant for the host architecture.
   - **Org-level:** https://github.com/organizations/miramar-labs-org/settings/actions/runners/new
   - **Repo-level:** `https://github.com/miramar-labs-org/<repo>/settings/actions/runners/new`
   - Tokens expire after 1 hour and are single-use
-- **`GITHUB_ORG_PAT`** must be set as an environment variable on each machine. This is a classic GitHub PAT with `read:packages` scope, created at [github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)** → check `read:packages`. The launch script uses it automatically to log in to GHCR. Note: the `gh` CLI token does _not_ have `read:packages` by default — always use the PAT.
+- **`GITHUB_ORG_PAT`** set as an environment variable — see [Required Environment Variables](#required-environment-variables) above.
 
 ### Launch
 
