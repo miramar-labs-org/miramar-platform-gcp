@@ -17,22 +17,34 @@ Both run the [mlabs-runner](mlabs-runner/) Docker image. The WSL2 machine carrie
 
 ### Cloud infrastructure (GCP)
 
-| Service | Purpose |
-|---|---|
-| GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads |
-| Artifact Registry (`apps`) | Docker image registry for built application images |
-| Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys |
-| Two GCP projects | `miramar-cicd` (IAM / WIF) and `miramar-platform` (cluster / workloads) |
+| Service | Purpose | Dashboard |
+|---|---|---|
+| GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads | [GKE console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) |
+| Artifact Registry (`apps`) | Docker image registry for built application images | [GAR console](https://console.cloud.google.com/artifacts?project=miramar-platform) |
+| Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-cicd) |
+| Two GCP projects | `miramar-cicd` (IAM / WIF) and `miramar-platform` (cluster / workloads) | [miramar-cicd](https://console.cloud.google.com/home/dashboard?project=miramar-cicd) · [miramar-platform](https://console.cloud.google.com/home/dashboard?project=miramar-platform) |
 
 ### CI/CD
 
-| Service | Role |
-|---|---|
-| GitHub Actions | Workflow automation — build, test, deploy |
-| GHCR (`ghcr.io/miramar-labs-org`) | Docker image hosting for the runner image and future app images |
-| Self-hosted runners | Jobs requiring GPU, local network access, or aarch64 run on the physical machines above |
+| Service | Role | Link |
+|---|---|---|
+| GitHub Actions | Workflow automation — build, test, deploy | [Actions](https://github.com/orgs/miramar-labs-org/actions) |
+| GHCR | Docker image hosting for the runner image and future app images | [Packages](https://github.com/orgs/miramar-labs-org/packages) |
+| Self-hosted runners | Jobs requiring GPU, local network access, or aarch64 run on the physical machines above | [Runners](https://github.com/organizations/miramar-labs-org/settings/actions/runners) |
 
 GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Federation. Access is restricted to repos under the `miramar-labs` org.
+
+---
+
+## MLflow (DGX)
+
+MLflow runs on the NVIDIA Spark DGX out of `~/mlflow`. It is not exposed publicly — access the UI by opening an SSH tunnel from your laptop:
+
+```sh
+ssh -L 5000:localhost:5000 aaron@spark-79b7.local
+```
+
+Then open **[http://localhost:5000](http://localhost:5000)** in your browser. The tunnel stays open for as long as the SSH session is running.
 
 ---
 
