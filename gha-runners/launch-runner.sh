@@ -71,14 +71,9 @@ if ! docker system info 2>/dev/null | grep -q "${GHCR_HOST}" && \
     elif [[ -n "${GITHUB_PAT:-}" ]]; then
         echo "Logging in to GHCR via GITHUB_PAT..."
         echo "${GITHUB_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
-    elif [[ -t 0 ]]; then
-        echo "GHCR login required. Enter a GitHub PAT with read:packages scope."
-        read -rsp "PAT: " _pat
-        echo
-        echo "${_pat}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
-        unset _pat
     else
-        echo "WARNING: not logged in to GHCR and no gh CLI or GITHUB_PAT available — pull may fail" >&2
+        echo "ERROR: not logged in to GHCR — set GITHUB_PAT or pass --pat <token>" >&2
+        exit 1
     fi
 fi
 
