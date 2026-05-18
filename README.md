@@ -54,14 +54,14 @@ Two GitHub classic PATs must be set as environment variables on each machine. Cr
 
 | Variable | Scope required | Purpose |
 |---|---|---|
-| `GITHUB_ORG_PAT` | `read:packages` | Pull the `mlabs-runner` image from GHCR |
-| `GITHUB_ADMIN_PAT` | `admin:org` | Manage self-hosted runners (list, unregister, clean deregistration on shutdown) |
+| `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull the `mlabs-runner` image from GHCR |
+| `GITHUB_ORG_ADMIN_PAT` | `admin:org` | Manage self-hosted runners (list, unregister, clean deregistration on shutdown) |
 
 Add both to `~/.bashrc` or `~/.zshrc` on each machine:
 
 ```sh
-export GITHUB_ORG_PAT=ghp_...
-export GITHUB_ADMIN_PAT=ghp_...
+export GITHUB_ORG_GHCR_PAT=ghp_...
+export GITHUB_ORG_ADMIN_PAT=ghp_...
 ```
 
 ---
@@ -87,7 +87,7 @@ Docker automatically pulls the correct variant for the host architecture.
   - **Org-level:** https://github.com/organizations/miramar-labs-org/settings/actions/runners/new
   - **Repo-level:** `https://github.com/miramar-labs-org/<repo>/settings/actions/runners/new`
   - Tokens expire after 1 hour and are single-use
-- **`GITHUB_ORG_PAT`** set as an environment variable — see [Required Environment Variables](#required-environment-variables) above.
+- **`GITHUB_ORG_GHCR_PAT`** set as an environment variable — see [Required Environment Variables](#required-environment-variables) above.
 
 ### Launch
 
@@ -149,7 +149,7 @@ docker buildx build \
 ### `scripts/gha/` — GitHub Actions runner management
 
 #### [launch-runner.sh](scripts/gha/launch-runner.sh)
-Pull and start a self-hosted runner container. Requires `GITHUB_ORG_PAT` and a registration token.
+Pull and start a self-hosted runner container. Requires `GITHUB_ORG_GHCR_PAT` and a registration token.
 ```sh
 # Org-level runner (default)
 ./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN>

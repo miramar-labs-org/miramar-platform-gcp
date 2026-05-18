@@ -41,8 +41,8 @@ EXTRA_FLAGS=""
 cleanup() {
     echo "Deregistering runner..."
     REMOVE_TOKEN="${RUNNER_TOKEN}"
-    if [[ -n "${GITHUB_ADMIN_PAT:-}" ]]; then
-        GITHUB_PAT="${GITHUB_ADMIN_PAT}"
+    if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
+        GITHUB_PAT="${GITHUB_ORG_ADMIN_PAT}"
     fi
     if [[ -n "${GITHUB_PAT:-}" ]]; then
         # Registration tokens expire after 1 hour; try to fetch a fresh removal

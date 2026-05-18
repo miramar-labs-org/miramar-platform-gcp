@@ -28,7 +28,7 @@ DETACH_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --token)   RUNNER_TOKEN="$2"; shift 2 ;;
-        --pat)     GITHUB_ORG_PAT="$2"; shift 2 ;;
+        --pat)     GITHUB_ORG_GHCR_PAT="$2"; shift 2 ;;
         --name)    RUNNER_NAME="$2"; shift 2 ;;
         --labels)  RUNNER_LABELS="$2"; shift 2 ;;
         --repo)    GITHUB_REPO="$2"; shift 2 ;;
@@ -61,14 +61,14 @@ if [[ -z "${RUNNER_LABELS}" ]]; then
     RUNNER_LABELS="${DEFAULT_LABELS}"
 fi
 
-# Log in to GHCR using GITHUB_ORG_PAT (must have read:packages scope).
+# Log in to GHCR using GITHUB_ORG_GHCR_PAT (must have read:packages scope).
 GHCR_HOST="ghcr.io"
 if ! grep -qs "${GHCR_HOST}" "${HOME}/.docker/config.json" 2>/dev/null; then
-    if [[ -z "${GITHUB_ORG_PAT:-}" ]]; then
-        echo "ERROR: GITHUB_ORG_PAT is not set — export it or pass --pat <token>" >&2
+    if [[ -z "${GITHUB_ORG_GHCR_PAT:-}" ]]; then
+        echo "ERROR: GITHUB_ORG_GHCR_PAT is not set — export it or pass --pat <token>" >&2
         exit 1
     fi
-    echo "${GITHUB_ORG_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
+    echo "${GITHUB_ORG_GHCR_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
 fi
 
 echo "Architecture : ${ARCH} → ${ARCH_LABEL}"
@@ -95,12 +95,12 @@ if [[ -n "${GITHUB_REPO}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_REPO=${GITHUB_REPO}")
 fi
 
-if [[ -n "${GITHUB_ORG_PAT:-}" ]]; then
-    DOCKER_ENV+=(-e "GITHUB_PAT=${GITHUB_ORG_PAT}")
+if [[ -n "${GITHUB_ORG_GHCR_PAT:-}" ]]; then
+    DOCKER_ENV+=(-e "GITHUB_PAT=${GITHUB_ORG_GHCR_PAT}")
 fi
 
-if [[ -n "${GITHUB_ADMIN_PAT:-}" ]]; then
-    DOCKER_ENV+=(-e "GITHUB_ADMIN_PAT=${GITHUB_ADMIN_PAT}")
+if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
+    DOCKER_ENV+=(-e "GITHUB_ORG_ADMIN_PAT=${GITHUB_ORG_ADMIN_PAT}")
 fi
 
 echo "Pulling latest image..."
