@@ -28,7 +28,7 @@ DETACH_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --token)   RUNNER_TOKEN="$2"; shift 2 ;;
-        --pat)     GITHUB_PAT="$2"; shift 2 ;;
+        --pat)     GITHUB_ORG_PAT="$2"; shift 2 ;;
         --name)    RUNNER_NAME="$2"; shift 2 ;;
         --labels)  RUNNER_LABELS="$2"; shift 2 ;;
         --repo)    GITHUB_REPO="$2"; shift 2 ;;
@@ -68,11 +68,11 @@ if ! docker system info 2>/dev/null | grep -q "${GHCR_HOST}" && \
     if command -v gh &>/dev/null && gh auth status &>/dev/null; then
         echo "Logging in to GHCR via gh CLI..."
         gh auth token | docker login "${GHCR_HOST}" -u "$(gh api user -q .login)" --password-stdin
-    elif [[ -n "${GITHUB_PAT:-}" ]]; then
-        echo "Logging in to GHCR via GITHUB_PAT..."
-        echo "${GITHUB_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
+    elif [[ -n "${GITHUB_ORG_PAT:-}" ]]; then
+        echo "Logging in to GHCR via GITHUB_ORG_PAT..."
+        echo "${GITHUB_ORG_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
     else
-        echo "ERROR: not logged in to GHCR — set GITHUB_PAT or pass --pat <token>" >&2
+        echo "ERROR: not logged in to GHCR — set GITHUB_ORG_PAT or pass --pat <token>" >&2
         exit 1
     fi
 fi

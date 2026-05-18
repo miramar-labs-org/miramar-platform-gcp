@@ -24,7 +24,7 @@ Images are built and pushed to GHCR by the [build-gha-runners workflow](.github/
   - Tokens expire after 1 hour and are single-use
 - A **GitHub PAT** with `read:packages` scope for pulling images from GHCR:
   - https://github.com/settings/tokens → **Generate new token (classic)** → check `read:packages`
-  - Pass via `--pat <token>` or the `GITHUB_PAT` env var
+  - Pass via `--pat <token>` or the `GITHUB_ORG_PAT` env var
 
 ### Launch
 
