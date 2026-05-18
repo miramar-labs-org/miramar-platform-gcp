@@ -147,7 +147,9 @@ echo "Pulling latest image..."
 docker pull "${IMAGE}"
 
 RUNNER_VERSION=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "${IMAGE}" 2>/dev/null || echo "unknown")
+IMAGE_REVISION=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${IMAGE}" 2>/dev/null || echo "unknown")
 echo "Runner version : ${RUNNER_VERSION}"
+echo "Image revision : ${IMAGE_REVISION:0:7}"
 
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
