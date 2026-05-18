@@ -57,6 +57,7 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
     apt-get update && apt-get install -y --no-install-recommends \
         google-cloud-cli \
         terraform \
+        build-essential \
         make \
         cmake \
         ninja-build \
@@ -79,6 +80,15 @@ RUN case "${TARGETARCH}" in \
         arm64) pip3 install --no-cache-dir \
                    torch torchvision torchaudio ;; \
     esac
+
+# System libs required by NeMo's C-extension dependencies (pynini/OpenFst, audio I/O)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libfst-dev \
+        portaudio19-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip/setuptools so modern wheel resolution is used (avoids legacy setup.py build failures)
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
 
 # NeMo toolkit — all subsets (nlp, asr, tts, multimodal)
 RUN pip3 install --no-cache-dir 'nemo_toolkit[all]'
