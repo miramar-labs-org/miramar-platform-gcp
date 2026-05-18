@@ -32,7 +32,7 @@ Both run the [mlabs-runner](mlabs-runner/) Docker image. The WSL2 machine carrie
 | GHCR | Docker image hosting for the runner image and future app images | [Packages](https://github.com/orgs/miramar-labs-org/packages) |
 | Self-hosted runners | Jobs requiring GPU, local network access, or aarch64 run on the physical machines above | [Runners](https://github.com/organizations/miramar-labs-org/settings/actions/runners) |
 
-GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Federation. Access is restricted to repos under the `miramar-labs` org.
+GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Federation. Access is restricted to repos under the `miramar-labs-org` org.
 
 ---
 
@@ -141,6 +141,75 @@ docker buildx build \
   -t ghcr.io/miramar-labs-org/mlabs-runner:local \
   mlabs-runner/
 ```
+
+---
+
+## Workload Identity Federation
+
+GitHub Actions workflows authenticate to GCP via WIF — no long-lived service account keys. Two things must be configured correctly for auth to succeed.
+
+**GCP resources:**
+- Pool: `projects/423801268174/locations/global/workloadIdentityPools/github-actions`
+- Provider: `github` (OIDC, issuer `https://token.actions.githubusercontent.com`)
+- Service account: `gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com`
+
+### 1. WIF provider attribute condition
+
+Controls which GitHub tokens the provider will accept. Must reference the correct org.
+
+Check the current condition:
+```sh
+gcloud iam workload-identity-pools providers describe github \
+  --project=miramar-cicd \
+  --location=global \
+  --workload-identity-pool=github-actions \
+  --format="value(attributeCondition)"
+```
+
+Expected: `attribute.repository_owner=='miramar-labs-org'`
+
+Update if wrong:
+```sh
+gcloud iam workload-identity-pools providers update-oidc github \
+  --project=miramar-cicd \
+  --location=global \
+  --workload-identity-pool=github-actions \
+  --attribute-condition="attribute.repository_owner=='miramar-labs-org'"
+```
+
+### 2. Service account IAM binding
+
+Controls which WIF principal can impersonate the service account. Must reference the correct org.
+
+Check the current binding:
+```sh
+gcloud iam service-accounts get-iam-policy \
+  gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
+  --project=miramar-cicd \
+  --format=json
+```
+
+Expected member: `principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org`
+
+Add the correct binding:
+```sh
+gcloud iam service-accounts add-iam-policy-binding \
+  gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
+  --project=miramar-cicd \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org"
+```
+
+Remove any stale binding referencing an old org name:
+```sh
+gcloud iam service-accounts remove-iam-policy-binding \
+  gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
+  --project=miramar-cicd \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/OLD_ORG_NAME"
+```
+
+> If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, the SA binding is the most likely culprit — check the member value matches the current GitHub org name exactly.
 
 ---
 
