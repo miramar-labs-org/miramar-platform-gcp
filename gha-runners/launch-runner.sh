@@ -59,6 +59,21 @@ if [[ -z "${RUNNER_LABELS}" ]]; then
     RUNNER_LABELS="${DEFAULT_LABELS}"
 fi
 
+# Log in to GHCR if not already authenticated
+GHCR_HOST="ghcr.io"
+if ! docker system info 2>/dev/null | grep -q "${GHCR_HOST}" && \
+   ! grep -qs "${GHCR_HOST}" "${HOME}/.docker/config.json" 2>/dev/null; then
+    if command -v gh &>/dev/null && gh auth status &>/dev/null; then
+        echo "Logging in to GHCR via gh CLI..."
+        gh auth token | docker login "${GHCR_HOST}" -u "$(gh api user -q .login)" --password-stdin
+    elif [[ -n "${GITHUB_PAT:-}" ]]; then
+        echo "Logging in to GHCR via GITHUB_PAT..."
+        echo "${GITHUB_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
+    else
+        echo "WARNING: not logged in to GHCR and no gh CLI or GITHUB_PAT available — pull may fail" >&2
+    fi
+fi
+
 echo "Architecture : ${ARCH} → ${IMAGE_SUFFIX}"
 echo "Image        : ${IMAGE}"
 echo "Runner name  : ${RUNNER_NAME}"
