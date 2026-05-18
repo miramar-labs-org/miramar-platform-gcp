@@ -231,10 +231,10 @@ Pull and start a self-hosted runner container. Requires `GITHUB_ORG_GHCR_PAT` an
 ./scripts/gha/launch-runner.sh --ephemeral
 ```
 
-#### [list-runners.sh](scripts/gha/list-runners.sh)
+#### [runners.sh](scripts/gha/runners.sh)
 List all runners registered to the org, with status and labels.
 ```sh
-./scripts/gha/list-runners.sh
+./scripts/gha/runners.sh
 ```
 
 #### [unregister-runner.sh](scripts/gha/unregister-runner.sh)
@@ -251,10 +251,10 @@ Remove a runner from the org via the GitHub API. Lists runners and prompts for I
 
 ### `scripts/gcp/` — GCP utilities
 
-#### [list-resources-miramar-platform.zsh](scripts/gcp/list-resources-miramar-platform.zsh)
+#### [resources.sh](scripts/gcp/resources.sh)
 Enumerate live GCP resources in the `miramar-platform` project.
 ```sh
-./scripts/gcp/list-resources-miramar-platform.zsh
+./scripts/gcp/resources.sh
 ```
 
 ---
