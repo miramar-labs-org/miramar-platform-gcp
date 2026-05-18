@@ -109,3 +109,76 @@ docker buildx build \
   -t ghcr.io/miramar-labs-org/mlabs-runner:local \
   mlabs-runner/
 ```
+
+---
+
+## Scripts
+
+### `scripts/gha/` — GitHub Actions runner management
+
+#### [launch-runner.sh](scripts/gha/launch-runner.sh)
+Pull and start a self-hosted runner container. Requires `GITHUB_ORG_PAT` and a registration token.
+```sh
+# Org-level runner (default)
+./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN>
+
+# Repo-level, detached
+./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> --repo miramar-platform-gcp --detach
+
+# Ephemeral (deregisters after one job)
+./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> --ephemeral
+```
+
+#### [list-runners.sh](scripts/gha/list-runners.sh)
+List all runners registered to the org, with status and labels.
+```sh
+./scripts/gha/list-runners.sh
+```
+
+#### [unregister-runner.sh](scripts/gha/unregister-runner.sh)
+Remove a runner from the org via the GitHub API. Lists runners and prompts for ID, or pass a name directly.
+```sh
+# Interactive
+./scripts/gha/unregister-runner.sh
+
+# By name
+./scripts/gha/unregister-runner.sh <runner-name>
+```
+
+---
+
+### `scripts/gcp/` — GCP utilities
+
+#### [list-resources-miramar-platform.zsh](scripts/gcp/list-resources-miramar-platform.zsh)
+Enumerate live GCP resources in the `miramar-platform` project.
+```sh
+./scripts/gcp/list-resources-miramar-platform.zsh
+```
+
+---
+
+### `scripts/ubuntu/` — Host setup
+
+#### [install-gcloud.sh](scripts/ubuntu/install-gcloud.sh)
+Install the Google Cloud CLI via apt on Ubuntu/Debian.
+```sh
+./scripts/ubuntu/install-gcloud.sh
+```
+
+#### [install-terraform.sh](scripts/ubuntu/install-terraform.sh)
+Install Terraform via apt on Ubuntu/Debian.
+```sh
+./scripts/ubuntu/install-terraform.sh
+```
+
+---
+
+### `gcp/` — GCP provisioning
+
+| Script | Usage |
+|---|---|
+| `gcp/setup-miramar-gke-cicd.zsh` | Full idempotent bootstrap of projects, APIs, WIF, GKE, and RBAC |
+| `gcp/pause-miramar-platform.zsh` | Scale GKE node pool to 0 (cost saving) |
+| `gcp/resume-miramar-platform.zsh` | Scale GKE node pool back up |
+| `gcp/verify-nuked-miramar-platform.zsh` | Confirm all resources torn down after deletion |
+| `gcp/patch-namespace-manager-rbac.zsh` | Patch RBAC after cluster re-create |
