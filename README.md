@@ -83,10 +83,9 @@ Docker automatically pulls the correct variant for the host architecture.
 ### Prerequisites
 
 - Docker installed on the host machine
-- A **runner registration token** — obtain one from:
+- A **runner registration token** is fetched automatically via `GITHUB_ORG_ADMIN_PAT`. To override, pass `--token` manually:
   - **Org-level:** https://github.com/organizations/miramar-labs-org/settings/actions/runners/new
   - **Repo-level:** `https://github.com/miramar-labs-org/<repo>/settings/actions/runners/new`
-  - Tokens expire after 1 hour and are single-use
 - **`GITHUB_ORG_GHCR_PAT`** set as an environment variable — see [Required Environment Variables](#required-environment-variables) above.
 
 ### Launch
@@ -95,15 +94,15 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 
 ```sh
 # Org-level runner, foreground (Ctrl+C to stop and deregister)
-./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN>
+./scripts/gha/launch-runner.sh
 
 # Repo-level runner, detached
-./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> \
+./scripts/gha/launch-runner.sh \
   --repo miramar-platform-gcp \
   --detach
 
 # Custom labels, ephemeral (deregisters after one job)
-./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> \
+./scripts/gha/launch-runner.sh \
   --labels "self-hosted,linux,amd64,gpu" \
   --ephemeral
 ```
@@ -112,7 +111,7 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 
 | Flag | Default | Description |
 |---|---|---|
-| `--token` | *(required)* | Runner registration token |
+| `--token` | *(auto-fetched)* | Runner registration token — fetched via `GITHUB_ORG_ADMIN_PAT` if not supplied |
 | `--name` | hostname | Runner display name |
 | `--labels` | `self-hosted,linux,amd64,wsl2` or `self-hosted,linux,arm64,dgx` | Comma-separated runner labels |
 | `--repo` | *(unset — org-level)* | Scope to a specific repo (`owner/repo`) |
@@ -218,16 +217,16 @@ gcloud iam service-accounts remove-iam-policy-binding \
 ### `scripts/gha/` — GitHub Actions runner management
 
 #### [launch-runner.sh](scripts/gha/launch-runner.sh)
-Pull and start a self-hosted runner container. Requires `GITHUB_ORG_GHCR_PAT` and a registration token.
+Pull and start a self-hosted runner container. Requires `GITHUB_ORG_GHCR_PAT` and `GITHUB_ORG_ADMIN_PAT` — registration token is fetched automatically.
 ```sh
 # Org-level runner (default)
-./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN>
+./scripts/gha/launch-runner.sh
 
 # Repo-level, detached
-./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> --repo miramar-platform-gcp --detach
+./scripts/gha/launch-runner.sh --repo miramar-platform-gcp --detach
 
 # Ephemeral (deregisters after one job)
-./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> --ephemeral
+./scripts/gha/launch-runner.sh --ephemeral
 ```
 
 #### [list-runners.sh](scripts/gha/list-runners.sh)
