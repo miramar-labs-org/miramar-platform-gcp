@@ -12,8 +12,8 @@ Images are built and pushed to GHCR by the [build-gha-runners workflow](.github/
 
 | Architecture | Image |
 |---|---|
-| amd64 (x86_64) | `ghcr.io/miramar-labs-org/gha-runner-amd64:latest` |
-| arm64 (aarch64) | `ghcr.io/miramar-labs-org/gha-runner-arm64:latest` |
+| amd64 (x86_64) | [`ghcr.io/miramar-labs-org/gha-runner-amd64:latest`](https://github.com/orgs/miramar-labs-org/packages/container/package/gha-runner-amd64) |
+| arm64 (aarch64) | [`ghcr.io/miramar-labs-org/gha-runner-arm64:latest`](https://github.com/orgs/miramar-labs-org/packages/container/package/gha-runner-arm64) |
 
 ### Prerequisites
 
