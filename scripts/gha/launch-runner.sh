@@ -155,6 +155,7 @@ docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+    --gpus all \
     --dns 8.8.8.8 \
     --name "mlabs-runner-${ARCH_LABEL}" \
     "${IMAGE}"

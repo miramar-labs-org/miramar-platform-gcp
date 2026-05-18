@@ -6,14 +6,14 @@ GCP infrastructure and CI/CD tooling for the Miramar platform.
 
 ### Physical machines
 
-Two on-premises machines act as self-hosted GitHub Actions runners and general compute:
+On-premises machines acting as self-hosted GitHub Actions runners and general compute:
 
-| Machine | OS | Arch | Notes |
-|---|---|---|---|
-| Windows laptop | Ubuntu 24.04 (WSL2) | x86_64 / amd64 | AMD CPU |
-| NVIDIA Spark DGX | Ubuntu | aarch64 / arm64 | GB10 Superchip GPU |
+| Machine | OS | Arch | CPU | GPU | Runner label |
+|---|---|---|---|---|---|
+| Windows laptop | Ubuntu 24.04 (WSL2) | x86_64 / amd64 | AMD | NVIDIA GeForce RTX 4060 | `wsl2` |
+| NVIDIA Spark DGX | Ubuntu | aarch64 / arm64 | Grace (Neoverse V2) | GB10 Superchip (H100, sm_90) | `dgx` |
 
-Both run the [mlabs-runner](mlabs-runner/) Docker image. The WSL2 machine carries the `wsl2` runner label; the DGX carries `dgx`.
+Both run the [mlabs-runner](mlabs-runner/) Docker image (CUDA 12.4, multi-arch). A third machine — **NVIDIA Jetson AGX Orin** — is planned; it will use a separate `mlabs-runner:jetson` image based on L4T due to Tegra's unified-memory GPU architecture.
 
 ### Cloud infrastructure (GCP)
 
@@ -81,6 +81,25 @@ Built and pushed to GHCR by the [build-mlabs-runner workflow](.github/workflows/
 | [`ghcr.io/miramar-labs-org/mlabs-runner:latest`](https://github.com/orgs/miramar-labs-org/packages/container/package/mlabs-runner) | `linux/amd64`, `linux/arm64` |
 
 Docker automatically pulls the correct variant for the host architecture.
+
+**Base:** `nvidia/cuda:12.4.1-cudnn9-runtime-ubuntu22.04` — CUDA 12.4 is available inside the container on both machines (RTX 4060 on WSL2, GB10 on DGX). The launch script passes `--gpus all` automatically.
+
+**Pre-installed tools:**
+
+| Category | Packages |
+|---|---|
+| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `helm`, `make` |
+| PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.4 wheels (amd64: pytorch.org/whl/cu124; arm64: standard PyPI) |
+| NeMo | `nemo_toolkit[all]` — nlp, asr, tts, multimodal |
+| HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate` |
+| ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |
+| Audio/video | `ffmpeg`, `libsndfile1`, `sox` (required by NeMo ASR/TTS) |
+
+To verify GPU access after pulling a new image:
+```sh
+docker run --rm --gpus all ghcr.io/miramar-labs-org/mlabs-runner:latest \
+  python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
 
 ### Prerequisites
 
