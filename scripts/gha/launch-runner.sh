@@ -2,10 +2,10 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 --token <RUNNER_TOKEN> [options]"
+    echo "Usage: $0 [--token <RUNNER_TOKEN>] [options]"
     echo ""
     echo "Options:"
-    echo "  --token       Runner registration token (required)"
+    echo "  --token       Runner registration token (auto-fetched via GITHUB_ORG_ADMIN_PAT if not set)"
     echo "  --pat         GitHub PAT with read:packages scope (for GHCR login)"
     echo "  --name        Runner name (default: hostname)"
     echo "  --labels      Comma-separated labels (default: self-hosted,linux,<arch>)"
@@ -41,8 +41,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${RUNNER_TOKEN}" ]]; then
-    echo "ERROR: --token is required" >&2
-    usage
+    if [[ -z "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
+        echo "ERROR: --token not provided and GITHUB_ORG_ADMIN_PAT is not set" >&2
+        usage
+    fi
+    echo "Fetching runner registration token..."
+    if [[ -n "${GITHUB_REPO}" ]]; then
+        REG_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/registration-token"
+    else
+        REG_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/registration-token"
+    fi
+    RUNNER_TOKEN=$(curl -fsSL \
+        -X POST \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "${REG_URL}" | jq -r '.token')
 fi
 
 ARCH=$(uname -m)
