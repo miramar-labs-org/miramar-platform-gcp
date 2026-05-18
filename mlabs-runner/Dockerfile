@@ -57,6 +57,7 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         make \
         python3 \
         python3-pip \
+        python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install helm
