@@ -2,6 +2,40 @@
 
 GCP infrastructure and CI/CD tooling for the Miramar platform.
 
+## Platform Overview
+
+### Physical machines
+
+Two on-premises machines act as self-hosted GitHub Actions runners and general compute:
+
+| Machine | OS | Arch | Notes |
+|---|---|---|---|
+| Windows laptop | Ubuntu 24.04 (WSL2) | x86_64 / amd64 | AMD CPU |
+| NVIDIA Spark DGX | Ubuntu | aarch64 / arm64 | GB10 Superchip GPU |
+
+Both run the [mlabs-runner](mlabs-runner/) Docker image. The WSL2 machine carries the `wsl2` runner label; the DGX carries `dgx`.
+
+### Cloud infrastructure (GCP)
+
+| Service | Purpose |
+|---|---|
+| GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads |
+| Artifact Registry (`apps`) | Docker image registry for built application images |
+| Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys |
+| Two GCP projects | `miramar-cicd` (IAM / WIF) and `miramar-platform` (cluster / workloads) |
+
+### CI/CD
+
+| Service | Role |
+|---|---|
+| GitHub Actions | Workflow automation — build, test, deploy |
+| GHCR (`ghcr.io/miramar-labs-org`) | Docker image hosting for the runner image and future app images |
+| Self-hosted runners | Jobs requiring GPU, local network access, or aarch64 run on the physical machines above |
+
+GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Federation. Access is restricted to repos under the `miramar-labs` org.
+
+---
+
 ## GHA Self-Hosted Runners
 
 Docker-based GitHub Actions runners for self-hosted machines. Supports `amd64` (x86_64) and `arm64` (aarch64) via a single multi-arch image.

@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Infrastructure and CI/CD tooling for the Miramar platform on GCP. It provisions two GCP projects (`miramar-cicd` and `miramar-platform`), a shared GKE Standard cluster, Artifact Registry, and Workload Identity Federation for keyless GitHub Actions auth. It also contains Docker images and a launch script for self-hosted GitHub Actions runners.
 
+## Platform topology
+
+**Physical machines (self-hosted GHA runners):**
+- **Windows laptop / WSL2** — Ubuntu 24.04, x86_64 (amd64), AMD CPU. Runner label: `wsl2`.
+- **NVIDIA Spark DGX** — Ubuntu, aarch64 (arm64), GB10 Superchip GPU. Runner label: `dgx`.
+
+**GCP:**
+- `miramar-cicd` — IAM, Workload Identity Federation pool/provider, deploy service accounts.
+- `miramar-platform` — GKE Standard cluster (`miramar-shared-gke`), Artifact Registry (`apps`).
+- WIF provides keyless GitHub Actions → GCP auth; no long-lived service account keys.
+
+**CI/CD:**
+- GitHub Actions workflows on both GitHub-hosted and the two self-hosted runners above.
+- GHCR (`ghcr.io/miramar-labs-org`) hosts the `mlabs-runner` image and future app images.
+
 ## Directory layout
 
 ```
