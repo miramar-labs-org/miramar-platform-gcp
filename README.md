@@ -56,12 +56,14 @@ Two GitHub classic PATs must be set as environment variables on each machine. Cr
 |---|---|---|
 | `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull the `mlabs-runner` image from GHCR |
 | `GITHUB_ORG_ADMIN_PAT` | `admin:org` | Manage self-hosted runners (list, unregister, clean deregistration on shutdown) |
+| `HF_TOKEN` | — | Hugging Face API token — forwarded into the runner container for workflow use |
 
 Add both to `~/.bashrc` or `~/.zshrc` on each machine:
 
 ```sh
 export GITHUB_ORG_GHCR_PAT=ghp_...
 export GITHUB_ORG_ADMIN_PAT=ghp_...
+export HF_TOKEN=hf_...
 ```
 
 ---

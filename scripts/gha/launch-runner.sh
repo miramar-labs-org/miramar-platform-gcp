@@ -117,6 +117,10 @@ if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_ORG_ADMIN_PAT=${GITHUB_ORG_ADMIN_PAT}")
 fi
 
+if [[ -n "${HF_TOKEN:-}" ]]; then
+    DOCKER_ENV+=(-e "HF_TOKEN=${HF_TOKEN}")
+fi
+
 # Unregister any existing runner with the same name to avoid session conflicts
 if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
     if [[ -n "${GITHUB_REPO}" ]]; then
