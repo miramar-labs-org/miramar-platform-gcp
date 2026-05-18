@@ -41,7 +41,7 @@ GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Fed
 MLflow runs on the NVIDIA Spark DGX out of `~/mlflow`. It is not exposed publicly — access the UI by opening an SSH tunnel from your laptop:
 
 ```sh
-ssh -L 5000:localhost:5000 aaron@spark-79b7.local
+ssh -L 5000:localhost:5000 <user>@spark-79b7.local
 ```
 
 Then open **[http://localhost:5000](http://localhost:5000)** in your browser. The tunnel stays open for as long as the SSH session is running.
