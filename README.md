@@ -102,6 +102,8 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 | `--ephemeral` | false | Deregister after one job |
 | `--detach` | false | Run container in background (`docker run -d`) |
 
+> **Org runner group access** — if jobs queue indefinitely despite the runner showing _Idle_, check that the target repo is allowed to use the runner group: **Org Settings → Actions → Runner groups → Default → Repository access**.
+
 ### Rebuilding the image
 
 Triggered automatically on push. To rebuild manually with a specific runner version:
