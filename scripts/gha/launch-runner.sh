@@ -61,18 +61,20 @@ if [[ -z "${RUNNER_LABELS}" ]]; then
     RUNNER_LABELS="${DEFAULT_LABELS}"
 fi
 
-# Log in to GHCR if not already authenticated
+# Log in to GHCR if not already authenticated.
+# Prefer GITHUB_ORG_PAT (read:packages scope guaranteed) over the gh CLI
+# token, which may lack read:packages even when gh auth status passes.
 GHCR_HOST="ghcr.io"
-if ! docker system info 2>/dev/null | grep -q "${GHCR_HOST}" && \
-   ! grep -qs "${GHCR_HOST}" "${HOME}/.docker/config.json" 2>/dev/null; then
-    if command -v gh &>/dev/null && gh auth status &>/dev/null; then
-        echo "Logging in to GHCR via gh CLI..."
-        gh auth token | docker login "${GHCR_HOST}" -u "$(gh api user -q .login)" --password-stdin
-    elif [[ -n "${GITHUB_ORG_PAT:-}" ]]; then
+if ! grep -qs "${GHCR_HOST}" "${HOME}/.docker/config.json" 2>/dev/null; then
+    if [[ -n "${GITHUB_ORG_PAT:-}" ]]; then
         echo "Logging in to GHCR via GITHUB_ORG_PAT..."
         echo "${GITHUB_ORG_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
+    elif command -v gh &>/dev/null && gh auth status &>/dev/null && \
+         gh auth status 2>&1 | grep -q "read:packages"; then
+        echo "Logging in to GHCR via gh CLI..."
+        gh auth token | docker login "${GHCR_HOST}" -u "$(gh api user -q .login)" --password-stdin
     else
-        echo "ERROR: not logged in to GHCR — set GITHUB_ORG_PAT or pass --pat <token>" >&2
+        echo "ERROR: not logged in to GHCR — set GITHUB_ORG_PAT (read:packages scope) or pass --pat <token>" >&2
         exit 1
     fi
 fi
