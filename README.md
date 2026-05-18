@@ -18,10 +18,13 @@ Images are built and pushed to GHCR by the [build-gha-runners workflow](.github/
 ### Prerequisites
 
 - Docker installed on the host machine
-- A runner registration token — obtain one from:
-  - **Org-level:** `https://github.com/organizations/miramar-labs-org/settings/actions/runners/new`
+- A **runner registration token** — obtain one from:
+  - **Org-level:** https://github.com/organizations/miramar-labs-org/settings/actions/runners/new
   - **Repo-level:** `https://github.com/miramar-labs-org/<repo>/settings/actions/runners/new`
-- `docker login ghcr.io -u <github-username> --password-stdin` (use a PAT with `read:packages`)
+  - Tokens expire after 1 hour and are single-use
+- A **GitHub PAT** with `read:packages` scope for pulling images from GHCR:
+  - https://github.com/settings/tokens → **Generate new token (classic)** → check `read:packages`
+  - Pass via `--pat <token>` or the `GITHUB_PAT` env var
 
 ### Launch
 
