@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.1-cudnn9-runtime-ubuntu22.04
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
 
 ARG RUNNER_VERSION=2.334.0
 ARG TARGETARCH
@@ -73,7 +73,7 @@ LABEL org.opencontainers.image.version="${RUNNER_VERSION}"
 RUN case "${TARGETARCH}" in \
         amd64) pip3 install --no-cache-dir \
                    torch torchvision torchaudio \
-                   --index-url https://download.pytorch.org/whl/cu124 ;; \
+                   --index-url https://download.pytorch.org/whl/cu126 ;; \
         arm64) pip3 install --no-cache-dir \
                    torch torchvision torchaudio ;; \
     esac

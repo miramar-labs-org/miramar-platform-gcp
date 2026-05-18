@@ -82,14 +82,14 @@ Built and pushed to GHCR by the [build-mlabs-runner workflow](.github/workflows/
 
 Docker automatically pulls the correct variant for the host architecture.
 
-**Base:** `nvidia/cuda:12.4.1-cudnn9-runtime-ubuntu22.04` — CUDA 12.4 is available inside the container on both machines (RTX 4060 on WSL2, GB10 on DGX). The launch script passes `--gpus all` automatically.
+**Base:** `nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04` — CUDA 12.6 is available inside the container on both machines (RTX 4060 on WSL2, GB10 on DGX). The launch script passes `--gpus all` automatically.
 
 **Pre-installed tools:**
 
 | Category | Packages |
 |---|---|
 | CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `helm`, `make` |
-| PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.4 wheels (amd64: pytorch.org/whl/cu124; arm64: standard PyPI) |
+| PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.6 wheels (amd64: pytorch.org/whl/cu126; arm64: standard PyPI) |
 | NeMo | `nemo_toolkit[all]` — nlp, asr, tts, multimodal |
 | HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate` |
 | ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |
