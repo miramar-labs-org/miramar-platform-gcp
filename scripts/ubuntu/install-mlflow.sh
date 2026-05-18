@@ -6,18 +6,15 @@ MLFLOW_DIR="${HOME}/mlflow"
 SERVICE_USER="${USER}"
 SERVICE_NAME="mlflow"
 
-echo "==> Installing MLflow..."
+# Use the pyenv environment in ~/mlflow
+cd "${MLFLOW_DIR}"
+
+echo "==> Installing MLflow into ~/mlflow pyenv environment..."
 pip install --upgrade mlflow
 
-MLFLOW_BIN="$(python3 -m site --user-base)/bin/mlflow"
-if ! command -v mlflow &>/dev/null; then
-    # Fall back to user-local bin if not on PATH
-    MLFLOW_BIN="$(python3 -m site --user-base)/bin/mlflow"
-else
-    MLFLOW_BIN="$(command -v mlflow)"
-fi
+MLFLOW_BIN="$(pyenv which mlflow)"
 
-echo "==> Creating MLflow directories..."
+echo "==> Creating artifact directory..."
 mkdir -p "${MLFLOW_DIR}/artifacts"
 
 echo "==> Writing systemd service..."
@@ -30,6 +27,7 @@ After=network.target
 Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${MLFLOW_DIR}
+Environment="PATH=${HOME}/.pyenv/shims:${HOME}/.pyenv/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStart=${MLFLOW_BIN} server \
     --host 127.0.0.1 \
     --port ${PORT} \
