@@ -58,6 +58,8 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         google-cloud-cli \
         terraform \
         make \
+        cmake \
+        ninja-build \
         python3 \
         python3-pip \
         python-is-python3 \
