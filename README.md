@@ -60,6 +60,8 @@ Docker automatically pulls the correct variant for the host architecture.
 - A **GitHub PAT** with `read:packages` scope for pulling images from GHCR:
   - https://github.com/settings/tokens → **Generate new token (classic)** → check `read:packages`
   - Pass via `--pat <token>` or the `GITHUB_ORG_PAT` env var
+  - Or log in once via `gh` CLI: `gh auth token | docker login ghcr.io -u $(gh api user -q .login) --password-stdin`
+  - Or log in once via PAT: `echo $GITHUB_ORG_PAT | docker login ghcr.io -u miramar-labs-org --password-stdin`
 
 ### Launch
 
