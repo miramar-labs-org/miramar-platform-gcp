@@ -57,11 +57,7 @@ Docker automatically pulls the correct variant for the host architecture.
   - **Org-level:** https://github.com/organizations/miramar-labs-org/settings/actions/runners/new
   - **Repo-level:** `https://github.com/miramar-labs-org/<repo>/settings/actions/runners/new`
   - Tokens expire after 1 hour and are single-use
-- A **GitHub PAT** with `read:packages` scope for pulling images from GHCR:
-  - https://github.com/settings/tokens → **Generate new token (classic)** → check `read:packages`
-  - Pass via `--pat <token>` or the `GITHUB_ORG_PAT` env var
-  - Or log in once via `gh` CLI: `gh auth token | docker login ghcr.io -u $(gh api user -q .login) --password-stdin`
-  - Or log in once via PAT: `echo $GITHUB_ORG_PAT | docker login ghcr.io -u miramar-labs-org --password-stdin`
+- **`GITHUB_ORG_PAT`** must be set as an environment variable on each machine. This is a classic GitHub PAT with `read:packages` scope, created at [github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)** → check `read:packages`. The launch script uses it automatically to log in to GHCR. Note: the `gh` CLI token does _not_ have `read:packages` by default — always use the PAT.
 
 ### Launch
 
