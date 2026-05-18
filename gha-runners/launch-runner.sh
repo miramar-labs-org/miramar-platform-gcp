@@ -6,6 +6,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --token       Runner registration token (required)"
+    echo "  --pat         GitHub PAT with read:packages scope (for GHCR login)"
     echo "  --name        Runner name (default: hostname)"
     echo "  --labels      Comma-separated labels (default: self-hosted,linux,<arch>)"
     echo "  --repo        Repo-level runner: owner/repo (default: org-level)"
@@ -27,6 +28,7 @@ DETACH_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --token)   RUNNER_TOKEN="$2"; shift 2 ;;
+        --pat)     GITHUB_PAT="$2"; shift 2 ;;
         --name)    RUNNER_NAME="$2"; shift 2 ;;
         --labels)  RUNNER_LABELS="$2"; shift 2 ;;
         --repo)    GITHUB_REPO="$2"; shift 2 ;;
@@ -69,6 +71,12 @@ if ! docker system info 2>/dev/null | grep -q "${GHCR_HOST}" && \
     elif [[ -n "${GITHUB_PAT:-}" ]]; then
         echo "Logging in to GHCR via GITHUB_PAT..."
         echo "${GITHUB_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
+    elif [[ -t 0 ]]; then
+        echo "GHCR login required. Enter a GitHub PAT with read:packages scope."
+        read -rsp "PAT: " _pat
+        echo
+        echo "${_pat}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
+        unset _pat
     else
         echo "WARNING: not logged in to GHCR and no gh CLI or GITHUB_PAT available — pull may fail" >&2
     fi
