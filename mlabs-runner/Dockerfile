@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RUNNER_USER=runner \
     RUNNER_HOME=/home/runner
 
-# Runner runtime deps + audio/video libs required by NeMo ASR/TTS
+# Runner runtime deps + general audio/video libs
 # Pre-installs runner .NET deps explicitly so installdependencies.sh is not
 # needed (running it under QEMU during arm64 cross-builds is unreliable).
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -57,12 +57,8 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
     apt-get update && apt-get install -y --no-install-recommends \
         google-cloud-cli \
         terraform \
-        build-essential \
         make \
-        cmake \
-        ninja-build \
         python3 \
-        python3-dev \
         python3-pip \
         python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
@@ -72,7 +68,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm
 
 LABEL org.opencontainers.image.version="${RUNNER_VERSION}"
 
-# PyTorch with CUDA 12.4
+# PyTorch with CUDA 12.6
 # amd64: explicit CUDA wheels from pytorch.org; arm64: standard PyPI (ships CUDA-enabled for aarch64)
 RUN case "${TARGETARCH}" in \
         amd64) pip3 install --no-cache-dir \
@@ -82,20 +78,9 @@ RUN case "${TARGETARCH}" in \
                    torch torchvision torchaudio ;; \
     esac
 
-# System libs required by NeMo's C-extension dependencies (pynini/OpenFst, audio I/O)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libfst-dev \
-        portaudio19-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip/setuptools so modern wheel resolution is used (avoids legacy setup.py build failures)
-RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
-
-# NeMo toolkit — all subsets (nlp, asr, tts, multimodal)
-RUN pip3 install --no-cache-dir 'nemo_toolkit[all]'
-
 # HuggingFace ecosystem + genAI + ML tooling
 RUN pip3 install --no-cache-dir \
+    transformers \
     accelerate \
     peft \
     huggingface_hub \
@@ -106,6 +91,7 @@ RUN pip3 install --no-cache-dir \
     timm \
     einops \
     bitsandbytes \
+    datasets \
     numpy \
     scipy \
     pandas \

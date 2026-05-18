@@ -90,10 +90,9 @@ Docker automatically pulls the correct variant for the host architecture.
 |---|---|
 | CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `helm`, `make` |
 | PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.6 wheels (amd64: pytorch.org/whl/cu126; arm64: standard PyPI) |
-| NeMo | `nemo_toolkit[all]` — nlp, asr, tts, multimodal |
-| HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate` |
+| HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate`, `datasets` |
 | ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |
-| Audio/video | `ffmpeg`, `libsndfile1`, `sox` (required by NeMo ASR/TTS) |
+| Audio/video | `ffmpeg`, `libsndfile1`, `sox` |
 
 To verify GPU access after pulling a new image:
 ```sh
