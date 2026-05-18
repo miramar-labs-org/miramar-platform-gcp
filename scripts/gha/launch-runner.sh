@@ -99,6 +99,9 @@ if [[ -n "${GITHUB_ORG_PAT:-}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_PAT=${GITHUB_ORG_PAT}")
 fi
 
+echo "Pulling latest image..."
+docker pull "${IMAGE}"
+
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     -v /var/run/docker.sock:/var/run/docker.sock \
