@@ -29,19 +29,19 @@ Docker automatically pulls the correct variant for the host architecture.
 
 ### Launch
 
-The [launch-runner.sh](mlabs-runner/launch-runner.sh) script pulls the multi-arch image and runs the correct variant for the host.
+The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch image and runs the correct variant for the host.
 
 ```sh
 # Org-level runner, foreground (Ctrl+C to stop and deregister)
-./mlabs-runner/launch-runner.sh --token <RUNNER_TOKEN>
+./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN>
 
 # Repo-level runner, detached
-./mlabs-runner/launch-runner.sh --token <RUNNER_TOKEN> \
+./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> \
   --repo miramar-platform-gcp \
   --detach
 
 # Custom labels, ephemeral (deregisters after one job)
-./mlabs-runner/launch-runner.sh --token <RUNNER_TOKEN> \
+./scripts/gha/launch-runner.sh --token <RUNNER_TOKEN> \
   --labels "self-hosted,linux,amd64,gpu" \
   --ephemeral
 ```
