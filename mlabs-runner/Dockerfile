@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM nvidia/cuda:12.4.1-cudnn9-runtime-ubuntu22.04
 
 ARG RUNNER_VERSION=2.334.0
 ARG TARGETARCH
@@ -7,9 +7,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RUNNER_USER=runner \
     RUNNER_HOME=/home/runner
 
-# Install runner runtime deps explicitly so installdependencies.sh is not
+# Runner runtime deps + audio/video libs required by NeMo ASR/TTS
+# Pre-installs runner .NET deps explicitly so installdependencies.sh is not
 # needed (running it under QEMU during arm64 cross-builds is unreliable).
-# Package list matches what installdependencies.sh installs on Ubuntu 22.04.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -25,6 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libkrb5-3 \
         zlib1g \
         libicu70 \
+        ffmpeg \
+        libsndfile1 \
+        sox \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Docker CLI (socket is mounted from the host at runtime)
@@ -65,14 +68,43 @@ RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm
 
 LABEL org.opencontainers.image.version="${RUNNER_VERSION}"
 
-# ML pipeline test dependencies (used by mlops-torch-triton-gke-pipeline pytest step)
+# PyTorch with CUDA 12.4
+# amd64: explicit CUDA wheels from pytorch.org; arm64: standard PyPI (ships CUDA-enabled for aarch64)
+RUN case "${TARGETARCH}" in \
+        amd64) pip3 install --no-cache-dir \
+                   torch torchvision torchaudio \
+                   --index-url https://download.pytorch.org/whl/cu124 ;; \
+        arm64) pip3 install --no-cache-dir \
+                   torch torchvision torchaudio ;; \
+    esac
+
+# NeMo toolkit — all subsets (nlp, asr, tts, multimodal)
+RUN pip3 install --no-cache-dir 'nemo_toolkit[all]'
+
+# HuggingFace ecosystem + genAI + ML tooling
 RUN pip3 install --no-cache-dir \
-    torch \
-    transformers \
-    datasets \
+    accelerate \
+    peft \
+    huggingface_hub \
+    diffusers \
+    optimum \
+    evaluate \
+    sentence-transformers \
+    timm \
+    einops \
+    bitsandbytes \
+    numpy \
+    scipy \
+    pandas \
+    scikit-learn \
+    tqdm \
+    pillow \
+    tensorboard \
     mlflow \
     onnx \
     onnxscript \
+    boto3 \
+    s3fs \
     dill \
     pytest
 
