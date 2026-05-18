@@ -40,7 +40,22 @@ EXTRA_FLAGS=""
 
 cleanup() {
     echo "Deregistering runner..."
-    ./config.sh remove --token "${RUNNER_TOKEN}" || true
+    REMOVE_TOKEN="${RUNNER_TOKEN}"
+    if [[ -n "${GITHUB_PAT:-}" ]]; then
+        # Registration tokens expire after 1 hour; fetch a fresh removal token
+        if [[ -n "${GITHUB_REPO}" ]]; then
+            REMOVE_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/remove-token"
+        else
+            REMOVE_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/remove-token"
+        fi
+        REMOVE_TOKEN=$(curl -fsSL \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GITHUB_PAT}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${REMOVE_URL}" | jq -r '.token')
+    fi
+    ./config.sh remove --token "${REMOVE_TOKEN}" || true
 }
 trap cleanup SIGTERM SIGINT SIGQUIT
 

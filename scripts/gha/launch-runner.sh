@@ -95,6 +95,10 @@ if [[ -n "${GITHUB_REPO}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_REPO=${GITHUB_REPO}")
 fi
 
+if [[ -n "${GITHUB_ORG_PAT:-}" ]]; then
+    DOCKER_ENV+=(-e "GITHUB_PAT=${GITHUB_ORG_PAT}")
+fi
+
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     -v /var/run/docker.sock:/var/run/docker.sock \
