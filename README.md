@@ -48,7 +48,7 @@ The [launch-runner.sh](gha-runners/launch-runner.sh) script detects the host arc
 |---|---|---|
 | `--token` | *(required)* | Runner registration token |
 | `--name` | hostname | Runner display name |
-| `--labels` | `self-hosted,linux,<arch>` | Comma-separated runner labels |
+| `--labels` | `self-hosted,linux,amd64,wsl2` or `self-hosted,linux,arm64,dgx` | Comma-separated runner labels |
 | `--repo` | *(unset — org-level)* | Scope to a specific repo (`owner/repo`) |
 | `--group` | `Default` | Runner group |
 | `--ephemeral` | false | Deregister after one job |

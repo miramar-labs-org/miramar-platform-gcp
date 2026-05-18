@@ -45,8 +45,8 @@ fi
 
 ARCH=$(uname -m)
 case "${ARCH}" in
-    x86_64)          IMAGE_SUFFIX="amd64" ;;
-    aarch64|arm64)   IMAGE_SUFFIX="arm64" ;;
+    x86_64)          IMAGE_SUFFIX="amd64"; DEFAULT_LABELS="self-hosted,linux,amd64,wsl2" ;;
+    aarch64|arm64)   IMAGE_SUFFIX="arm64"; DEFAULT_LABELS="self-hosted,linux,arm64,dgx" ;;
     *)
         echo "ERROR: Unsupported architecture: ${ARCH}" >&2
         exit 1
@@ -56,7 +56,7 @@ esac
 IMAGE="ghcr.io/${GITHUB_OWNER}/gha-runner-${IMAGE_SUFFIX}:latest"
 
 if [[ -z "${RUNNER_LABELS}" ]]; then
-    RUNNER_LABELS="self-hosted,linux,${IMAGE_SUFFIX}"
+    RUNNER_LABELS="${DEFAULT_LABELS}"
 fi
 
 echo "Architecture : ${ARCH} → ${IMAGE_SUFFIX}"
