@@ -117,6 +117,28 @@ if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_ORG_ADMIN_PAT=${GITHUB_ORG_ADMIN_PAT}")
 fi
 
+# Unregister any existing runner with the same name to avoid session conflicts
+if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
+    if [[ -n "${GITHUB_REPO}" ]]; then
+        RUNNERS_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners"
+    else
+        RUNNERS_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners"
+    fi
+    EXISTING_ID=$(curl -fsSL \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "${RUNNERS_URL}" | jq -r ".runners[] | select(.name == \"${RUNNER_NAME}\") | .id")
+    if [[ -n "${EXISTING_ID}" ]]; then
+        echo "Unregistering existing runner '${RUNNER_NAME}' (ID ${EXISTING_ID})..."
+        curl -fsSL -X DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${RUNNERS_URL}/${EXISTING_ID}"
+    fi
+fi
+
 echo "Pulling latest image..."
 docker pull "${IMAGE}"
 
