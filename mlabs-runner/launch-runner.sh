@@ -47,15 +47,15 @@ fi
 
 ARCH=$(uname -m)
 case "${ARCH}" in
-    x86_64)          IMAGE_SUFFIX="amd64"; DEFAULT_LABELS="self-hosted,linux,amd64,wsl2" ;;
-    aarch64|arm64)   IMAGE_SUFFIX="arm64"; DEFAULT_LABELS="self-hosted,linux,arm64,dgx" ;;
+    x86_64)          ARCH_LABEL="amd64"; DEFAULT_LABELS="self-hosted,linux,amd64,wsl2" ;;
+    aarch64|arm64)   ARCH_LABEL="arm64"; DEFAULT_LABELS="self-hosted,linux,arm64,dgx" ;;
     *)
         echo "ERROR: Unsupported architecture: ${ARCH}" >&2
         exit 1
         ;;
 esac
 
-IMAGE="ghcr.io/${GITHUB_OWNER}/gha-runner-${IMAGE_SUFFIX}:latest"
+IMAGE="ghcr.io/${GITHUB_OWNER}/mlabs-runner:latest"
 
 if [[ -z "${RUNNER_LABELS}" ]]; then
     RUNNER_LABELS="${DEFAULT_LABELS}"
@@ -77,7 +77,7 @@ if ! docker system info 2>/dev/null | grep -q "${GHCR_HOST}" && \
     fi
 fi
 
-echo "Architecture : ${ARCH} → ${IMAGE_SUFFIX}"
+echo "Architecture : ${ARCH} → ${ARCH_LABEL}"
 echo "Image        : ${IMAGE}"
 echo "Runner name  : ${RUNNER_NAME}"
 echo "Labels       : ${RUNNER_LABELS}"
@@ -103,5 +103,5 @@ fi
 
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
-    --name "gha-runner-${IMAGE_SUFFIX}" \
+    --name "mlabs-runner-${ARCH_LABEL}" \
     "${IMAGE}"

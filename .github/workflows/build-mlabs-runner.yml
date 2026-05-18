@@ -1,16 +1,16 @@
-name: Build GHA Runner Images
+name: Build MLABS Runner Image
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'gha-runners/**'
-      - '.github/workflows/build-gha-runners.yml'
+      - 'mlabs-runner/**'
+      - '.github/workflows/build-mlabs-runner.yml'
   pull_request:
     paths:
-      - 'gha-runners/**'
-      - '.github/workflows/build-gha-runners.yml'
+      - 'mlabs-runner/**'
+      - '.github/workflows/build-mlabs-runner.yml'
   workflow_dispatch:
     inputs:
       runner_version:
@@ -24,24 +24,13 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/gha-runner
+  IMAGE: ghcr.io/${{ github.repository_owner }}/mlabs-runner
   RUNNER_VERSION: ${{ inputs.runner_version || '2.334.0' }}
 
 jobs:
   build:
-    name: Build ${{ matrix.platform }} runner
+    name: Build multi-arch runner image
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: amd64
-            dockerfile: gha-runners/Dockerfile.amd64
-            image_suffix: amd64
-          - platform: arm64
-            dockerfile: gha-runners/Dockerfile.arm64
-            image_suffix: arm64
 
     steps:
       - name: Checkout
@@ -64,7 +53,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_BASE }}-${{ matrix.image_suffix }}
+          images: ${{ env.IMAGE }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=${{ env.RUNNER_VERSION }}
@@ -73,13 +62,13 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: gha-runners
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/${{ matrix.platform }}
+          context: mlabs-runner
+          file: mlabs-runner/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             RUNNER_VERSION=${{ env.RUNNER_VERSION }}
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

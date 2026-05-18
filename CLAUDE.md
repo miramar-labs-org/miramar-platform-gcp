@@ -48,16 +48,16 @@ The cluster is intentionally minimized. These constraints must be preserved:
 
 ## Self-hosted GHA runners
 
-`gha-runners/` contains Docker images for running GitHub Actions runners on the two self-hosted machines: an x86_64 laptop (WSL2/Ubuntu) and an aarch64 Spark DGX.
+`mlabs-runner/` contains Docker images for running GitHub Actions runners on the two self-hosted machines: an x86_64 laptop (WSL2/Ubuntu) and an aarch64 Spark DGX.
 
-**Build:** triggered automatically by `.github/workflows/build-gha-runners.yml` on push to `main`. Uses QEMU + buildx on GitHub-hosted runners to cross-compile both arches. Images push to GHCR as `ghcr.io/miramar-labs-org/gha-runner-amd64` and `ghcr.io/miramar-labs-org/gha-runner-arm64`.
+**Build:** triggered automatically by `.github/workflows/build-mlabs-runner.yml` on push to `main`. Uses QEMU + buildx to produce a single multi-arch manifest (`linux/amd64`, `linux/arm64`). Image pushes to GHCR as `ghcr.io/miramar-labs-org/mlabs-runner`.
 
 **Launch:**
 ```sh
-./gha-runners/launch-runner.sh --token <RUNNER_TOKEN>
+./mlabs-runner/launch-runner.sh --token <RUNNER_TOKEN>
 ```
-The script auto-detects arch (`uname -m`) and pulls the matching image. By default registers as an org-level runner for `miramar-labs-org`. Use `--repo <name>` for repo-level scope.
+Docker pulls the correct arch variant automatically. By default registers as an org-level runner for `miramar-labs-org`. Use `--repo <name>` for repo-level scope.
 
 **Runner registration tokens** are obtained from GitHub UI or API and expire after 1 hour. The container deregisters cleanly on `SIGTERM`.
 
-To bump the runner version, update `RUNNER_VERSION` in both Dockerfiles or trigger `workflow_dispatch` with the `runner_version` input.
+To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile` or trigger `workflow_dispatch` with the `runner_version` input.
