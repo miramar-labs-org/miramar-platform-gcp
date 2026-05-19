@@ -58,7 +58,7 @@ Two `workflow_dispatch` workflows in `.github/workflows/` temporarily expand the
 | GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `default-pool` to N nodes; prints original count in summary |
 | GKE Cluster Restore | `gke-cluster-restore.yaml` | Scale back to the original node count from the Expand summary |
 
-Typical sequence: run **Expand** → deploy workload → run **Restore** with the original count. Both run on `[self-hosted, wsl2]` and authenticate via WIF. The Expand workflow snapshots the current node count before resizing — the value appears in the job summary; pass it as `node_count` to Restore.
+Typical sequence: run **Expand** → deploy workload → run **Restore**. Both run on `[self-hosted, wsl2]` and authenticate via WIF. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback. Requires a one-time bucket create + SA IAM grant (see README).
 
 ## Terraform
 

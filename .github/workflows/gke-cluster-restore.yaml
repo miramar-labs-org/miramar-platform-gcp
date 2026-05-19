@@ -7,9 +7,9 @@ on:
         description: Node pool to restore
         default: default-pool
         required: true
-      node_count:
-        description: Original node count (from the Expand workflow summary)
-        required: true
+      node_count_override:
+        description: Override node count (leave blank to restore from saved state)
+        required: false
 
 permissions:
   contents: read
@@ -19,6 +19,7 @@ env:
   GCP_PROJECT_ID: miramar-platform
   GKE_CLUSTER_NAME: miramar-shared-gke
   GKE_ZONE: us-west1-a
+  CLUSTER_STATE_BUCKET: miramar-platform-cluster-state
 
 jobs:
   restore:
@@ -33,13 +34,34 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Load node pool state
+        id: state
+        run: |
+          if [ -n "${{ inputs.node_count_override }}" ]; then
+            RESTORE_COUNT="${{ inputs.node_count_override }}"
+            MACHINE="(manual override)"
+            echo "::notice title=Manual override::Restoring to $RESTORE_COUNT node(s)"
+          else
+            STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/node-pool-${{ inputs.node_pool }}.json"
+            if ! gsutil -q stat "$STATE_PATH" 2>/dev/null; then
+              echo "::error::No saved state at $STATE_PATH — run GKE Cluster Expand first, or set node_count_override."
+              exit 1
+            fi
+            gsutil cp "$STATE_PATH" /tmp/pool-state.json
+            RESTORE_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/pool-state.json')); print(d.get('_snapshotLiveNodeCount', d['initialNodeCount']))")
+            MACHINE=$(python3 -c "import json; print(json.load(open('/tmp/pool-state.json'))['config']['machineType'])")
+            echo "::notice title=State loaded::Restoring to $RESTORE_COUNT × $MACHINE from $STATE_PATH"
+          fi
+          echo "restore_count=$RESTORE_COUNT" >> "$GITHUB_OUTPUT"
+          echo "machine_type=$MACHINE" >> "$GITHUB_OUTPUT"
+
       - name: Restore node pool
         run: |
           gcloud container clusters resize "$GKE_CLUSTER_NAME" \
             --zone "$GKE_ZONE" \
             --project "$GCP_PROJECT_ID" \
             --node-pool "${{ inputs.node_pool }}" \
-            --num-nodes "${{ inputs.node_count }}" \
+            --num-nodes "${{ steps.state.outputs.restore_count }}" \
             --quiet
 
       - name: Summary
@@ -49,5 +71,6 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Node pool | \`${{ inputs.node_pool }}\` |"
-            echo "| Restored to | \`${{ inputs.node_count }}\` node(s) |"
+            echo "| Machine type | \`${{ steps.state.outputs.machine_type }}\` |"
+            echo "| Restored to | \`${{ steps.state.outputs.restore_count }}\` node(s) |"
           } >> "$GITHUB_STEP_SUMMARY"

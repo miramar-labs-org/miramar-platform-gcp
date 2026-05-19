@@ -320,22 +320,35 @@ Install Terraform via apt on Ubuntu/Debian.
 
 ## GKE Cluster Scaling Workflows
 
-Two `workflow_dispatch` workflows let you temporarily expand the cluster for heavier workloads (ML deployments, load testing) and then restore it to its original size.
+Two `workflow_dispatch` workflows let you temporarily expand the cluster for heavier workloads (ML deployments, load testing) and then restore it to its original size automatically.
+
+Before the resize, Expand snapshots the full node pool JSON and the live node count into a GCS state file (`gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`). Restore reads that file — no manual count needed.
+
+### One-time setup
+
+Create the state bucket and grant the deploy SA write access (run once, from any authenticated session):
+
+```sh
+gcloud storage buckets create gs://miramar-platform-cluster-state \
+  --project=miramar-platform --location=us-west1
+
+gcloud storage buckets add-iam-policy-binding gs://miramar-platform-cluster-state \
+  --member=serviceAccount:gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
+  --role=roles/storage.objectAdmin
+```
 
 ### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
 
-Resizes `default-pool` to a higher node count and waits for all nodes to reach `Ready`. Before resizing, it snapshots the current node count and prints it in the job summary — you'll need that value for Restore.
+Snapshots the current node pool state (machine type, configured count, live node count) to GCS, then resizes to `target_nodes` and waits for all nodes to reach `Ready`.
 
 1. Go to **Actions → GKE Cluster Expand → Run workflow**
 2. Set `target_nodes` (default: `2`) and optionally `node_pool` (default: `default-pool`)
-3. After the job completes, copy the **Original node count** from the job summary
 
 ### [GKE Cluster Restore](.github/workflows/gke-cluster-restore.yaml)
 
-Resizes the node pool back to its pre-expansion count.
+Loads the saved state from GCS and resizes the pool back to the pre-expansion live node count. Pass `node_count_override` only if you need to bypass the saved state.
 
 1. Go to **Actions → GKE Cluster Restore → Run workflow**
-2. Paste the original count from the Expand summary into `node_count`
-3. Set `node_pool` if you changed it during Expand (default: `default-pool`)
+2. Leave `node_count_override` blank (reads from GCS automatically)
 
 Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via Workload Identity Federation.
