@@ -79,7 +79,7 @@ RUN case "${TARGETARCH}" in \
     esac
 
 # HuggingFace ecosystem + genAI + ML tooling
-RUN pip3 install --no-cache-dir \
+RUN pip3 install --no-cache-dir --upgrade \
     transformers \
     accelerate \
     peft \
