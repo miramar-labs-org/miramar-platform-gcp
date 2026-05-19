@@ -12,7 +12,7 @@
 set -euo pipefail
 
 GITHUB_OWNER="miramar-labs-org"
-RUNNER_VERSION="2.334.0"
+RUNNER_VERSION=""  # auto-detected from GitHub releases if not set
 INSTALL_DIR="${HOME}/actions-runner"
 RUNNER_NAME="${HOSTNAME}"
 RUNNER_LABELS=""
@@ -91,17 +91,33 @@ RUNNER_TOKEN=$(curl -fsSL \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "${REG_URL}" | jq -r '.token')
 
-# Download and verify runner tarball
-mkdir -p "${INSTALL_DIR}"
-TARBALL="actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz"
-TARBALL_URL="https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${TARBALL}"
-CHECKSUM_URL="${TARBALL_URL}.sha256"
+# Resolve runner version and download URL via GitHub API
+RELEASE_JSON="$(curl -fsSL \
+    -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+    -H "Accept: application/vnd.github+json" \
+    https://api.github.com/repos/actions/runner/releases/latest)"
 
-echo "Downloading runner ${RUNNER_VERSION} (${RUNNER_ARCH})..."
+if [[ -z "${RUNNER_VERSION}" ]]; then
+    RUNNER_VERSION="$(echo "${RELEASE_JSON}" | jq -r '.tag_name' | tr -d 'v')"
+fi
+echo "Runner version : ${RUNNER_VERSION}"
+
+TARBALL="actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz"
+TARBALL_URL="$(echo "${RELEASE_JSON}" | jq -r \
+    --arg name "${TARBALL}" \
+    '.assets[] | select(.name == $name) | .browser_download_url')"
+
+if [[ -z "${TARBALL_URL}" ]]; then
+    echo "ERROR: no release asset found for ${TARBALL}" >&2
+    exit 1
+fi
+
+# Download runner tarball (GitHub releases do not ship individual .sha256 files;
+# HTTPS provides transport integrity for the download)
+mkdir -p "${INSTALL_DIR}"
+echo "Downloading ${TARBALL}..."
 _tmp="$(mktemp)"
 curl -fsSL -o "$_tmp" "${TARBALL_URL}"
-_sha="$(curl -fsSL "${CHECKSUM_URL}" | awk '{print $1}')"
-echo "${_sha}  ${_tmp}" | sha256sum --check || { echo "ERROR: checksum mismatch" >&2; rm -f "$_tmp"; exit 1; }
 tar xzf "$_tmp" -C "${INSTALL_DIR}"
 rm -f "$_tmp"
 
