@@ -60,7 +60,15 @@ fi
 ARCH="$(uname -m)"
 case "${ARCH}" in
     x86_64)        RUNNER_ARCH="x64";   ARCH_LABEL="amd64";  MACHINE_LABEL="wsl2" ;;
-    aarch64|arm64) RUNNER_ARCH="arm64"; ARCH_LABEL="arm64";  MACHINE_LABEL="dgx"  ;;
+    aarch64|arm64)
+        RUNNER_ARCH="arm64"; ARCH_LABEL="arm64"
+        if [[ -f /proc/device-tree/model ]] && \
+           tr -d '\0' < /proc/device-tree/model | grep -qi "orin\|jetson"; then
+            MACHINE_LABEL="agx"
+        else
+            MACHINE_LABEL="dgx"
+        fi
+        ;;
     *) echo "ERROR: Unsupported architecture: ${ARCH}" >&2; exit 1 ;;
 esac
 

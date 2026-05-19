@@ -61,8 +61,22 @@ fi
 
 ARCH=$(uname -m)
 case "${ARCH}" in
-    x86_64)          ARCH_LABEL="amd64"; DEFAULT_LABELS="self-hosted,linux,amd64,wsl2" ;;
-    aarch64|arm64)   ARCH_LABEL="arm64"; DEFAULT_LABELS="self-hosted,linux,arm64,dgx" ;;  # override with --labels on AGX (use agx instead of dgx)
+    x86_64)
+        ARCH_LABEL="amd64"
+        DEFAULT_LABELS="self-hosted,linux,amd64,wsl2"
+        ;;
+    aarch64|arm64)
+        ARCH_LABEL="arm64"
+        # Detect Jetson (Tegra) vs DGX (server) via device-tree model string.
+        # /proc/device-tree/model is present on all ARM device-tree platforms;
+        # Jetson boards always include "Orin" or "Jetson" in that string.
+        if [[ -f /proc/device-tree/model ]] && \
+           tr -d '\0' < /proc/device-tree/model | grep -qi "orin\|jetson"; then
+            DEFAULT_LABELS="self-hosted,linux,arm64,agx"
+        else
+            DEFAULT_LABELS="self-hosted,linux,arm64,dgx"
+        fi
+        ;;
     *)
         echo "ERROR: Unsupported architecture: ${ARCH}" >&2
         exit 1
