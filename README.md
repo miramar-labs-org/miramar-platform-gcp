@@ -14,7 +14,7 @@ On-premises machines acting as self-hosted GitHub Actions runners and general co
 | NVIDIA DGX Spark 128GB | DGX OS (Ubuntu) | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 5th-gen Tensor Cores | 12.6 | `dgx` |
 | NVIDIA Jetson AGX Orin 64GB | Ubuntu (JetPack 6.x) | aarch64 / arm64 | 12-core Cortex-A78AE | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87) | 12.6 | `orin` |
 
-The WSL2 and DGX machines run the [mlabs-runner](mlabs-runner/) Docker image (`nvidia/cuda:12.6`, multi-arch). The Orin uses a separate `mlabs-runner:jetson` image built on L4T — Jetson's Tegra unified-memory GPU requires L4T base images rather than the standard `nvidia/cuda` server images.
+All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`. GPU access inside the container works natively on the DGX (SBSA). On the Orin (Tegra unified memory), it should also work via the NVIDIA container runtime mounting host JetPack libs, but verify with `torch.cuda.is_available()` after first launch.
 
 ### Cloud infrastructure (GCP)
 
