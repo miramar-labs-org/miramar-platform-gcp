@@ -128,7 +128,7 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 
 # Custom labels, ephemeral (deregisters after one job)
 ./scripts/gha/launch-runner.sh \
-  --labels "self-hosted,linux,amd64,gpu" \
+  --labels "self-hosted,linux,amd64,wsl2" \
   --ephemeral
 ```
 
