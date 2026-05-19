@@ -115,21 +115,16 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 
 ```sh
 # Org-level runner, foreground (Ctrl+C to stop and deregister)
+# Machine label is auto-detected: wsl2 (amd64), dgx or agx (arm64 via /proc/device-tree/model)
 ./scripts/gha/launch-runner.sh
-
-# On the Jetson AGX Orin — override default arm64 label (defaults to dgx)
-./scripts/gha/launch-runner.sh \
-  --labels "self-hosted,linux,arm64,agx"
 
 # Repo-level runner, detached
 ./scripts/gha/launch-runner.sh \
   --repo miramar-platform-gcp \
   --detach
 
-# Custom labels, ephemeral (deregisters after one job)
-./scripts/gha/launch-runner.sh \
-  --labels "self-hosted,linux,amd64,wsl2" \
-  --ephemeral
+# Ephemeral (deregisters after one job)
+./scripts/gha/launch-runner.sh --ephemeral
 ```
 
 **All options:**
@@ -138,7 +133,7 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 |---|---|---|
 | `--token` | *(auto-fetched)* | Runner registration token — fetched via `GITHUB_ORG_ADMIN_PAT` if not supplied |
 | `--name` | hostname | Runner display name |
-| `--labels` | `self-hosted,linux,amd64,wsl2` or `self-hosted,linux,arm64,dgx` | Comma-separated runner labels |
+| `--labels` | `wsl2` / `dgx` / `agx` — auto-detected from arch and `/proc/device-tree/model` | Comma-separated runner labels |
 | `--repo` | *(unset — org-level)* | Scope to a specific repo (`owner/repo`) |
 | `--group` | `Default` | Runner group |
 | `--ephemeral` | false | Deregister after one job |
