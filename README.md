@@ -8,12 +8,13 @@ GCP infrastructure and CI/CD tooling for the Miramar platform.
 
 On-premises machines acting as self-hosted GitHub Actions runners and general compute:
 
-| Machine | OS | Arch | CPU | GPU | Runner label |
-|---|---|---|---|---|---|
-| Windows laptop | Ubuntu 24.04 (WSL2) | x86_64 / amd64 | AMD | NVIDIA GeForce RTX 4060 | `wsl2` |
-| NVIDIA Spark DGX | Ubuntu | aarch64 / arm64 | Grace (Neoverse V2) | GB10 Superchip (H100, sm_90) | `dgx` |
+| Machine | OS | Arch | CPU | GPU | CUDA | Runner label |
+|---|---|---|---|---|---|---|
+| Windows laptop | Ubuntu 24.04 (WSL2) | x86_64 / amd64 | AMD | NVIDIA GeForce RTX 4060 (Ada Lovelace, sm_89) | 12.6 | `wsl2` |
+| NVIDIA DGX Spark 128GB | DGX OS (Ubuntu) | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 5th-gen Tensor Cores | 12.6 | `dgx` |
+| NVIDIA Jetson AGX Orin 64GB | Ubuntu (JetPack 6.x) | aarch64 / arm64 | 12-core Cortex-A78AE | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87) | 12.6 | `orin` |
 
-Both run the [mlabs-runner](mlabs-runner/) Docker image (CUDA 12.4, multi-arch). A third machine — **NVIDIA Jetson AGX Orin** — is planned; it will use a separate `mlabs-runner:jetson` image based on L4T due to Tegra's unified-memory GPU architecture.
+The WSL2 and DGX machines run the [mlabs-runner](mlabs-runner/) Docker image (`nvidia/cuda:12.6`, multi-arch). The Orin uses a separate `mlabs-runner:jetson` image built on L4T — Jetson's Tegra unified-memory GPU requires L4T base images rather than the standard `nvidia/cuda` server images.
 
 ### Cloud infrastructure (GCP)
 
