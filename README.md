@@ -260,6 +260,19 @@ List all runners registered to the org, with status and labels.
 ./scripts/gha/runners.sh
 ```
 
+#### [install-runner.sh](scripts/gha/install-runner.sh)
+Install and register a runner directly on the host (no Docker). Useful for the Jetson AGX Orin or any machine where you want the runner running natively. Downloads the correct arch tarball, verifies the SHA256 checksum, configures, and optionally installs as a systemd service.
+```sh
+# Basic install (org-level, foreground)
+./scripts/gha/install-runner.sh --labels "self-hosted,linux,arm64,agx"
+
+# Install and start as a systemd service
+./scripts/gha/install-runner.sh --labels "self-hosted,linux,arm64,agx" --service
+
+# Repo-level, ephemeral
+./scripts/gha/install-runner.sh --repo miramar-platform-gcp --ephemeral
+```
+
 #### [unregister-runner.sh](scripts/gha/unregister-runner.sh)
 Remove a runner from the org via the GitHub API. Lists runners and prompts for ID, or pass a name directly.
 ```sh
