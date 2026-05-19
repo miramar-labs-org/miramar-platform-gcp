@@ -62,7 +62,7 @@ fi
 ARCH=$(uname -m)
 case "${ARCH}" in
     x86_64)          ARCH_LABEL="amd64"; DEFAULT_LABELS="self-hosted,linux,amd64,wsl2" ;;
-    aarch64|arm64)   ARCH_LABEL="arm64"; DEFAULT_LABELS="self-hosted,linux,arm64,dgx" ;;
+    aarch64|arm64)   ARCH_LABEL="arm64"; DEFAULT_LABELS="self-hosted,linux,arm64,dgx" ;;  # override with --labels on AGX (use agx instead of dgx)
     *)
         echo "ERROR: Unsupported architecture: ${ARCH}" >&2
         exit 1
