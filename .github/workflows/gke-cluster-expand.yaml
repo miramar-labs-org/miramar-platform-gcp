@@ -1,0 +1,85 @@
+name: GKE Cluster Expand
+
+on:
+  workflow_dispatch:
+    inputs:
+      node_pool:
+        description: Node pool to resize
+        default: default-pool
+        required: true
+      target_nodes:
+        description: Number of nodes while testing
+        default: '2'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: miramar-platform
+  GKE_CLUSTER_NAME: miramar-shared-gke
+  GKE_ZONE: us-west1-a
+
+jobs:
+  expand:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Snapshot current node count
+        id: snapshot
+        run: |
+          CURRENT=$(gcloud container node-pools describe "${{ inputs.node_pool }}" \
+            --cluster "$GKE_CLUSTER_NAME" \
+            --zone "$GKE_ZONE" \
+            --project "$GCP_PROJECT_ID" \
+            --format="value(initialNodeCount)")
+          echo "original_count=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Original node count::$CURRENT — pass this to GKE Cluster Restore when done."
+
+      - name: Expand node pool
+        run: |
+          gcloud container clusters resize "$GKE_CLUSTER_NAME" \
+            --zone "$GKE_ZONE" \
+            --project "$GCP_PROJECT_ID" \
+            --node-pool "${{ inputs.node_pool }}" \
+            --num-nodes "${{ inputs.target_nodes }}" \
+            --quiet
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Wait for nodes Ready
+        run: |
+          echo "Waiting for ${{ inputs.target_nodes }} node(s) to be Ready..."
+          for i in $(seq 1 30); do
+            READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -c " Ready" || echo 0)
+            echo "Ready: $READY / ${{ inputs.target_nodes }}"
+            [ "$READY" -ge "${{ inputs.target_nodes }}" ] && break
+            sleep 10
+          done
+
+      - name: Summary
+        run: |
+          {
+            echo "## GKE Cluster Expanded"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Node pool | \`${{ inputs.node_pool }}\` |"
+            echo "| Nodes now | \`${{ inputs.target_nodes }}\` |"
+            echo "| **Original count** | \`${{ steps.snapshot.outputs.original_count }}\` |"
+            echo ""
+            echo "> Trigger **ML Deploy** then **GKE Cluster Restore** with node count \`${{ steps.snapshot.outputs.original_count }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"

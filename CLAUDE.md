@@ -49,6 +49,17 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 
 GCP zsh scripts require `gcloud` and `kubectl` on `$PATH` with an active authenticated session.
 
+## GKE cluster scaling workflows
+
+Two `workflow_dispatch` workflows in `.github/workflows/` temporarily expand the cluster for heavier workloads and then restore it:
+
+| Workflow | File | Purpose |
+|---|---|---|
+| GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `default-pool` to N nodes; prints original count in summary |
+| GKE Cluster Restore | `gke-cluster-restore.yaml` | Scale back to the original node count from the Expand summary |
+
+Typical sequence: run **Expand** → deploy workload → run **Restore** with the original count. Both run on `[self-hosted, wsl2]` and authenticate via WIF. The Expand workflow snapshots the current node count before resizing — the value appears in the job summary; pass it as `node_count` to Restore.
+
 ## Terraform
 
 `gcp/terraform/` manages the GKE cluster and node pool only (does not manage IAM, WIF, or Artifact Registry — those are handled by `gcp/setup-miramar-gke-cicd.zsh`).

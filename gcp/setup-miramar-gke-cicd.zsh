@@ -79,6 +79,7 @@ GITHUB_OWNER="miramar-labs"
 # One namespace per app/project/repo.
 PROJECT_NAMES=(
   "github-actions-hello"
+  "mlops-torch-triton-gke-pipeline"
 )
 
 # Prefer one deploy service account per namespace.

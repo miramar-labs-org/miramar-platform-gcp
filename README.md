@@ -315,3 +315,27 @@ Install Terraform via apt on Ubuntu/Debian.
 | `gcp/resume-miramar-platform.zsh` | Scale GKE node pool back up |
 | `gcp/verify-nuked-miramar-platform.zsh` | Confirm all resources torn down after deletion |
 | `gcp/patch-namespace-manager-rbac.zsh` | Patch RBAC after cluster re-create |
+
+---
+
+## GKE Cluster Scaling Workflows
+
+Two `workflow_dispatch` workflows let you temporarily expand the cluster for heavier workloads (ML deployments, load testing) and then restore it to its original size.
+
+### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
+
+Resizes `default-pool` to a higher node count and waits for all nodes to reach `Ready`. Before resizing, it snapshots the current node count and prints it in the job summary — you'll need that value for Restore.
+
+1. Go to **Actions → GKE Cluster Expand → Run workflow**
+2. Set `target_nodes` (default: `2`) and optionally `node_pool` (default: `default-pool`)
+3. After the job completes, copy the **Original node count** from the job summary
+
+### [GKE Cluster Restore](.github/workflows/gke-cluster-restore.yaml)
+
+Resizes the node pool back to its pre-expansion count.
+
+1. Go to **Actions → GKE Cluster Restore → Run workflow**
+2. Paste the original count from the Expand summary into `node_count`
+3. Set `node_pool` if you changed it during Expand (default: `default-pool`)
+
+Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via Workload Identity Federation.

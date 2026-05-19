@@ -1,0 +1,53 @@
+name: GKE Cluster Restore
+
+on:
+  workflow_dispatch:
+    inputs:
+      node_pool:
+        description: Node pool to restore
+        default: default-pool
+        required: true
+      node_count:
+        description: Original node count (from the Expand workflow summary)
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: miramar-platform
+  GKE_CLUSTER_NAME: miramar-shared-gke
+  GKE_ZONE: us-west1-a
+
+jobs:
+  restore:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Restore node pool
+        run: |
+          gcloud container clusters resize "$GKE_CLUSTER_NAME" \
+            --zone "$GKE_ZONE" \
+            --project "$GCP_PROJECT_ID" \
+            --node-pool "${{ inputs.node_pool }}" \
+            --num-nodes "${{ inputs.node_count }}" \
+            --quiet
+
+      - name: Summary
+        run: |
+          {
+            echo "## GKE Cluster Restored"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Node pool | \`${{ inputs.node_pool }}\` |"
+            echo "| Restored to | \`${{ inputs.node_count }}\` node(s) |"
+          } >> "$GITHUB_STEP_SUMMARY"
