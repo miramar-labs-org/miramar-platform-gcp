@@ -5,7 +5,7 @@ on:
     inputs:
       node_pool:
         description: Node pool to restore
-        default: e2-medium-pool
+        default: default-pool
         required: true
       node_count_override:
         description: Override node count (leave blank to restore from saved state)
