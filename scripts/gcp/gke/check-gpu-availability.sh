@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Checks GPU availability in GCP zones near the cluster.
+# Checks GPU availability across zones for a given GPU type.
+# Shows which zones support the GPU, quota status, and — if the current
+# cluster zone is exhausted — which other zones you can move to.
 #
 # Usage:
 #   ./check-gpu-availability.sh [gpu_type] [region]
@@ -38,26 +40,33 @@ case "$GPU_TYPE" in
   *)                 MACHINE_TYPE="n1-standard-4"  QUOTA_METRIC=""                  ;;
 esac
 
-echo "GPU type     : $GPU_TYPE"
+echo "GPU type     : $GPU_TYPE  (machine: $MACHINE_TYPE)"
 echo "Region       : $REGION"
 echo "Project      : $PROJECT"
 echo "Cluster zone : $CLUSTER_ZONE"
 echo ""
 
 # --- Step 1: list zones in the region that advertise this GPU ---
-echo "==> Zones in $REGION advertising $GPU_TYPE:"
+echo "==> Zones in $REGION with $GPU_TYPE:"
+echo ""
+
 AVAILABLE_ZONES=$(gcloud compute accelerator-types list \
   --filter="name:${GPU_TYPE} AND zone~${REGION}" \
   --format="value(zone)" \
   --project "$PROJECT" | sort -u)
 
+ALTERNATIVE_ZONES=()
+
 if [[ -z "$AVAILABLE_ZONES" ]]; then
   echo "    None found in $REGION."
 else
   while IFS= read -r zone; do
-    marker=""
-    [[ "$zone" == "$CLUSTER_ZONE" ]] && marker=" ← cluster zone"
-    echo "    $zone$marker"
+    if [[ "$zone" == "$CLUSTER_ZONE" ]]; then
+      echo "    $zone  ← current cluster zone"
+    else
+      echo "    $zone  ← alternative (requires cluster recreation)"
+      ALTERNATIVE_ZONES+=("$zone")
+    fi
   done <<< "$AVAILABLE_ZONES"
 fi
 
@@ -90,11 +99,31 @@ else
 fi
 
 echo ""
-echo "Note: quota shows your project allocation ceiling — a GCE stockout is a"
-echo "separate capacity shortage on Google's side."
+echo "Note: quota shows your project allocation ceiling. ZONE_RESOURCE_POOL_EXHAUSTED"
+echo "      is a GCE hardware shortage — it is separate from quota."
+
+# --- Step 3: If current zone is exhausted, show what to change ---
+echo ""
+echo "==> If $CLUSTER_ZONE is exhausted, to move the cluster:"
+echo ""
+if [[ ${#ALTERNATIVE_ZONES[@]} -eq 0 ]]; then
+  echo "    No alternative zones found in $REGION for $GPU_TYPE."
+  echo "    Try a different region or a different GPU type."
+else
+  echo "    1. Edit gcp/terraform/terraform.tfvars and gcp/terraform-gpu/gpu.tfvars:"
+  for z in "${ALTERNATIVE_ZONES[@]}"; do
+    r="$(echo "$z" | sed 's/-[a-z]$//')"
+    echo "         zone = \"$z\"   region = \"$r\""
+  done
+  echo ""
+  echo "    2. Commit + push, then sync vars:"
+  echo "         ./scripts/gha/sync-github-vars.sh"
+  echo ""
+  echo "    3. Run: GKE Restore GPU → Miramar Platform Destroy → Miramar Platform Create → GKE Expand GPU"
+fi
 
 echo ""
-echo "==> GKE Expand GPU workflow inputs:"
+echo "==> GKE Expand GPU workflow inputs (for $CLUSTER_ZONE):"
 echo ""
 echo "    Namespace    : mlops-torch-triton-gke-pipeline"
 echo "    Machine type : $MACHINE_TYPE"
