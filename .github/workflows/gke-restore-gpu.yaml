@@ -19,14 +19,14 @@ env:
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
   GKE_ZONE: ${{ vars.GKE_ZONE }}
-  GPU_ZONE: us-west1-b
-  GPU_POOL: gpu-triton-pool
   CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
 
 jobs:
   restore:
     runs-on: [self-hosted, wsl2]
     steps:
+      - uses: actions/checkout@v4
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -70,26 +70,22 @@ jobs:
 
       - name: Delete GPU node pool
         id: del_pool
+        working-directory: gcp/terraform-gpu
         run: |
-          if gcloud container node-pools describe "$GPU_POOL" \
-              --cluster "$GKE_CLUSTER_NAME" \
-              --zone "$GPU_ZONE" \
-              --project "$GCP_PROJECT_ID" &>/dev/null; then
-            gcloud container node-pools delete "$GPU_POOL" \
-              --cluster "$GKE_CLUSTER_NAME" \
-              --zone "$GPU_ZONE" \
-              --project "$GCP_PROJECT_ID" \
-              --quiet
+          terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
+          if terraform show -json 2>/dev/null \
+              | python3 -c "import json,sys; r=json.load(sys.stdin).get('values',{}).get('root_module',{}).get('resources',[]); sys.exit(0 if r else 1)"; then
+            terraform destroy -auto-approve -var-file=gpu.tfvars
             echo "result=deleted" >> "$GITHUB_OUTPUT"
           else
-            echo "GPU pool not found — skipping."
+            echo "No GPU pool in Terraform state — skipping."
             echo "result=skipped" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Summary
         run: |
           {
-            echo "## GKE Triton Restored"
+            echo "## GKE Restore GPU"
             echo "| | |"
             echo "|---|---|"
             echo "| GPU pool | ${{ steps.del_pool.outputs.result }} |"

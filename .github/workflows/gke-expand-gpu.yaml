@@ -34,14 +34,14 @@ env:
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
   GKE_ZONE: ${{ vars.GKE_ZONE }}
-  GPU_ZONE: us-west1-b
-  GPU_POOL: gpu-triton-pool
   CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
 
 jobs:
   expand:
     runs-on: [self-hosted, wsl2]
     steps:
+      - uses: actions/checkout@v4
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -68,25 +68,13 @@ jobs:
           echo "::notice::Quota snapshot saved to gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
 
       - name: Create GPU node pool
+        working-directory: gcp/terraform-gpu
         run: |
-          if gcloud container node-pools describe "$GPU_POOL" \
-              --cluster "$GKE_CLUSTER_NAME" \
-              --zone "$GPU_ZONE" \
-              --project "$GCP_PROJECT_ID" &>/dev/null; then
-            echo "GPU node pool already exists — skipping creation."
-          else
-            echo "Creating GPU node pool: $GPU_POOL"
-            gcloud container node-pools create "$GPU_POOL" \
-              --cluster "$GKE_CLUSTER_NAME" \
-              --zone "$GPU_ZONE" \
-              --project "$GCP_PROJECT_ID" \
-              --machine-type "${{ inputs.machine_type }}" \
-              --accelerator "type=${{ inputs.gpu_type }},count=1" \
-              --num-nodes 1 \
-              --disk-type pd-standard \
-              --disk-size 50 \
-              --quiet
-          fi
+          terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
+          terraform apply -auto-approve \
+            -var-file=gpu.tfvars \
+            -var="gpu_machine_type=${{ inputs.machine_type }}" \
+            -var="gpu_type=${{ inputs.gpu_type }}"
 
       - name: Install NVIDIA device plugin
         run: |
@@ -125,12 +113,11 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "## GKE Triton Expand"
+            echo "## GKE Expand GPU"
             echo "| | |"
             echo "|---|---|"
-            echo "| GPU pool | \`$GPU_POOL\` |"
+            echo "| GPU pool | \`gpu-triton-pool\` |"
             echo "| Machine | \`${{ inputs.machine_type }}\` + \`${{ inputs.gpu_type }}\` |"
-            echo "| Zone | \`$GPU_ZONE\` |"
             echo "| Namespace | \`${{ inputs.namespace }}\` |"
             echo ""
             echo "> Run **GKE Restore GPU** when done to remove the GPU pool and restore quota."
