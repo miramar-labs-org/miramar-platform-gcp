@@ -316,10 +316,13 @@ gcloud --quiet auth list --filter=status:ACTIVE --format='value(account)' || tru
 
 log "Setting active project to ${PROJECT_ID}"
 gcloud --quiet config set project "$PROJECT_ID" >/dev/null || true
-gcloud --quiet config set billing/quota_project "$PROJECT_ID" >/dev/null || true
+# billing/quota_project is set AFTER the project is confirmed to exist —
+# setting it to a deleted project poisons all subsequent API calls.
 
 log "Creating/checking project"
 create_project_if_missing "$PROJECT_ID" "Miramar Platform"
+
+gcloud --quiet config set billing/quota_project "$PROJECT_ID" >/dev/null || true
 
 log "Enabling base APIs before billing checks"
 enable_base_apis_for_billing_checks
