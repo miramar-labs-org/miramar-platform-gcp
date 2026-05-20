@@ -83,12 +83,7 @@ jobs:
       - name: Terraform Apply
         working-directory: gcp/terraform
         run: |
-          terraform apply -auto-approve \
-            -var="project_id=$PROJECT_ID" \
-            -var="region=$GCP_REGION" \
-            -var="zone=$GKE_ZONE" \
-            -var="cluster_name=$GKE_CLUSTER_NAME" \
-            -var="ar_repo=$AR_REPO"
+          terraform apply -auto-approve -var-file=terraform.tfvars
 
       - name: Get GKE credentials (WIF)
         if: steps.wif_auth.outcome == 'success'

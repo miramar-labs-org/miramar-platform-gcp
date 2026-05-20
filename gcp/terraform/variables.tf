@@ -1,29 +1,23 @@
 variable "project_id" {
-  type    = string
-  default = "miramar-platform"
+  type = string
 }
 
 variable "region" {
-  type    = string
-  default = "us-west1"
+  type = string
 }
 
 variable "zone" {
-  type    = string
-  default = "us-west1-a"
+  type = string
 }
 
 variable "cluster_name" {
-  type    = string
-  default = "miramar-shared-gke"
+  type = string
 }
 
 variable "ar_repo" {
-  type    = string
-  default = "apps"
+  type = string
 }
 
 variable "node_pool_count" {
-  type    = number
-  default = 1
+  type = number
 }

@@ -68,11 +68,7 @@ jobs:
         working-directory: gcp/terraform
         run: |
           terraform apply -auto-approve \
-            -var="project_id=$GCP_PROJECT_ID" \
-            -var="region=$GCP_REGION" \
-            -var="zone=$GKE_ZONE" \
-            -var="cluster_name=$GKE_CLUSTER_NAME" \
-            -var="ar_repo=$AR_REPO" \
+            -var-file=terraform.tfvars \
             -var="node_pool_count=${{ steps.state.outputs.restore_count }}"
 
       - name: Summary
