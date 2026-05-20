@@ -1,15 +1,15 @@
 name: Miramar Platform Create
 
-# Runs gcp/setup-miramar-gke-cicd.zsh to provision (or re-provision) the
-# entire miramar-platform stack: GCP project, billing, APIs, WIF pool/provider,
-# service accounts, Artifact Registry, GKE cluster, namespaces, RBAC, and the
-# cluster state bucket. The script is idempotent — existing resources are left
-# untouched.
+# Provisions (or re-provisions) the entire miramar-platform stack:
+# GCP project, billing, APIs, WIF pool/provider, service accounts,
+# Artifact Registry, GKE cluster, namespaces, RBAC, and cluster state bucket.
+# The setup script is idempotent — existing resources are left untouched.
 #
-# First-time bootstrap note:
-#   WIF does not exist yet on a cold start, so this workflow cannot be used for
-#   the very first run. Run the Miramar Platform Bootstrap workflow once instead.
-#   After that, WIF is in place and this workflow handles all subsequent runs.
+# Cold start (first run — WIF secrets not yet set):
+#   Run with WIF_PROVIDER and GCP_SERVICE_ACCOUNT secrets absent or empty.
+#   Uses the runner's existing gcloud session instead of WIF.
+#   Job summary will print WIF_PROVIDER and GCP_SERVICE_ACCOUNT values
+#   to set as GitHub secrets — all subsequent runs will use WIF.
 
 on:
   workflow_dispatch:
@@ -29,27 +29,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP
+      - name: Authenticate to GCP (WIF)
+        if: ${{ secrets.WIF_PROVIDER != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
+        if: ${{ secrets.WIF_PROVIDER != '' }}
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Verify gcloud authentication
+        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
+
       - name: Run setup script
-        run: ./gcp/setup-miramar-gke-cicd.zsh
+        run: ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/setup.log
 
-      - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
-        with:
-          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
-          location: ${{ env.GKE_ZONE }}
-          project_id: ${{ env.PROJECT_ID }}
-
-      - name: Show cluster and namespace state
+      - name: Show cluster state
         run: |
+          gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" \
+            --zone "$GKE_ZONE" --project "$PROJECT_ID"
           echo "--- Nodes ---"
           kubectl get nodes -o wide
           echo "--- Namespaces ---"
@@ -69,3 +69,19 @@ jobs:
             echo "| Nodes | \`$NODE_COUNT\` |"
             echo "| Namespaces | \`$NS_COUNT\` |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
+            WIF=$(grep -A1 'Workload Identity Provider:' /tmp/setup.log | tail -1 | tr -d ' ')
+            SA=$(grep -A1 'Cluster management SA' /tmp/setup.log | tail -1 | tr -d ' ')
+            {
+              echo ""
+              echo "## Cold Start — Set These GitHub Secrets"
+              echo ""
+              echo "| Secret | Value |"
+              echo "|---|---|"
+              echo "| \`WIF_PROVIDER\` | \`${WIF}\` |"
+              echo "| \`GCP_SERVICE_ACCOUNT\` | \`${SA}\` |"
+              echo ""
+              echo "> [Secrets page](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
