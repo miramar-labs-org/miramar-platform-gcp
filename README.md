@@ -22,6 +22,7 @@ All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 p
 |---|---|---|
 | GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads | [GKE console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) |
 | Artifact Registry (`apps`) | Docker image registry for built application images | [GAR console](https://console.cloud.google.com/artifacts?project=miramar-platform) |
+| GCS buckets | Cluster state + Terraform state (see [Storage](#gcp-storage) below) | [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform) |
 | Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
 | GCP project | `miramar-platform` — single project for all resources | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform) |
 
@@ -258,6 +259,25 @@ gcloud iam service-accounts remove-iam-policy-binding \
 ```
 
 > If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, the SA binding is the most likely culprit — check the member value matches the current GitHub org name exactly.
+
+---
+
+## GCP Storage
+
+All buckets are in project `miramar-platform`, region `us-west1`. → [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform)
+
+| Bucket | Purpose | Provisioned by |
+|---|---|---|
+| `miramar-platform-cluster-state` | GKE node pool state snapshots for the Expand/Restore workflows | `create-miramar-platform.zsh` / **Miramar Platform Create** workflow |
+
+To create a bucket manually:
+
+```sh
+./scripts/gcp/create-bucket.sh \
+  --bucket <name> \
+  --project miramar-platform \
+  --location us-west1
+```
 
 ---
 
