@@ -16,9 +16,10 @@ provider "google" {
 }
 
 resource "google_container_node_pool" "gpu" {
-  name     = "gpu-triton-pool"
-  cluster  = var.cluster_name
-  location = var.gpu_zone
+  name           = "gpu-triton-pool"
+  cluster        = var.cluster_name
+  location       = var.cluster_zone   # cluster's zone — used to locate the cluster
+  node_locations = [var.gpu_zone]     # zone where GPU nodes actually run
 
   node_count = 1
 
