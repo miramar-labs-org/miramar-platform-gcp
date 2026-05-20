@@ -288,6 +288,12 @@ Enumerate live GCP resources in the `miramar-platform` project.
 ./scripts/gcp/resources.sh
 ```
 
+#### [create-cluster-state-bucket.sh](scripts/gcp/create-cluster-state-bucket.sh)
+One-time setup: create the GCS bucket used by the GKE expand/restore workflows and grant the deploy SA write access.
+```sh
+./scripts/gcp/create-cluster-state-bucket.sh
+```
+
 ---
 
 ### `scripts/ubuntu/` — Host setup
@@ -329,12 +335,7 @@ Before the resize, Expand snapshots the full node pool JSON and the live node co
 Create the state bucket and grant the deploy SA write access (run once, from any authenticated session):
 
 ```sh
-gcloud storage buckets create gs://miramar-platform-cluster-state \
-  --project=miramar-platform --location=us-west1
-
-gcloud storage buckets add-iam-policy-binding gs://miramar-platform-cluster-state \
-  --member=serviceAccount:gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
-  --role=roles/storage.objectAdmin
+./scripts/gcp/create-cluster-state-bucket.sh
 ```
 
 ### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
