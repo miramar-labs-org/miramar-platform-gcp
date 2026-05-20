@@ -22,7 +22,7 @@ All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 p
 |---|---|---|
 | GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads | [GKE console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) |
 | Artifact Registry (`apps`) | Docker image registry for built application images | [GAR console](https://console.cloud.google.com/artifacts?project=miramar-platform) |
-| GCS buckets | Cluster state + Terraform state (see [Storage](#gcp-storage) below) | [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform) |
+| GCS buckets | Terraform state + GKE node pool snapshots (see [Storage](#gcp-storage) below) | [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform) |
 | Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
 | GCP project | `miramar-platform` — single project for all resources | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform) |
 
@@ -66,7 +66,7 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser. Th
 
 ### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
 
-Shared platform config — available to all repos in the org via `${{ vars.* }}`.
+Shared platform config — available to all repos in the org via `${{ vars.* }}`. **Synced from `gcp/terraform/terraform.tfvars`** — do not edit directly. Run `scripts/gcp/sync-github-vars.sh` after changing tfvars.
 
 | Variable | Value |
 |---|---|
@@ -75,7 +75,7 @@ Shared platform config — available to all repos in the org via `${{ vars.* }}`
 | `GKE_ZONE` | `us-west1-a` |
 | `GCP_REGION` | `us-west1` |
 | `GAR_REPO` | `apps` |
-| `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` |
+| `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` *(set manually — not in tfvars)* |
 
 ---
 
@@ -125,6 +125,8 @@ Docker automatically pulls the correct variant for the host architecture.
 | ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |
 | Audio/video | `ffmpeg`, `libsndfile1`, `sox` |
 
+Terraform is installed directly in the image via the Hashicorp apt repo — the `hashicorp/setup-terraform` GitHub Actions action (which requires Node.js) is not used.
+
 To verify GPU access after pulling a new image:
 ```sh
 docker run --rm --gpus all ghcr.io/miramar-labs-org/mlabs-runner:latest \
@@ -141,7 +143,7 @@ docker run --rm --gpus all ghcr.io/miramar-labs-org/mlabs-runner:latest \
 
 ### Launch
 
-The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch image and runs the correct variant for the host.
+The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch image and runs the correct variant for the host. It is **idempotent** — if the container is already running it prints its status and exits cleanly.
 
 ```sh
 # Org-level runner, foreground (Ctrl+C to stop and deregister)
@@ -168,6 +170,8 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 | `--group` | `Default` | Runner group |
 | `--ephemeral` | false | Deregister after one job |
 | `--detach` | false | Run container in background (`docker run -d`) |
+
+Work directory is mounted from `~/runner/_work` on the host into `/home/runner/_work` in the container.
 
 > **Org runner group access** — if jobs queue indefinitely despite the runner showing _Idle_, check that the target repo is allowed to use the runner group: **Org Settings → Actions → Runner groups → Default → Repository access**.
 
@@ -268,7 +272,9 @@ All buckets are in project `miramar-platform`, region `us-west1`. → [GCS conso
 
 | Bucket | Purpose | Provisioned by |
 |---|---|---|
-| `miramar-platform-cluster-state` | GKE node pool state snapshots for the Expand/Restore workflows | `create-miramar-platform.zsh` / **Miramar Platform Create** workflow |
+| `miramar-platform-cluster-state` | Terraform state (`terraform/state/` prefix) + GKE node pool snapshots (`gke/` prefix) | **Miramar Platform Create** workflow (pre-`terraform init` step) |
+
+The bucket is created before `terraform init` runs — it cannot be managed by the same Terraform config that uses it as a backend.
 
 To create a bucket manually:
 
@@ -286,7 +292,7 @@ To create a bucket manually:
 ### `scripts/gha/` — GitHub Actions runner management
 
 #### [launch-runner.sh](scripts/gha/launch-runner.sh)
-Pull and start a self-hosted runner container. Requires `GITHUB_ORG_GHCR_PAT` and `GITHUB_ORG_ADMIN_PAT` — registration token is fetched automatically.
+Pull and start a self-hosted runner container. Idempotent — if the container is already running, prints its status and exits 0. Requires `GITHUB_ORG_GHCR_PAT` and `GITHUB_ORG_ADMIN_PAT` — registration token is fetched automatically.
 ```sh
 # Org-level runner (default)
 ./scripts/gha/launch-runner.sh
@@ -296,6 +302,12 @@ Pull and start a self-hosted runner container. Requires `GITHUB_ORG_GHCR_PAT` an
 
 # Ephemeral (deregisters after one job)
 ./scripts/gha/launch-runner.sh --ephemeral
+```
+
+#### [stop-runner.sh](scripts/gha/stop-runner.sh)
+Gracefully stop the mlabs-runner container. Sends SIGTERM, which triggers the entrypoint cleanup trap to deregister the runner from GitHub Actions before the container exits.
+```sh
+./scripts/gha/stop-runner.sh
 ```
 
 #### [runners.sh](scripts/gha/runners.sh)
@@ -315,12 +327,6 @@ Install and register a runner directly on the host (no Docker). Useful for the J
 
 # Repo-level, ephemeral
 ./scripts/gha/install-runner.sh --repo miramar-platform-gcp --ephemeral
-```
-
-#### [stop-runner.sh](scripts/gha/stop-runner.sh)
-Gracefully stop the mlabs-runner container. Sends SIGTERM, which triggers the entrypoint cleanup trap to deregister the runner from GitHub Actions before the container exits.
-```sh
-./scripts/gha/stop-runner.sh
 ```
 
 #### [flush-queues.sh](scripts/gha/flush-queues.sh)
@@ -346,6 +352,12 @@ Remove a runner from the org via the GitHub API. Lists runners and prompts for I
 ---
 
 ### `scripts/gcp/` — GCP utilities
+
+#### [sync-github-vars.sh](scripts/gcp/sync-github-vars.sh)
+Sync `gcp/terraform/terraform.tfvars` to GitHub org variables. Run after editing tfvars to keep GitHub vars in sync.
+```sh
+./scripts/gcp/sync-github-vars.sh
+```
 
 #### [resources.sh](scripts/gcp/resources.sh)
 Enumerate live GCP resources in the `miramar-platform` project.
@@ -386,10 +398,8 @@ Install Terraform via apt on Ubuntu/Debian.
 | Script | Usage |
 |---|---|
 | `gcp/bootstrap-miramar-platform.zsh` | One-time local setup — project, billing, APIs, WIF, service accounts, IAM. Run before any workflow. |
-| `gcp/create-miramar-platform.zsh` | Provision/re-provision platform resources — AR, GKE, GCS bucket, namespaces, RBAC. Run via the **Miramar Platform Create** workflow. |
+| `gcp/create-miramar-platform.zsh` | K8s setup only — AR IAM bindings + namespaces + RBAC. Called by the **Miramar Platform Create** workflow after `terraform apply`. |
 | `gcp/list-miramar-platform.zsh` | Enumerate live GCP resources in the project |
-| `gcp/pause-miramar-platform.zsh` | Scale GKE node pool to 0 (cost saving) |
-| `gcp/resume-miramar-platform.zsh` | Scale GKE node pool back up |
 
 ---
 
@@ -412,24 +422,36 @@ This creates the GCP project, billing link, APIs, WIF pool/provider, and all ser
 
 After setting those secrets, all subsequent workflows authenticate via WIF.
 
+### Configuration (terraform.tfvars)
+
+All platform config lives in `gcp/terraform/terraform.tfvars`. After any change:
+
+```sh
+./scripts/gcp/sync-github-vars.sh   # push values to GitHub org variables
+```
+
+`GKE_STATE_BUCKET` is the only GitHub variable not sourced from tfvars — set it manually if it ever changes.
+
 ### [Miramar Platform Create](.github/workflows/miramar-platform-create.yaml)
 
-Runs `gcp/create-miramar-platform.zsh` to idempotently provision (or re-provision) platform resources: Artifact Registry, GKE cluster, GCS cluster state bucket, Kubernetes namespaces, and RBAC.
+1. Creates the GCS state bucket if missing
+2. Runs `terraform apply -var-file=terraform.tfvars` — provisions GKE cluster + node pool + Artifact Registry repo
+3. Runs `gcp/create-miramar-platform.zsh` — applies K8s namespaces, resource quotas, RBAC, and AR IAM bindings
 
 ```
 Actions → Miramar Platform Create → Run workflow
 ```
 
+> **First run after migrating from a gcloud-managed cluster** requires a destroy + create cycle. Terraform cannot adopt pre-existing resources without an import.
+
 ### [Miramar Platform Destroy](.github/workflows/miramar-platform-destroy.yaml)
 
-**Permanently destroys the platform stack** — GKE cluster (all namespaces and workloads), Artifact Registry, and the cluster state GCS bucket. Optionally deletes the GCP project itself (30-day undelete window).
+**Permanently destroys the platform stack.** Runs `terraform destroy` to remove the GKE cluster, node pool, and AR repo. Falls back to gcloud for any resources not in Terraform state (e.g. pre-migration resources). Deletes the GCS state bucket separately (it cannot be in TF state). Optionally deletes the GCP project itself (30-day undelete window).
 
 Three guards:
 1. Type the exact project name (`miramar-platform`) in `confirm_project`
 2. Check `i_confirm`
 3. Check `delete_project` only if you also want the GCP project gone
-
-The job dumps all namespaces and pods to the log before deleting.
 
 ```
 Actions → Miramar Platform Destroy → Run workflow
@@ -439,22 +461,20 @@ Actions → Miramar Platform Destroy → Run workflow
 
 ## GKE Cluster Scaling Workflows
 
-Two `workflow_dispatch` workflows let you temporarily expand the cluster for heavier workloads (ML deployments, load testing) and then restore it to its original size automatically.
+Two `workflow_dispatch` workflows let you temporarily expand the cluster for heavier workloads (ML deployments, load testing) and then restore it to its original size automatically. Both use `terraform apply` to resize — Terraform remains the authoritative source of node count.
 
 Before the resize, Expand snapshots the full node pool JSON and the live node count into a GCS state file (`gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`). Restore reads that file — no manual count needed.
 
-The cluster state bucket (`miramar-platform-cluster-state`) is created automatically by the **Miramar Platform Create** workflow. The Expand workflow also creates it if missing. No manual setup needed.
-
 ### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
 
-Snapshots the current node pool state (machine type, configured count, live node count) to GCS, then resizes to `target_nodes` and waits for all nodes to reach `Ready`.
+Snapshots the current node pool state (machine type, configured count, live node count) to GCS, then runs `terraform apply -var=node_pool_count=N` and waits for all nodes to reach `Ready`.
 
 1. Go to **Actions → GKE Cluster Expand → Run workflow**
-2. Set `target_nodes` (default: `2`) and optionally `node_pool` (default: `e2-medium-pool`)
+2. Set `target_nodes` (default: `2`) and optionally `node_pool` (default: `default-pool`)
 
 ### [GKE Cluster Restore](.github/workflows/gke-cluster-restore.yaml)
 
-Loads the saved state from GCS and resizes the pool back to the pre-expansion live node count. Pass `node_count_override` only if you need to bypass the saved state.
+Loads the saved state from GCS and runs `terraform apply -var=node_pool_count=<saved>` to scale back. Pass `node_count_override` only if you need to bypass the saved state.
 
 1. Go to **Actions → GKE Cluster Restore → Run workflow**
 2. Leave `node_count_override` blank (reads from GCS automatically)
