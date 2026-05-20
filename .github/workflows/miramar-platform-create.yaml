@@ -1,15 +1,13 @@
 name: Miramar Platform Create
 
-# Provisions (or re-provisions) the entire miramar-platform stack:
-# GCP project, billing, APIs, WIF pool/provider, service accounts,
-# Artifact Registry, GKE cluster, namespaces, RBAC, and cluster state bucket.
-# The setup script is idempotent — existing resources are left untouched.
+# Provisions (or re-provisions) the miramar-platform GCP resources:
+# Artifact Registry, GKE cluster, GCS cluster state bucket,
+# Kubernetes namespaces, and RBAC.
 #
-# Cold start (first run — WIF secrets not yet set):
-#   Run with WIF_PROVIDER and GCP_SERVICE_ACCOUNT secrets absent or empty.
-#   Uses the runner's existing gcloud session instead of WIF.
-#   Job summary will print WIF_PROVIDER and GCP_SERVICE_ACCOUNT values
-#   to set as GitHub secrets — all subsequent runs will use WIF.
+# Requires bootstrap-project to have run first (WIF + service accounts
+# must exist and WIF_PROVIDER / GCP_SERVICE_ACCOUNT secrets must be set).
+#
+# The setup script is idempotent — existing resources are left untouched.
 
 on:
   workflow_dispatch:
@@ -62,8 +60,8 @@ jobs:
       - name: Install zsh
         run: which zsh || (sudo apt-get update && sudo apt-get install -y zsh)
 
-      - name: Run setup script
-        run: zsh ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/setup.log
+      - name: Run platform create script
+        run: zsh ./gcp/create-miramar-platform.zsh 2>&1 | tee /tmp/create.log
 
       - name: Get GKE credentials (WIF)
         if: steps.wif_auth.outcome == 'success'
@@ -100,19 +98,3 @@ jobs:
             echo "| Nodes | \`$NODE_COUNT\` |"
             echo "| Namespaces | \`$NS_COUNT\` |"
           } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
-            WIF=$(grep -A1 'Workload Identity Provider:' /tmp/setup.log | tail -1 | tr -d ' ')
-            SA=$(grep -A1 'Cluster management SA' /tmp/setup.log | tail -1 | tr -d ' ')
-            {
-              echo ""
-              echo "## Cold Start — Set These GitHub Secrets"
-              echo ""
-              echo "| Secret | Value |"
-              echo "|---|---|"
-              echo "| \`WIF_PROVIDER\` | \`${WIF}\` |"
-              echo "| \`GCP_SERVICE_ACCOUNT\` | \`${SA}\` |"
-              echo ""
-              echo "> [Secrets page](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions)"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi

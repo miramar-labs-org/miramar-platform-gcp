@@ -38,7 +38,8 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 
 | Script | Purpose |
 |---|---|
-| `gcp/setup-miramar-gke-cicd.zsh` | Full idempotent bootstrap — projects, billing, APIs, WIF, GKE, namespaces, RBAC |
+| `gcp/bootstrap-miramar-project.zsh` | One-time project setup — project creation, billing, APIs, WIF pool/provider, service accounts, IAM bindings |
+| `gcp/create-miramar-platform.zsh` | Platform resource provisioning — Artifact Registry, GKE cluster, GCS state bucket, K8s namespaces + RBAC |
 | `gcp/pause-miramar-platform.zsh` / `gcp/resume-miramar-platform.zsh` | Scale GKE node pool to 0 / back up |
 | `gcp/verify-nuked-miramar-platform.zsh` | Confirm everything is torn down after deletion |
 | `gcp/patch-namespace-manager-rbac.zsh` | Patch RBAC after cluster re-create |
@@ -46,7 +47,9 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 | `scripts/ubuntu/install-gcloud.sh` | Install `gcloud` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-terraform.sh` | Install `terraform` via apt on Ubuntu/Debian |
 
-GCP zsh scripts require `gcloud` and `kubectl` on `$PATH` with an active authenticated session.
+GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
+
+Run order for a fresh environment: `bootstrap-miramar-project.zsh` → set GitHub secrets → `create-miramar-platform.zsh`.
 
 ## GKE cluster scaling workflows
 
@@ -54,7 +57,8 @@ Two `workflow_dispatch` workflows in `.github/workflows/` temporarily expand the
 
 | Workflow | File | Purpose |
 |---|---|---|
-| Miramar Platform Create | `miramar-platform-create.yaml` | Run `setup-miramar-gke-cicd.zsh` to provision/re-provision the full stack |
+| Bootstrap Project | `bootstrap-project.yaml` | One-time project setup — billing, APIs, WIF, service accounts. Cold-start aware; prints secrets to set after first run |
+| Miramar Platform Create | `miramar-platform-create.yaml` | Provision/re-provision platform resources — Artifact Registry, GKE cluster, GCS bucket, namespaces, RBAC |
 | Miramar Platform Destroy | `miramar-platform-destroy.yaml` | Tear down cluster, AR, state bucket, optionally the project — requires typed project name + checkbox |
 | GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `e2-medium-pool` to N nodes; saves full state to GCS |
 | GKE Cluster Restore | `gke-cluster-restore.yaml` | Scale back to the original node count from the Expand summary |
@@ -63,7 +67,7 @@ Typical sequence: run **Expand** → deploy workload → run **Restore**. Both r
 
 ## Terraform
 
-`gcp/terraform/` manages the GKE cluster and node pool only (does not manage IAM, WIF, or Artifact Registry — those are handled by `gcp/setup-miramar-gke-cicd.zsh`).
+`gcp/terraform/` manages the GKE cluster and node pool only (does not manage IAM, WIF, or Artifact Registry — those are handled by the bootstrap and create scripts).
 
 ```sh
 cd gcp/terraform

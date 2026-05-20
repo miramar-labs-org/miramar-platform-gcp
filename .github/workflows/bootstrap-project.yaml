@@ -1,0 +1,105 @@
+name: Bootstrap Project
+
+# One-time setup for the miramar-platform GCP project:
+# project creation, billing, APIs, Workload Identity Federation,
+# deploy service accounts, and cluster-ops service account.
+#
+# Run this before "Miramar Platform Create". Safe to re-run — idempotent.
+#
+# Cold start (first run — WIF secrets not yet set):
+#   Run with WIF_PROVIDER and GCP_SERVICE_ACCOUNT absent or empty.
+#   Uses the runner's existing gcloud session instead of WIF.
+#   Job summary will print values and instructions for setting secrets:
+#     WIF_PROVIDER        → org-level secret (shared across all repos)
+#     GCP_SERVICE_ACCOUNT → repo-level secret on miramar-platform-gcp only
+#                           (cluster-ops SA; app repos use their own deploy SA)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: miramar-platform
+
+jobs:
+  bootstrap:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        id: wif_auth
+        continue-on-error: true
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        if: steps.wif_auth.outcome == 'success'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Clear stale WIF credentials on auth failure
+        if: steps.wif_auth.outcome != 'success'
+        run: |
+          rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
+          {
+            echo "GOOGLE_APPLICATION_CREDENTIALS="
+            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="
+            echo "GOOGLE_GHA_CREDS_PATH="
+            echo "CLOUDSDK_CORE_PROJECT="
+            echo "CLOUDSDK_PROJECT="
+            echo "GCLOUD_PROJECT="
+            echo "GCP_PROJECT="
+            echo "GOOGLE_CLOUD_PROJECT="
+          } >> "$GITHUB_ENV"
+
+      - name: Verify gcloud authentication
+        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
+
+      - name: Install zsh
+        run: which zsh || (sudo apt-get update && sudo apt-get install -y zsh)
+
+      - name: Run bootstrap script
+        run: zsh ./gcp/bootstrap-miramar-project.zsh 2>&1 | tee /tmp/bootstrap.log
+
+      - name: Summary
+        run: |
+          {
+            echo "## Bootstrap Complete"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Project | \`$PROJECT_ID\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
+            WIF=$(grep -A1 'Workload Identity Provider:' /tmp/bootstrap.log | tail -1 | tr -d ' ')
+            SA=$(grep -A1 'Cluster management SA' /tmp/bootstrap.log | tail -1 | tr -d ' ')
+            {
+              echo ""
+              echo "## Cold Start — Set These GitHub Secrets"
+              echo ""
+              echo "### 1. Org-level secret — shared by all repos in miramar-labs-org"
+              echo ""
+              echo "| Secret | Value |"
+              echo "|---|---|"
+              echo "| \`WIF_PROVIDER\` | \`${WIF}\` |"
+              echo ""
+              echo "> [Org secrets page](https://github.com/organizations/miramar-labs-org/settings/secrets/actions)"
+              echo ""
+              echo "### 2. Repo-level secret — miramar-platform-gcp only"
+              echo ""
+              echo "| Secret | Value |"
+              echo "|---|---|"
+              echo "| \`GCP_SERVICE_ACCOUNT\` | \`${SA}\` |"
+              echo ""
+              echo "> This is the cluster-ops SA (\`container.admin\`). App repos use their own per-namespace deploy SA instead."
+              echo ""
+              echo "> [Repo secrets page](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions)"
+              echo ""
+              echo "After setting secrets, run **Miramar Platform Create** to provision GKE and storage."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
