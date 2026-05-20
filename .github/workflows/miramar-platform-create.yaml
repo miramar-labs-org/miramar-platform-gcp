@@ -113,7 +113,15 @@ jobs:
           kubectl get namespaces
 
       - name: Sync GitHub org variables from tfvars
-        run: GH_TOKEN="$GITHUB_ORG_ADMIN_PAT" ./scripts/gha/sync-github-vars.sh
+        run: |
+          if ! command -v gh &>/dev/null; then
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+              | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+              | sudo tee /etc/apt/sources.list.d/github-cli.list
+            sudo apt-get update -qq && sudo apt-get install -y -qq gh
+          fi
+          GH_TOKEN="$GITHUB_ORG_ADMIN_PAT" ./scripts/gha/sync-github-vars.sh
 
       - name: Summary
         run: |
