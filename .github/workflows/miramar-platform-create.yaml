@@ -112,6 +112,9 @@ jobs:
           echo "--- Namespaces ---"
           kubectl get namespaces
 
+      - name: Sync GitHub org variables from tfvars
+        run: GH_TOKEN="$GITHUB_ORG_ADMIN_PAT" ./scripts/gha/sync-github-vars.sh
+
       - name: Summary
         run: |
           NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | grep -c . || echo 0)

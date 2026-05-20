@@ -4,9 +4,9 @@ name: GKE Expand GPU
 # Run GKE Restore GPU when done to remove the pool and restore the quota.
 #
 # GPU options (gpu_type input):
-#   nvidia-tesla-t4  — Turing,  16GB VRAM, n1-standard-4, us-west1-a  (~$0.54/hr) [default]
-#   nvidia-l4        — Ada,     24GB VRAM, g2-standard-4, us-west1-a  (~$0.74/hr)
-#   nvidia-tesla-p4  — Pascal,   8GB VRAM, n1-standard-4, us-west1-a  (~$0.42/hr) — lighter models only
+#   nvidia-tesla-t4  — Turing,  16GB VRAM, n1-standard-4, us-central1-a  (~$0.54/hr) [default]
+#   nvidia-l4        — Ada,     24GB VRAM, g2-standard-4, us-central1-a  (~$0.74/hr)
+#   nvidia-tesla-p4  — Pascal,   8GB VRAM, n1-standard-4, us-central1-a  (~$0.42/hr) — lighter models only
 #
 # T4 and L4 are recommended for Triton inference workloads.
 

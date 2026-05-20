@@ -7,14 +7,14 @@ usage() {
   echo "Options:"
   echo "  --bucket      Bucket name, without gs:// prefix (required)"
   echo "  --project     GCP project ID (default: miramar-platform)"
-  echo "  --location    GCS location (default: us-west1)"
+  echo "  --location    GCS location (default: us-central1)"
   echo "  --grant-sa    Service account to grant storage.admin on the project (optional)"
   exit 1
 }
 
 BUCKET=""
 PROJECT="miramar-platform"
-LOCATION="us-west1"
+LOCATION="us-central1"
 GRANT_SA=""
 
 while [[ $# -gt 0 ]]; do

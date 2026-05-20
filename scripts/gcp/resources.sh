@@ -8,4 +8,4 @@ gcloud compute addresses list --project miramar-platform
 
 gcloud artifacts repositories list \
   --project miramar-platform \
-  --location us-west1
+  --location us-central1
