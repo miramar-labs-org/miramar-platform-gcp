@@ -41,6 +41,13 @@ jobs:
         if: steps.wif_auth.outcome == 'success'
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Clear stale WIF credentials on auth failure
+        if: steps.wif_auth.outcome != 'success'
+        run: |
+          rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> "$GITHUB_ENV"
+          echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=" >> "$GITHUB_ENV"
+
       - name: Verify gcloud authentication
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
 
