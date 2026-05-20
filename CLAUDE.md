@@ -38,25 +38,24 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 
 | Script | Purpose |
 |---|---|
-| `gcp/bootstrap-miramar-project.zsh` | One-time project setup — project creation, billing, APIs, WIF pool/provider, service accounts, IAM bindings |
+| `gcp/bootstrap-miramar-platform.zsh` | One-time local setup — project creation, billing, APIs, WIF pool/provider, service accounts, IAM bindings |
 | `gcp/create-miramar-platform.zsh` | Platform resource provisioning — Artifact Registry, GKE cluster, GCS state bucket, K8s namespaces + RBAC |
+| `gcp/list-miramar-platform.zsh` | Enumerate live GCP resources in the project |
 | `gcp/pause-miramar-platform.zsh` / `gcp/resume-miramar-platform.zsh` | Scale GKE node pool to 0 / back up |
-| `gcp/verify-nuked-miramar-platform.zsh` | Confirm everything is torn down after deletion |
-| `gcp/patch-namespace-manager-rbac.zsh` | Patch RBAC after cluster re-create |
-| `scripts/gcp/list-resources-miramar-platform.zsh` | Enumerate live GCP resources |
+| `scripts/gha/launch-runner.sh` / `scripts/gha/stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container |
 | `scripts/ubuntu/install-gcloud.sh` | Install `gcloud` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-terraform.sh` | Install `terraform` via apt on Ubuntu/Debian |
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
 
-Run order for a fresh environment: `bootstrap-miramar-project.zsh` → set GitHub secrets → `create-miramar-platform.zsh`.
+Run order for a fresh environment: `bootstrap-miramar-platform.zsh` → set GitHub secrets → `create-miramar-platform.zsh`.
 
 ## GKE cluster scaling workflows
 
 Bootstrap is run **locally** (not via workflow) — requires an active gcloud session:
 
 ```sh
-zsh ./gcp/bootstrap-miramar-project.zsh 2>&1 | tee /tmp/bootstrap.log
+zsh ./gcp/bootstrap-miramar-platform.zsh 2>&1 | tee /tmp/bootstrap.log
 ```
 
 Output includes `WIF_PROVIDER` (set as org-level secret) and `GCP_SERVICE_ACCOUNT` (set as repo-level secret on `miramar-platform-gcp`). All workflows use WIF from that point on.

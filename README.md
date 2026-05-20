@@ -168,7 +168,7 @@ docker buildx build \
 GitHub Actions workflows authenticate to GCP via WIF — no long-lived service account keys. Two things must be configured correctly for auth to succeed.
 
 **GCP resources (all in `miramar-platform`):**
-- Pool: `projects/423801268174/locations/global/workloadIdentityPools/github-actions`
+- Pool: `projects/808481995423/locations/global/workloadIdentityPools/github-actions`
 - Provider: `github` (OIDC, issuer `https://token.actions.githubusercontent.com`)
 - Service account: `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com`
 
@@ -208,7 +208,7 @@ gcloud iam service-accounts get-iam-policy \
   --format=json
 ```
 
-Expected member: `principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org`
+Expected member: `principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org`
 
 Add the correct binding:
 ```sh
@@ -216,7 +216,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
   --project=miramar-platform \
   --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org"
+  --member="principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org"
 ```
 
 Remove any stale binding referencing an old org name:
@@ -225,7 +225,7 @@ gcloud iam service-accounts remove-iam-policy-binding \
   gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
   --project=miramar-platform \
   --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/OLD_ORG_NAME"
+  --member="principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/OLD_ORG_NAME"
 ```
 
 > If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, the SA binding is the most likely culprit — check the member value matches the current GitHub org name exactly.
@@ -266,6 +266,12 @@ Install and register a runner directly on the host (no Docker). Useful for the J
 
 # Repo-level, ephemeral
 ./scripts/gha/install-runner.sh --repo miramar-platform-gcp --ephemeral
+```
+
+#### [stop-runner.sh](scripts/gha/stop-runner.sh)
+Gracefully stop the mlabs-runner container. Sends SIGTERM, which triggers the entrypoint cleanup trap to deregister the runner from GitHub Actions before the container exits.
+```sh
+./scripts/gha/stop-runner.sh
 ```
 
 #### [unregister-runner.sh](scripts/gha/unregister-runner.sh)
@@ -316,21 +322,36 @@ Install Terraform via apt on Ubuntu/Debian.
 
 | Script | Usage |
 |---|---|
-| `gcp/setup-miramar-gke-cicd.zsh` | Full idempotent bootstrap of projects, APIs, WIF, GKE, and RBAC |
+| `gcp/bootstrap-miramar-platform.zsh` | One-time local setup — project, billing, APIs, WIF, service accounts, IAM. Run before any workflow. |
+| `gcp/create-miramar-platform.zsh` | Provision/re-provision platform resources — AR, GKE, GCS bucket, namespaces, RBAC. Run via the **Miramar Platform Create** workflow. |
+| `gcp/list-miramar-platform.zsh` | Enumerate live GCP resources in the project |
 | `gcp/pause-miramar-platform.zsh` | Scale GKE node pool to 0 (cost saving) |
 | `gcp/resume-miramar-platform.zsh` | Scale GKE node pool back up |
-| `gcp/verify-nuked-miramar-platform.zsh` | Confirm all resources torn down after deletion |
-| `gcp/patch-namespace-manager-rbac.zsh` | Patch RBAC after cluster re-create |
 
 ---
 
 ## Platform Lifecycle Workflows
 
+### Bootstrap (run locally once)
+
+Before using any workflow, run the bootstrap script locally with an active gcloud session:
+
+```sh
+zsh ./gcp/bootstrap-miramar-platform.zsh 2>&1 | tee /tmp/bootstrap.log
+```
+
+This creates the GCP project, billing link, APIs, WIF pool/provider, and all service accounts + IAM bindings. The output prints two values to set as GitHub secrets:
+
+| Secret | Scope |
+|---|---|
+| `WIF_PROVIDER` | Org-level secret (shared across all repos) |
+| `GCP_SERVICE_ACCOUNT` | Repo-level secret on `miramar-platform-gcp` |
+
+After setting those secrets, all subsequent workflows authenticate via WIF.
+
 ### [Miramar Platform Create](.github/workflows/miramar-platform-create.yaml)
 
-Runs `gcp/setup-miramar-gke-cicd.zsh` to idempotently provision (or re-provision) the full stack: GCP project, billing, APIs, WIF, service accounts, Artifact Registry, GKE cluster, namespaces, RBAC, and the cluster state bucket.
-
-**First-time bootstrap:** WIF doesn't exist yet on a cold start, so run the script manually once (`./gcp/setup-miramar-gke-cicd.zsh`) before using this workflow. After that the SA has the permissions needed and this workflow handles all subsequent runs.
+Runs `gcp/create-miramar-platform.zsh` to idempotently provision (or re-provision) platform resources: Artifact Registry, GKE cluster, GCS cluster state bucket, Kubernetes namespaces, and RBAC.
 
 ```
 Actions → Miramar Platform Create → Run workflow
@@ -367,7 +388,7 @@ Grant the deploy SA `storage.admin` on `miramar-platform` so it can create and w
 ./scripts/gcp/create-cluster-state-bucket.sh
 ```
 
-After that the Expand workflow creates the bucket automatically if it's ever missing. This step is also handled by `gcp/setup-miramar-gke-cicd.zsh` during a full bootstrap.
+After that the Expand workflow creates the bucket automatically if it's ever missing. The bucket is also created by `gcp/create-miramar-platform.zsh` during a full platform provision.
 
 ### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
 
