@@ -17,3 +17,13 @@ variable "cluster_name" {
   type    = string
   default = "miramar-shared-gke"
 }
+
+variable "ar_repo" {
+  type    = string
+  default = "apps"
+}
+
+variable "node_pool_count" {
+  type    = number
+  default = 1
+}

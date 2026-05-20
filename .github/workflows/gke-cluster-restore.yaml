@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       node_pool:
-        description: Node pool to restore
+        description: Node pool to restore (used for state snapshot key)
         default: default-pool
         required: true
       node_count_override:
@@ -19,12 +19,16 @@ env:
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
   GKE_ZONE: ${{ vars.GKE_ZONE }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  AR_REPO: ${{ vars.GAR_REPO }}
   CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
 
 jobs:
   restore:
     runs-on: [self-hosted, wsl2]
     steps:
+      - uses: actions/checkout@v4
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -55,14 +59,23 @@ jobs:
           echo "restore_count=$RESTORE_COUNT" >> "$GITHUB_OUTPUT"
           echo "machine_type=$MACHINE" >> "$GITHUB_OUTPUT"
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: gcp/terraform
+        run: terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
+
       - name: Restore node pool
+        working-directory: gcp/terraform
         run: |
-          gcloud container clusters resize "$GKE_CLUSTER_NAME" \
-            --zone "$GKE_ZONE" \
-            --project "$GCP_PROJECT_ID" \
-            --node-pool "${{ inputs.node_pool }}" \
-            --num-nodes "${{ steps.state.outputs.restore_count }}" \
-            --quiet
+          terraform apply -auto-approve \
+            -var="project_id=$GCP_PROJECT_ID" \
+            -var="region=$GCP_REGION" \
+            -var="zone=$GKE_ZONE" \
+            -var="cluster_name=$GKE_CLUSTER_NAME" \
+            -var="ar_repo=$AR_REPO" \
+            -var="node_pool_count=${{ steps.state.outputs.restore_count }}"
 
       - name: Summary
         run: |

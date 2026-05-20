@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       node_pool:
-        description: Node pool to resize
+        description: Node pool to resize (used for state snapshot key)
         default: default-pool
         required: true
       target_nodes:
@@ -21,12 +21,15 @@ env:
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
   GKE_ZONE: ${{ vars.GKE_ZONE }}
   GCP_REGION: ${{ vars.GCP_REGION }}
+  AR_REPO: ${{ vars.GAR_REPO }}
   CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
 
 jobs:
   expand:
     runs-on: [self-hosted, wsl2]
     steps:
+      - uses: actions/checkout@v4
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -35,15 +38,6 @@ jobs:
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
-
-      - name: Ensure state bucket exists
-        run: |
-          if ! gsutil ls "gs://$CLUSTER_STATE_BUCKET" 2>/dev/null; then
-            echo "Creating state bucket gs://$CLUSTER_STATE_BUCKET..."
-            gcloud storage buckets create "gs://$CLUSTER_STATE_BUCKET" \
-              --project="$GCP_PROJECT_ID" \
-              --location="$GCP_REGION"
-          fi
 
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v2
@@ -77,14 +71,23 @@ jobs:
           echo "state_path=$STATE_PATH" >> "$GITHUB_OUTPUT"
           echo "::notice title=State saved::$LIVE_COUNT live node(s) | $MACHINE | configured=$CONFIGURED → $STATE_PATH"
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: gcp/terraform
+        run: terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
+
       - name: Expand node pool
+        working-directory: gcp/terraform
         run: |
-          gcloud container clusters resize "$GKE_CLUSTER_NAME" \
-            --zone "$GKE_ZONE" \
-            --project "$GCP_PROJECT_ID" \
-            --node-pool "${{ inputs.node_pool }}" \
-            --num-nodes "${{ inputs.target_nodes }}" \
-            --quiet
+          terraform apply -auto-approve \
+            -var="project_id=$GCP_PROJECT_ID" \
+            -var="region=$GCP_REGION" \
+            -var="zone=$GKE_ZONE" \
+            -var="cluster_name=$GKE_CLUSTER_NAME" \
+            -var="ar_repo=$AR_REPO" \
+            -var="node_pool_count=${{ inputs.target_nodes }}"
 
       - name: Wait for nodes Ready
         run: |

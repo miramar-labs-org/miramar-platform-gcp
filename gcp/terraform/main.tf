@@ -18,21 +18,34 @@ resource "google_container_cluster" "main" {
 
   deletion_protection = false
 
-  # Remove default node pool so we can configure our own
   remove_default_node_pool = true
   initial_node_count       = 1
+
+  networking_mode = "VPC_NATIVE"
+  ip_allocation_policy {}
+
+  release_channel {
+    channel = "REGULAR"
+  }
 }
 
 resource "google_container_node_pool" "main" {
-  name       = "e2-medium-pool"
+  name       = "default-pool"
   cluster    = google_container_cluster.main.name
   location   = var.zone
-  node_count = 1
+  node_count = var.node_pool_count
 
   node_config {
     machine_type = "e2-medium"
-    disk_size_gb = 10
+    disk_size_gb = 30
     disk_type    = "pd-standard"
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
+}
+
+resource "google_artifact_registry_repository" "apps" {
+  repository_id = var.ar_repo
+  location      = var.region
+  format        = "DOCKER"
+  description   = "Shared Docker images for Miramar apps"
 }

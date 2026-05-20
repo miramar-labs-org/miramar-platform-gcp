@@ -1,9 +1,9 @@
 name: Miramar Platform Destroy
 
-# ⚠ DESTRUCTIVE — tears down the miramar-platform stack in order:
-#   1. GKE cluster (deletes all namespaces and workloads)
-#   2. Artifact Registry repo
-#   3. Cluster state GCS bucket
+# ⚠ DESTRUCTIVE — tears down the miramar-platform stack:
+#   1. terraform destroy — GKE cluster + node pool + Artifact Registry repo
+#   2. gcloud fallback — cleans up any pre-Terraform resources not in TF state
+#   3. gsutil — deletes the GCS state/snapshot bucket (cannot be in TF state)
 #   4. Optionally: delete the GCP project itself (separate confirmation)
 #
 # Two guards must both pass before anything is deleted:
@@ -36,10 +36,10 @@ permissions:
 
 env:
   PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
   GKE_ZONE: ${{ vars.GKE_ZONE }}
   AR_REPO: ${{ vars.GAR_REPO }}
-  AR_REGION: ${{ vars.GCP_REGION }}
   CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
 
 jobs:
@@ -58,6 +58,8 @@ jobs:
           fi
           echo "::warning::Destroying miramar-platform stack. This cannot be undone."
 
+      - uses: actions/checkout@v4
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -67,53 +69,52 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Get GKE credentials
-        id: gke_creds
-        continue-on-error: true
-        uses: google-github-actions/get-gke-credentials@v2
-        with:
-          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
-          location: ${{ env.GKE_ZONE }}
-          project_id: ${{ env.PROJECT_ID }}
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
 
-      - name: List workloads before deletion
-        if: steps.gke_creds.outcome == 'success'
+      - name: Terraform Init
+        id: tf_init
         continue-on-error: true
+        working-directory: gcp/terraform
+        run: terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
+
+      - name: Terraform Destroy
+        id: tf_destroy
+        if: steps.tf_init.outcome == 'success'
+        working-directory: gcp/terraform
         run: |
-          echo "--- Namespaces ---"
-          kubectl get namespaces
-          echo "--- All pods ---"
-          kubectl get pods --all-namespaces
+          terraform destroy -auto-approve \
+            -var="project_id=$PROJECT_ID" \
+            -var="region=$GCP_REGION" \
+            -var="zone=$GKE_ZONE" \
+            -var="cluster_name=$GKE_CLUSTER_NAME" \
+            -var="ar_repo=$AR_REPO"
 
-      - name: Delete GKE cluster
+      - name: Cleanup GKE cluster (fallback for pre-Terraform resources)
         id: del_gke
+        continue-on-error: true
         run: |
           if gcloud container clusters describe "$GKE_CLUSTER_NAME" \
               --zone "$GKE_ZONE" --project "$PROJECT_ID" &>/dev/null; then
+            echo "::notice::GKE cluster still exists after terraform destroy — deleting via gcloud"
             gcloud container clusters delete "$GKE_CLUSTER_NAME" \
-              --zone "$GKE_ZONE" \
-              --project "$PROJECT_ID" \
-              --quiet
-            echo "GKE cluster deleted."
+              --zone "$GKE_ZONE" --project "$PROJECT_ID" --quiet
             echo "result=deleted" >> "$GITHUB_OUTPUT"
           else
-            echo "GKE cluster not found — skipping."
             echo "result=skipped" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Delete Artifact Registry repo
+      - name: Cleanup Artifact Registry repo (fallback for pre-Terraform resources)
         id: del_ar
+        continue-on-error: true
         run: |
           if gcloud artifacts repositories describe "$AR_REPO" \
-              --location "$AR_REGION" --project "$PROJECT_ID" &>/dev/null; then
+              --location "$GCP_REGION" --project "$PROJECT_ID" &>/dev/null; then
+            echo "::notice::AR repo still exists after terraform destroy — deleting via gcloud"
             gcloud artifacts repositories delete "$AR_REPO" \
-              --location "$AR_REGION" \
-              --project "$PROJECT_ID" \
-              --quiet
-            echo "Artifact Registry repo deleted."
+              --location "$GCP_REGION" --project "$PROJECT_ID" --quiet
             echo "result=deleted" >> "$GITHUB_OUTPUT"
           else
-            echo "Artifact Registry repo not found — skipping."
             echo "result=skipped" >> "$GITHUB_OUTPUT"
           fi
 
@@ -143,8 +144,9 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Project | \`$PROJECT_ID\` |"
-            echo "| Cluster | ${{ steps.del_gke.outputs.result }} |"
-            echo "| Artifact Registry | ${{ steps.del_ar.outputs.result }} |"
+            echo "| Terraform destroy | ${{ steps.tf_destroy.outcome || 'skipped (no state)' }} |"
+            echo "| GKE fallback | ${{ steps.del_gke.outputs.result || 'n/a' }} |"
+            echo "| AR fallback | ${{ steps.del_ar.outputs.result || 'n/a' }} |"
             echo "| State bucket | ${{ steps.del_bucket.outputs.result }} |"
             echo "| Project deleted | ${{ inputs.delete_project }} |"
             echo "| Destroyed by | \`${{ github.actor }}\` |"

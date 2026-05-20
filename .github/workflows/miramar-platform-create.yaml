@@ -1,13 +1,17 @@
 name: Miramar Platform Create
 
-# Provisions (or re-provisions) the miramar-platform GCP resources:
-# Artifact Registry, GKE cluster, GCS cluster state bucket,
-# Kubernetes namespaces, and RBAC.
+# Provisions (or re-provisions) the miramar-platform GCP resources via Terraform:
+#   - GKE Standard cluster + node pool
+#   - Artifact Registry repo
+#   - GCS cluster state bucket (pre-Terraform; also serves as TF backend)
+# Then applies K8s namespaces and RBAC via create-miramar-platform.zsh.
 #
-# Requires bootstrap-project to have run first (WIF + service accounts
-# must exist and WIF_PROVIDER / GCP_SERVICE_ACCOUNT secrets must be set).
+# Requires bootstrap-miramar-platform.zsh to have run first (WIF + service
+# accounts must exist and WIF_PROVIDER / GCP_SERVICE_ACCOUNT secrets set).
 #
-# The setup script is idempotent — existing resources are left untouched.
+# NOTE: first run after migrating from gcloud-managed resources requires a
+# destroy + create cycle — Terraform cannot adopt pre-existing resources
+# without an import.
 
 on:
   workflow_dispatch:
@@ -18,8 +22,11 @@ permissions:
 
 env:
   PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
   GKE_ZONE: ${{ vars.GKE_ZONE }}
+  AR_REPO: ${{ vars.GAR_REPO }}
+  CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
 
 jobs:
   create:
@@ -57,11 +64,33 @@ jobs:
       - name: Verify gcloud authentication
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
 
-      - name: Install zsh
-        run: which zsh || (sudo apt-get update && sudo apt-get install -y zsh)
+      - name: Ensure Terraform state / snapshot bucket
+        run: |
+          if ! gsutil ls "gs://$CLUSTER_STATE_BUCKET" 2>/dev/null; then
+            echo "Creating bucket gs://$CLUSTER_STATE_BUCKET"
+            gcloud storage buckets create "gs://$CLUSTER_STATE_BUCKET" \
+              --project="$PROJECT_ID" \
+              --location="$GCP_REGION"
+          else
+            echo "Bucket already exists: gs://$CLUSTER_STATE_BUCKET"
+          fi
 
-      - name: Run platform create script
-        run: zsh ./gcp/create-miramar-platform.zsh 2>&1 | tee /tmp/create.log
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: gcp/terraform
+        run: terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
+
+      - name: Terraform Apply
+        working-directory: gcp/terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=$PROJECT_ID" \
+            -var="region=$GCP_REGION" \
+            -var="zone=$GKE_ZONE" \
+            -var="cluster_name=$GKE_CLUSTER_NAME" \
+            -var="ar_repo=$AR_REPO"
 
       - name: Get GKE credentials (WIF)
         if: steps.wif_auth.outcome == 'success'
@@ -76,6 +105,12 @@ jobs:
         run: |
           gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" \
             --zone "$GKE_ZONE" --project "$PROJECT_ID"
+
+      - name: Install zsh
+        run: which zsh || (sudo apt-get update && sudo apt-get install -y zsh)
+
+      - name: Apply K8s namespaces and RBAC
+        run: zsh ./gcp/create-miramar-platform.zsh 2>&1 | tee /tmp/create.log
 
       - name: Show cluster state
         run: |
