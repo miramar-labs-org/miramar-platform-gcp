@@ -32,6 +32,7 @@ resource "google_container_node_pool" "gpu" {
       count = 1
     }
 
+    spot         = var.spot
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }

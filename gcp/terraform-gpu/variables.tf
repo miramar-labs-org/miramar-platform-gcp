@@ -21,3 +21,8 @@ variable "gpu_machine_type" {
 variable "gpu_type" {
   type = string
 }
+
+variable "spot" {
+  type    = bool
+  default = false
+}

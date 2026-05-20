@@ -25,6 +25,10 @@ on:
         description: GPU accelerator type
         default: nvidia-tesla-t4
         required: true
+      spot:
+        description: Use Spot VMs (better availability, interruptible)
+        default: 'false'
+        required: false
 
 permissions:
   contents: read
@@ -78,7 +82,8 @@ jobs:
           terraform apply -auto-approve \
             -var-file=gpu.tfvars \
             -var="gpu_machine_type=${{ inputs.machine_type }}" \
-            -var="gpu_type=${{ inputs.gpu_type }}"
+            -var="gpu_type=${{ inputs.gpu_type }}" \
+            -var="spot=${{ inputs.spot }}"
 
       - name: Install NVIDIA device plugin
         run: |
@@ -145,7 +150,7 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| GPU pool | \`gpu-pool\` |"
-            echo "| Machine | \`${{ inputs.machine_type }}\` + \`${{ inputs.gpu_type }}\` |"
+            echo "| Machine | \`${{ inputs.machine_type }}\` + \`${{ inputs.gpu_type }}\` (spot: ${{ inputs.spot }}) |"
             echo "| Namespace | \`${{ inputs.namespace }}\` |"
             echo ""
             echo "> Run **GKE Restore GPU** when done to remove the GPU pool and restore quota."
