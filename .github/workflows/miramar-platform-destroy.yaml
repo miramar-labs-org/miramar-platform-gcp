@@ -68,6 +68,8 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Get GKE credentials
+        id: gke_creds
+        continue-on-error: true
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: ${{ env.GKE_CLUSTER_NAME }}
@@ -75,6 +77,8 @@ jobs:
           project_id: ${{ env.PROJECT_ID }}
 
       - name: List workloads before deletion
+        if: steps.gke_creds.outcome == 'success'
+        continue-on-error: true
         run: |
           echo "--- Namespaces ---"
           kubectl get namespaces
@@ -82,6 +86,7 @@ jobs:
           kubectl get pods --all-namespaces
 
       - name: Delete GKE cluster
+        id: del_gke
         run: |
           if gcloud container clusters describe "$GKE_CLUSTER_NAME" \
               --zone "$GKE_ZONE" --project "$PROJECT_ID" &>/dev/null; then
@@ -90,11 +95,14 @@ jobs:
               --project "$PROJECT_ID" \
               --quiet
             echo "GKE cluster deleted."
+            echo "result=deleted" >> "$GITHUB_OUTPUT"
           else
             echo "GKE cluster not found — skipping."
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Delete Artifact Registry repo
+        id: del_ar
         run: |
           if gcloud artifacts repositories describe "$AR_REPO" \
               --location "$AR_REGION" --project "$PROJECT_ID" &>/dev/null; then
@@ -103,17 +111,22 @@ jobs:
               --project "$PROJECT_ID" \
               --quiet
             echo "Artifact Registry repo deleted."
+            echo "result=deleted" >> "$GITHUB_OUTPUT"
           else
             echo "Artifact Registry repo not found — skipping."
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Delete cluster state bucket
+        id: del_bucket
         run: |
           if gsutil ls "gs://$CLUSTER_STATE_BUCKET" &>/dev/null; then
             gsutil -m rm -r "gs://$CLUSTER_STATE_BUCKET"
             echo "Cluster state bucket deleted."
+            echo "result=deleted" >> "$GITHUB_OUTPUT"
           else
             echo "Cluster state bucket not found — skipping."
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Delete GCP project
@@ -130,9 +143,9 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Project | \`$PROJECT_ID\` |"
-            echo "| Cluster deleted | ✓ |"
-            echo "| Artifact Registry deleted | ✓ |"
-            echo "| State bucket deleted | ✓ |"
+            echo "| Cluster | ${{ steps.del_gke.outputs.result }} |"
+            echo "| Artifact Registry | ${{ steps.del_ar.outputs.result }} |"
+            echo "| State bucket | ${{ steps.del_bucket.outputs.result }} |"
             echo "| Project deleted | ${{ inputs.delete_project }} |"
             echo "| Destroyed by | \`${{ github.actor }}\` |"
             echo ""
