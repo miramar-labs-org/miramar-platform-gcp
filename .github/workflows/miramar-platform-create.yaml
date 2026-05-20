@@ -45,12 +45,24 @@ jobs:
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
 
       - name: Run setup script
-        run: ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/setup.log
+        run: zsh ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/setup.log
 
-      - name: Show cluster state
+      - name: Get GKE credentials (WIF)
+        if: steps.wif_auth.outcome == 'success'
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Get GKE credentials (cold start)
+        if: steps.wif_auth.outcome != 'success'
         run: |
           gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" \
             --zone "$GKE_ZONE" --project "$PROJECT_ID"
+
+      - name: Show cluster state
+        run: |
           echo "--- Nodes ---"
           kubectl get nodes -o wide
           echo "--- Namespaces ---"
