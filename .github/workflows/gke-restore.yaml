@@ -1,4 +1,4 @@
-name: GKE Cluster Restore
+name: GKE Restore
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
           else
             STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/node-pool-${{ inputs.node_pool }}.json"
             if ! gsutil -q stat "$STATE_PATH" 2>/dev/null; then
-              echo "::error::No saved state at $STATE_PATH — run GKE Cluster Expand first, or set node_count_override."
+              echo "::error::No saved state at $STATE_PATH — run GKE Expand first, or set node_count_override."
               exit 1
             fi
             gsutil cp "$STATE_PATH" /tmp/pool-state.json
@@ -74,7 +74,7 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "## GKE Cluster Restored"
+            echo "## GKE Restored"
             echo "| | |"
             echo "|---|---|"
             echo "| Node pool | \`${{ inputs.node_pool }}\` |"

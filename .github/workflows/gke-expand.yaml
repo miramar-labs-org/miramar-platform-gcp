@@ -1,4 +1,4 @@
-name: GKE Cluster Expand
+name: GKE Expand
 
 on:
   workflow_dispatch:
@@ -96,7 +96,7 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "## GKE Cluster Expanded"
+            echo "## GKE Expanded"
             echo "| | |"
             echo "|---|---|"
             echo "| Node pool | \`${{ inputs.node_pool }}\` |"
@@ -106,5 +106,5 @@ jobs:
             echo "| Nodes now | \`${{ inputs.target_nodes }}\` |"
             echo "| State saved to | \`${{ steps.snapshot.outputs.state_path }}\` |"
             echo ""
-            echo "> Run **GKE Cluster Restore** when done — it reads the saved state automatically."
+            echo "> Run **GKE Restore** when done — it reads the saved state automatically."
           } >> "$GITHUB_STEP_SUMMARY"
