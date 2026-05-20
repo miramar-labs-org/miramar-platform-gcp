@@ -494,7 +494,7 @@ Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via 
 
 Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads that need a GPU (e.g. Triton Inference Server) and restore the cluster when done. The GPU pool is managed by a separate Terraform module (`gcp/terraform-gpu/`) with its own GCS state at `terraform/gpu-state/` — isolated from the main cluster state so regular expand/restore workflows cannot touch it.
 
-The GPU pool is created in `us-west1-b` (T4/L4/P4 availability; the main cluster is in `us-west1-a`).
+The GPU pool is created in `us-west1-a` (same zone as the cluster; T4/L4/P4 are all available there).
 
 ### [GKE Expand Triton](.github/workflows/gke-expand-triton.yaml)
 
@@ -504,9 +504,9 @@ Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-triton-pool` n
 
 | gpu_type | Architecture | VRAM | Paired machine | Zone | Approx cost/hr |
 |---|---|---|---|---|---|
-| `nvidia-tesla-t4` *(default)* | Turing | 16 GB | `n1-standard-4` | `us-west1-b` | ~$0.54 |
-| `nvidia-l4` | Ada Lovelace | 24 GB | `g2-standard-4` | `us-west1-b` | ~$0.74 |
-| `nvidia-tesla-p4` | Pascal | 8 GB | `n1-standard-4` | `us-west1-b` | ~$0.42 |
+| `nvidia-tesla-t4` *(default)* | Turing | 16 GB | `n1-standard-4` | `us-west1-a` | ~$0.54 |
+| `nvidia-l4` | Ada Lovelace | 24 GB | `g2-standard-4` | `us-west1-a` | ~$0.74 |
+| `nvidia-tesla-p4` | Pascal | 8 GB | `n1-standard-4` | `us-west1-a` | ~$0.42 |
 
 T4 and L4 are recommended for inference workloads. L4 offers better throughput per dollar for larger models and FP8/INT8 serving. P4 is sufficient for lightweight models only.
 
