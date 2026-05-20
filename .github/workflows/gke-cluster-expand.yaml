@@ -71,10 +71,6 @@ jobs:
           echo "state_path=$STATE_PATH" >> "$GITHUB_OUTPUT"
           echo "::notice title=State saved::$LIVE_COUNT live node(s) | $MACHINE | configured=$CONFIGURED → $STATE_PATH"
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          wrapper: false
 
       - name: Terraform Init
         working-directory: gcp/terraform
