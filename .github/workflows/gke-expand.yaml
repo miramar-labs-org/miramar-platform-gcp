@@ -60,7 +60,12 @@ jobs:
           python3 -c "import json; d=json.load(open('/tmp/pool-state.json')); d['_snapshotLiveNodeCount']=$LIVE_COUNT; json.dump(d,open('/tmp/pool-state-save.json','w'),indent=2)"
 
           STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/node-pool-${{ inputs.node_pool }}.json"
-          gsutil cp /tmp/pool-state-save.json "$STATE_PATH"
+          if gsutil -q stat "$STATE_PATH" 2>/dev/null; then
+            echo "::notice title=State exists::Snapshot already at $STATE_PATH — skipping overwrite (already expanded)"
+          else
+            gsutil cp /tmp/pool-state-save.json "$STATE_PATH"
+            echo "::notice title=State saved::$LIVE_COUNT live node(s) → $STATE_PATH"
+          fi
 
           MACHINE=$(python3 -c "import json; print(json.load(open('/tmp/pool-state.json'))['config']['machineType'])")
           CONFIGURED=$(python3 -c "import json; print(json.load(open('/tmp/pool-state.json'))['initialNodeCount'])")
@@ -69,7 +74,6 @@ jobs:
           echo "configured_count=$CONFIGURED" >> "$GITHUB_OUTPUT"
           echo "machine_type=$MACHINE" >> "$GITHUB_OUTPUT"
           echo "state_path=$STATE_PATH" >> "$GITHUB_OUTPUT"
-          echo "::notice title=State saved::$LIVE_COUNT live node(s) | $MACHINE | configured=$CONFIGURED → $STATE_PATH"
 
 
       - name: Terraform Init

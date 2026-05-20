@@ -60,12 +60,16 @@ jobs:
 
       - name: Save current namespace quota to GCS
         run: |
-          kubectl get resourcequota namespace-quota \
-            -n "${{ inputs.namespace }}" \
-            -o json > /tmp/quota-backup.json
-          gsutil cp /tmp/quota-backup.json \
-            "gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
-          echo "::notice::Quota snapshot saved to gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
+          STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
+          if gsutil -q stat "$STATE_PATH" 2>/dev/null; then
+            echo "::notice::Quota snapshot already exists — skipping save (already expanded)"
+          else
+            kubectl get resourcequota namespace-quota \
+              -n "${{ inputs.namespace }}" \
+              -o json > /tmp/quota-backup.json
+            gsutil cp /tmp/quota-backup.json "$STATE_PATH"
+            echo "::notice::Quota snapshot saved to $STATE_PATH"
+          fi
 
       - name: Create GPU node pool
         working-directory: gcp/terraform-gpu
@@ -120,5 +124,5 @@ jobs:
             echo "| Machine | \`${{ inputs.machine_type }}\` + \`${{ inputs.gpu_type }}\` |"
             echo "| Namespace | \`${{ inputs.namespace }}\` |"
             echo ""
-            echo "> Run **GKE Restore GPU** when done to remove the GPU pool and restore quota."
+            echo "> Run **GKE Restore Triton** when done to remove the GPU pool and restore quota."
           } >> "$GITHUB_STEP_SUMMARY"
