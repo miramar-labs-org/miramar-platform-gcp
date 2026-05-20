@@ -127,6 +127,8 @@ The cluster is intentionally minimized. These constraints must be preserved:
 ```
 Token is fetched automatically via `GITHUB_ORG_ADMIN_PAT`. Idempotent — re-running while the container is already up just prints status. Work directory is mounted from `~/runner/_work` on the host into `/home/runner/_work` in the container.
 
+Local machine env vars required: `GITHUB_ORG_GHCR_PAT` (pull runner image), `GITHUB_ORG_ADMIN_PAT` (register/deregister runner). `HF_TOKEN` is a GitHub org secret — injected by workflows, not needed locally.
+
 **Runner registration tokens** are obtained from GitHub UI or API and expire after 1 hour. The container deregisters cleanly on `SIGTERM`.
 
 To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile` or trigger `workflow_dispatch` with the `runner_version` input.
