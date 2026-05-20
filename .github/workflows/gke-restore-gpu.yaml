@@ -1,6 +1,6 @@
-name: GKE Triton Restore
+name: GKE Restore GPU
 
-# Removes the temporary GPU node pool added by GKE Triton Expand and
+# Removes the temporary GPU node pool added by GKE Expand GPU and
 # restores the namespace resource quota to its pre-expand state.
 
 on:

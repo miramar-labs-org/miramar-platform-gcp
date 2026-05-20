@@ -481,3 +481,33 @@ Loads the saved state from GCS and runs `terraform apply -var=node_pool_count=<s
 2. Leave `node_count_override` blank (reads from GCS automatically)
 
 Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via Workload Identity Federation.
+
+---
+
+## GPU Node Pool Workflows
+
+Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads that need a GPU (e.g. Triton Inference Server) and restore the cluster when done. The GPU pool is created in `us-west1-b` (T4/L4/P4 availability; the main cluster is in `us-west1-a`).
+
+### [GKE Expand GPU](.github/workflows/gke-expand-gpu.yaml)
+
+Creates the GPU node pool, installs the NVIDIA device plugin, and relaxes the target namespace's resource quota to allow GPU workloads. Snapshots the original quota to GCS before patching so Restore can revert it exactly.
+
+**GPU options (`gpu_type` input):**
+
+| gpu_type | Architecture | VRAM | Paired machine | Zone | Approx cost/hr |
+|---|---|---|---|---|---|
+| `nvidia-tesla-t4` *(default)* | Turing | 16 GB | `n1-standard-4` | `us-west1-b` | ~$0.54 |
+| `nvidia-l4` | Ada Lovelace | 24 GB | `g2-standard-4` | `us-west1-b` | ~$0.74 |
+| `nvidia-tesla-p4` | Pascal | 8 GB | `n1-standard-4` | `us-west1-b` | ~$0.42 |
+
+T4 and L4 are recommended for inference workloads. L4 offers better throughput per dollar for larger models and FP8/INT8 serving. P4 is sufficient for lightweight models only.
+
+1. Go to **Actions → GKE Expand GPU → Run workflow**
+2. Set `namespace`, `machine_type`, and `gpu_type` as needed
+
+### [GKE Restore GPU](.github/workflows/gke-restore-gpu.yaml)
+
+Restores the namespace quota from the GCS snapshot, then deletes the GPU node pool.
+
+1. Go to **Actions → GKE Restore GPU → Run workflow**
+2. Confirm the `namespace` matches what was used in Expand
