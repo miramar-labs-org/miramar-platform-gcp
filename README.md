@@ -342,7 +342,7 @@ gcloud storage buckets add-iam-policy-binding gs://miramar-platform-cluster-stat
 Snapshots the current node pool state (machine type, configured count, live node count) to GCS, then resizes to `target_nodes` and waits for all nodes to reach `Ready`.
 
 1. Go to **Actions → GKE Cluster Expand → Run workflow**
-2. Set `target_nodes` (default: `2`) and optionally `node_pool` (default: `default-pool`)
+2. Set `target_nodes` (default: `2`) and optionally `node_pool` (default: `e2-medium-pool`)
 
 ### [GKE Cluster Restore](.github/workflows/gke-cluster-restore.yaml)
 

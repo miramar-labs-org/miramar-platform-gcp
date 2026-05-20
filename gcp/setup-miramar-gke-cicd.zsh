@@ -20,7 +20,7 @@ set -euo pipefail
 # Cost-control design:
 #   - us-west1-a
 #   - GKE Standard, not Autopilot
-#   - one e2-micro node by default
+#   - one e2-medium node by default
 #   - one 30 GB pd-standard boot disk
 #
 # WARNING:
@@ -63,9 +63,8 @@ CLUSTER_NAME="miramar-shared-gke"
 CREATE_CLUSTER="true"
 GKE_RELEASE_CHANNEL="regular"
 
-# Free-tier-minimized node settings.
-# Change MACHINE_TYPE to e2-medium if e2-micro is too constrained.
-MACHINE_TYPE="e2-micro"
+# Node settings.
+MACHINE_TYPE="e2-medium"
 NUM_NODES="1"
 DISK_TYPE="pd-standard"
 DISK_SIZE_GB="30"

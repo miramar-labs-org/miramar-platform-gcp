@@ -55,7 +55,7 @@ Two `workflow_dispatch` workflows in `.github/workflows/` temporarily expand the
 
 | Workflow | File | Purpose |
 |---|---|---|
-| GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `default-pool` to N nodes; prints original count in summary |
+| GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `e2-medium-pool` to N nodes; saves full state to GCS |
 | GKE Cluster Restore | `gke-cluster-restore.yaml` | Scale back to the original node count from the Expand summary |
 
 Typical sequence: run **Expand** → deploy workload → run **Restore**. Both run on `[self-hosted, wsl2]` and authenticate via WIF. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback. Requires a one-time bucket create + SA IAM grant (see README).
@@ -71,7 +71,7 @@ terraform plan -var="project_id=miramar-platform"
 terraform apply -var="project_id=miramar-platform"
 ```
 
-State is stored in GCS (bucket configured at init time). Default variables: `us-west1-a`, `e2-micro`, 1 node.
+State is stored in GCS (bucket configured at init time). Default variables: `us-west1-a`, `e2-medium`, 1 node.
 
 ## GCP project structure
 
@@ -83,7 +83,7 @@ GitHub Actions authenticate keylessly via Workload Identity Federation. The WIF 
 ## Cost-control constraints
 
 The cluster is intentionally minimized. These constraints must be preserved:
-- Node type: `e2-micro`, single node, `pd-standard` disk
+- Node type: `e2-medium`, single node, `pd-standard` disk
 - No `LoadBalancer` Services — use `ClusterIP` + `kubectl port-forward` for testing
 - No PersistentVolumeClaims, Cloud NAT, or regional clusters
 

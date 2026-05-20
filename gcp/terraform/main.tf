@@ -24,13 +24,13 @@ resource "google_container_cluster" "main" {
 }
 
 resource "google_container_node_pool" "main" {
-  name       = "default-pool"
+  name       = "e2-medium-pool"
   cluster    = google_container_cluster.main.name
   location   = var.zone
   node_count = 1
 
   node_config {
-    machine_type = "e2-micro"
+    machine_type = "e2-medium"
     disk_size_gb = 10
     disk_type    = "pd-standard"
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]

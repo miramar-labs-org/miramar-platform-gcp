@@ -5,7 +5,7 @@ on:
     inputs:
       node_pool:
         description: Node pool to resize
-        default: default-pool
+        default: e2-medium-pool
         required: true
       target_nodes:
         description: Number of nodes while testing
