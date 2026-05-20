@@ -18,7 +18,7 @@ TFVARS_GPU="${SCRIPT_DIR}/../../../gcp/terraform-gpu/gpu.tfvars"
 TF_GPU_DIR="${SCRIPT_DIR}/../../../gcp/terraform-gpu"
 
 NAMESPACE="${1:-mlops-torch-triton-gke-pipeline}"
-GPU_POOL="gpu-triton-pool"
+GPU_POOL="gpu-pool"
 
 tfvar() {
   local file="$1" key="$2"

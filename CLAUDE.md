@@ -73,7 +73,7 @@ terraform apply -var-file=terraform.tfvars
 
 State is stored in GCS at `gs://miramar-platform-cluster-state/terraform/state/`. `GKE_STATE_BUCKET` is the one GitHub variable not in tfvars (it is the backend config itself).
 
-**`gcp/terraform-gpu/`** — manages the transient `gpu-triton-pool` GPU node pool only. Separate state at `gs://miramar-platform-cluster-state/terraform/gpu-state/`. Used exclusively by the **GKE Expand GPU** / **GKE Restore GPU** workflows — regular expand/restore never touch it. Config in `gcp/terraform-gpu/gpu.tfvars`.
+**`gcp/terraform-gpu/`** — manages the transient `gpu-pool` GPU node pool only. Separate state at `gs://miramar-platform-cluster-state/terraform/gpu-state/`. Used exclusively by the **GKE Expand GPU** / **GKE Restore GPU** workflows — regular expand/restore never touch it. Config in `gcp/terraform-gpu/gpu.tfvars`.
 
 **Note:** the mlabs-runner Docker image has Terraform pre-installed via the Hashicorp apt repo. The `hashicorp/setup-terraform` GitHub Actions action is intentionally not used (it requires Node.js).
 

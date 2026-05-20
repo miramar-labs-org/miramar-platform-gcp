@@ -120,7 +120,7 @@ jobs:
             echo "## GKE Expand GPU"
             echo "| | |"
             echo "|---|---|"
-            echo "| GPU pool | \`gpu-triton-pool\` |"
+            echo "| GPU pool | \`gpu-pool\` |"
             echo "| Machine | \`${{ inputs.machine_type }}\` + \`${{ inputs.gpu_type }}\` |"
             echo "| Namespace | \`${{ inputs.namespace }}\` |"
             echo ""

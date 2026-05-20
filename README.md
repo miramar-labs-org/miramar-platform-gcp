@@ -508,7 +508,7 @@ The GPU pool is created in `us-west1-a` (same zone as the cluster; T4/L4/P4 are 
 
 ### [GKE Expand GPU](.github/workflows/gke-expand-gpu.yaml)
 
-Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-triton-pool` node pool, installs the NVIDIA device plugin DaemonSet, and relaxes the target namespace's resource quota to allow GPU workloads. Snapshots the original quota to GCS before patching so Restore can revert it exactly. Running Expand on an already-running pool is a no-op.
+Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-pool` node pool, installs the NVIDIA device plugin DaemonSet, and relaxes the target namespace's resource quota to allow GPU workloads. Snapshots the original quota to GCS before patching so Restore can revert it exactly. Running Expand on an already-running pool is a no-op.
 
 **GPU options (`gpu_type` input):**
 

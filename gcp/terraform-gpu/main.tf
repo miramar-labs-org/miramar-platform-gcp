@@ -16,7 +16,7 @@ provider "google" {
 }
 
 resource "google_container_node_pool" "gpu" {
-  name     = "gpu-triton-pool"
+  name     = "gpu-pool"
   cluster  = var.cluster_name
   location = var.cluster_zone
 
