@@ -323,6 +323,16 @@ Gracefully stop the mlabs-runner container. Sends SIGTERM, which triggers the en
 ./scripts/gha/stop-runner.sh
 ```
 
+#### [flush-queues.sh](scripts/gha/flush-queues.sh)
+Cancel all in-progress, queued, and waiting workflow runs for the repo. Useful for clearing a stuck queue.
+```sh
+# Default: miramar-labs-org/miramar-platform-gcp
+./scripts/gha/flush-queues.sh
+
+# Another repo
+./scripts/gha/flush-queues.sh miramar-labs-org/other-repo
+```
+
 #### [unregister-runner.sh](scripts/gha/unregister-runner.sh)
 Remove a runner from the org via the GitHub API. Lists runners and prompts for ID, or pass a name directly.
 ```sh
@@ -343,10 +353,14 @@ Enumerate live GCP resources in the `miramar-platform` project.
 ./scripts/gcp/resources.sh
 ```
 
-#### [create-cluster-state-bucket.sh](scripts/gcp/create-cluster-state-bucket.sh)
-One-time setup: create the GCS bucket used by the GKE expand/restore workflows and grant the deploy SA write access.
+#### [create-bucket.sh](scripts/gcp/create-bucket.sh)
+Create a GCS bucket idempotently. Optionally grant a service account `storage.admin` on the project.
 ```sh
-./scripts/gcp/create-cluster-state-bucket.sh
+./scripts/gcp/create-bucket.sh \
+  --bucket <name> \
+  --project miramar-platform \
+  --location us-west1 \
+  --grant-sa <sa@project.iam.gserviceaccount.com>
 ```
 
 ---
@@ -429,15 +443,7 @@ Two `workflow_dispatch` workflows let you temporarily expand the cluster for hea
 
 Before the resize, Expand snapshots the full node pool JSON and the live node count into a GCS state file (`gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`). Restore reads that file — no manual count needed.
 
-### One-time setup
-
-Grant the deploy SA `storage.admin` on `miramar-platform` so it can create and write to the state bucket. Run once from any authenticated `gcloud` session:
-
-```sh
-./scripts/gcp/create-cluster-state-bucket.sh
-```
-
-After that the Expand workflow creates the bucket automatically if it's ever missing. The bucket is also created by `gcp/create-miramar-platform.zsh` during a full platform provision.
+The cluster state bucket (`miramar-platform-cluster-state`) is created automatically by the **Miramar Platform Create** workflow. The Expand workflow also creates it if missing. No manual setup needed.
 
 ### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
 

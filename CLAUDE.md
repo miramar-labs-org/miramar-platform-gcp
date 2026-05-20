@@ -43,6 +43,7 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 | `gcp/list-miramar-platform.zsh` | Enumerate live GCP resources in the project |
 | `gcp/pause-miramar-platform.zsh` / `gcp/resume-miramar-platform.zsh` | Scale GKE node pool to 0 / back up |
 | `scripts/gha/launch-runner.sh` / `scripts/gha/stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container |
+| `scripts/gha/flush-queues.sh` | Cancel all in-progress, queued, and waiting workflow runs |
 | `scripts/ubuntu/install-gcloud.sh` | Install `gcloud` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-terraform.sh` | Install `terraform` via apt on Ubuntu/Debian |
 
