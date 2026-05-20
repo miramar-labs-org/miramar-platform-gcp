@@ -30,7 +30,7 @@ set_var() {
   local gh_name="$1"
   local value="$2"
   echo "  $gh_name = $value"
-  gh variable set "$gh_name" --org "$GITHUB_ORG" --body "$value"
+  gh variable set "$gh_name" --org "$GITHUB_ORG" --body "$value" --visibility all
 }
 
 echo "Syncing from: $TFVARS"
