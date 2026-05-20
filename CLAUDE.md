@@ -60,6 +60,9 @@ zsh ./gcp/bootstrap-miramar-platform.zsh 2>&1 | tee /tmp/bootstrap.log
 
 Output includes `WIF_PROVIDER` (set as org-level secret) and `GCP_SERVICE_ACCOUNT` (set as repo-level secret on `miramar-platform-gcp`). All workflows use WIF from that point on.
 
+Org-level variables (set via `gh variable set --org miramar-labs-org`):
+`GCP_PROJECT_ID`, `GKE_CLUSTER_NAME`, `GKE_ZONE`, `GCP_REGION`, `GAR_REPO`, `GKE_STATE_BUCKET` — all workflows read these via `${{ vars.* }}` instead of hardcoding values.
+
 `workflow_dispatch` workflows in `.github/workflows/`:
 
 | Workflow | File | Purpose |

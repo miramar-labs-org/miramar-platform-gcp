@@ -49,6 +49,35 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser. Th
 
 ---
 
+## GitHub Secrets & Variables
+
+### Org-level secrets — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/secrets/actions)
+
+| Secret | Value | Purpose |
+|---|---|---|
+| `WIF_PROVIDER` | output of `bootstrap-miramar-platform.zsh` | WIF provider resource path — shared by all repos for GCP auth |
+
+### Repo-level secrets — [miramar-platform-gcp settings](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions)
+
+| Secret | Value | Purpose |
+|---|---|---|
+| `GCP_SERVICE_ACCOUNT` | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops SA — used by platform lifecycle workflows |
+
+### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
+
+Shared platform config — available to all repos in the org via `${{ vars.* }}`.
+
+| Variable | Value |
+|---|---|
+| `GCP_PROJECT_ID` | `miramar-platform` |
+| `GKE_CLUSTER_NAME` | `miramar-shared-gke` |
+| `GKE_ZONE` | `us-west1-a` |
+| `GCP_REGION` | `us-west1` |
+| `GAR_REPO` | `apps` |
+| `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` |
+
+---
+
 ## Required Environment Variables
 
 Two GitHub classic PATs must be set as environment variables on each machine. Create them at [github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)**.
