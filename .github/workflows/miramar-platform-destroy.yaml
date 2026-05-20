@@ -92,15 +92,25 @@ jobs:
         id: del_gke
         continue-on-error: true
         run: |
-          if gcloud container clusters describe "$GKE_CLUSTER_NAME" \
-              --zone "$GKE_ZONE" --project "$PROJECT_ID" &>/dev/null; then
-            echo "::notice::GKE cluster still exists after terraform destroy — deleting via gcloud"
-            gcloud container clusters delete "$GKE_CLUSTER_NAME" \
-              --zone "$GKE_ZONE" --project "$PROJECT_ID" --quiet
-            echo "result=deleted" >> "$GITHUB_OUTPUT"
-          else
-            echo "result=skipped" >> "$GITHUB_OUTPUT"
-          fi
+          STATUS=$(gcloud container clusters describe "$GKE_CLUSTER_NAME" \
+              --zone "$GKE_ZONE" --project "$PROJECT_ID" \
+              --format="value(status)" 2>/dev/null || echo "NOT_FOUND")
+          case "$STATUS" in
+            RUNNING)
+              echo "::notice::GKE cluster RUNNING after terraform destroy — deleting via gcloud"
+              gcloud container clusters delete "$GKE_CLUSTER_NAME" \
+                --zone "$GKE_ZONE" --project "$PROJECT_ID" --quiet
+              echo "result=deleted" >> "$GITHUB_OUTPUT"
+              ;;
+            STOPPING|RECONCILING|PROVISIONING)
+              echo "Cluster status is $STATUS — deletion already in progress, skipping."
+              echo "result=skipped ($STATUS)" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Cluster not found or status=$STATUS — skipping."
+              echo "result=skipped" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
       - name: Cleanup Artifact Registry repo (fallback for pre-Terraform resources)
         id: del_ar
