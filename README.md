@@ -67,7 +67,7 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser. Th
 
 ### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
 
-Shared platform config — available to all repos in the org via `${{ vars.* }}`. **Synced from `gcp/terraform/terraform.tfvars`** — do not edit directly. Run `scripts/gcp/sync-github-vars.sh` after changing tfvars.
+Shared platform config — available to all repos in the org via `${{ vars.* }}`. **Synced from `gcp/terraform/terraform.tfvars`** — do not edit directly. Run `scripts/gha/sync-github-vars.sh` after changing tfvars.
 
 | Variable | Value |
 |---|---|
@@ -350,15 +350,21 @@ Remove a runner from the org via the GitHub API. Lists runners and prompts for I
 ./scripts/gha/unregister-runner.sh <runner-name>
 ```
 
+#### [sync-github-vars.sh](scripts/gha/sync-github-vars.sh)
+Sync `gcp/terraform/terraform.tfvars` to GitHub org variables. Run after editing tfvars to keep GitHub vars in sync.
+```sh
+./scripts/gha/sync-github-vars.sh
+```
+
+#### [get-github-secrets.sh](scripts/gha/get-github-secrets.sh)
+Print the `WIF_PROVIDER` and `GCP_SERVICE_ACCOUNT` values for the platform. Use this after bootstrap to get the values to paste into GitHub secrets.
+```sh
+./scripts/gha/get-github-secrets.sh
+```
+
 ---
 
 ### `scripts/gcp/` — GCP utilities
-
-#### [sync-github-vars.sh](scripts/gcp/sync-github-vars.sh)
-Sync `gcp/terraform/terraform.tfvars` to GitHub org variables. Run after editing tfvars to keep GitHub vars in sync.
-```sh
-./scripts/gcp/sync-github-vars.sh
-```
 
 #### [resources.sh](scripts/gcp/resources.sh)
 Enumerate live GCP resources in the `miramar-platform` project.
@@ -428,7 +434,7 @@ After setting those secrets, all subsequent workflows authenticate via WIF.
 All platform config lives in `gcp/terraform/terraform.tfvars`. After any change:
 
 ```sh
-./scripts/gcp/sync-github-vars.sh   # push values to GitHub org variables
+./scripts/gha/sync-github-vars.sh   # push values to GitHub org variables
 ```
 
 `GKE_STATE_BUCKET` is the only GitHub variable not sourced from tfvars — set it manually if it ever changes.

@@ -42,7 +42,7 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 | `gcp/bootstrap-miramar-platform.zsh` | One-time local setup — project creation, billing, APIs, WIF pool/provider, service accounts, IAM bindings |
 | `gcp/create-miramar-platform.zsh` | K8s-only setup — AR IAM bindings for deploy SAs, namespaces, resource quotas, RBAC. GCP resources are managed by Terraform. |
 | `gcp/list-miramar-platform.zsh` | Enumerate live GCP resources in the project |
-| `scripts/gcp/sync-github-vars.sh` | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Run after editing tfvars. |
+| `scripts/gha/sync-github-vars.sh` | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Run after editing tfvars. |
 | `scripts/gha/launch-runner.sh` / `scripts/gha/stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. `launch-runner.sh` is idempotent — if the container is already running it prints status and exits 0. |
 | `scripts/gha/flush-queues.sh` | Cancel all in-progress, queued, and waiting workflow runs |
 | `scripts/ubuntu/install-gcloud.sh` | Install `gcloud` via apt on Ubuntu/Debian |
@@ -58,11 +58,11 @@ Two root modules — keep them separate, they must never share state.
 
 **`gcp/terraform/`** — manages the GKE cluster, node pool (`default-pool`), and Artifact Registry repo. IAM and WIF are handled by the bootstrap script and are intentionally outside Terraform.
 
-**Source of truth: `gcp/terraform/terraform.tfvars`** — all platform config values live here. GitHub org variables are synced from this file via `scripts/gcp/sync-github-vars.sh`. Never edit GitHub vars directly; edit tfvars and re-sync.
+**Source of truth: `gcp/terraform/terraform.tfvars`** — all platform config values live here. GitHub org variables are synced from this file via `scripts/gha/sync-github-vars.sh`. Never edit GitHub vars directly; edit tfvars and re-sync.
 
 ```sh
 # After editing terraform.tfvars:
-./scripts/gcp/sync-github-vars.sh
+./scripts/gha/sync-github-vars.sh
 
 # Local plan/apply (bucket must exist first):
 cd gcp/terraform
