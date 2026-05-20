@@ -1,0 +1,89 @@
+name: GKE Cluster Destroy
+
+# ⚠ DESTRUCTIVE — deletes the GKE cluster and all namespaces/workloads
+# inside it. This cannot be undone.
+#
+# Guards:
+#   1. You must type the exact cluster name in `confirm_cluster_name`.
+#   2. You must check `i_confirm` to acknowledge the action is irreversible.
+# The job aborts immediately if either check fails.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_cluster_name:
+        description: "Type the cluster name to confirm: miramar-shared-gke"
+        required: true
+      i_confirm:
+        description: I understand this permanently deletes the cluster and all workloads
+        type: boolean
+        default: false
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: miramar-platform
+  GKE_CLUSTER_NAME: miramar-shared-gke
+  GKE_ZONE: us-west1-a
+
+jobs:
+  destroy:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ inputs.confirm_cluster_name }}" != "$GKE_CLUSTER_NAME" ]; then
+            echo "::error::Cluster name mismatch. Expected '$GKE_CLUSTER_NAME', got '${{ inputs.confirm_cluster_name }}'."
+            exit 1
+          fi
+          if [ "${{ inputs.i_confirm }}" != "true" ]; then
+            echo "::error::You must check the confirmation box to proceed."
+            exit 1
+          fi
+          echo "::warning::Destroying cluster $GKE_CLUSTER_NAME in $GKE_ZONE. This cannot be undone."
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: List namespaces and workloads before deletion
+        run: |
+          echo "--- Namespaces ---"
+          kubectl get namespaces
+          echo "--- All pods ---"
+          kubectl get pods --all-namespaces
+
+      - name: Delete cluster
+        run: |
+          gcloud container clusters delete "$GKE_CLUSTER_NAME" \
+            --zone "$GKE_ZONE" \
+            --project "$GCP_PROJECT_ID" \
+            --quiet
+
+      - name: Summary
+        run: |
+          {
+            echo "## GKE Cluster Destroyed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Cluster | \`$GKE_CLUSTER_NAME\` |"
+            echo "| Zone | \`$GKE_ZONE\` |"
+            echo "| Deleted by | \`${{ github.actor }}\` |"
+            echo ""
+            echo "> To recreate, run the **GKE Cluster Create** workflow."
+          } >> "$GITHUB_STEP_SUMMARY"

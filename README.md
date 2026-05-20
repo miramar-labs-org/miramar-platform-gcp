@@ -324,6 +324,34 @@ Install Terraform via apt on Ubuntu/Debian.
 
 ---
 
+## GKE Cluster Lifecycle Workflows
+
+### [GKE Cluster Create](.github/workflows/gke-cluster-create.yaml)
+
+Runs `gcp/setup-miramar-gke-cicd.zsh` to idempotently create (or verify) the GKE cluster, namespaces, RBAC, Artifact Registry, cluster management SA, and state bucket. Use this to recreate the cluster after a destroy.
+
+Requires the one-time prerequisites (WIF pool/provider, GCP projects, billing) to already be in place. The `gh-gke-cluster-ops` SA needs `roles/editor` on `miramar-platform` and `roles/iam.serviceAccountAdmin` on `miramar-cicd` to run all steps.
+
+```
+Actions → GKE Cluster Create → Run workflow
+```
+
+### [GKE Cluster Destroy](.github/workflows/gke-cluster-destroy.yaml)
+
+**Permanently deletes the GKE cluster and all namespaces and workloads inside it.**
+
+Two guards must both pass before the cluster is touched:
+1. Type the exact cluster name (`miramar-shared-gke`) in `confirm_cluster_name`
+2. Check the `i_confirm` checkbox
+
+The job lists all namespaces and pods before deleting so there is an audit trail in the run log.
+
+```
+Actions → GKE Cluster Destroy → Run workflow
+```
+
+---
+
 ## GKE Cluster Scaling Workflows
 
 Two `workflow_dispatch` workflows let you temporarily expand the cluster for heavier workloads (ML deployments, load testing) and then restore it to its original size automatically.

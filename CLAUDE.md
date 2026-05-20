@@ -55,6 +55,8 @@ Two `workflow_dispatch` workflows in `.github/workflows/` temporarily expand the
 
 | Workflow | File | Purpose |
 |---|---|---|
+| GKE Cluster Create | `gke-cluster-create.yaml` | Run `setup-miramar-gke-cicd.zsh` to (re)create the cluster, namespaces, and RBAC |
+| GKE Cluster Destroy | `gke-cluster-destroy.yaml` | Delete the cluster and all workloads — requires typed cluster name + checkbox confirmation |
 | GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `e2-medium-pool` to N nodes; saves full state to GCS |
 | GKE Cluster Restore | `gke-cluster-restore.yaml` | Scale back to the original node count from the Expand summary |
 

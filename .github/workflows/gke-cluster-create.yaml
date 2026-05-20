@@ -1,0 +1,71 @@
+name: GKE Cluster Create
+
+# Runs gcp/setup-miramar-gke-cicd.zsh to (re)create the GKE cluster,
+# namespaces, RBAC, and supporting resources. The script is idempotent —
+# existing resources are left untouched.
+#
+# Prerequisites (one-time, done by a human with project-owner access):
+#   - GCP projects (miramar-cicd, miramar-platform) exist
+#   - Billing is linked
+#   - Required APIs are enabled
+#   - Workload Identity Federation pool + provider are configured
+#   - gh-gke-cluster-ops SA exists and has roles/editor on miramar-platform
+#     plus roles/iam.serviceAccountAdmin on miramar-cicd
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: miramar-platform
+  GKE_CLUSTER_NAME: miramar-shared-gke
+  GKE_ZONE: us-west1-a
+
+jobs:
+  create:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run setup script
+        run: ./gcp/setup-miramar-gke-cicd.zsh
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Show cluster and namespace state
+        run: |
+          echo "--- Nodes ---"
+          kubectl get nodes -o wide
+          echo "--- Namespaces ---"
+          kubectl get namespaces
+
+      - name: Summary
+        run: |
+          NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | grep -c . || echo 0)
+          NS_COUNT=$(kubectl get namespaces --no-headers 2>/dev/null | grep -c . || echo 0)
+          {
+            echo "## GKE Cluster Created / Verified"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Cluster | \`$GKE_CLUSTER_NAME\` |"
+            echo "| Zone | \`$GKE_ZONE\` |"
+            echo "| Nodes | \`$NODE_COUNT\` |"
+            echo "| Namespaces | \`$NS_COUNT\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
