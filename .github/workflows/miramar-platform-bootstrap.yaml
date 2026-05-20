@@ -34,13 +34,6 @@ jobs:
           ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/bootstrap.log
           echo "BOOTSTRAP_LOG=/tmp/bootstrap.log" >> "$GITHUB_ENV"
 
-      - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
-        with:
-          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
-          location: ${{ env.GKE_ZONE }}
-          project_id: ${{ env.PROJECT_ID }}
-
       - name: Show cluster state
         run: |
           echo "--- Nodes ---"
