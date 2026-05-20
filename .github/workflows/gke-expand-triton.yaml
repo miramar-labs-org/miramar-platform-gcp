@@ -61,13 +61,13 @@ jobs:
       - name: Save current namespace quota to GCS
         run: |
           STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
-          if gsutil -q stat "$STATE_PATH" 2>/dev/null; then
+          if gcloud storage ls "$STATE_PATH" > /dev/null 2>&1; then
             echo "::notice::Quota snapshot already exists — skipping save (already expanded)"
           else
             kubectl get resourcequota namespace-quota \
               -n "${{ inputs.namespace }}" \
               -o json > /tmp/quota-backup.json
-            gsutil cp /tmp/quota-backup.json "$STATE_PATH"
+            gcloud storage cp /tmp/quota-backup.json "$STATE_PATH"
             echo "::notice::Quota snapshot saved to $STATE_PATH"
           fi
 

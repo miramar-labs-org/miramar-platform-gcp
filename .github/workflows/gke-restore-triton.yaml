@@ -46,8 +46,8 @@ jobs:
       - name: Restore namespace quota from snapshot
         run: |
           STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
-          if gsutil -q stat "$STATE_PATH" 2>/dev/null; then
-            gsutil cp "$STATE_PATH" /tmp/quota-backup.json
+          if gcloud storage ls "$STATE_PATH" > /dev/null 2>&1; then
+            gcloud storage cp "$STATE_PATH" /tmp/quota-backup.json
             kubectl apply -f /tmp/quota-backup.json
             echo "::notice::Quota restored from $STATE_PATH"
           else

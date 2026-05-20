@@ -127,19 +127,19 @@ gcloud compute machine-types list --filter="zone:(us-west1-a) AND name~g2" \
 
 ```sh
 # List buckets
-gsutil ls -p miramar-platform
+gcloud storage ls --project miramar-platform
 
 # View Terraform state files
-gsutil ls gs://miramar-platform-cluster-state/terraform/
+gcloud storage ls gs://miramar-platform-cluster-state/terraform/
 
 # View GKE snapshots
-gsutil ls gs://miramar-platform-cluster-state/gke/
+gcloud storage ls gs://miramar-platform-cluster-state/gke/
 
 # Copy a file
-gsutil cp gs://miramar-platform-cluster-state/gke/quota-mlops-torch-triton-gke-pipeline.json /tmp/
+gcloud storage cp gs://miramar-platform-cluster-state/gke/quota-mlops-torch-triton-gke-pipeline.json /tmp/
 
 # Delete a file
-gsutil rm gs://miramar-platform-cluster-state/gke/quota-mlops-torch-triton-gke-pipeline.json
+gcloud storage rm gs://miramar-platform-cluster-state/gke/quota-mlops-torch-triton-gke-pipeline.json
 ```
 
 ---

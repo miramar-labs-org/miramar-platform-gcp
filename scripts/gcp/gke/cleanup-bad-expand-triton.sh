@@ -78,8 +78,8 @@ fi
 echo ""
 echo "==> Step 3: restore namespace quota for $NAMESPACE"
 STATE_PATH="gs://$STATE_BUCKET/gke/quota-${NAMESPACE}.json"
-if gsutil -q stat "$STATE_PATH" 2>/dev/null; then
-  gsutil cp "$STATE_PATH" /tmp/quota-backup.json
+if gcloud storage ls "$STATE_PATH" > /dev/null 2>&1; then
+  gcloud storage cp "$STATE_PATH" /tmp/quota-backup.json
   kubectl apply -f /tmp/quota-backup.json
   echo "    Quota restored from $STATE_PATH"
 else

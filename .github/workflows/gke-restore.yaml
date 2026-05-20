@@ -47,11 +47,11 @@ jobs:
             echo "::notice title=Manual override::Restoring to $RESTORE_COUNT node(s)"
           else
             STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/node-pool-${{ inputs.node_pool }}.json"
-            if ! gsutil -q stat "$STATE_PATH" 2>/dev/null; then
+            if ! gcloud storage ls "$STATE_PATH" > /dev/null 2>&1; then
               echo "::error::No saved state at $STATE_PATH — run GKE Expand first, or set node_count_override."
               exit 1
             fi
-            gsutil cp "$STATE_PATH" /tmp/pool-state.json
+            gcloud storage cp "$STATE_PATH" /tmp/pool-state.json
             RESTORE_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/pool-state.json')); print(d.get('_snapshotLiveNodeCount', d['initialNodeCount']))")
             MACHINE=$(python3 -c "import json; print(json.load(open('/tmp/pool-state.json'))['config']['machineType'])")
             echo "::notice title=State loaded::Restoring to $RESTORE_COUNT × $MACHINE from $STATE_PATH"

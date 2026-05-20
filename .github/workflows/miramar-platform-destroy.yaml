@@ -124,8 +124,8 @@ jobs:
       - name: Delete cluster state bucket
         id: del_bucket
         run: |
-          if gsutil ls "gs://$CLUSTER_STATE_BUCKET" &>/dev/null; then
-            gsutil -m rm -r "gs://$CLUSTER_STATE_BUCKET"
+          if gcloud storage ls "gs://$CLUSTER_STATE_BUCKET" > /dev/null 2>&1; then
+            gcloud storage rm --recursive "gs://$CLUSTER_STATE_BUCKET"
             echo "Cluster state bucket deleted."
             echo "result=deleted" >> "$GITHUB_OUTPUT"
           else

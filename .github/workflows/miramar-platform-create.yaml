@@ -66,7 +66,7 @@ jobs:
 
       - name: Ensure Terraform state / snapshot bucket
         run: |
-          if ! gsutil ls "gs://$CLUSTER_STATE_BUCKET" 2>/dev/null; then
+          if ! gcloud storage ls "gs://$CLUSTER_STATE_BUCKET" > /dev/null 2>&1; then
             echo "Creating bucket gs://$CLUSTER_STATE_BUCKET"
             gcloud storage buckets create "gs://$CLUSTER_STATE_BUCKET" \
               --project="$PROJECT_ID" \
