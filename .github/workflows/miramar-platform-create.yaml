@@ -60,7 +60,7 @@ jobs:
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
 
       - name: Install zsh
-        run: which zsh || sudo apt-get install -y zsh
+        run: which zsh || (sudo apt-get update && sudo apt-get install -y zsh)
 
       - name: Run setup script
         run: zsh ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/setup.log
