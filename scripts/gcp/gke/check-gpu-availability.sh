@@ -49,7 +49,7 @@ echo "==> Zones in $REGION advertising $GPU_TYPE:"
 AVAILABLE_ZONES=$(gcloud compute accelerator-types list \
   --filter="name=${GPU_TYPE} AND zone~${REGION}" \
   --format="value(zone)" \
-  --project "$PROJECT" 2>/dev/null | sort)
+  --project "$PROJECT" | sort)
 
 if [[ -z "$AVAILABLE_ZONES" ]]; then
   echo "    None found in $REGION."
@@ -70,7 +70,7 @@ echo ""
 ALL_ZONES=$(gcloud compute accelerator-types list \
   --filter="name=${GPU_TYPE} AND zone~${REGION}" \
   --format="value(zone)" \
-  --project "$PROJECT" 2>/dev/null | sort)
+  --project "$PROJECT" | sort)
 
 if [[ -z "$ALL_ZONES" ]]; then
   echo "    No zones to check."
