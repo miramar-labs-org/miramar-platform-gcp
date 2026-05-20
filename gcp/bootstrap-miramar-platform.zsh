@@ -381,6 +381,11 @@ add_service_account_iam_binding "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET" "roles/ia
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/container.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/artifactregistry.admin"
+
+# GKE cluster creation requires serviceAccountUser on the default Compute SA
+# (used as the node pool identity).
+DEFAULT_COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+add_service_account_iam_binding "$DEFAULT_COMPUTE_SA" "serviceAccount:${GHA_CLUSTER_SA}" "roles/iam.serviceAccountUser"
 log "Cluster management SA: ${GHA_CLUSTER_SA}"
 
 ###############################################################################
