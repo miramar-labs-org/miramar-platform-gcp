@@ -73,6 +73,8 @@ jobs:
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          wrapper: false
 
       - name: Terraform Init
         working-directory: gcp/terraform
