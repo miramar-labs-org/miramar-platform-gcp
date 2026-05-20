@@ -53,11 +53,18 @@ Run order for a fresh environment: `bootstrap-miramar-project.zsh` → set GitHu
 
 ## GKE cluster scaling workflows
 
-Two `workflow_dispatch` workflows in `.github/workflows/` temporarily expand the cluster for heavier workloads and then restore it:
+Bootstrap is run **locally** (not via workflow) — requires an active gcloud session:
+
+```sh
+zsh ./gcp/bootstrap-miramar-project.zsh 2>&1 | tee /tmp/bootstrap.log
+```
+
+Output includes `WIF_PROVIDER` (set as org-level secret) and `GCP_SERVICE_ACCOUNT` (set as repo-level secret on `miramar-platform-gcp`). All workflows use WIF from that point on.
+
+`workflow_dispatch` workflows in `.github/workflows/`:
 
 | Workflow | File | Purpose |
 |---|---|---|
-| Bootstrap Project | `bootstrap-project.yaml` | One-time project setup — billing, APIs, WIF, service accounts. Cold-start aware; prints secrets to set after first run |
 | Miramar Platform Create | `miramar-platform-create.yaml` | Provision/re-provision platform resources — Artifact Registry, GKE cluster, GCS bucket, namespaces, RBAC |
 | Miramar Platform Destroy | `miramar-platform-destroy.yaml` | Tear down cluster, AR, state bucket, optionally the project — requires typed project name + checkbox |
 | GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `e2-medium-pool` to N nodes; saves full state to GCS |
