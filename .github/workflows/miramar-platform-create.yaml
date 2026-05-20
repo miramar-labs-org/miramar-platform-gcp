@@ -47,9 +47,13 @@ jobs:
           rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> "$GITHUB_ENV"
           echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=" >> "$GITHUB_ENV"
+          echo "GOOGLE_GHA_CREDS_PATH=" >> "$GITHUB_ENV"
 
       - name: Verify gcloud authentication
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
+
+      - name: Install zsh
+        run: which zsh || sudo apt-get install -y zsh
 
       - name: Run setup script
         run: zsh ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/setup.log
