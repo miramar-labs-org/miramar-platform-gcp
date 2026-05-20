@@ -179,12 +179,13 @@ IMAGE_REVISION=$(docker inspect --format '{{index .Config.Labels "org.opencontai
 echo "Runner version : ${RUNNER_VERSION}"
 echo "Image revision : ${IMAGE_REVISION:0:7}"
 
-mkdir -p /home/runner/_work
+WORK_DIR="${HOME}/runner/_work"
+mkdir -p "${WORK_DIR}"
 
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /home/runner/_work:/home/runner/_work \
+    -v "${WORK_DIR}:/home/runner/_work" \
     --group-add "$(stat -c '%g' /var/run/docker.sock)" \
     --gpus all \
     --dns 8.8.8.8 \
