@@ -1,19 +1,13 @@
 name: Miramar Platform Bootstrap
 
 # One-time cold-start workflow. Provisions the entire miramar-platform stack
-# using a temporary service account key (no WIF yet — WIF is what we're creating).
-#
-# Prerequisites (all in GCP Console, no local tools needed):
-#   1. Create GCP project "miramar-platform"
-#   2. IAM → Service Accounts → Create: "bootstrap-admin", grant Owner role
-#   3. Create a JSON key for that SA, copy the full JSON
-#   4. GitHub → Settings → Secrets → Add: GCP_BOOTSTRAP_CREDENTIALS = <JSON>
+# using the gcloud credentials already present on the self-hosted wsl2 runner.
+# No secrets or SA keys needed — the runner's existing gcloud session is used.
 #
 # After this workflow succeeds:
 #   1. Copy WIF_PROVIDER and GCP_SERVICE_ACCOUNT from the job summary
-#   2. Set them as GitHub secrets (replace any stale values)
-#   3. Delete the GCP_BOOTSTRAP_CREDENTIALS secret — never needed again
-#   4. (Optional) Delete the bootstrap-admin SA from GCP IAM
+#   2. Set them as GitHub secrets
+#   3. All subsequent workflows use WIF — this bootstrap workflow is no longer needed
 
 on:
   workflow_dispatch:
@@ -32,13 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP (SA key)
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_BOOTSTRAP_CREDENTIALS }}
-
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Verify gcloud authentication
+        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
 
       - name: Run bootstrap script
         run: |
@@ -66,7 +55,7 @@ jobs:
           {
             echo "## Bootstrap Complete"
             echo ""
-            echo "Set these as GitHub Actions secrets, then delete \`GCP_BOOTSTRAP_CREDENTIALS\`:"
+            echo "Set these as GitHub Actions secrets:"
             echo ""
             echo "| Secret | Value |"
             echo "|---|---|"
