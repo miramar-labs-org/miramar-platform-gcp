@@ -143,6 +143,34 @@ jobs:
             echo "No pool found in GKE."
           fi
 
+          echo ""
+          echo "==> Checking whether failure was due to zone capacity exhaustion..."
+          GPU_INPUT="${{ inputs.gpu_type }}"
+          REGION="${GKE_ZONE%-*}"
+          if gcloud container operations list \
+              --project "$GCP_PROJECT_ID" \
+              --filter="operationType=CREATE_NODE_POOL AND status=DONE" \
+              --limit=5 \
+              --format="json" \
+              2>/dev/null | grep -q "ZONE_RESOURCE_POOL_EXHAUSTED"; then
+            echo "::error::Zone $GKE_ZONE is EXHAUSTED for ${GPU_INPUT}."
+            echo ""
+            echo "Available zones in the region:"
+            gcloud compute accelerator-types list \
+              --filter="name:${GPU_INPUT} AND zone~${REGION}" \
+              --format="value(zone)" \
+              --project "$GCP_PROJECT_ID" | sort -u | while read -r z; do
+              if [[ "$z" == "$GKE_ZONE" ]]; then
+                echo "  $z  <- exhausted (current cluster zone)"
+              else
+                echo "  $z  <- try this zone (requires cluster recreation)"
+              fi
+            done
+            echo ""
+            echo "To probe actual capacity locally:"
+            echo "  ./scripts/gcp/gke/check-gpu-availability.sh ${GPU_INPUT} --probe"
+          fi
+
       - name: Summary
         run: |
           {
