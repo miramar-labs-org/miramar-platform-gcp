@@ -114,6 +114,30 @@ jobs:
               limits.nvidia.com/gpu: "1"
           EOF
 
+      - name: Cleanup on failure
+        if: failure()
+        working-directory: gcp/terraform-gpu
+        run: |
+          echo "==> Attempting cleanup after failed expand..."
+          terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET" || true
+          if terraform show -json 2>/dev/null \
+              | python3 -c "import json,sys; r=json.load(sys.stdin).get('values',{}).get('root_module',{}).get('resources',[]); sys.exit(0 if r else 1)" 2>/dev/null; then
+            echo "Pool found in Terraform state — destroying..."
+            terraform destroy -auto-approve -var-file=gpu.tfvars || true
+          else
+            echo "No pool in Terraform state."
+          fi
+          if gcloud container node-pools describe gpu-pool \
+              --cluster "$GKE_CLUSTER_NAME" --zone "$GKE_ZONE" \
+              --project "$GCP_PROJECT_ID" > /dev/null 2>&1; then
+            echo "Pool found in GKE — deleting..."
+            gcloud container node-pools delete gpu-pool \
+              --cluster "$GKE_CLUSTER_NAME" --zone "$GKE_ZONE" \
+              --project "$GCP_PROJECT_ID" --quiet || true
+          else
+            echo "No pool found in GKE."
+          fi
+
       - name: Summary
         run: |
           {
