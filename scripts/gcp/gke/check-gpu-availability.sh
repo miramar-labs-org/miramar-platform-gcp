@@ -47,7 +47,7 @@ echo ""
 # --- Step 1: list zones in the region that advertise this GPU ---
 echo "==> Zones in $REGION advertising $GPU_TYPE:"
 AVAILABLE_ZONES=$(gcloud compute accelerator-types list \
-  --filter="name=${GPU_TYPE} AND zone~^${REGION}" \
+  --filter="name=${GPU_TYPE} AND zone~${REGION}" \
   --format="value(zone)" \
   --project "$PROJECT" 2>/dev/null | sort)
 
@@ -68,7 +68,7 @@ echo "==> Dry-run instance creation (catches quota/config errors, not stockouts)
 echo ""
 
 ALL_ZONES=$(gcloud compute accelerator-types list \
-  --filter="name=${GPU_TYPE} AND zone~^${REGION}" \
+  --filter="name=${GPU_TYPE} AND zone~${REGION}" \
   --format="value(zone)" \
   --project "$PROJECT" 2>/dev/null | sort)
 
