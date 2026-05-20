@@ -1,6 +1,6 @@
 # miramar-platform-gcp
 
-GCP infrastructure and CI/CD tooling for the Miramar platform.
+GCP infrastructure and CI/CD tooling for the Miramar Labs platform.
 
 ## Platform Overview
 
@@ -273,7 +273,7 @@ All buckets are in project `miramar-platform`, region `us-west1`. → [GCS conso
 
 | Bucket | Purpose | Provisioned by |
 |---|---|---|
-| `miramar-platform-cluster-state` | Terraform state (`terraform/state/` prefix) + GKE node pool snapshots (`gke/` prefix) | **Miramar Platform Create** workflow (pre-`terraform init` step) |
+| `miramar-platform-cluster-state` | Terraform state (`terraform/state/` prefix), GPU pool state (`terraform/gpu-state/` prefix), GKE node pool snapshots (`gke/` prefix) | **Miramar Platform Create** workflow (pre-`terraform init` step) |
 
 The bucket is created before `terraform init` runs — it cannot be managed by the same Terraform config that uses it as a backend.
 
@@ -466,18 +466,18 @@ Two `workflow_dispatch` workflows let you temporarily expand the cluster for hea
 
 Before the resize, Expand snapshots the full node pool JSON and the live node count into a GCS state file (`gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`). Restore reads that file — no manual count needed.
 
-### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
+### [GKE Expand](.github/workflows/gke-expand.yaml)
 
 Snapshots the current node pool state (machine type, configured count, live node count) to GCS, then runs `terraform apply -var=node_pool_count=N` and waits for all nodes to reach `Ready`.
 
-1. Go to **Actions → GKE Cluster Expand → Run workflow**
+1. Go to **Actions → GKE Expand → Run workflow**
 2. Set `target_nodes` (default: `2`) and optionally `node_pool` (default: `default-pool`)
 
-### [GKE Cluster Restore](.github/workflows/gke-cluster-restore.yaml)
+### [GKE Restore](.github/workflows/gke-restore.yaml)
 
 Loads the saved state from GCS and runs `terraform apply -var=node_pool_count=<saved>` to scale back. Pass `node_count_override` only if you need to bypass the saved state.
 
-1. Go to **Actions → GKE Cluster Restore → Run workflow**
+1. Go to **Actions → GKE Restore → Run workflow**
 2. Leave `node_count_override` blank (reads from GCS automatically)
 
 Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via Workload Identity Federation.
@@ -486,11 +486,13 @@ Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via 
 
 ## GPU Node Pool Workflows
 
-Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads that need a GPU (e.g. Triton Inference Server) and restore the cluster when done. The GPU pool is created in `us-west1-b` (T4/L4/P4 availability; the main cluster is in `us-west1-a`).
+Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads that need a GPU (e.g. Triton Inference Server) and restore the cluster when done. The GPU pool is managed by a separate Terraform module (`gcp/terraform-gpu/`) with its own GCS state at `terraform/gpu-state/` — isolated from the main cluster state so regular expand/restore workflows cannot touch it.
+
+The GPU pool is created in `us-west1-b` (T4/L4/P4 availability; the main cluster is in `us-west1-a`).
 
 ### [GKE Expand GPU](.github/workflows/gke-expand-gpu.yaml)
 
-Creates the GPU node pool, installs the NVIDIA device plugin, and relaxes the target namespace's resource quota to allow GPU workloads. Snapshots the original quota to GCS before patching so Restore can revert it exactly.
+Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-triton-pool` node pool, installs the NVIDIA device plugin DaemonSet, and relaxes the target namespace's resource quota to allow GPU workloads. Snapshots the original quota to GCS before patching so Restore can revert it exactly. Running Expand on an already-running pool is a no-op.
 
 **GPU options (`gpu_type` input):**
 
@@ -507,7 +509,7 @@ T4 and L4 are recommended for inference workloads. L4 offers better throughput p
 
 ### [GKE Restore GPU](.github/workflows/gke-restore-gpu.yaml)
 
-Restores the namespace quota from the GCS snapshot, then deletes the GPU node pool.
+Restores the namespace quota from the GCS snapshot, then runs `terraform destroy` in `gcp/terraform-gpu/` to delete the GPU node pool. If no pool exists in Terraform state, the destroy step is skipped.
 
 1. Go to **Actions → GKE Restore GPU → Run workflow**
 2. Confirm the `namespace` matches what was used in Expand

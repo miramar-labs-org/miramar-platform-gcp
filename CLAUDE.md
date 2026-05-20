@@ -26,6 +26,7 @@ Infrastructure and CI/CD tooling for the Miramar platform on GCP. It provisions 
 ```
 gcp/               # GCP provisioning scripts
   terraform/       # GKE cluster + node pool + Artifact Registry (Terraform)
+  terraform-gpu/   # Transient GPU node pool (separate Terraform root module)
 scripts/
   gcp/             # Utility GCP scripts
   gha/             # GHA runner launch script
@@ -53,7 +54,9 @@ Run order for a fresh environment: `bootstrap-miramar-platform.zsh` → set GitH
 
 ## Terraform
 
-`gcp/terraform/` manages the GKE cluster, node pool, and Artifact Registry repo. IAM and WIF are handled by the bootstrap script and are intentionally outside Terraform.
+Two root modules — keep them separate, they must never share state.
+
+**`gcp/terraform/`** — manages the GKE cluster, node pool (`default-pool`), and Artifact Registry repo. IAM and WIF are handled by the bootstrap script and are intentionally outside Terraform.
 
 **Source of truth: `gcp/terraform/terraform.tfvars`** — all platform config values live here. GitHub org variables are synced from this file via `scripts/gcp/sync-github-vars.sh`. Never edit GitHub vars directly; edit tfvars and re-sync.
 
@@ -69,6 +72,8 @@ terraform apply -var-file=terraform.tfvars
 ```
 
 State is stored in GCS at `gs://miramar-platform-cluster-state/terraform/state/`. `GKE_STATE_BUCKET` is the one GitHub variable not in tfvars (it is the backend config itself).
+
+**`gcp/terraform-gpu/`** — manages the transient `gpu-triton-pool` GPU node pool only. Separate state at `gs://miramar-platform-cluster-state/terraform/gpu-state/`. Used exclusively by the **GKE Expand GPU** / **GKE Restore GPU** workflows — regular expand/restore never touch it. Config in `gcp/terraform-gpu/gpu.tfvars`.
 
 **Note:** the mlabs-runner Docker image has Terraform pre-installed via the Hashicorp apt repo. The `hashicorp/setup-terraform` GitHub Actions action is intentionally not used (it requires Node.js).
 
@@ -91,10 +96,14 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-vars.sh`
 |---|---|---|
 | Miramar Platform Create | `miramar-platform-create.yaml` | `terraform apply` (GKE cluster + AR repo) then K8s namespaces + RBAC via `create-miramar-platform.zsh` |
 | Miramar Platform Destroy | `miramar-platform-destroy.yaml` | `terraform destroy` (GKE + AR), gcloud fallback for pre-Terraform resources, delete state bucket, optionally delete project |
-| GKE Cluster Expand | `gke-cluster-expand.yaml` | Snapshot node pool state to GCS, then `terraform apply -var=node_pool_count=N` |
-| GKE Cluster Restore | `gke-cluster-restore.yaml` | Read saved state from GCS, then `terraform apply -var=node_pool_count=<saved>` |
+| GKE Expand | `gke-expand.yaml` | Snapshot node pool state to GCS, then `terraform apply -var=node_pool_count=N` |
+| GKE Restore | `gke-restore.yaml` | Read saved state from GCS, then `terraform apply -var=node_pool_count=<saved>` |
+| GKE Expand GPU | `gke-expand-gpu.yaml` | `terraform apply` in `gcp/terraform-gpu/` to add a GPU node pool; expands namespace quota |
+| GKE Restore GPU | `gke-restore-gpu.yaml` | `terraform destroy` in `gcp/terraform-gpu/` to remove the GPU pool; restores namespace quota |
 
-Typical sequence: run **Expand** → deploy workload → run **Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
+Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
+
+Typical GPU sequence: run **GKE Expand GPU** → deploy GPU workload → run **GKE Restore GPU**.
 
 The node pool is named `default-pool` (created by `gcloud container clusters create` default behaviour, preserved in Terraform).
 
