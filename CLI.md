@@ -294,3 +294,95 @@ kubectl get nodes -o json | python3 -c \
 # Check if NVIDIA device plugin DaemonSet is running
 kubectl get daemonset nvidia-driver-installer -n kube-system
 ```
+
+---
+
+## MLflow
+
+MLflow runs on the DGX Spark at `~/mlflow`. Access the UI via SSH tunnel from your laptop:
+
+```sh
+ssh -L 5000:localhost:5000 <user>@spark-79b7.local
+# then open http://localhost:5000
+```
+
+`MLFLOW_TRACKING_URI` is set as a GitHub org variable (`http://host.docker.internal:5000`) and is available to all workflows automatically.
+
+### Experiments
+
+```sh
+# List experiments
+mlflow experiments search
+
+# Create an experiment
+mlflow experiments create --experiment-name my-experiment
+
+# Rename an experiment
+mlflow experiments rename --experiment-id <id> --new-name new-name
+
+# Delete an experiment (moves to Deleted state — not permanent)
+mlflow experiments delete --experiment-id <id>
+
+# Restore a deleted experiment
+mlflow experiments restore --experiment-id <id>
+```
+
+### Runs
+
+```sh
+# List runs for an experiment
+mlflow runs list --experiment-id <id>
+mlflow runs list --experiment-name my-experiment
+
+# Describe a run
+mlflow runs describe --run-id <run-id>
+
+# Delete a run
+mlflow runs delete --run-id <run-id>
+
+# Restore a deleted run
+mlflow runs restore --run-id <run-id>
+```
+
+### Artifacts
+
+```sh
+# List artifacts for a run
+mlflow artifacts list --run-id <run-id>
+
+# Download artifacts from a run
+mlflow artifacts download --run-id <run-id> --dst-path /tmp/artifacts
+```
+
+### Models
+
+```sh
+# List registered models
+mlflow models list
+
+# Serve a model locally (for testing)
+mlflow models serve \
+  --model-uri runs:/<run-id>/model \
+  --port 5001 \
+  --no-conda
+
+# Serve from the model registry
+mlflow models serve \
+  --model-uri models:/<model-name>/Production \
+  --port 5001 \
+  --no-conda
+```
+
+### Server
+
+```sh
+# Start MLflow server (on the DGX — already running as a service)
+mlflow server \
+  --host 0.0.0.0 \
+  --port 5000 \
+  --backend-store-uri sqlite:///mlflow.db \
+  --default-artifact-root ./mlartifacts
+
+# Point local CLI at a remote tracking server
+export MLFLOW_TRACKING_URI=http://host.docker.internal:5000
+```
