@@ -83,6 +83,20 @@ case "${ARCH}" in
         ;;
 esac
 
+CONTAINER_NAME="mlabs-runner-${ARCH_LABEL}"
+
+if docker inspect "${CONTAINER_NAME}" &>/dev/null; then
+    CONTAINER_STATUS=$(docker inspect --format '{{.State.Status}}' "${CONTAINER_NAME}")
+    if [[ "${CONTAINER_STATUS}" == "running" ]]; then
+        echo "Runner container '${CONTAINER_NAME}' is already running."
+        docker ps --filter "name=^${CONTAINER_NAME}$" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.RunningFor}}"
+        exit 0
+    else
+        echo "Removing stopped container '${CONTAINER_NAME}' (status: ${CONTAINER_STATUS})..."
+        docker rm "${CONTAINER_NAME}"
+    fi
+fi
+
 IMAGE="ghcr.io/${GITHUB_OWNER}/mlabs-runner:latest"
 
 if [[ -z "${RUNNER_LABELS}" ]]; then
@@ -174,5 +188,5 @@ docker run --rm ${DETACH_FLAG} \
     --group-add "$(stat -c '%g' /var/run/docker.sock)" \
     --gpus all \
     --dns 8.8.8.8 \
-    --name "mlabs-runner-${ARCH_LABEL}" \
+    --name "${CONTAINER_NAME}" \
     "${IMAGE}"
