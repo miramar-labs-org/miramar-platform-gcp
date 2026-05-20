@@ -1,0 +1,79 @@
+name: Miramar Platform Bootstrap
+
+# One-time cold-start workflow. Provisions the entire miramar-platform stack
+# using a temporary service account key (no WIF yet — WIF is what we're creating).
+#
+# Prerequisites (all in GCP Console, no local tools needed):
+#   1. Create GCP project "miramar-platform"
+#   2. IAM → Service Accounts → Create: "bootstrap-admin", grant Owner role
+#   3. Create a JSON key for that SA, copy the full JSON
+#   4. GitHub → Settings → Secrets → Add: GCP_BOOTSTRAP_CREDENTIALS = <JSON>
+#
+# After this workflow succeeds:
+#   1. Copy WIF_PROVIDER and GCP_SERVICE_ACCOUNT from the job summary
+#   2. Set them as GitHub secrets (replace any stale values)
+#   3. Delete the GCP_BOOTSTRAP_CREDENTIALS secret — never needed again
+#   4. (Optional) Delete the bootstrap-admin SA from GCP IAM
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_ID: miramar-platform
+  GKE_CLUSTER_NAME: miramar-shared-gke
+  GKE_ZONE: us-west1-a
+
+jobs:
+  bootstrap:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (SA key)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_BOOTSTRAP_CREDENTIALS }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run bootstrap script
+        run: |
+          ./gcp/setup-miramar-gke-cicd.zsh 2>&1 | tee /tmp/bootstrap.log
+          echo "BOOTSTRAP_LOG=/tmp/bootstrap.log" >> "$GITHUB_ENV"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Show cluster state
+        run: |
+          echo "--- Nodes ---"
+          kubectl get nodes -o wide
+          echo "--- Namespaces ---"
+          kubectl get namespaces
+
+      - name: Write GitHub secrets to summary
+        run: |
+          WIF=$(grep -A1 'Workload Identity Provider:' /tmp/bootstrap.log | tail -1 | tr -d ' ')
+          SA=$(grep -A1 'Cluster management SA' /tmp/bootstrap.log | tail -1 | tr -d ' ')
+          {
+            echo "## Bootstrap Complete"
+            echo ""
+            echo "Set these as GitHub Actions secrets, then delete \`GCP_BOOTSTRAP_CREDENTIALS\`:"
+            echo ""
+            echo "| Secret | Value |"
+            echo "|---|---|"
+            echo "| \`WIF_PROVIDER\` | \`${WIF}\` |"
+            echo "| \`GCP_SERVICE_ACCOUNT\` | \`${SA}\` |"
+            echo ""
+            echo "> Secrets page: https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions"
+            echo ""
+            echo "After updating secrets, the **Miramar Platform Create** workflow will work for all future runs."
+          } >> "$GITHUB_STEP_SUMMARY"
