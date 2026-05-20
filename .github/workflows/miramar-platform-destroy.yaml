@@ -35,12 +35,12 @@ permissions:
   id-token: write
 
 env:
-  PROJECT_ID: miramar-platform
-  GKE_CLUSTER_NAME: miramar-shared-gke
-  GKE_ZONE: us-west1-a
-  AR_REPO: apps
-  AR_REGION: us-west1
-  CLUSTER_STATE_BUCKET: miramar-platform-cluster-state
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+  AR_REPO: ${{ vars.GAR_REPO }}
+  AR_REGION: ${{ vars.GCP_REGION }}
+  CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
 
 jobs:
   destroy:
