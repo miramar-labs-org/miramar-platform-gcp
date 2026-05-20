@@ -496,6 +496,8 @@ Loads the saved state from GCS and runs `terraform apply -var=node_pool_count=<s
 
 Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via Workload Identity Federation.
 
+> **GKE Expand and GKE Expand Triton are independent** — you can run both at the same time. Expand scales the CPU node pool; Expand Triton adds a separate GPU node pool. They write to different Terraform state prefixes and do not interfere with each other. Typical combined sequence: **GKE Expand** → **GKE Expand Triton** → deploy workload → **GKE Restore Triton** → **GKE Restore**.
+
 ---
 
 ## GPU Node Pool Workflows
