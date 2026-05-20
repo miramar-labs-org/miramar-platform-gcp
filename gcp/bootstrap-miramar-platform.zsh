@@ -382,6 +382,8 @@ add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/artifactregistry.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/serviceusage.serviceUsageConsumer"
+# Terraform reads instance group managers after node pool creation to confirm state
+add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/compute.viewer"
 
 # GKE cluster creation requires serviceAccountUser on the default Compute SA
 # (used as the node pool identity).
