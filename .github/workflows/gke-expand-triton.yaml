@@ -1,4 +1,4 @@
-name: GKE Expand GPU
+name: GKE Expand Triton
 
 # Adds a temporary GPU node pool and relaxes the namespace resource quota.
 # Run GKE Restore GPU when done to remove the pool and restore the quota.
@@ -113,7 +113,7 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "## GKE Expand GPU"
+            echo "## GKE Expand Triton"
             echo "| | |"
             echo "|---|---|"
             echo "| GPU pool | \`gpu-triton-pool\` |"

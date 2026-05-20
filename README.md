@@ -496,7 +496,7 @@ Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads th
 
 The GPU pool is created in `us-west1-b` (T4/L4/P4 availability; the main cluster is in `us-west1-a`).
 
-### [GKE Expand GPU](.github/workflows/gke-expand-gpu.yaml)
+### [GKE Expand Triton](.github/workflows/gke-expand-triton.yaml)
 
 Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-triton-pool` node pool, installs the NVIDIA device plugin DaemonSet, and relaxes the target namespace's resource quota to allow GPU workloads. Snapshots the original quota to GCS before patching so Restore can revert it exactly. Running Expand on an already-running pool is a no-op.
 
@@ -510,12 +510,12 @@ Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-triton-pool` n
 
 T4 and L4 are recommended for inference workloads. L4 offers better throughput per dollar for larger models and FP8/INT8 serving. P4 is sufficient for lightweight models only.
 
-1. Go to **Actions → GKE Expand GPU → Run workflow**
+1. Go to **Actions → GKE Expand Triton → Run workflow**
 2. Set `namespace`, `machine_type`, and `gpu_type` as needed
 
-### [GKE Restore GPU](.github/workflows/gke-restore-gpu.yaml)
+### [GKE Restore Triton](.github/workflows/gke-restore-triton.yaml)
 
 Restores the namespace quota from the GCS snapshot, then runs `terraform destroy` in `gcp/terraform-gpu/` to delete the GPU node pool. If no pool exists in Terraform state, the destroy step is skipped.
 
-1. Go to **Actions → GKE Restore GPU → Run workflow**
+1. Go to **Actions → GKE Restore Triton → Run workflow**
 2. Confirm the `namespace` matches what was used in Expand
