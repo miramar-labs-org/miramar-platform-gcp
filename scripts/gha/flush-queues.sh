@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-REPO="${1:-miramar-labs/github-actions-hello}"
+REPO="${1:-miramar-labs-org/miramar-platform-gcp}"
 
 echo "Fetching active runs for $REPO..."
 

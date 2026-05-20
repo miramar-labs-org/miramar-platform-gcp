@@ -170,7 +170,7 @@ GitHub Actions workflows authenticate to GCP via WIF — no long-lived service a
 **GCP resources:**
 - Pool: `projects/423801268174/locations/global/workloadIdentityPools/github-actions`
 - Provider: `github` (OIDC, issuer `https://token.actions.githubusercontent.com`)
-- Service account: `gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com`
+- Service account: `gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com`
 
 ### 1. WIF provider attribute condition
 
@@ -203,7 +203,7 @@ Controls which WIF principal can impersonate the service account. Must reference
 Check the current binding:
 ```sh
 gcloud iam service-accounts get-iam-policy \
-  gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
+  gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com \
   --project=miramar-cicd \
   --format=json
 ```
@@ -213,7 +213,7 @@ Expected member: `principalSet://iam.googleapis.com/projects/423801268174/locati
 Add the correct binding:
 ```sh
 gcloud iam service-accounts add-iam-policy-binding \
-  gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
+  gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com \
   --project=miramar-cicd \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org"
@@ -222,7 +222,7 @@ gcloud iam service-accounts add-iam-policy-binding \
 Remove any stale binding referencing an old org name:
 ```sh
 gcloud iam service-accounts remove-iam-policy-binding \
-  gh-github-deploy-github-action@miramar-cicd.iam.gserviceaccount.com \
+  gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com \
   --project=miramar-cicd \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/OLD_ORG_NAME"

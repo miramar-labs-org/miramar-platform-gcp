@@ -75,16 +75,14 @@ AR_REPO="apps"
 # GCS bucket used by the GKE expand/restore workflows to save cluster state.
 CLUSTER_STATE_BUCKET="miramar-platform-cluster-state"
 
-# Service account used by cluster-level GHA workflows (expand/restore).
-# Derived from sanitize_sa_name("github-deploy-github-actions-hello") → 30-char truncation.
-GHA_CLUSTER_SA="gh-github-deploy-github-action@${PLATFORM_PROJECT_ID}.iam.gserviceaccount.com"
+# Dedicated SA for cluster-level GHA workflows (expand/restore).
+GHA_CLUSTER_SA_NAME="gke-cluster-ops"
 
 # GitHub org/user that owns the repos.
 GITHUB_OWNER="miramar-labs"
 
 # One namespace per app/project/repo.
 PROJECT_NAMES=(
-  "github-actions-hello"
   "mlops-torch-triton-gke-pipeline"
 )
 
@@ -647,6 +645,18 @@ for APP in "${PROJECT_NAMES[@]}"; do
   ensure_namespace_and_rbac "$NAMESPACE" "$SA_EMAIL"
 done
 
+ensure_cluster_mgmt_sa() {
+  local sa_name
+  sa_name="$(sanitize_sa_name "$GHA_CLUSTER_SA_NAME")"
+  GHA_CLUSTER_SA="${sa_name}@${PLATFORM_PROJECT_ID}.iam.gserviceaccount.com"
+
+  ensure_service_account "$sa_name" "GKE cluster operations"
+  add_service_account_iam_binding "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
+  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/container.admin"
+  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
+  log "Cluster management SA: ${GHA_CLUSTER_SA}"
+}
+
 ensure_cluster_state_bucket() {
   if ! gcloud --quiet storage buckets describe "gs://${CLUSTER_STATE_BUCKET}" \
       --project "$GKE_PROJECT_ID" >/dev/null 2>&1; then
@@ -657,10 +667,9 @@ ensure_cluster_state_bucket() {
   else
     log "Cluster state bucket already exists: gs://${CLUSTER_STATE_BUCKET}"
   fi
-
-  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
 }
 
+ensure_cluster_mgmt_sa
 ensure_cluster_state_bucket
 
 ###############################################################################
@@ -701,6 +710,12 @@ GitHub owner:
 
 Workload Identity Provider:
   ${WIF_PROVIDER_RESOURCE}
+
+Cluster management SA (set as GCP_SERVICE_ACCOUNT secret for expand/restore workflows):
+  ${GHA_CLUSTER_SA}
+
+Cluster state bucket:
+  gs://${CLUSTER_STATE_BUCKET}
 
 Namespaces and service accounts:
 OUT

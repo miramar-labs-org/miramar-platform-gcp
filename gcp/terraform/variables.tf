@@ -1,6 +1,6 @@
 variable "project_id" {
   type    = string
-  default = "github-actions-hello"
+  default = "miramar-platform"
 }
 
 variable "region" {
@@ -15,5 +15,5 @@ variable "zone" {
 
 variable "cluster_name" {
   type    = string
-  default = "textlyze-cluster"
+  default = "miramar-shared-gke"
 }
