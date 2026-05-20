@@ -47,7 +47,7 @@ echo ""
 # --- Step 1: list zones in the region that advertise this GPU ---
 echo "==> Zones in $REGION advertising $GPU_TYPE:"
 AVAILABLE_ZONES=$(gcloud compute accelerator-types list \
-  --filter="name=${GPU_TYPE} AND zone~${REGION}" \
+  --filter="name:${GPU_TYPE} AND zone~${REGION}" \
   --format="value(zone)" \
   --project "$PROJECT" | sort)
 
@@ -63,42 +63,18 @@ fi
 
 echo ""
 
-# --- Step 2: dry-run instance creation per zone (catches quota issues) ---
-echo "==> Dry-run instance creation (catches quota/config errors, not stockouts):"
+# --- Step 2: GPU quota for the region ---
+echo "==> GPU quota in $REGION:"
 echo ""
-
-ALL_ZONES=$(gcloud compute accelerator-types list \
-  --filter="name=${GPU_TYPE} AND zone~${REGION}" \
-  --format="value(zone)" \
-  --project "$PROJECT" | sort)
-
-if [[ -z "$ALL_ZONES" ]]; then
-  echo "    No zones to check."
-  exit 0
-fi
-
-while IFS= read -r zone; do
-  marker=""
-  [[ "$zone" == "$CLUSTER_ZONE" ]] && marker=" ← cluster zone"
-  printf "  %-20s%s  " "$zone" "$marker"
-  RESULT=$(gcloud compute instances create "gpu-probe-$$" \
-    --zone "$zone" \
-    --project "$PROJECT" \
-    --machine-type "$MACHINE_TYPE" \
-    --accelerator "type=${GPU_TYPE},count=1" \
-    --maintenance-policy TERMINATE \
-    --no-restart-on-failure \
-    --dry-run \
-    --format="value(name)" 2>&1 || true)
-
-  if echo "$RESULT" | grep -qi "quota\|stockout\|does not have enough\|not available\|error\|fail"; then
-    echo "UNAVAILABLE — $RESULT" | head -1
-  else
-    echo "OK (quota/config valid — stockout only detectable on real create)"
-  fi
-done <<< "$ALL_ZONES"
+gcloud compute regions describe "$REGION" \
+  --project "$PROJECT" \
+  --format="yaml(quotas)" \
+  | grep -i -A1 "gpu\|nvidia\|accelerator" \
+  | grep -v "^--$" \
+  | sed 's/^/    /' \
+  || echo "    (could not retrieve quota)"
 
 echo ""
-echo "Note: dry-run validates quota and machine config but cannot detect live"
-echo "GCE stockouts. A stockout will only surface when the workflow actually"
-echo "tries to create the node pool."
+echo "Note: quota shows your allocation ceiling — a GCE stockout is a"
+echo "capacity shortage on Google's side and only surfaces when the node"
+echo "pool is actually created."
