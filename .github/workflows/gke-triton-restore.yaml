@@ -1,0 +1,98 @@
+name: GKE Triton Restore
+
+# Removes the temporary GPU node pool added by GKE Triton Expand and
+# restores the namespace resource quota to its pre-expand state.
+
+on:
+  workflow_dispatch:
+    inputs:
+      namespace:
+        description: Namespace to restore quota for
+        default: mlops-torch-triton-gke-pipeline
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+  GPU_ZONE: us-west1-b
+  GPU_POOL: gpu-triton-pool
+  CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
+
+jobs:
+  restore:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Restore namespace quota from snapshot
+        run: |
+          STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
+          if gsutil -q stat "$STATE_PATH" 2>/dev/null; then
+            gsutil cp "$STATE_PATH" /tmp/quota-backup.json
+            kubectl apply -f /tmp/quota-backup.json
+            echo "::notice::Quota restored from $STATE_PATH"
+          else
+            echo "::warning::No quota snapshot found at $STATE_PATH — applying default tight quota"
+            kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: ResourceQuota
+          metadata:
+            name: namespace-quota
+            namespace: ${{ inputs.namespace }}
+          spec:
+            hard:
+              requests.cpu: "200m"
+              requests.memory: 512Mi
+              limits.cpu: "500m"
+              limits.memory: 1Gi
+              pods: "5"
+          EOF
+          fi
+
+      - name: Delete GPU node pool
+        id: del_pool
+        run: |
+          if gcloud container node-pools describe "$GPU_POOL" \
+              --cluster "$GKE_CLUSTER_NAME" \
+              --zone "$GPU_ZONE" \
+              --project "$GCP_PROJECT_ID" &>/dev/null; then
+            gcloud container node-pools delete "$GPU_POOL" \
+              --cluster "$GKE_CLUSTER_NAME" \
+              --zone "$GPU_ZONE" \
+              --project "$GCP_PROJECT_ID" \
+              --quiet
+            echo "result=deleted" >> "$GITHUB_OUTPUT"
+          else
+            echo "GPU pool not found — skipping."
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "## GKE Triton Restored"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| GPU pool | ${{ steps.del_pool.outputs.result }} |"
+            echo "| Namespace | \`${{ inputs.namespace }}\` |"
+            echo "| Quota | restored from snapshot |"
+          } >> "$GITHUB_STEP_SUMMARY"

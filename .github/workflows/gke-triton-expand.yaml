@@ -1,0 +1,133 @@
+name: GKE Triton Expand
+
+# Adds a temporary GPU node pool for Triton Inference Server and relaxes
+# the namespace resource quota to accommodate it.
+#
+# Node pool: n1-standard-4 + nvidia-tesla-t4, us-west1-b (T4s not in us-west1-a)
+# Run GKE Triton Restore when done to remove the pool and restore the quota.
+
+on:
+  workflow_dispatch:
+    inputs:
+      namespace:
+        description: Namespace to expand quota for
+        default: mlops-torch-triton-gke-pipeline
+        required: true
+      machine_type:
+        description: Machine type for GPU node
+        default: n1-standard-4
+        required: true
+      gpu_type:
+        description: GPU accelerator type
+        default: nvidia-tesla-t4
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+  GPU_ZONE: us-west1-b
+  GPU_POOL: gpu-triton-pool
+  CLUSTER_STATE_BUCKET: ${{ vars.GKE_STATE_BUCKET }}
+
+jobs:
+  expand:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Save current namespace quota to GCS
+        run: |
+          kubectl get resourcequota namespace-quota \
+            -n "${{ inputs.namespace }}" \
+            -o json > /tmp/quota-backup.json
+          gsutil cp /tmp/quota-backup.json \
+            "gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
+          echo "::notice::Quota snapshot saved to gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
+
+      - name: Create GPU node pool
+        run: |
+          if gcloud container node-pools describe "$GPU_POOL" \
+              --cluster "$GKE_CLUSTER_NAME" \
+              --zone "$GPU_ZONE" \
+              --project "$GCP_PROJECT_ID" &>/dev/null; then
+            echo "GPU node pool already exists — skipping creation."
+          else
+            echo "Creating GPU node pool: $GPU_POOL"
+            gcloud container node-pools create "$GPU_POOL" \
+              --cluster "$GKE_CLUSTER_NAME" \
+              --zone "$GPU_ZONE" \
+              --project "$GCP_PROJECT_ID" \
+              --machine-type "${{ inputs.machine_type }}" \
+              --accelerator "type=${{ inputs.gpu_type }},count=1" \
+              --num-nodes 1 \
+              --disk-type pd-standard \
+              --disk-size 50 \
+              --quiet
+          fi
+
+      - name: Install NVIDIA device plugin
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded.yaml
+
+      - name: Wait for GPU node Ready
+        run: |
+          echo "Waiting for GPU node to be Ready..."
+          for i in $(seq 1 30); do
+            READY=$(kubectl get nodes --no-headers 2>/dev/null \
+              | grep -c " Ready" || echo 0)
+            echo "Ready nodes: $READY"
+            [ "$READY" -ge 2 ] && break
+            sleep 15
+          done
+
+      - name: Expand namespace quota for Triton
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: ResourceQuota
+          metadata:
+            name: namespace-quota
+            namespace: ${{ inputs.namespace }}
+          spec:
+            hard:
+              requests.cpu: "1"
+              requests.memory: 2Gi
+              limits.cpu: "4"
+              limits.memory: 8Gi
+              pods: "10"
+              requests.nvidia.com/gpu: "1"
+              limits.nvidia.com/gpu: "1"
+          EOF
+
+      - name: Summary
+        run: |
+          {
+            echo "## GKE Triton Expand"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| GPU pool | \`$GPU_POOL\` |"
+            echo "| Machine | \`${{ inputs.machine_type }}\` + \`${{ inputs.gpu_type }}\` |"
+            echo "| Zone | \`$GPU_ZONE\` |"
+            echo "| Namespace | \`${{ inputs.namespace }}\` |"
+            echo ""
+            echo "> Run **GKE Triton Restore** when done to remove the GPU pool and restore quota."
+          } >> "$GITHUB_STEP_SUMMARY"
