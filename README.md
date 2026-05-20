@@ -22,8 +22,8 @@ All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 p
 |---|---|---|
 | GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads | [GKE console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) |
 | Artifact Registry (`apps`) | Docker image registry for built application images | [GAR console](https://console.cloud.google.com/artifacts?project=miramar-platform) |
-| Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-cicd) |
-| Two GCP projects | `miramar-cicd` (IAM / WIF) and `miramar-platform` (cluster / workloads) | [miramar-cicd](https://console.cloud.google.com/home/dashboard?project=miramar-cicd) · [miramar-platform](https://console.cloud.google.com/home/dashboard?project=miramar-platform) |
+| Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
+| GCP project | `miramar-platform` — single project for all resources | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform) |
 
 ### CI/CD
 
@@ -167,10 +167,10 @@ docker buildx build \
 
 GitHub Actions workflows authenticate to GCP via WIF — no long-lived service account keys. Two things must be configured correctly for auth to succeed.
 
-**GCP resources:**
+**GCP resources (all in `miramar-platform`):**
 - Pool: `projects/423801268174/locations/global/workloadIdentityPools/github-actions`
 - Provider: `github` (OIDC, issuer `https://token.actions.githubusercontent.com`)
-- Service account: `gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com`
+- Service account: `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com`
 
 ### 1. WIF provider attribute condition
 
@@ -179,7 +179,7 @@ Controls which GitHub tokens the provider will accept. Must reference the correc
 Check the current condition:
 ```sh
 gcloud iam workload-identity-pools providers describe github \
-  --project=miramar-cicd \
+  --project=miramar-platform \
   --location=global \
   --workload-identity-pool=github-actions \
   --format="value(attributeCondition)"
@@ -190,7 +190,7 @@ Expected: `attribute.repository_owner=='miramar-labs-org'`
 Update if wrong:
 ```sh
 gcloud iam workload-identity-pools providers update-oidc github \
-  --project=miramar-cicd \
+  --project=miramar-platform \
   --location=global \
   --workload-identity-pool=github-actions \
   --attribute-condition="attribute.repository_owner=='miramar-labs-org'"
@@ -203,8 +203,8 @@ Controls which WIF principal can impersonate the service account. Must reference
 Check the current binding:
 ```sh
 gcloud iam service-accounts get-iam-policy \
-  gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com \
-  --project=miramar-cicd \
+  gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
+  --project=miramar-platform \
   --format=json
 ```
 
@@ -213,8 +213,8 @@ Expected member: `principalSet://iam.googleapis.com/projects/423801268174/locati
 Add the correct binding:
 ```sh
 gcloud iam service-accounts add-iam-policy-binding \
-  gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com \
-  --project=miramar-cicd \
+  gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
+  --project=miramar-platform \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org"
 ```
@@ -222,8 +222,8 @@ gcloud iam service-accounts add-iam-policy-binding \
 Remove any stale binding referencing an old org name:
 ```sh
 gcloud iam service-accounts remove-iam-policy-binding \
-  gh-gke-cluster-ops@miramar-cicd.iam.gserviceaccount.com \
-  --project=miramar-cicd \
+  gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
+  --project=miramar-platform \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/423801268174/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/OLD_ORG_NAME"
 ```
@@ -324,30 +324,31 @@ Install Terraform via apt on Ubuntu/Debian.
 
 ---
 
-## GKE Cluster Lifecycle Workflows
+## Platform Lifecycle Workflows
 
-### [GKE Cluster Create](.github/workflows/gke-cluster-create.yaml)
+### [Miramar Platform Create](.github/workflows/miramar-platform-create.yaml)
 
-Runs `gcp/setup-miramar-gke-cicd.zsh` to idempotently create (or verify) the GKE cluster, namespaces, RBAC, Artifact Registry, cluster management SA, and state bucket. Use this to recreate the cluster after a destroy.
+Runs `gcp/setup-miramar-gke-cicd.zsh` to idempotently provision (or re-provision) the full stack: GCP project, billing, APIs, WIF, service accounts, Artifact Registry, GKE cluster, namespaces, RBAC, and the cluster state bucket.
 
-Requires the one-time prerequisites (WIF pool/provider, GCP projects, billing) to already be in place. The `gh-gke-cluster-ops` SA needs `roles/editor` on `miramar-platform` and `roles/iam.serviceAccountAdmin` on `miramar-cicd` to run all steps.
-
-```
-Actions → GKE Cluster Create → Run workflow
-```
-
-### [GKE Cluster Destroy](.github/workflows/gke-cluster-destroy.yaml)
-
-**Permanently deletes the GKE cluster and all namespaces and workloads inside it.**
-
-Two guards must both pass before the cluster is touched:
-1. Type the exact cluster name (`miramar-shared-gke`) in `confirm_cluster_name`
-2. Check the `i_confirm` checkbox
-
-The job lists all namespaces and pods before deleting so there is an audit trail in the run log.
+**First-time bootstrap:** WIF doesn't exist yet on a cold start, so run the script manually once (`./gcp/setup-miramar-gke-cicd.zsh`) before using this workflow. After that the SA has the permissions needed and this workflow handles all subsequent runs.
 
 ```
-Actions → GKE Cluster Destroy → Run workflow
+Actions → Miramar Platform Create → Run workflow
+```
+
+### [Miramar Platform Destroy](.github/workflows/miramar-platform-destroy.yaml)
+
+**Permanently destroys the platform stack** — GKE cluster (all namespaces and workloads), Artifact Registry, and the cluster state GCS bucket. Optionally deletes the GCP project itself (30-day undelete window).
+
+Three guards:
+1. Type the exact project name (`miramar-platform`) in `confirm_project`
+2. Check `i_confirm`
+3. Check `delete_project` only if you also want the GCP project gone
+
+The job dumps all namespaces and pods to the log before deleting.
+
+```
+Actions → Miramar Platform Destroy → Run workflow
 ```
 
 ---

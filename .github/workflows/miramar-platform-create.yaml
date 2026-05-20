@@ -1,16 +1,16 @@
-name: GKE Cluster Create
+name: Miramar Platform Create
 
-# Runs gcp/setup-miramar-gke-cicd.zsh to (re)create the GKE cluster,
-# namespaces, RBAC, and supporting resources. The script is idempotent —
-# existing resources are left untouched.
+# Runs gcp/setup-miramar-gke-cicd.zsh to provision (or re-provision) the
+# entire miramar-platform stack: GCP project, billing, APIs, WIF pool/provider,
+# service accounts, Artifact Registry, GKE cluster, namespaces, RBAC, and the
+# cluster state bucket. The script is idempotent — existing resources are left
+# untouched.
 #
-# Prerequisites (one-time, done by a human with project-owner access):
-#   - GCP projects (miramar-cicd, miramar-platform) exist
-#   - Billing is linked
-#   - Required APIs are enabled
-#   - Workload Identity Federation pool + provider are configured
-#   - gh-gke-cluster-ops SA exists and has roles/editor on miramar-platform
-#     plus roles/iam.serviceAccountAdmin on miramar-cicd
+# First-time bootstrap note:
+#   WIF does not exist yet on a cold start, so this workflow cannot use WIF auth
+#   for the very first run. Run the setup script manually once:
+#     ./gcp/setup-miramar-gke-cicd.zsh
+#   After that, WIF is in place and this workflow handles all subsequent runs.
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ permissions:
   id-token: write
 
 env:
-  GCP_PROJECT_ID: miramar-platform
+  PROJECT_ID: miramar-platform
   GKE_CLUSTER_NAME: miramar-shared-gke
   GKE_ZONE: us-west1-a
 
@@ -47,7 +47,7 @@ jobs:
         with:
           cluster_name: ${{ env.GKE_CLUSTER_NAME }}
           location: ${{ env.GKE_ZONE }}
-          project_id: ${{ env.GCP_PROJECT_ID }}
+          project_id: ${{ env.PROJECT_ID }}
 
       - name: Show cluster and namespace state
         run: |
@@ -61,9 +61,10 @@ jobs:
           NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | grep -c . || echo 0)
           NS_COUNT=$(kubectl get namespaces --no-headers 2>/dev/null | grep -c . || echo 0)
           {
-            echo "## GKE Cluster Created / Verified"
+            echo "## Miramar Platform Created / Verified"
             echo "| | |"
             echo "|---|---|"
+            echo "| Project | \`$PROJECT_ID\` |"
             echo "| Cluster | \`$GKE_CLUSTER_NAME\` |"
             echo "| Zone | \`$GKE_ZONE\` |"
             echo "| Nodes | \`$NODE_COUNT\` |"

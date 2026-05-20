@@ -1,0 +1,140 @@
+name: Miramar Platform Destroy
+
+# ⚠ DESTRUCTIVE — tears down the miramar-platform stack in order:
+#   1. GKE cluster (deletes all namespaces and workloads)
+#   2. Artifact Registry repo
+#   3. Cluster state GCS bucket
+#   4. Optionally: delete the GCP project itself (separate confirmation)
+#
+# Two guards must both pass before anything is deleted:
+#   1. Type the project name exactly in confirm_project.
+#   2. Check i_confirm to acknowledge the action is irreversible.
+#
+# Deleting the GCP project is gated behind a third checkbox (delete_project).
+# Project deletion has a 30-day undelete window but removes billing immediately.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_project:
+        description: "Type the project name to confirm: miramar-platform"
+        required: true
+      i_confirm:
+        description: I understand this permanently destroys the cluster and all workloads
+        type: boolean
+        default: false
+        required: true
+      delete_project:
+        description: "Also delete the GCP project itself (30-day undelete window)"
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: miramar-platform
+  GKE_CLUSTER_NAME: miramar-shared-gke
+  GKE_ZONE: us-west1-a
+  AR_REPO: apps
+  AR_REGION: us-west1
+  CLUSTER_STATE_BUCKET: miramar-platform-cluster-state
+
+jobs:
+  destroy:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ inputs.confirm_project }}" != "$PROJECT_ID" ]; then
+            echo "::error::Project name mismatch. Expected '$PROJECT_ID', got '${{ inputs.confirm_project }}'."
+            exit 1
+          fi
+          if [ "${{ inputs.i_confirm }}" != "true" ]; then
+            echo "::error::You must check the confirmation box to proceed."
+            exit 1
+          fi
+          echo "::warning::Destroying miramar-platform stack. This cannot be undone."
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: List workloads before deletion
+        run: |
+          echo "--- Namespaces ---"
+          kubectl get namespaces
+          echo "--- All pods ---"
+          kubectl get pods --all-namespaces
+
+      - name: Delete GKE cluster
+        run: |
+          if gcloud container clusters describe "$GKE_CLUSTER_NAME" \
+              --zone "$GKE_ZONE" --project "$PROJECT_ID" &>/dev/null; then
+            gcloud container clusters delete "$GKE_CLUSTER_NAME" \
+              --zone "$GKE_ZONE" \
+              --project "$PROJECT_ID" \
+              --quiet
+            echo "GKE cluster deleted."
+          else
+            echo "GKE cluster not found — skipping."
+          fi
+
+      - name: Delete Artifact Registry repo
+        run: |
+          if gcloud artifacts repositories describe "$AR_REPO" \
+              --location "$AR_REGION" --project "$PROJECT_ID" &>/dev/null; then
+            gcloud artifacts repositories delete "$AR_REPO" \
+              --location "$AR_REGION" \
+              --project "$PROJECT_ID" \
+              --quiet
+            echo "Artifact Registry repo deleted."
+          else
+            echo "Artifact Registry repo not found — skipping."
+          fi
+
+      - name: Delete cluster state bucket
+        run: |
+          if gsutil ls "gs://$CLUSTER_STATE_BUCKET" &>/dev/null; then
+            gsutil -m rm -r "gs://$CLUSTER_STATE_BUCKET"
+            echo "Cluster state bucket deleted."
+          else
+            echo "Cluster state bucket not found — skipping."
+          fi
+
+      - name: Delete GCP project
+        if: ${{ inputs.delete_project == true }}
+        run: |
+          echo "::warning::Deleting GCP project $PROJECT_ID. 30-day undelete window applies."
+          gcloud projects delete "$PROJECT_ID" --quiet
+          echo "Project $PROJECT_ID deleted."
+
+      - name: Summary
+        run: |
+          {
+            echo "## Miramar Platform Destroyed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Project | \`$PROJECT_ID\` |"
+            echo "| Cluster deleted | ✓ |"
+            echo "| Artifact Registry deleted | ✓ |"
+            echo "| State bucket deleted | ✓ |"
+            echo "| Project deleted | ${{ inputs.delete_project }} |"
+            echo "| Destroyed by | \`${{ github.actor }}\` |"
+            echo ""
+            echo "> To recreate, run the **Miramar Platform Create** workflow."
+          } >> "$GITHUB_STEP_SUMMARY"

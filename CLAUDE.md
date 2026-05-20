@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-Infrastructure and CI/CD tooling for the Miramar platform on GCP. It provisions two GCP projects (`miramar-cicd` and `miramar-platform`), a shared GKE Standard cluster, Artifact Registry, and Workload Identity Federation for keyless GitHub Actions auth. It also contains Docker images and a launch script for self-hosted GitHub Actions runners.
+Infrastructure and CI/CD tooling for the Miramar platform on GCP. It provisions a single GCP project (`miramar-platform`) containing a shared GKE Standard cluster, Artifact Registry, Workload Identity Federation for keyless GitHub Actions auth, and supporting resources. It also contains Docker images and a launch script for self-hosted GitHub Actions runners.
 
 ## Platform topology
 
@@ -14,8 +14,7 @@ Infrastructure and CI/CD tooling for the Miramar platform on GCP. It provisions 
 - **NVIDIA Jetson AGX Orin 64GB** — Ubuntu JetPack 6.x, aarch64 (arm64), 12-core Cortex-A78AE, Ampere GPU 2048 CUDA cores (sm_87), CUDA 12.6. Runner label: `agx`. Uses `mlabs-runner:jetson` (L4T-based) — Tegra unified-memory GPU is incompatible with standard `nvidia/cuda` server images.
 
 **GCP:**
-- `miramar-cicd` — IAM, Workload Identity Federation pool/provider, deploy service accounts.
-- `miramar-platform` — GKE Standard cluster (`miramar-shared-gke`), Artifact Registry (`apps`).
+- `miramar-platform` — single project hosting GKE Standard cluster (`miramar-shared-gke`), Artifact Registry (`apps`), WIF pool/provider, and deploy service accounts.
 - WIF provides keyless GitHub Actions → GCP auth; no long-lived service account keys.
 
 **CI/CD:**
@@ -55,8 +54,8 @@ Two `workflow_dispatch` workflows in `.github/workflows/` temporarily expand the
 
 | Workflow | File | Purpose |
 |---|---|---|
-| GKE Cluster Create | `gke-cluster-create.yaml` | Run `setup-miramar-gke-cicd.zsh` to (re)create the cluster, namespaces, and RBAC |
-| GKE Cluster Destroy | `gke-cluster-destroy.yaml` | Delete the cluster and all workloads — requires typed cluster name + checkbox confirmation |
+| Miramar Platform Create | `miramar-platform-create.yaml` | Run `setup-miramar-gke-cicd.zsh` to provision/re-provision the full stack |
+| Miramar Platform Destroy | `miramar-platform-destroy.yaml` | Tear down cluster, AR, state bucket, optionally the project — requires typed project name + checkbox |
 | GKE Cluster Expand | `gke-cluster-expand.yaml` | Scale `e2-medium-pool` to N nodes; saves full state to GCS |
 | GKE Cluster Restore | `gke-cluster-restore.yaml` | Scale back to the original node count from the Expand summary |
 
@@ -77,10 +76,9 @@ State is stored in GCS (bucket configured at init time). Default variables: `us-
 
 ## GCP project structure
 
-- **`miramar-cicd`** — IAM, WIF pool/provider, deploy service accounts. Acts as the billing-project for API calls.
-- **`miramar-platform`** — GKE cluster (`miramar-shared-gke`), Artifact Registry repo (`apps`), workloads.
+Single project: **`miramar-platform`** — GKE cluster (`miramar-shared-gke`), Artifact Registry repo (`apps`), WIF pool/provider, deploy service accounts, and workloads.
 
-GitHub Actions authenticate keylessly via Workload Identity Federation. The WIF attribute condition restricts access to repos under the `miramar-labs` GitHub org.
+GitHub Actions authenticate keylessly via Workload Identity Federation. The WIF attribute condition restricts access to repos under the `miramar-labs-org` GitHub org.
 
 ## Cost-control constraints
 

@@ -5,9 +5,8 @@ set -euo pipefail
 # MIRAMAR GKE + GITHUB ACTIONS CI/CD BOOTSTRAP
 #
 # Creates if missing:
-#   - miramar-cicd project
 #   - miramar-platform project
-#   - billing links
+#   - billing link
 #   - $50/month billing budget alert
 #   - required APIs
 #   - GitHub Workload Identity Federation pool/provider
@@ -36,11 +35,8 @@ export CLOUDSDK_CORE_DISABLE_PROMPTS=1
 # CONFIG
 ###############################################################################
 
-# CI/CD identity project.
-PLATFORM_PROJECT_ID="miramar-cicd"
-
-# Project that hosts GKE, Artifact Registry, and workloads.
-GKE_PROJECT_ID="miramar-platform"
+# Single GCP project for all resources.
+PROJECT_ID="miramar-platform"
 
 # Optional parent folder/org.
 # Leave blank unless needed.
@@ -75,11 +71,11 @@ AR_REPO="apps"
 # GCS bucket used by the GKE expand/restore workflows to save cluster state.
 CLUSTER_STATE_BUCKET="miramar-platform-cluster-state"
 
-# Dedicated SA for cluster-level GHA workflows (expand/restore).
+# Dedicated SA for cluster-level GHA workflows (expand/restore/create/destroy).
 GHA_CLUSTER_SA_NAME="gke-cluster-ops"
 
 # GitHub org/user that owns the repos.
-GITHUB_OWNER="miramar-labs"
+GITHUB_OWNER="miramar-labs-org"
 
 # One namespace per app/project/repo.
 PROJECT_NAMES=(
@@ -150,44 +146,40 @@ create_project_if_missing() {
 }
 
 enable_base_apis_for_billing_checks() {
-  local project_id="$1"
-
-  log "Enabling base APIs needed for non-interactive billing checks in ${project_id}"
+  log "Enabling base APIs needed for non-interactive billing checks in ${PROJECT_ID}"
 
   gcloud --quiet services enable \
     serviceusage.googleapis.com \
     cloudbilling.googleapis.com \
     billingbudgets.googleapis.com \
-    --project "$project_id"
+    --project "$PROJECT_ID"
 }
 
 link_billing_if_configured() {
-  local project_id="$1"
-
   if [[ -z "$BILLING_ACCOUNT_ID" ]]; then
-    warn "BILLING_ACCOUNT_ID is blank; not linking billing for ${project_id}."
+    warn "BILLING_ACCOUNT_ID is blank; not linking billing."
     return 0
   fi
 
-  log "Checking billing for project: ${project_id}"
+  log "Checking billing for project: ${PROJECT_ID}"
 
   local current_billing
   current_billing="$(
-    gcloud --quiet beta billing projects describe "$project_id" \
-      --billing-project="$PLATFORM_PROJECT_ID" \
+    gcloud --quiet beta billing projects describe "$PROJECT_ID" \
+      --billing-project="$PROJECT_ID" \
       --format='value(billingAccountName)' 2>/dev/null || true
   )"
 
   if [[ "$current_billing" == "billingAccounts/${BILLING_ACCOUNT_ID}" ]]; then
-    log "Billing already linked for ${project_id}: ${BILLING_ACCOUNT_ID}"
+    log "Billing already linked: ${BILLING_ACCOUNT_ID}"
     return 0
   fi
 
-  log "Linking billing account ${BILLING_ACCOUNT_ID} to ${project_id}"
+  log "Linking billing account ${BILLING_ACCOUNT_ID} to ${PROJECT_ID}"
 
-  gcloud --quiet beta billing projects link "$project_id" \
+  gcloud --quiet beta billing projects link "$PROJECT_ID" \
     --billing-account="$BILLING_ACCOUNT_ID" \
-    --billing-project="$PLATFORM_PROJECT_ID"
+    --billing-project="$PROJECT_ID"
 }
 
 ensure_budget_alert() {
@@ -200,7 +192,7 @@ ensure_budget_alert() {
 
   if gcloud --quiet beta billing budgets list \
       --billing-account="$BILLING_ACCOUNT_ID" \
-      --billing-project="$PLATFORM_PROJECT_ID" \
+      --billing-project="$PROJECT_ID" \
       --format="value(displayName)" 2>/dev/null \
       | grep -qx "$BUDGET_NAME"; then
     log "Budget alert already exists: ${BUDGET_NAME}"
@@ -211,7 +203,7 @@ ensure_budget_alert() {
 
   gcloud --quiet beta billing budgets create \
     --billing-account="$BILLING_ACCOUNT_ID" \
-    --billing-project="$PLATFORM_PROJECT_ID" \
+    --billing-project="$PROJECT_ID" \
     --display-name="$BUDGET_NAME" \
     --budget-amount="${BUDGET_AMOUNT_USD}USD" \
     --threshold-rule=percent=0.25,basis=current-spend \
@@ -222,9 +214,7 @@ ensure_budget_alert() {
 }
 
 enable_apis() {
-  local project_id="$1"
-
-  log "Enabling required APIs in ${project_id}"
+  log "Enabling required APIs in ${PROJECT_ID}"
 
   gcloud --quiet services enable \
     cloudbilling.googleapis.com \
@@ -237,17 +227,16 @@ enable_apis() {
     artifactregistry.googleapis.com \
     container.googleapis.com \
     compute.googleapis.com \
-    --project "$project_id"
+    --project "$PROJECT_ID"
 }
 
 get_project_number() {
-  local project_id="$1"
-  gcloud --quiet projects describe "$project_id" --format='value(projectNumber)'
+  gcloud --quiet projects describe "$PROJECT_ID" --format='value(projectNumber)'
 }
 
 ensure_artifact_repo() {
   if gcloud --quiet artifacts repositories describe "$AR_REPO" \
-      --project "$GKE_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --location "$REGION" >/dev/null 2>&1; then
     log "Artifact Registry repo already exists: ${AR_REPO}"
     return 0
@@ -256,7 +245,7 @@ ensure_artifact_repo() {
   log "Creating Artifact Registry Docker repo: ${AR_REPO}"
 
   gcloud --quiet artifacts repositories create "$AR_REPO" \
-    --project "$GKE_PROJECT_ID" \
+    --project "$PROJECT_ID" \
     --location "$REGION" \
     --repository-format=docker \
     --description="Shared Docker images for Miramar apps"
@@ -269,7 +258,7 @@ ensure_gke_cluster() {
   fi
 
   if gcloud --quiet container clusters describe "$CLUSTER_NAME" \
-      --project "$GKE_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --zone "$GKE_LOCATION" >/dev/null 2>&1; then
     log "GKE cluster already exists: ${CLUSTER_NAME}"
     return 0
@@ -278,27 +267,27 @@ ensure_gke_cluster() {
   log "Creating GKE Standard zonal cluster: ${CLUSTER_NAME}"
 
   gcloud --quiet container clusters create "$CLUSTER_NAME" \
-    --project "$GKE_PROJECT_ID" \
+    --project "$PROJECT_ID" \
     --zone "$GKE_LOCATION" \
     --release-channel "$GKE_RELEASE_CHANNEL" \
     --machine-type "$MACHINE_TYPE" \
     --num-nodes "$NUM_NODES" \
     --disk-type "$DISK_TYPE" \
     --disk-size "$DISK_SIZE_GB" \
-    --enable-ip-alias \
+    --enable-ip-alias
 }
 
 get_gke_credentials() {
   log "Fetching GKE credentials"
 
   gcloud --quiet container clusters get-credentials "$CLUSTER_NAME" \
-    --project "$GKE_PROJECT_ID" \
+    --project "$PROJECT_ID" \
     --zone "$GKE_LOCATION"
 }
 
 ensure_wif_pool() {
   if gcloud --quiet iam workload-identity-pools describe "$WIF_POOL_ID" \
-      --project "$PLATFORM_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --location="global" >/dev/null 2>&1; then
     log "Workload Identity Pool already exists: ${WIF_POOL_ID}"
     return 0
@@ -307,14 +296,14 @@ ensure_wif_pool() {
   log "Creating Workload Identity Pool: ${WIF_POOL_ID}"
 
   gcloud --quiet iam workload-identity-pools create "$WIF_POOL_ID" \
-    --project="$PLATFORM_PROJECT_ID" \
+    --project="$PROJECT_ID" \
     --location="global" \
     --display-name="GitHub Actions"
 }
 
 ensure_wif_provider() {
   if gcloud --quiet iam workload-identity-pools providers describe "$WIF_PROVIDER_ID" \
-      --project "$PLATFORM_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --location="global" \
       --workload-identity-pool="$WIF_POOL_ID" >/dev/null 2>&1; then
     log "Workload Identity Provider already exists: ${WIF_PROVIDER_ID}"
@@ -324,7 +313,7 @@ ensure_wif_provider() {
   log "Creating GitHub OIDC provider: ${WIF_PROVIDER_ID}"
 
   gcloud --quiet iam workload-identity-pools providers create-oidc "$WIF_PROVIDER_ID" \
-    --project="$PLATFORM_PROJECT_ID" \
+    --project="$PROJECT_ID" \
     --location="global" \
     --workload-identity-pool="$WIF_POOL_ID" \
     --display-name="GitHub OIDC" \
@@ -336,16 +325,16 @@ ensure_wif_provider() {
 ensure_service_account() {
   local sa_name="$1"
   local display_name="$2"
-  local sa_email="${sa_name}@${PLATFORM_PROJECT_ID}.iam.gserviceaccount.com"
+  local sa_email="${sa_name}@${PROJECT_ID}.iam.gserviceaccount.com"
 
   if gcloud --quiet iam service-accounts describe "$sa_email" \
-      --project "$PLATFORM_PROJECT_ID" >/dev/null 2>&1; then
+      --project "$PROJECT_ID" >/dev/null 2>&1; then
     log "Service account already exists: ${sa_email}"
   else
     log "Creating service account: ${sa_email}"
 
     gcloud --quiet iam service-accounts create "$sa_name" \
-      --project "$PLATFORM_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --display-name="$display_name"
   fi
 
@@ -377,7 +366,7 @@ add_artifact_repo_iam_binding() {
   local role="$2"
 
   if gcloud --quiet artifacts repositories get-iam-policy "$AR_REPO" \
-      --project "$GKE_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --location "$REGION" \
       --flatten="bindings[].members" \
       --filter="bindings.role=${role} AND bindings.members=${member}" \
@@ -389,7 +378,7 @@ add_artifact_repo_iam_binding() {
   log "Adding Artifact Registry IAM binding: ${member} ${role}"
 
   gcloud --quiet artifacts repositories add-iam-policy-binding "$AR_REPO" \
-    --project "$GKE_PROJECT_ID" \
+    --project "$PROJECT_ID" \
     --location "$REGION" \
     --member="$member" \
     --role="$role" >/dev/null
@@ -401,7 +390,7 @@ add_service_account_iam_binding() {
   local role="$3"
 
   if gcloud --quiet iam service-accounts get-iam-policy "$sa_email" \
-      --project "$PLATFORM_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --flatten="bindings[].members" \
       --filter="bindings.role=${role} AND bindings.members=${member}" \
       --format="value(bindings.members)" | grep -qx "$member"; then
@@ -412,7 +401,7 @@ add_service_account_iam_binding() {
   log "Adding service account IAM binding: ${sa_email}: ${member} ${role}"
 
   gcloud --quiet iam service-accounts add-iam-policy-binding "$sa_email" \
-    --project "$PLATFORM_PROJECT_ID" \
+    --project "$PROJECT_ID" \
     --member="$member" \
     --role="$role" >/dev/null
 }
@@ -572,34 +561,27 @@ require_cmd grep
 log "Active gcloud account:"
 gcloud --quiet auth list --filter=status:ACTIVE --format='value(account)' || true
 
-log "Setting active project to ${PLATFORM_PROJECT_ID}"
-gcloud --quiet config set project "$PLATFORM_PROJECT_ID" >/dev/null || true
-gcloud --quiet config set billing/quota_project "$PLATFORM_PROJECT_ID" >/dev/null || true
+log "Setting active project to ${PROJECT_ID}"
+gcloud --quiet config set project "$PROJECT_ID" >/dev/null || true
+gcloud --quiet config set billing/quota_project "$PROJECT_ID" >/dev/null || true
 
-log "Creating/checking projects"
-create_project_if_missing "$PLATFORM_PROJECT_ID" "Miramar CICD"
-create_project_if_missing "$GKE_PROJECT_ID" "Miramar Platform"
+log "Creating/checking project"
+create_project_if_missing "$PROJECT_ID" "Miramar Platform"
 
 log "Enabling base APIs before billing checks"
-enable_base_apis_for_billing_checks "$PLATFORM_PROJECT_ID"
-enable_base_apis_for_billing_checks "$GKE_PROJECT_ID"
+enable_base_apis_for_billing_checks
 
 log "Linking billing"
-link_billing_if_configured "$PLATFORM_PROJECT_ID"
-link_billing_if_configured "$GKE_PROJECT_ID"
+link_billing_if_configured
 
 log "Creating/checking billing budget alert"
 ensure_budget_alert || warn "Budget alert creation failed; continuing."
 
 log "Enabling required APIs"
-enable_apis "$PLATFORM_PROJECT_ID"
-enable_apis "$GKE_PROJECT_ID"
+enable_apis
 
-PLATFORM_PROJECT_NUMBER="$(get_project_number "$PLATFORM_PROJECT_ID")"
-GKE_PROJECT_NUMBER="$(get_project_number "$GKE_PROJECT_ID")"
-
-log "PLATFORM_PROJECT_NUMBER=${PLATFORM_PROJECT_NUMBER}"
-log "GKE_PROJECT_NUMBER=${GKE_PROJECT_NUMBER}"
+PROJECT_NUMBER="$(get_project_number)"
+log "PROJECT_NUMBER=${PROJECT_NUMBER}"
 
 ensure_artifact_repo
 ensure_gke_cluster
@@ -608,9 +590,9 @@ get_gke_credentials
 ensure_wif_pool
 ensure_wif_provider
 
-WIF_PROVIDER_RESOURCE="projects/${PLATFORM_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/providers/${WIF_PROVIDER_ID}"
+WIF_PROVIDER_RESOURCE="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/providers/${WIF_PROVIDER_ID}"
 
-WIF_PRINCIPAL_SET="principalSet://iam.googleapis.com/projects/${PLATFORM_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/attribute.repository_owner/${GITHUB_OWNER}"
+WIF_PRINCIPAL_SET="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/attribute.repository_owner/${GITHUB_OWNER}"
 
 log "WIF provider resource: ${WIF_PROVIDER_RESOURCE}"
 log "WIF principal set: ${WIF_PRINCIPAL_SET}"
@@ -621,8 +603,8 @@ if [[ "$PER_NAMESPACE_SERVICE_ACCOUNTS" == "false" ]]; then
   SHARED_SA_EMAIL="$(ensure_service_account "github-deploy" "GitHub deploy shared")"
 
   add_service_account_iam_binding "$SHARED_SA_EMAIL" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
-  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${SHARED_SA_EMAIL}" "roles/container.clusterViewer"
-  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${SHARED_SA_EMAIL}" "roles/iam.serviceAccountUser"
+  add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SHARED_SA_EMAIL}" "roles/container.clusterViewer"
+  add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SHARED_SA_EMAIL}" "roles/iam.serviceAccountUser"
   add_artifact_repo_iam_binding "serviceAccount:${SHARED_SA_EMAIL}" "roles/artifactregistry.writer"
 fi
 
@@ -634,8 +616,8 @@ for APP in "${PROJECT_NAMES[@]}"; do
     SA_EMAIL="$(ensure_service_account "$SA_NAME" "GitHub deploy for ${APP}")"
 
     add_service_account_iam_binding "$SA_EMAIL" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
-    add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${SA_EMAIL}" "roles/container.clusterViewer"
-    add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${SA_EMAIL}" "roles/iam.serviceAccountUser"
+    add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SA_EMAIL}" "roles/container.clusterViewer"
+    add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SA_EMAIL}" "roles/iam.serviceAccountUser"
     add_artifact_repo_iam_binding "serviceAccount:${SA_EMAIL}" "roles/artifactregistry.writer"
   else
     SA_EMAIL="$SHARED_SA_EMAIL"
@@ -648,21 +630,21 @@ done
 ensure_cluster_mgmt_sa() {
   local sa_name
   sa_name="$(sanitize_sa_name "$GHA_CLUSTER_SA_NAME")"
-  GHA_CLUSTER_SA="${sa_name}@${PLATFORM_PROJECT_ID}.iam.gserviceaccount.com"
+  GHA_CLUSTER_SA="${sa_name}@${PROJECT_ID}.iam.gserviceaccount.com"
 
   ensure_service_account "$sa_name" "GKE cluster operations"
   add_service_account_iam_binding "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
-  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/container.admin"
-  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
+  add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/container.admin"
+  add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
   log "Cluster management SA: ${GHA_CLUSTER_SA}"
 }
 
 ensure_cluster_state_bucket() {
   if ! gcloud --quiet storage buckets describe "gs://${CLUSTER_STATE_BUCKET}" \
-      --project "$GKE_PROJECT_ID" >/dev/null 2>&1; then
+      --project "$PROJECT_ID" >/dev/null 2>&1; then
     log "Creating cluster state bucket: gs://${CLUSTER_STATE_BUCKET}"
     gcloud --quiet storage buckets create "gs://${CLUSTER_STATE_BUCKET}" \
-      --project "$GKE_PROJECT_ID" \
+      --project "$PROJECT_ID" \
       --location "$REGION"
   else
     log "Cluster state bucket already exists: gs://${CLUSTER_STATE_BUCKET}"
@@ -682,11 +664,8 @@ cat <<OUT
 SETUP COMPLETE
 ===============================================================================
 
-CI/CD project:
-  ${PLATFORM_PROJECT_ID}
-
-GKE/workload project:
-  ${GKE_PROJECT_ID}
+Project:
+  ${PROJECT_ID}
 
 GKE cluster:
   ${CLUSTER_NAME}
@@ -699,7 +678,7 @@ Node pool:
   ${DISK_SIZE_GB}GB ${DISK_TYPE}
 
 Artifact Registry image prefix:
-  ${REGION}-docker.pkg.dev/${GKE_PROJECT_ID}/${AR_REPO}
+  ${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}
 
 Billing budget alert:
   ${BUDGET_NAME}
@@ -711,7 +690,7 @@ GitHub owner:
 Workload Identity Provider:
   ${WIF_PROVIDER_RESOURCE}
 
-Cluster management SA (set as GCP_SERVICE_ACCOUNT secret for expand/restore workflows):
+Cluster management SA (set as GCP_SERVICE_ACCOUNT secret for cluster workflows):
   ${GHA_CLUSTER_SA}
 
 Cluster state bucket:
@@ -736,7 +715,7 @@ permissions:
   id-token: write
 
 env:
-  GKE_PROJECT_ID: ${GKE_PROJECT_ID}
+  PROJECT_ID: ${PROJECT_ID}
   GKE_CLUSTER: ${CLUSTER_NAME}
   GKE_LOCATION: ${GKE_LOCATION}
   GAR_LOCATION: ${REGION}
@@ -761,14 +740,14 @@ jobs:
         with:
           cluster_name: "\${{ env.GKE_CLUSTER }}"
           location: "\${{ env.GKE_LOCATION }}"
-          project_id: "\${{ env.GKE_PROJECT_ID }}"
+          project_id: "\${{ env.PROJECT_ID }}"
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "\${GAR_LOCATION}-docker.pkg.dev" --quiet
 
       - name: Build and push image
         run: |
-          IMAGE="\${GAR_LOCATION}-docker.pkg.dev/\${GKE_PROJECT_ID}/\${GAR_REPOSITORY}/\${K8S_NAMESPACE}:\${GITHUB_SHA}"
+          IMAGE="\${GAR_LOCATION}-docker.pkg.dev/\${PROJECT_ID}/\${GAR_REPOSITORY}/\${K8S_NAMESPACE}:\${GITHUB_SHA}"
           docker build -t "\$IMAGE" .
           docker push "\$IMAGE"
           echo "IMAGE=\$IMAGE" >> "\$GITHUB_ENV"
@@ -780,18 +759,16 @@ jobs:
 
 Verify:
 
-  gcloud projects describe ${PLATFORM_PROJECT_ID}
-  gcloud projects describe ${GKE_PROJECT_ID}
+  gcloud projects describe ${PROJECT_ID}
 
-  gcloud beta billing projects describe ${PLATFORM_PROJECT_ID} --billing-project ${PLATFORM_PROJECT_ID}
-  gcloud beta billing projects describe ${GKE_PROJECT_ID} --billing-project ${PLATFORM_PROJECT_ID}
+  gcloud beta billing projects describe ${PROJECT_ID} --billing-project ${PROJECT_ID}
 
   gcloud beta billing budgets list \\
     --billing-account ${BILLING_ACCOUNT_ID} \\
-    --billing-project ${PLATFORM_PROJECT_ID}
+    --billing-project ${PROJECT_ID}
 
-  gcloud container clusters list --project ${GKE_PROJECT_ID}
-  gcloud artifacts repositories list --project ${GKE_PROJECT_ID} --location ${REGION}
+  gcloud container clusters list --project ${PROJECT_ID}
+  gcloud artifacts repositories list --project ${PROJECT_ID} --location ${REGION}
 
   kubectl get nodes -o wide
   kubectl get namespaces
