@@ -7,9 +7,8 @@ name: Miramar Platform Create
 # untouched.
 #
 # First-time bootstrap note:
-#   WIF does not exist yet on a cold start, so this workflow cannot use WIF auth
-#   for the very first run. Run the setup script manually once:
-#     ./gcp/setup-miramar-gke-cicd.zsh
+#   WIF does not exist yet on a cold start, so this workflow cannot be used for
+#   the very first run. Run the Miramar Platform Bootstrap workflow once instead.
 #   After that, WIF is in place and this workflow handles all subsequent runs.
 
 on:
