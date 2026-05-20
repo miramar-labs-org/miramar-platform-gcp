@@ -7,8 +7,8 @@ GCP infrastructure and CI/CD tooling for the Miramar Labs platform.
 [![Build mlabs-runner](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-mlabs-runner.yml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-mlabs-runner.yml)
 [![GKE Expand](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand.yaml)
 [![GKE Restore](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml)
-[![GKE Expand Triton](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-triton.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-triton.yaml)
-[![GKE Restore Triton](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-triton.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-triton.yaml)
+[![GKE Expand GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml)
+[![GKE Restore GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml)
 
 ## Platform Overview
 
@@ -496,7 +496,7 @@ Loads the saved state from GCS and runs `terraform apply -var=node_pool_count=<s
 
 Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via Workload Identity Federation.
 
-> **GKE Expand and GKE Expand Triton are independent** — you can run both at the same time. Expand scales the CPU node pool; Expand Triton adds a separate GPU node pool. They write to different Terraform state prefixes and do not interfere with each other. Typical combined sequence: **GKE Expand** → **GKE Expand Triton** → deploy workload → **GKE Restore Triton** → **GKE Restore**.
+> **GKE Expand and GKE Expand GPU are independent** — you can run both at the same time. Expand scales the CPU node pool; Expand GPU adds a separate GPU node pool. They write to different Terraform state prefixes and do not interfere with each other. Typical combined sequence: **GKE Expand** → **GKE Expand GPU** → deploy workload → **GKE Restore GPU** → **GKE Restore**.
 
 ---
 
@@ -506,7 +506,7 @@ Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads th
 
 The GPU pool is created in `us-west1-a` (same zone as the cluster; T4/L4/P4 are all available there).
 
-### [GKE Expand Triton](.github/workflows/gke-expand-triton.yaml)
+### [GKE Expand GPU](.github/workflows/gke-expand-gpu.yaml)
 
 Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-triton-pool` node pool, installs the NVIDIA device plugin DaemonSet, and relaxes the target namespace's resource quota to allow GPU workloads. Snapshots the original quota to GCS before patching so Restore can revert it exactly. Running Expand on an already-running pool is a no-op.
 
@@ -520,12 +520,12 @@ Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-triton-pool` n
 
 T4 and L4 are recommended for inference workloads. L4 offers better throughput per dollar for larger models and FP8/INT8 serving. P4 is sufficient for lightweight models only.
 
-1. Go to **Actions → GKE Expand Triton → Run workflow**
+1. Go to **Actions → GKE Expand GPU → Run workflow**
 2. Set `namespace`, `machine_type`, and `gpu_type` as needed
 
-### [GKE Restore Triton](.github/workflows/gke-restore-triton.yaml)
+### [GKE Restore GPU](.github/workflows/gke-restore-gpu.yaml)
 
 Restores the namespace quota from the GCS snapshot, then runs `terraform destroy` in `gcp/terraform-gpu/` to delete the GPU node pool. If no pool exists in Terraform state, the destroy step is skipped.
 
-1. Go to **Actions → GKE Restore Triton → Run workflow**
+1. Go to **Actions → GKE Restore GPU → Run workflow**
 2. Confirm the `namespace` matches what was used in Expand

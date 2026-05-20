@@ -18,7 +18,7 @@ gh run list --repo miramar-labs-org/miramar-platform-gcp
 gh run watch --repo miramar-labs-org/miramar-platform-gcp
 
 # Trigger a workflow manually
-gh workflow run gke-expand-triton.yaml --repo miramar-labs-org/miramar-platform-gcp \
+gh workflow run gke-expand-gpu.yaml --repo miramar-labs-org/miramar-platform-gcp \
   --field namespace=mlops-torch-triton-gke-pipeline \
   --field machine_type=n1-standard-4 \
   --field gpu_type=nvidia-tesla-t4

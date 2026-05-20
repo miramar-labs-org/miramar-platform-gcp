@@ -94,7 +94,7 @@ echo "Note: quota shows your project allocation ceiling — a GCE stockout is a"
 echo "separate capacity shortage on Google's side."
 
 echo ""
-echo "==> GKE Expand Triton workflow inputs:"
+echo "==> GKE Expand GPU workflow inputs:"
 echo ""
 echo "    Namespace    : mlops-torch-triton-gke-pipeline"
 echo "    Machine type : $MACHINE_TYPE"

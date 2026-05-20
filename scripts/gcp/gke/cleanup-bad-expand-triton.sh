@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Cleans up after a failed GKE Expand Triton workflow run.
+# Cleans up after a failed GKE Expand GPU workflow run.
 #
 # When Terraform fails during node pool creation (e.g. GCE stockout), the
 # pool may exist in GKE in an ERROR state but not in Terraform state. This
@@ -101,4 +101,4 @@ EOF
 fi
 
 echo ""
-echo "Done. Re-run GKE Expand Triton when ready."
+echo "Done. Re-run GKE Expand GPU when ready."

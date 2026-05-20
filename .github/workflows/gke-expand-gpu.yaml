@@ -1,7 +1,7 @@
-name: GKE Expand Triton
+name: GKE Expand GPU
 
 # Adds a temporary GPU node pool and relaxes the namespace resource quota.
-# Run GKE Restore Triton when done to remove the pool and restore the quota.
+# Run GKE Restore GPU when done to remove the pool and restore the quota.
 #
 # GPU options (gpu_type input):
 #   nvidia-tesla-t4  — Turing,  16GB VRAM, n1-standard-4, us-west1-a  (~$0.54/hr) [default]
@@ -95,7 +95,7 @@ jobs:
             sleep 15
           done
 
-      - name: Expand namespace quota for Triton
+      - name: Expand namespace quota for GPU
         run: |
           kubectl apply -f - <<EOF
           apiVersion: v1
@@ -117,12 +117,12 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "## GKE Expand Triton"
+            echo "## GKE Expand GPU"
             echo "| | |"
             echo "|---|---|"
             echo "| GPU pool | \`gpu-triton-pool\` |"
             echo "| Machine | \`${{ inputs.machine_type }}\` + \`${{ inputs.gpu_type }}\` |"
             echo "| Namespace | \`${{ inputs.namespace }}\` |"
             echo ""
-            echo "> Run **GKE Restore Triton** when done to remove the GPU pool and restore quota."
+            echo "> Run **GKE Restore GPU** when done to remove the GPU pool and restore quota."
           } >> "$GITHUB_STEP_SUMMARY"

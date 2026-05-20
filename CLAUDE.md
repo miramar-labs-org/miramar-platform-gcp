@@ -73,7 +73,7 @@ terraform apply -var-file=terraform.tfvars
 
 State is stored in GCS at `gs://miramar-platform-cluster-state/terraform/state/`. `GKE_STATE_BUCKET` is the one GitHub variable not in tfvars (it is the backend config itself).
 
-**`gcp/terraform-gpu/`** — manages the transient `gpu-triton-pool` GPU node pool only. Separate state at `gs://miramar-platform-cluster-state/terraform/gpu-state/`. Used exclusively by the **GKE Expand Triton** / **GKE Restore Triton** workflows — regular expand/restore never touch it. Config in `gcp/terraform-gpu/gpu.tfvars`.
+**`gcp/terraform-gpu/`** — manages the transient `gpu-triton-pool` GPU node pool only. Separate state at `gs://miramar-platform-cluster-state/terraform/gpu-state/`. Used exclusively by the **GKE Expand GPU** / **GKE Restore GPU** workflows — regular expand/restore never touch it. Config in `gcp/terraform-gpu/gpu.tfvars`.
 
 **Note:** the mlabs-runner Docker image has Terraform pre-installed via the Hashicorp apt repo. The `hashicorp/setup-terraform` GitHub Actions action is intentionally not used (it requires Node.js).
 
@@ -98,12 +98,12 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-vars.sh`
 | Miramar Platform Destroy | `miramar-platform-destroy.yaml` | `terraform destroy` (GKE + AR), gcloud fallback for pre-Terraform resources, delete state bucket, optionally delete project |
 | GKE Expand | `gke-expand.yaml` | Snapshot node pool state to GCS, then `terraform apply -var=node_pool_count=N` |
 | GKE Restore | `gke-restore.yaml` | Read saved state from GCS, then `terraform apply -var=node_pool_count=<saved>` |
-| GKE Expand Triton | `gke-expand-triton.yaml` | `terraform apply` in `gcp/terraform-gpu/` to add a GPU node pool; expands namespace quota |
-| GKE Restore Triton | `gke-restore-triton.yaml` | `terraform destroy` in `gcp/terraform-gpu/` to remove the GPU pool; restores namespace quota |
+| GKE Expand GPU | `gke-expand-gpu.yaml` | `terraform apply` in `gcp/terraform-gpu/` to add a GPU node pool; expands namespace quota |
+| GKE Restore GPU | `gke-restore-gpu.yaml` | `terraform destroy` in `gcp/terraform-gpu/` to remove the GPU pool; restores namespace quota |
 
 Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
 
-Typical GPU sequence: run **GKE Expand Triton** → deploy GPU workload → run **GKE Restore Triton**.
+Typical GPU sequence: run **GKE Expand GPU** → deploy GPU workload → run **GKE Restore GPU**.
 
 The node pool is named `default-pool` (created by `gcloud container clusters create` default behaviour, preserved in Terraform).
 
