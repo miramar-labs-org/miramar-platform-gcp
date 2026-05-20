@@ -72,6 +72,13 @@ DISK_SIZE_GB="30"
 # Shared Artifact Registry Docker repository.
 AR_REPO="apps"
 
+# GCS bucket used by the GKE expand/restore workflows to save cluster state.
+CLUSTER_STATE_BUCKET="miramar-platform-cluster-state"
+
+# Service account used by cluster-level GHA workflows (expand/restore).
+# Derived from sanitize_sa_name("github-deploy-github-actions-hello") → 30-char truncation.
+GHA_CLUSTER_SA="gh-github-deploy-github-action@${PLATFORM_PROJECT_ID}.iam.gserviceaccount.com"
+
 # GitHub org/user that owns the repos.
 GITHUB_OWNER="miramar-labs"
 
@@ -639,6 +646,22 @@ for APP in "${PROJECT_NAMES[@]}"; do
   APP_TO_SA[$APP]="$SA_EMAIL"
   ensure_namespace_and_rbac "$NAMESPACE" "$SA_EMAIL"
 done
+
+ensure_cluster_state_bucket() {
+  if ! gcloud --quiet storage buckets describe "gs://${CLUSTER_STATE_BUCKET}" \
+      --project "$GKE_PROJECT_ID" >/dev/null 2>&1; then
+    log "Creating cluster state bucket: gs://${CLUSTER_STATE_BUCKET}"
+    gcloud --quiet storage buckets create "gs://${CLUSTER_STATE_BUCKET}" \
+      --project "$GKE_PROJECT_ID" \
+      --location "$REGION"
+  else
+    log "Cluster state bucket already exists: gs://${CLUSTER_STATE_BUCKET}"
+  fi
+
+  add_project_iam_binding "$GKE_PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
+}
+
+ensure_cluster_state_bucket
 
 ###############################################################################
 # OUTPUT

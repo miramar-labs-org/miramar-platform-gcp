@@ -35,6 +35,15 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Ensure state bucket exists
+        run: |
+          if ! gsutil ls "gs://$CLUSTER_STATE_BUCKET" 2>/dev/null; then
+            echo "Creating state bucket gs://$CLUSTER_STATE_BUCKET..."
+            gcloud storage buckets create "gs://$CLUSTER_STATE_BUCKET" \
+              --project="$GCP_PROJECT_ID" \
+              --location=us-west1
+          fi
+
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v2
         with:

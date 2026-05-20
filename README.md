@@ -332,11 +332,13 @@ Before the resize, Expand snapshots the full node pool JSON and the live node co
 
 ### One-time setup
 
-Create the state bucket and grant the deploy SA write access (run once, from any authenticated session):
+Grant the deploy SA `storage.admin` on `miramar-platform` so it can create and write to the state bucket. Run once from any authenticated `gcloud` session:
 
 ```sh
 ./scripts/gcp/create-cluster-state-bucket.sh
 ```
+
+After that the Expand workflow creates the bucket automatically if it's ever missing. This step is also handled by `gcp/setup-miramar-gke-cicd.zsh` during a full bootstrap.
 
 ### [GKE Cluster Expand](.github/workflows/gke-cluster-expand.yaml)
 
