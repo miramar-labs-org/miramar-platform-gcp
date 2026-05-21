@@ -71,6 +71,7 @@ jobs:
             gcloud storage buckets create "gs://$CLUSTER_STATE_BUCKET" \
               --project="$PROJECT_ID" \
               --location="$GCP_REGION"
+            sleep 5
           else
             echo "Bucket already exists: gs://$CLUSTER_STATE_BUCKET"
           fi
