@@ -390,15 +390,14 @@ Create a GCS bucket idempotently. Optionally grant a service account `storage.ad
   --grant-sa <sa@project.iam.gserviceaccount.com>
 ```
 
-#### [gke/check-gpu-availability.sh](scripts/gcp/gke/check-gpu-availability.sh)
-Check GPU availability across zones in a region. Without `--probe`, shows which zones advertise the GPU and your project's quota. With `--probe`, creates and immediately deletes a minimal test instance in each zone to detect actual hardware capacity (exhausted zones fail in <5s; requires `compute.instances.create` — run locally, not in CI). Exits 0 if the cluster zone has capacity, 1 if exhausted, and prints the exact tfvars edits + workflow sequence to migrate to an available zone.
+#### [gke/find-gpu-capacity.sh](scripts/gcp/gke/find-gpu-capacity.sh)
+Probes actual GPU capacity across all GPU types and zones in parallel (exhausted zones fail in <5s). Requires `compute.instances.create` — run locally, not in CI. Prints the top 5 cheapest available options with ready-to-use GKE Expand GPU input values.
 ```sh
-# Quota and zone list (read-only, no instances created)
-./scripts/gcp/gke/check-gpu-availability.sh
-./scripts/gcp/gke/check-gpu-availability.sh nvidia-l4
+# Probe all GPU types across all regions
+./scripts/gcp/gke/find-gpu-capacity.sh
 
-# Probe actual hardware capacity (creates+deletes a test instance per zone)
-./scripts/gcp/gke/check-gpu-availability.sh nvidia-tesla-t4 --probe
+# Limit to a specific region (faster)
+./scripts/gcp/gke/find-gpu-capacity.sh us-central1
 ```
 
 ---
@@ -521,7 +520,7 @@ Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via 
 
 Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads that need a GPU (e.g. Triton Inference Server) and restore the cluster when done. The GPU pool is managed by a separate Terraform module (`gcp/terraform-gpu/`) with its own GCS state at `terraform/gpu-state/` — isolated from the main cluster state so regular expand/restore workflows cannot touch it.
 
-The GPU pool is created in the same zone as the cluster (see `gcp/terraform/terraform.tfvars`). If a zone has no capacity (`ZONE_RESOURCE_POOL_EXHAUSTED`), the expand workflow surfaces available alternative zones and prints migration steps. Run `scripts/gcp/gke/check-gpu-availability.sh <gpu_type> --probe` locally to find a zone with capacity before migrating.
+The GPU pool is created in the same zone as the cluster (see `gcp/terraform/terraform.tfvars`). If a zone has no capacity (`ZONE_RESOURCE_POOL_EXHAUSTED`), the expand workflow surfaces available alternative zones and prints migration steps. Run `scripts/gcp/gke/find-gpu-capacity.sh` locally to find available capacity across all GPU types and zones.
 
 ### [GKE Expand GPU](.github/workflows/gke-expand-gpu.yaml)
 

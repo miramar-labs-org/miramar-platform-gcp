@@ -170,8 +170,8 @@ jobs:
               fi
             done
             echo ""
-            echo "To probe actual capacity locally:"
-            echo "  ./scripts/gcp/gke/check-gpu-availability.sh ${GPU_INPUT} --probe"
+            echo "To find available GPU capacity across all zones:"
+            echo "  ./scripts/gcp/gke/find-gpu-capacity.sh"
           fi
 
       - name: Summary
