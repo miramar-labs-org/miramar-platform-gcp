@@ -39,7 +39,7 @@ Request quota in 2–3 geographically spread regions so there's always a fallbac
 |---|---|
 | `us-east1` | South Carolina |
 | `us-east4` | Northern Virginia |
-| `europe-west4` | Netherlands |
+| `us-west1` | Oregon |
 
 ## Justification text
 
