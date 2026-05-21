@@ -399,9 +399,6 @@ Probes actual GPU capacity across all GPU types and zones in parallel (exhausted
 
 # Limit to a specific region (faster)
 ./scripts/gcp/gke/find-gpu-capacity.sh us-central1
-
-# Global scan
-./scripts/gcp/gke/find-gpu-capacity.sh ""
 ```
 
 ---
@@ -567,6 +564,6 @@ Shows top 5 cheapest options with the exact `gpu_type`, `machine_type`, `zone`, 
 Actions → Find GPU Capacity → Run workflow
 ```
 
-Optional `region` input narrows the search (e.g. `us-central1`). Default scans all US regions (`us-*`). Pass an empty string to go global.
+Optional `region` input narrows the search to a single region (e.g. `us-central1`). Leave blank to scan all US regions.
 
 > Requires `roles/compute.instanceAdmin` on the cluster-ops SA — granted by `bootstrap-miramar-platform.zsh`. Run in the workflow (wsl2 runner) rather than locally if the local account lacks this role.
