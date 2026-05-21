@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: 'Region filter (default: all US regions; pass "" for global)'
+        description: 'Region to scan (e.g. us-east1). Leave blank for all US regions.'
         default: ''
         required: false
 
