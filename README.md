@@ -394,11 +394,14 @@ Create a GCS bucket idempotently. Optionally grant a service account `storage.ad
 #### [gke/find-gpu-capacity.sh](scripts/gcp/gke/find-gpu-capacity.sh)
 Probes actual GPU capacity across all GPU types and zones in parallel (exhausted zones fail in <5s). Requires `compute.instances.create` — run locally, not in CI. Prints the top 5 cheapest available options with ready-to-use GKE Expand GPU input values.
 ```sh
-# Probe all GPU types across all regions
+# Probe all GPU types across all US regions (default)
 ./scripts/gcp/gke/find-gpu-capacity.sh
 
 # Limit to a specific region (faster)
 ./scripts/gcp/gke/find-gpu-capacity.sh us-central1
+
+# Global scan
+./scripts/gcp/gke/find-gpu-capacity.sh ""
 ```
 
 ---
@@ -564,6 +567,6 @@ Shows top 5 cheapest options with the exact `gpu_type`, `machine_type`, `zone`, 
 Actions → Find GPU Capacity → Run workflow
 ```
 
-Optional `region` input (e.g. `us-central1`) narrows the search to a single region (faster). Leave blank to scan all regions.
+Optional `region` input narrows the search (e.g. `us-central1`). Default scans all US regions (`us-*`). Pass an empty string to go global.
 
 > Requires `roles/compute.instanceAdmin` on the cluster-ops SA — granted by `bootstrap-miramar-platform.zsh`. Run in the workflow (wsl2 runner) rather than locally if the local account lacks this role.
