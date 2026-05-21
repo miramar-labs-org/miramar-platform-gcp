@@ -81,8 +81,8 @@ Shared platform config — available to all repos in the org via `${{ vars.* }}`
 |---|---|
 | `GCP_PROJECT_ID` | `miramar-platform` |
 | `GKE_CLUSTER_NAME` | `miramar-shared-gke` |
-| `GKE_ZONE` | `us-west1-a` |
-| `GCP_REGION` | `us-west1` |
+| `GKE_ZONE` | `us-central1-b` *(current; sourced from tfvars)* |
+| `GCP_REGION` | `us-central1` *(current; sourced from tfvars)* |
 | `GAR_REPO` | `apps` |
 | `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` *(set manually — not in tfvars)* |
 
@@ -128,7 +128,7 @@ Docker automatically pulls the correct variant for the host architecture.
 
 | Category | Packages |
 |---|---|
-| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `helm`, `make` |
+| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `gh`, `helm`, `make` |
 | PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.6 wheels (amd64: pytorch.org/whl/cu126; arm64: standard PyPI) |
 | HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate`, `datasets` |
 | ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |
@@ -277,7 +277,7 @@ gcloud iam service-accounts remove-iam-policy-binding \
 
 ## GCP Storage
 
-All buckets are in project `miramar-platform`, region `us-west1`. → [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform)
+All buckets are in project `miramar-platform`, region `us-central1`. → [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform)
 
 | Bucket | Purpose | Provisioned by |
 |---|---|---|
@@ -386,8 +386,19 @@ Create a GCS bucket idempotently. Optionally grant a service account `storage.ad
 ./scripts/gcp/create-bucket.sh \
   --bucket <name> \
   --project miramar-platform \
-  --location us-west1 \
+  --location us-central1 \
   --grant-sa <sa@project.iam.gserviceaccount.com>
+```
+
+#### [gke/check-gpu-availability.sh](scripts/gcp/gke/check-gpu-availability.sh)
+Check GPU availability across zones in a region. Without `--probe`, shows which zones advertise the GPU and your project's quota. With `--probe`, creates and immediately deletes a minimal test instance in each zone to detect actual hardware capacity (exhausted zones fail in <5s; requires `compute.instances.create` — run locally, not in CI). Exits 0 if the cluster zone has capacity, 1 if exhausted, and prints the exact tfvars edits + workflow sequence to migrate to an available zone.
+```sh
+# Quota and zone list (read-only, no instances created)
+./scripts/gcp/gke/check-gpu-availability.sh
+./scripts/gcp/gke/check-gpu-availability.sh nvidia-l4
+
+# Probe actual hardware capacity (creates+deletes a test instance per zone)
+./scripts/gcp/gke/check-gpu-availability.sh nvidia-tesla-t4 --probe
 ```
 
 ---
@@ -404,6 +415,12 @@ Install the Google Cloud CLI via apt on Ubuntu/Debian.
 Install Terraform via apt on Ubuntu/Debian.
 ```sh
 ./scripts/ubuntu/install-terraform.sh
+```
+
+#### [install-gh.sh](scripts/ubuntu/install-gh.sh)
+Install the GitHub CLI via apt on Ubuntu/Debian.
+```sh
+./scripts/ubuntu/install-gh.sh
 ```
 
 ---
@@ -504,7 +521,7 @@ Both workflows run on the `wsl2` self-hosted runner and authenticate to GCP via 
 
 Two `workflow_dispatch` workflows add a temporary GPU node pool for workloads that need a GPU (e.g. Triton Inference Server) and restore the cluster when done. The GPU pool is managed by a separate Terraform module (`gcp/terraform-gpu/`) with its own GCS state at `terraform/gpu-state/` — isolated from the main cluster state so regular expand/restore workflows cannot touch it.
 
-The GPU pool is created in `us-west1-a` (same zone as the cluster; T4/L4/P4 are all available there).
+The GPU pool is created in the same zone as the cluster (see `gcp/terraform/terraform.tfvars`). If a zone has no capacity (`ZONE_RESOURCE_POOL_EXHAUSTED`), the expand workflow surfaces available alternative zones and prints migration steps. Run `scripts/gcp/gke/check-gpu-availability.sh <gpu_type> --probe` locally to find a zone with capacity before migrating.
 
 ### [GKE Expand GPU](.github/workflows/gke-expand-gpu.yaml)
 
@@ -514,9 +531,9 @@ Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-pool` node poo
 
 | gpu_type | Architecture | VRAM | Paired machine | Zone | Approx cost/hr |
 |---|---|---|---|---|---|
-| `nvidia-tesla-t4` *(default)* | Turing | 16 GB | `n1-standard-4` | `us-west1-a` | ~$0.54 |
-| `nvidia-l4` | Ada Lovelace | 24 GB | `g2-standard-4` | `us-west1-a` | ~$0.74 |
-| `nvidia-tesla-p4` | Pascal | 8 GB | `n1-standard-4` | `us-west1-a` | ~$0.42 |
+| `nvidia-tesla-t4` *(default)* | Turing | 16 GB | `n1-standard-4` | cluster zone | ~$0.54 |
+| `nvidia-l4` | Ada Lovelace | 24 GB | `g2-standard-4` | cluster zone | ~$0.74 |
+| `nvidia-tesla-p4` | Pascal | 8 GB | `n1-standard-4` | cluster zone | ~$0.42 |
 
 T4 and L4 are recommended for inference workloads. L4 offers better throughput per dollar for larger models and FP8/INT8 serving. P4 is sufficient for lightweight models only.
 

@@ -47,6 +47,8 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 | `scripts/gha/flush-queues.sh` | Cancel all in-progress, queued, and waiting workflow runs |
 | `scripts/ubuntu/install-gcloud.sh` | Install `gcloud` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-terraform.sh` | Install `terraform` via apt on Ubuntu/Debian |
+| `scripts/ubuntu/install-gh.sh` | Install `gh` (GitHub CLI) via apt on Ubuntu/Debian |
+| `scripts/gcp/gke/check-gpu-availability.sh` | Check GPU quota and zone availability. Add `--probe` to actively test actual hardware capacity by creating+deleting a minimal instance per zone (run locally — requires `compute.instances.create`, not available to the workflow SA). Exits 1 if the cluster zone is exhausted and prints migration steps. |
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
 
