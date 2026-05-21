@@ -42,7 +42,7 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 | `gcp/bootstrap-miramar-platform.zsh` | One-time local setup — project creation, billing, APIs, WIF pool/provider, service accounts, IAM bindings |
 | `gcp/create-miramar-platform.zsh` | K8s-only setup — AR IAM bindings for deploy SAs, namespaces, resource quotas, RBAC. GCP resources are managed by Terraform. |
 | `gcp/list-miramar-platform.zsh` | Enumerate live GCP resources in the project |
-| `scripts/gha/sync-github-vars.sh` | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Run after editing tfvars. |
+| `scripts/gha/sync-github-tf-vars.sh` | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Run after editing tfvars. |
 | `scripts/gha/launch-runner.sh` / `scripts/gha/stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. `launch-runner.sh` is idempotent — if the container is already running it prints status and exits 0. |
 | `scripts/gha/flush-queues.sh` | Cancel all in-progress, queued, and waiting workflow runs |
 | `scripts/ubuntu/install-gcloud.sh` | Install `gcloud` via apt on Ubuntu/Debian |
@@ -60,11 +60,11 @@ Two root modules — keep them separate, they must never share state.
 
 **`gcp/terraform/`** — manages the GKE cluster, node pool (`default-pool`), and Artifact Registry repo. IAM and WIF are handled by the bootstrap script and are intentionally outside Terraform.
 
-**Source of truth: `gcp/terraform/terraform.tfvars`** — all platform config values live here. GitHub org variables are synced from this file via `scripts/gha/sync-github-vars.sh`. Never edit GitHub vars directly; edit tfvars and re-sync.
+**Source of truth: `gcp/terraform/terraform.tfvars`** — all platform config values live here. GitHub org variables are synced from this file via `scripts/gha/sync-github-tf-vars.sh`. Never edit GitHub vars directly; edit tfvars and re-sync.
 
 ```sh
 # After editing terraform.tfvars:
-./scripts/gha/sync-github-vars.sh
+./scripts/gha/sync-github-tf-vars.sh
 
 # Local plan/apply (bucket must exist first):
 cd gcp/terraform
@@ -89,7 +89,7 @@ zsh ./gcp/bootstrap-miramar-platform.zsh 2>&1 | tee /tmp/bootstrap.log
 
 Output includes `WIF_PROVIDER` (set as org-level secret) and `GCP_SERVICE_ACCOUNT` (set as repo-level secret on `miramar-platform-gcp`). All workflows use WIF from that point on.
 
-Org-level variables are synced from `terraform.tfvars` via `sync-github-vars.sh`:
+Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.sh`:
 `GCP_PROJECT_ID`, `GKE_CLUSTER_NAME`, `GKE_ZONE`, `GCP_REGION`, `GAR_REPO` — all workflows read these via `${{ vars.* }}`. `GKE_STATE_BUCKET` is set manually.
 
 `workflow_dispatch` workflows in `.github/workflows/`:
