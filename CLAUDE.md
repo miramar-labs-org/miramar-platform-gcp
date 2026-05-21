@@ -11,7 +11,7 @@ Infrastructure and CI/CD tooling for the Miramar platform on GCP. It provisions 
 **Physical machines (self-hosted GHA runners):**
 - **Windows laptop / WSL2** — Ubuntu 24.04, x86_64 (amd64), AMD CPU, NVIDIA RTX 4060 (sm_89). Runner label: `wsl2`.
 - **NVIDIA DGX Spark 128GB** — DGX OS (Ubuntu), aarch64 (arm64), 20-core Arm CPU (10× Cortex-X925 + 10× Cortex-A725), GB10 Superchip Blackwell GPU (6144 CUDA cores, 5th-gen Tensor Cores). Runner label: `dgx`.
-- **NVIDIA Jetson AGX Orin 64GB** — Ubuntu JetPack 6.x, aarch64 (arm64), 12-core Cortex-A78AE, Ampere GPU 2048 CUDA cores (sm_87), CUDA 12.6. Runner label: `agx`. Uses `mlabs-runner:jetson` (L4T-based) — Tegra unified-memory GPU is incompatible with standard `nvidia/cuda` server images.
+- **NVIDIA Jetson AGX Orin 64GB** — Ubuntu JetPack 6.x, aarch64 (arm64), 12-core Cortex-A78AE, Ampere GPU 2048 CUDA cores (sm_87), CUDA 12.6. Runner label: `agx`.
 
 **GCP:**
 - `miramar-platform` — single project hosting GKE Standard cluster (`miramar-shared-gke`), Artifact Registry (`apps`), WIF pool/provider, and deploy service accounts.
