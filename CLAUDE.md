@@ -117,7 +117,7 @@ GitHub Actions authenticate keylessly via Workload Identity Federation. The WIF 
 
 The cluster operations SA (`gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com`) holds:
 `roles/container.admin`, `roles/storage.admin`, `roles/artifactregistry.admin`,
-`roles/serviceusage.serviceUsageConsumer`, `roles/compute.viewer` (required by Terraform to read instance group state after node pool operations), and `roles/iam.serviceAccountUser` on the default Compute SA.
+`roles/serviceusage.serviceUsageConsumer`, `roles/compute.viewer` (required by Terraform to read instance group state after node pool operations), `roles/compute.instanceAdmin` (required by the **Find GPU Capacity** workflow to create+delete probe instances), and `roles/iam.serviceAccountUser` on the default Compute SA.
 
 ## Cost-control constraints
 

@@ -1,0 +1,50 @@
+name: Find GPU Capacity
+
+# Probes actual GPU capacity across all types and zones in parallel.
+# Shows top 5 cheapest options with [USE NOW] or [REQUEST QUOTA FIRST] status
+# and a plain-English summary of the situation and next steps.
+#
+# Requires the cluster-ops SA to have roles/compute.instanceAdmin on the project
+# (in addition to its standard roles) so it can create+delete probe instances.
+# Grant once:
+#   gcloud projects add-iam-policy-binding miramar-platform \
+#     --member="serviceAccount:gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com" \
+#     --role="roles/compute.instanceAdmin"
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Region filter (leave blank for all regions)
+        default: ''
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+
+jobs:
+  find:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Find GPU capacity
+        run: |
+          if [[ -n "${{ inputs.region }}" ]]; then
+            ./scripts/gcp/gke/find-gpu-capacity.sh "${{ inputs.region }}"
+          else
+            ./scripts/gcp/gke/find-gpu-capacity.sh
+          fi
