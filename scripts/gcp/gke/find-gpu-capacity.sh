@@ -208,3 +208,79 @@ while IFS= read -r entry; do
   echo ""
   (( N++ ))
 done <<< "$ALL_RESULTS"
+
+# ── Situation summary ────────────────────────────────────────────────────────
+echo "============================================================"
+echo "Summary"
+echo ""
+
+AVAIL_COUNT=$(ls "$TMPDIR_RESULTS/available/" 2>/dev/null | wc -l | tr -d ' ')
+QUOTA_COUNT=$(ls "$TMPDIR_RESULTS/quota/"     2>/dev/null | wc -l | tr -d ' ')
+
+if [[ "$AVAIL_COUNT" -gt 0 ]]; then
+  # Parse the cheapest available option
+  BEST=$(ls "$TMPDIR_RESULTS/available/" | sort -t_ -k2 -n | head -1)
+  BEST="${BEST#0_}"
+  best_cost="${BEST%%_*}"; rest="${BEST#${best_cost}_}"
+  best_zone="${rest%%_nvidia-*}"; gpu_spot="${rest#${best_zone}_}"
+  best_gpu="${gpu_spot%_*}"; best_spot="${gpu_spot##*_}"
+  best_machine="n1-standard-4"
+  [[ "$best_gpu" == "nvidia-l4" ]] && best_machine="g2-standard-4"
+  [[ "$best_gpu" == "nvidia-tesla-p100" || "$best_gpu" == "nvidia-tesla-v100" ]] && best_machine="n1-standard-8"
+  best_spotlabel="on-demand"; [[ "$best_spot" == "true" ]] && best_spotlabel="spot"
+
+  echo "  $AVAIL_COUNT option(s) available immediately. Cheapest: \$$best_cost/hr ($best_spotlabel) in $best_zone."
+  echo ""
+  if [[ "$best_zone" != "$CLUSTER_ZONE" ]]; then
+    best_region="${best_zone%-*}"
+    echo "  The cluster is in $CLUSTER_ZONE. To use $best_zone:"
+    echo "    1. Edit gcp/terraform/terraform.tfvars:    zone = \"$best_zone\" / region = \"$best_region\""
+    echo "       Edit gcp/terraform-gpu/gpu.tfvars:      cluster_zone = \"$best_zone\" / region = \"$best_region\""
+    echo "    2. git commit -am 'move cluster to $best_zone' && git push"
+    echo "    3. GKE Restore GPU → Miramar Platform Destroy → Miramar Platform Create"
+    echo ""
+    echo "  Then run GKE Expand GPU with:"
+  else
+    echo "  Run GKE Expand GPU with:"
+  fi
+  echo "    gpu_type     : $best_gpu"
+  echo "    machine_type : $best_machine"
+  echo "    spot         : $best_spot"
+
+elif [[ "$QUOTA_COUNT" -gt 0 ]]; then
+  # Parse cheapest quota option
+  BEST=$(ls "$TMPDIR_RESULTS/quota/" | sort -t_ -k1 -n | head -1)
+  best_cost="${BEST%%_*}"; rest="${BEST#${best_cost}_}"
+  best_zone="${rest%%_nvidia-*}"; gpu_spot="${rest#${best_zone}_}"
+  best_gpu="${gpu_spot%_*}"; best_spot="${gpu_spot##*_}"
+  best_region="${best_zone%-*}"
+  best_metric=$(quota_metric "$best_gpu" "$best_spot")
+  best_spotlabel="on-demand"; [[ "$best_spot" == "true" ]] && best_spotlabel="spot"
+
+  # Collect unique quota metrics needed across top results
+  QUOTA_METRICS=$(ls "$TMPDIR_RESULTS/quota/" | sort -t_ -k1 -n | head -5 | while read -r f; do
+    c="${f%%_*}"; r="${f#${c}_}"; z="${r%%_nvidia-*}"; gs="${r#${z}_}"; g="${gs%_*}"; s="${gs##*_}"
+    reg="${z%-*}"
+    quota_metric "$g" "$s" | sed "s/$/ in $reg/"
+  done | sort -u)
+
+  echo "  No GPU capacity available immediately — all options require quota first."
+  echo ""
+  echo "  The cluster currently has GPU quota only in ${CLUSTER_ZONE%-*},"
+  echo "  but that region is physically exhausted."
+  echo ""
+  echo "  Cheapest path: \$$best_cost/hr ($best_spotlabel) using $best_gpu in $best_region."
+  echo "  Request quota limit=1 for: $best_metric"
+  echo "  → https://console.cloud.google.com/iam-admin/quotas?project=$PROJECT"
+  echo ""
+  echo "  Other useful quotas to request (covers top 5 options):"
+  echo "$QUOTA_METRICS" | while read -r line; do echo "    $line"; done
+  echo ""
+  echo "  Once approved: update terraform.tfvars + gpu.tfvars zone/region, then"
+  echo "  GKE Restore GPU → Miramar Platform Destroy → Miramar Platform Create → GKE Expand GPU."
+
+else
+  echo "  All zones exhausted (hardware shortage). No quota requests will help."
+  echo "  Try again later or consider a different GPU type."
+fi
+echo ""
