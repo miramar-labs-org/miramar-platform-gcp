@@ -28,5 +28,5 @@ if ! docker inspect "${CONTAINER_NAME}" >/dev/null 2>&1; then
 fi
 
 echo "Stopping ${CONTAINER_NAME} (timeout ${STOP_TIMEOUT}s)..."
-docker stop --time "${STOP_TIMEOUT}" "${CONTAINER_NAME}"
+docker stop --timeout "${STOP_TIMEOUT}" "${CONTAINER_NAME}"
 echo "Runner stopped and deregistered."
