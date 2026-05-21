@@ -1,6 +1,6 @@
 # CLI Reference
 
-Useful commands for working with the Miramar platform. All GCP commands assume project `miramar-platform` and region/zone `us-west1` / `us-west1-a` unless noted.
+Useful commands for working with the Miramar platform. All GCP commands assume project `miramar-platform` and region/zone `us-central1` / `us-central1-b` unless noted.
 
 ---
 
@@ -60,7 +60,7 @@ gcloud auth list
 ```sh
 # Refresh kubeconfig (or use the script)
 gcloud container clusters get-credentials miramar-shared-gke \
-  --zone us-west1-a --project miramar-platform
+  --zone us-central1-b --project miramar-platform
 ./scripts/gcp/gke/get-credentials.sh
 
 # List clusters
@@ -68,28 +68,28 @@ gcloud container clusters list --project miramar-platform
 
 # Describe a cluster
 gcloud container clusters describe miramar-shared-gke \
-  --zone us-west1-a --project miramar-platform
+  --zone us-central1-b --project miramar-platform
 
 # List node pools
 gcloud container node-pools list \
-  --cluster miramar-shared-gke --zone us-west1-a --project miramar-platform
+  --cluster miramar-shared-gke --zone us-central1-b --project miramar-platform
 
 # Describe a node pool
 gcloud container node-pools describe default-pool \
-  --cluster miramar-shared-gke --zone us-west1-a --project miramar-platform
+  --cluster miramar-shared-gke --zone us-central1-b --project miramar-platform
 ```
 
 ### Artifact Registry
 
 ```sh
 # List repositories
-gcloud artifacts repositories list --location us-west1 --project miramar-platform
+gcloud artifacts repositories list --location us-central1 --project miramar-platform
 
 # List images in the apps repo
-gcloud artifacts docker images list us-west1-docker.pkg.dev/miramar-platform/apps
+gcloud artifacts docker images list us-central1-docker.pkg.dev/miramar-platform/apps
 
 # Configure docker auth for GAR
-gcloud auth configure-docker us-west1-docker.pkg.dev
+gcloud auth configure-docker us-central1-docker.pkg.dev
 ```
 
 ### IAM & WIF
@@ -115,11 +115,11 @@ gcloud iam service-accounts get-iam-policy \
 
 ```sh
 # List GPU types available in a zone
-gcloud compute accelerator-types list --filter="zone:(us-west1-a)" \
+gcloud compute accelerator-types list --filter="zone:(us-central1-b)" \
   --format="table(name,zone)"
 
 # List machine types with GPU support
-gcloud compute machine-types list --filter="zone:(us-west1-a) AND name~g2" \
+gcloud compute machine-types list --filter="zone:(us-central1-b) AND name~g2" \
   --format="table(name,guestCpus,memoryMb)"
 ```
 

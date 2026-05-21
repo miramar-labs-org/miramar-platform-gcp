@@ -22,7 +22,7 @@ export CLOUDSDK_CORE_DISABLE_PROMPTS=1
 ###############################################################################
 
 PROJECT_ID="${PROJECT_ID:-miramar-platform}"
-REGION="${GCP_REGION:-us-west1}"
+REGION="${GCP_REGION:-us-central1}"
 AR_REPO="${AR_REPO:-apps}"
 
 GITHUB_OWNER="miramar-labs-org"

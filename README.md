@@ -9,6 +9,7 @@ GCP infrastructure and CI/CD tooling for the Miramar Labs platform.
 [![GKE Restore](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml)
 [![GKE Expand GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml)
 [![GKE Restore GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml)
+[![Find GPU Capacity](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml)
 
 ## Platform Overview
 
@@ -291,7 +292,7 @@ To create a bucket manually:
 ./scripts/gcp/create-bucket.sh \
   --bucket <name> \
   --project miramar-platform \
-  --location us-west1
+  --location us-central1
 ```
 
 ---
@@ -545,3 +546,24 @@ Restores the namespace quota from the GCS snapshot, then runs `terraform destroy
 
 1. Go to **Actions → GKE Restore GPU → Run workflow**
 2. Confirm the `namespace` matches what was used in Expand
+
+---
+
+## Find GPU Capacity
+
+### [Find GPU Capacity](.github/workflows/find-gpu-capacity.yaml)
+
+Probes actual GPU hardware availability across all GPU types and zones in parallel. For each combination, it attempts to create a minimal instance — exhausted zones fail in under 5 seconds. Results are ranked by cost and split into two tiers:
+
+- **[USE NOW]** — hardware is available immediately; no quota change needed
+- **[REQUEST QUOTA FIRST]** — hardware may be there but quota hasn't been granted yet
+
+Shows top 5 cheapest options with the exact `gpu_type`, `machine_type`, `zone`, and `spot` settings to use in GKE Expand GPU. Also prints a plain-English summary with the cheapest path, the specific GCP quota metric to request, the console URL, and the full workflow sequence needed.
+
+```
+Actions → Find GPU Capacity → Run workflow
+```
+
+Optional `region` input (e.g. `us-central1`) narrows the search to a single region (faster). Leave blank to scan all regions.
+
+> Requires `roles/compute.instanceAdmin` on the cluster-ops SA — granted by `bootstrap-miramar-platform.zsh`. Run in the workflow (wsl2 runner) rather than locally if the local account lacks this role.

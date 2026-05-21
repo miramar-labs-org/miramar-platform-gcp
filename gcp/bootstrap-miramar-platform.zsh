@@ -35,7 +35,7 @@ BILLING_ACCOUNT_ID="013748-719993-DAB64D"
 BUDGET_NAME="Miramar Kubernetes Free Tier Guardrail"
 BUDGET_AMOUNT_USD="50"
 
-REGION="us-west1"
+REGION="us-central1"
 
 GHA_CLUSTER_SA_NAME="gke-cluster-ops"
 
