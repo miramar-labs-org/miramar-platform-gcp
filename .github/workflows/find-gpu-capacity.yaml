@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: Region filter (leave blank for all regions)
+        description: 'Region filter (default: all US regions; pass "" for global)'
         default: ''
         required: false
 

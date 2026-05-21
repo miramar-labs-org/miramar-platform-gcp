@@ -10,8 +10,9 @@
 #   ./find-gpu-capacity.sh [region_filter]
 #
 # Examples:
-#   ./find-gpu-capacity.sh              # all regions
+#   ./find-gpu-capacity.sh              # all US regions (default)
 #   ./find-gpu-capacity.sh us-central1  # us-central1 only
+#   ./find-gpu-capacity.sh ""           # all regions globally
 
 set -euo pipefail
 
@@ -19,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TFVARS="${SCRIPT_DIR}/../../../gcp/terraform/terraform.tfvars"
 PROJECT="$(grep -E '^[[:space:]]*project_id' "$TFVARS" | head -1 | sed 's/.*=[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d ' ')"
 CLUSTER_ZONE="$(grep -E '^[[:space:]]*zone' "$TFVARS" | head -1 | sed 's/.*=[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d ' ')"
-REGION_FILTER="${1:-}"
+REGION_FILTER="${1:-us-}"
 
 # GPU types: name  machine_type  on_demand_cost  spot_cost
 GPU_TYPES=(
@@ -114,7 +115,7 @@ export -f probe_combo
 
 echo "Project      : $PROJECT"
 echo "Cluster zone : $CLUSTER_ZONE"
-[[ -n "$REGION_FILTER" ]] && echo "Region filter: $REGION_FILTER" || echo "Region filter: all"
+echo "Region filter: $REGION_FILTER"
 echo ""
 echo "Probing all GPU types and zones in parallel..."
 echo "(Results print as they arrive)"
