@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Find actual GPU capacity across all zones in parallel.
+# Find GPU options across all zones in parallel.
 # Probes by creating+deleting a minimal instance (exhausted zones fail in <5s).
-# Shows top 5 cheapest available options with ready-to-use GKE expand settings.
+#
+# Shows top 5 cheapest options in two tiers:
+#   [USE NOW]           — available immediately
+#   [REQUEST QUOTA]     — hardware may be there, quota not yet granted
 #
 # Usage:
 #   ./find-gpu-capacity.sh [region_filter]
@@ -15,6 +18,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TFVARS="${SCRIPT_DIR}/../../../gcp/terraform/terraform.tfvars"
 PROJECT="$(grep -E '^[[:space:]]*project_id' "$TFVARS" | head -1 | sed 's/.*=[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d ' ')"
+CLUSTER_ZONE="$(grep -E '^[[:space:]]*zone' "$TFVARS" | head -1 | sed 's/.*=[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d ' ')"
 REGION_FILTER="${1:-}"
 
 # GPU types: name  machine_type  on_demand_cost  spot_cost
@@ -26,12 +30,29 @@ GPU_TYPES=(
   "nvidia-tesla-v100 n1-standard-8  2.48  0.74"
 )
 
+# Maps gpu_type + spot → GCP quota metric name
+quota_metric() {
+  local gpu="$1" spot="$2"
+  local prefix=""
+  [[ "$spot" == "true" ]] && prefix="PREEMPTIBLE_"
+  case "$gpu" in
+    nvidia-tesla-t4)   echo "${prefix}NVIDIA_T4_GPUS" ;;
+    nvidia-l4)         echo "${prefix}NVIDIA_L4_GPUS" ;;
+    nvidia-tesla-p4)   echo "${prefix}NVIDIA_P4_GPUS" ;;
+    nvidia-tesla-p100) echo "${prefix}NVIDIA_P100_GPUS" ;;
+    nvidia-tesla-v100) echo "${prefix}NVIDIA_V100_GPUS" ;;
+    *)                 echo "${prefix}NVIDIA_GPUS" ;;
+  esac
+}
+export -f quota_metric
+
 TMPDIR_RESULTS="$(mktemp -d)"
+mkdir -p "$TMPDIR_RESULTS/available" "$TMPDIR_RESULTS/quota"
 cleanup() { rm -rf "$TMPDIR_RESULTS"; }
 trap cleanup EXIT
 
 probe_instance() {
-  local zone="$1" gpu="$2" machine="$3" spot="$4" project="$5" outdir="$6"
+  local zone="$1" gpu="$2" machine="$3" spot="$4" project="$5"
   local name="gpu-probe-$$-${RANDOM}"
   local extra_args=()
   [[ "$spot" == "true" ]] && extra_args+=(--provisioning-model=SPOT)
@@ -67,23 +88,36 @@ export -f probe_instance
 probe_combo() {
   local zone="$1" gpu="$2" machine="$3" spot="$4" cost="$5" project="$6" outdir="$7"
   local status
-  status=$(probe_instance "$zone" "$gpu" "$machine" "$spot" "$project" "$outdir")
-  if [[ "$status" == "available" ]]; then
-    local label
-    [[ "$spot" == "true" ]] && label="spot" || label="on-demand"
-    printf "AVAILABLE  \$%.2f/hr %-10s  %-25s  %-22s  spot=%-5s\n" \
-      "$cost" "($label)" "$zone" "$gpu" "$spot" | tee "$outdir/${cost}_${zone}_${gpu}_${spot}"
-  else
-    printf "%-9s  %s  %s  spot=%s\n" "$status" "$zone" "$gpu" "$spot"
-  fi
+  status=$(probe_instance "$zone" "$gpu" "$machine" "$spot" "$project")
+
+  local spotlabel; [[ "$spot" == "true" ]] && spotlabel="spot" || spotlabel="on-demand"
+
+  case "$status" in
+    available)
+      printf "available  \$%s/hr (%s)  %s  %s\n" "$cost" "$spotlabel" "$zone" "$gpu"
+      # prefix 0_ so available sorts before quota at same price
+      touch "$outdir/available/0_${cost}_${zone}_${gpu}_${spot}"
+      ;;
+    quota)
+      printf "quota      \$%s/hr (%s)  %s  %s\n" "$cost" "$spotlabel" "$zone" "$gpu"
+      touch "$outdir/quota/${cost}_${zone}_${gpu}_${spot}"
+      ;;
+    exhausted)
+      printf "exhausted  \$%s/hr (%s)  %s  %s\n" "$cost" "$spotlabel" "$zone" "$gpu"
+      ;;
+    *)
+      printf "error      \$%s/hr (%s)  %s  %s\n" "$cost" "$spotlabel" "$zone" "$gpu"
+      ;;
+  esac
 }
 export -f probe_combo
 
-echo "Project : $PROJECT"
-[[ -n "$REGION_FILTER" ]] && echo "Region  : $REGION_FILTER" || echo "Region  : all"
+echo "Project      : $PROJECT"
+echo "Cluster zone : $CLUSTER_ZONE"
+[[ -n "$REGION_FILTER" ]] && echo "Region filter: $REGION_FILTER" || echo "Region filter: all"
 echo ""
 echo "Probing all GPU types and zones in parallel..."
-echo "(Available options print immediately)"
+echo "(Results print as they arrive)"
 echo ""
 
 JOBS=()
@@ -109,29 +143,68 @@ printf '%s\n' "${JOBS[@]}" | xargs -P 30 -I{} bash -c 'probe_combo $@' _ {}
 
 echo ""
 echo "============================================================"
+echo "Top 5 options (cheapest first):"
+echo ""
 
-RESULTS=$(ls "$TMPDIR_RESULTS" 2>/dev/null | sort -t_ -k1 -n | head -5)
-if [[ -z "$RESULTS" ]]; then
-  echo "No GPU capacity found. Try again later or request quota increases."
+# Merge available (prefixed 0_) and quota results, sort by cost, take top 5
+ALL_RESULTS=$(
+  { ls "$TMPDIR_RESULTS/available/" 2>/dev/null | sed 's|^|available/|';
+    ls "$TMPDIR_RESULTS/quota/"     2>/dev/null | sed 's|^|quota/|'; } \
+  | sort -t_ -k2 -n \
+  | head -5
+)
+
+if [[ -z "$ALL_RESULTS" ]]; then
+  echo "  No options found — all zones exhausted."
+  echo "  Try a different region or check back later."
   exit 1
 fi
 
-echo "Top 5 cheapest available (use these as GKE Expand GPU inputs):"
-echo ""
 N=1
-for f in $RESULTS; do
-  read -r _avail cost_raw label zone gpu spot_raw < "$TMPDIR_RESULTS/$f" || true
-  # parse from filename: cost_zone_gpu_spot
-  IFS='_' read -r cost zone gpu spot <<< "$f"
+while IFS= read -r entry; do
+  tier="${entry%%/*}"        # available or quota
+  filename="${entry##*/}"    # 0_cost_zone_gpu_spot  or  cost_zone_gpu_spot
+
+  # Strip leading 0_ prefix from available files
+  filename="${filename#0_}"
+  # Filename format: {cost}_{zone}_{gpu}_{spot}
+  # zone has no underscores; gpu starts with "nvidia-"; spot is true/false
+  cost="${filename%%_*}"
+  rest="${filename#${cost}_}"        # zone_gpu_spot
+  zone="${rest%%_nvidia-*}"          # everything before _nvidia-
+  gpu_spot="${rest#${zone}_}"        # nvidia-xxx_true/false
+  gpu="${gpu_spot%_*}"               # strip trailing _true or _false
+  spot="${gpu_spot##*_}"             # true or false
+
   machine="n1-standard-4"
   [[ "$gpu" == "nvidia-l4" ]] && machine="g2-standard-4"
   [[ "$gpu" == "nvidia-tesla-p100" || "$gpu" == "nvidia-tesla-v100" ]] && machine="n1-standard-8"
 
-  echo "  #$N — \$$cost/hr"
+  spotlabel="on-demand"; [[ "$spot" == "true" ]] && spotlabel="spot"
+  region="${zone%-*}"
+
+  if [[ "$tier" == "available" ]]; then
+    echo "  #$N — \$$cost/hr ($spotlabel)  [USE NOW]"
+  else
+    metric=$(quota_metric "$gpu" "$spot")
+    echo "  #$N — \$$cost/hr ($spotlabel)  [REQUEST QUOTA FIRST]"
+  fi
+
+  if [[ "$zone" == "$CLUSTER_ZONE" ]]; then
+    zone_note="current cluster zone"
+  else
+    zone_note="requires cluster move"
+  fi
+
   echo "     gpu_type     : $gpu"
   echo "     machine_type : $machine"
-  echo "     zone         : $zone  ← $(if [[ "$(grep zone "$TFVARS" | head -1 | grep -o '"[^"]*"')" == "\"$zone\"" ]]; then echo "current cluster zone"; else echo "REQUIRES CLUSTER MOVE"; fi)"
+  echo "     zone         : $zone  ($zone_note)"
   echo "     spot         : $spot"
+
+  if [[ "$tier" == "quota" ]]; then
+    echo "     → Request quota: $metric in region $region (limit: 1)"
+    echo "       https://console.cloud.google.com/iam-admin/quotas?project=$PROJECT"
+  fi
   echo ""
   (( N++ ))
-done
+done <<< "$ALL_RESULTS"
