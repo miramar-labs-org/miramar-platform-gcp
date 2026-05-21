@@ -123,6 +123,9 @@ jobs:
         if: failure()
         working-directory: gcp/terraform-gpu
         run: |
+          echo "==> Clearing any stale Terraform state lock..."
+          gcloud storage rm "gs://$CLUSTER_STATE_BUCKET/terraform/gpu-state/default.tflock" 2>/dev/null || true
+
           echo "==> Attempting cleanup after failed expand..."
           terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET" || true
           if terraform show -json 2>/dev/null \
