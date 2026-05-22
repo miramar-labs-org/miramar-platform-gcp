@@ -30,8 +30,10 @@ INSTALL_PATH=/usr/local/bin/minikube
 DOWNLOAD_URL="https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-${ARCH}"
 
 if [[ -x "$INSTALL_PATH" ]]; then
-  INSTALLED=$(minikube version --short 2>/dev/null | tr -d '[:space:]')
-  echo "==> minikube ${INSTALLED} already installed, nothing to do."
+  # '|| echo ""' inside $() prevents set -e from triggering if minikube version
+  # exits non-zero (e.g. DRV_CREATE_TIMEOUT=37 from stale profile state).
+  INSTALLED=$(minikube version --short 2>/dev/null | tr -d '[:space:]' || echo "")
+  echo "==> minikube ${INSTALLED:-unknown} already installed, nothing to do."
 else
   echo "==> Installing minikube (${ARCH})..."
   curl -fsSL "${DOWNLOAD_URL}" -o /tmp/minikube
@@ -53,44 +55,52 @@ else
   EXTRA_FLAGS=()
   [[ ${EUID:-$(id -u)} -eq 0 ]] && EXTRA_FLAGS+=(--force)
 
-  # Detect stale profile (container gone) or malformed profile (exit code 37).
-  # Both require a purge before starting to avoid host-creation / parse errors.
-  MINIKUBE_NEEDS_PURGE=false
-  if minikube profile list 2>/dev/null | grep -q minikube; then
-    if ! docker inspect minikube &>/dev/null; then
-      log "Stale minikube profile detected (container gone) — purging..."
-      MINIKUBE_NEEDS_PURGE=true
-    else
-      _STATUS_CODE=0
-      minikube status &>/dev/null || _STATUS_CODE=$?
-      if [[ $_STATUS_CODE -eq 37 ]]; then
-        log "Malformed minikube profile detected (exit 37) — purging..."
-        MINIKUBE_NEEDS_PURGE=true
-      fi
-    fi
-  fi
-  if [[ "$MINIKUBE_NEEDS_PURGE" == "true" ]]; then
+  # Detect stale profile (machine state file exists but Docker container is gone).
+  # This happens when minikube was force-deleted or the container was removed manually.
+  # Purge before starting to avoid "cannot change memory/CPU" and host-creation errors.
+  if minikube profile list 2>/dev/null | grep -q minikube && \
+     ! docker inspect minikube &>/dev/null; then
+    log "Stale minikube profile detected (container gone) — purging..."
     minikube delete --all --purge 2>/dev/null || true
   fi
 
-  # Pre-download the Kubernetes preload tarball (~244 MiB) and kicbase image
-  # into ~/.minikube/cache/ (host-mounted, persists across runs) without
-  # creating a Docker container. This keeps the 360s createHost window free
-  # for actual container creation rather than network downloads.
-  # Non-fatal: if pre-download fails the actual start will download inline.
-  log "Pre-downloading minikube assets (no container creation)..."
-  minikube start --download-only \
-    --driver=docker \
-    --container-runtime=docker \
-    "${EXTRA_FLAGS[@]}" || log "Pre-download failed — assets will be fetched during start."
+  # kicbase (~500 MB) must be in Docker's cache before minikube start or the
+  # 360s createHost timeout fires (exit 37 = DRV_CREATE_TIMEOUT). Try to detect
+  # and pre-pull the image; if detection fails, the first start attempt will pull
+  # it as a side-effect and we retry once the image is cached.
+  KICBASE_IMAGE=$(grep -ao \
+      -e 'gcr\.io/k8s-minikube/kicbase:v[0-9.]*' \
+      -e 'registry\.k8s\.io/kicbase/kicbase:v[0-9.]*' \
+      /usr/local/bin/minikube 2>/dev/null | head -1 || true)
+  if [[ -n "${KICBASE_IMAGE}" ]]; then
+    log "Pre-pulling ${KICBASE_IMAGE} via docker..."
+    docker pull "${KICBASE_IMAGE}"
+  else
+    log "Could not detect kicbase image — will retry on timeout if needed."
+  fi
 
-  minikube start \
-    --driver=docker \
-    --container-runtime=docker \
-    --cpus=no-limit \
-    --memory=no-limit \
-    --gpus=all \
-    "${EXTRA_FLAGS[@]}"
+  minikube_start() {
+    minikube start \
+      --driver=docker \
+      --container-runtime=docker \
+      --cpus=no-limit \
+      --memory=no-limit \
+      --gpus=all \
+      "${EXTRA_FLAGS[@]}"
+  }
+
+  if ! minikube_start; then
+    EXIT=$?
+    if [[ $EXIT -eq 37 ]]; then
+      # Exit 37 = DRV_CREATE_TIMEOUT: kicbase pull raced with the 360s limit.
+      # The pull ran as a side-effect — clean up and retry from cache.
+      log "Start timed out (exit 37) — kicbase should now be cached. Retrying..."
+      minikube delete --all --purge 2>/dev/null || true
+      minikube_start
+    else
+      exit $EXIT
+    fi
+  fi
 
   # Pin nvidia-device-plugin to v0.18.0 — fixes GPU advertisement bug on GB10
   log "Pinning nvidia-device-plugin to v0.18.0 (GB10 / Spark DGX fix)..."
