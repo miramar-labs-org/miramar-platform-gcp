@@ -51,7 +51,10 @@ jobs:
       - name: Update DGX_MINIKUBE_KUBECONFIG org secret
         run: |
           set -o pipefail
-          KUBECONFIG_B64=$(kubectl config view \
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          KUBECONFIG_B64=$(KUBECONFIG="${TMP_KC}" kubectl config view \
             --raw --minify --flatten --context=minikube \
             | base64 -w0)
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set DGX_MINIKUBE_KUBECONFIG \

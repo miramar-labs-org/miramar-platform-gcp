@@ -18,10 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fix kubeconfig paths
+      - name: Set up kubeconfig
         run: |
-          sed -i "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
-              "${HOME}/.kube/config" 2>/dev/null || true
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
 
       - name: Verify cluster access
         run: kubectl get nodes
