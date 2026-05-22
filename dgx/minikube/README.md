@@ -60,6 +60,29 @@ Pause suspends all containers via `minikube pause` without stopping the cluster.
 
 > The `dashboard.service` proxy keeps running while paused — the SSH tunnel stays live and the dashboard will show the cluster as paused.
 
+## Reinstalling from scratch
+
+To wipe the existing cluster and re-test the setup workflow from a clean state:
+
+```sh
+# 1. Delete the cluster and purge all minikube state
+minikube delete --all --purge
+
+# 2. Remove the binary
+sudo rm -f /usr/local/bin/minikube
+
+# 3. Restart the runner so it picks up the ~/.minikube and ~/.kube volume mounts
+docker stop mlabs-runner-arm64
+./scripts/gha/launch-runner.sh --detach
+```
+
+Then trigger the **Minikube Setup** workflow from the GitHub Actions UI. It will download the
+latest binary, start a fresh cluster, pin the nvidia-device-plugin, enable addons, and label
+the node.
+
+> After a fresh install, re-generate `DGX_MINIKUBE_KUBECONFIG` — the TLS certs change on every
+> `minikube delete` + recreate. See the section below.
+
 ## GitHub Secret — `DGX_MINIKUBE_KUBECONFIG`
 
 CI/CD workflows that deploy to minikube need a self-contained kubeconfig stored as an org-level GitHub secret. `kubectl config view --raw` does not embed the certs inline for minikube — you must build the kubeconfig manually:
