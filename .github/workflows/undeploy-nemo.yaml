@@ -1,0 +1,68 @@
+name: NeMo Undeploy
+
+# Removes the NeMo Microservices Helm release from the DGX minikube cluster
+# and optionally deletes the nemo-microservices namespace.
+#
+# Does NOT stop minikube or affect any other workloads.
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_namespace:
+        description: Delete nemo-microservices namespace after uninstall
+        type: boolean
+        default: true
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up minikube kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.DGX_MINIKUBE_KUBECONFIG }}" | base64 -d > ~/.kube/minikube-config
+          echo "KUBECONFIG=$HOME/.kube/minikube-config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Remove NIM deployments and CRDs
+        run: |
+          kubectl delete nimservice --all -n nemo-microservices --ignore-not-found || true
+          kubectl delete nimcache   --all -n nemo-microservices --ignore-not-found || true
+          kubectl delete configmap  -n nemo-microservices \
+            -l app.nvidia.com/config-type=modelDeployment --ignore-not-found || true
+          kubectl get crd -o name 2>/dev/null | grep nvidia.com \
+            | xargs -r kubectl delete --ignore-not-found || true
+
+      - name: Uninstall NeMo Helm release
+        run: |
+          if helm list -n nemo-microservices 2>/dev/null | grep -q nemo; then
+            helm uninstall nemo -n nemo-microservices
+          else
+            echo "No 'nemo' release found in nemo-microservices — nothing to uninstall."
+          fi
+
+      - name: Delete namespace
+        if: ${{ inputs.delete_namespace }}
+        run: kubectl delete namespace nemo-microservices --ignore-not-found
+
+      - name: Clean up /etc/hosts
+        run: |
+          sudo sed -i '/nemo\.test/d'       /etc/hosts || true
+          sudo sed -i '/nim\.test/d'        /etc/hosts || true
+          sudo sed -i '/data-store\.test/d' /etc/hosts || true
+          sudo sed -i '/# Added by NeMo setup script/d' /etc/hosts || true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## NeMo Microservices Undeployed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
