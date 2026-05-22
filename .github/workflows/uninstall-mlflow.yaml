@@ -1,0 +1,34 @@
+name: MLflow Uninstall
+
+# Removes MLflow and MinIO from the mlflow-system namespace.
+# Optionally deletes the namespace itself.
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_namespace:
+        description: "Delete the mlflow-system namespace entirely"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  uninstall:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up minikube kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.DGX_MINIKUBE_KUBECONFIG }}" | base64 -d > ~/.kube/minikube-config
+          echo "KUBECONFIG=$HOME/.kube/minikube-config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Destroy MLflow and MinIO
+        env:
+          DELETE_NS: ${{ inputs.delete_namespace && 'true' || 'false' }}
+        run: bash dgx/minikube/mlflow/destroy-mlflow.sh
