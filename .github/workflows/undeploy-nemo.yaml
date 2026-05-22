@@ -22,6 +22,7 @@ jobs:
 
       - name: Set up kubeconfig
         run: |
+          sudo chmod -R a+rX "${HOME}/.minikube"
           TMP_KC=$(mktemp)
           sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
               "${HOME}/.kube/config" > "${TMP_KC}"

@@ -194,6 +194,10 @@ DOCKER_VOLS=(
 # (e.g. setup-minikube copies the runner image's baked-in minikube to the DGX host).
 if [[ "${DEFAULT_LABELS}" == *"dgx"* ]]; then
     mkdir -p "${HOME}/.minikube" "${HOME}/.kube"
+    # The runner container runs as uid 1000; host files are owned by the DGX
+    # user (different uid). Make .minikube and .kube world-readable so kubectl
+    # inside the container can read cert files referenced in the kubeconfig.
+    chmod -R a+rX "${HOME}/.minikube" "${HOME}/.kube" 2>/dev/null || true
     DOCKER_VOLS+=(
         -v "${HOME}/.minikube:/home/runner/.minikube"
         -v "${HOME}/.kube:/home/runner/.kube"

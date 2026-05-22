@@ -18,20 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubeconfig and verify cluster access
+      - name: Set up kubeconfig
         run: |
-          echo "==> HOME=${HOME}"
-          CONFIG="${HOME}/.kube/config"
-          echo "==> config exists: $([[ -f ${CONFIG} ]] && echo yes || echo no)"
-          echo "==> cert paths in source config:"
-          grep -E "certificate|client-cert|client-key" "${CONFIG}" || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
           TMP_KC=$(mktemp)
-          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" "${CONFIG}" > "${TMP_KC}"
-          echo "==> cert paths in rewritten config:"
-          grep -E "certificate|client-cert|client-key" "${TMP_KC}" || true
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
           echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
-          echo "==> running kubectl..."
-          KUBECONFIG="${TMP_KC}" kubectl get nodes
+
+      - name: Verify cluster access
+        run: kubectl get nodes
 
       - name: Deploy MLflow and integrate with NeMo
         run: bash dgx/minikube/mlflow/integrate-mlflow.sh
