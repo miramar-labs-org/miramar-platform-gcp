@@ -54,7 +54,7 @@ sudo apt-get install -y --no-install-recommends \
   whois \
   iperf3 \
   fastfetch \
-  iftop nethogs vnstat
+  iftop nethogs vnstat zstd
 
 log "Install K8s utils"
 sudo snap install k9s
