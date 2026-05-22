@@ -82,7 +82,7 @@ jobs:
 
       - name: Install NeMo Microservices
         run: |
-          helm install nemo nmp/nemo-microservices-helm-chart \
+          helm upgrade --install nemo nmp/nemo-microservices-helm-chart \
             --namespace nemo-microservices \
             --create-namespace \
             -f dgx/minikube/nemo/install/values.yaml \
