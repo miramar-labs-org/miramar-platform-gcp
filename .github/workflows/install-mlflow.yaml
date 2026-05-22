@@ -7,7 +7,6 @@ name: MLflow Install
 # Prerequisites:
 #   - minikube running on the DGX (Minikube Install workflow)
 #   - NeMo Microservices deployed (NeMo Deploy workflow)
-#   - DGX_MINIKUBE_KUBECONFIG org secret set
 
 on:
   workflow_dispatch:
@@ -18,12 +17,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up minikube kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.DGX_MINIKUBE_KUBECONFIG }}" | base64 -d > ~/.kube/minikube-config
-          echo "KUBECONFIG=$HOME/.kube/minikube-config" >> "$GITHUB_ENV"
 
       - name: Verify cluster access
         run: kubectl get nodes
