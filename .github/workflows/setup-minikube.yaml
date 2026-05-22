@@ -10,7 +10,7 @@ name: Minikube Setup
 # Prerequisites:
 #   - Docker running on the DGX host
 #   - mlabs-runner container launched via scripts/gha/launch-runner.sh
-#   - GITHUB_ORG_ADMIN_PAT org secret with admin:org scope (for secret write)
+#   - GITHUB_ORG_ADMIN_PAT env var set on the runner (injected by launch-runner.sh)
 
 on:
   workflow_dispatch:
@@ -49,13 +49,11 @@ jobs:
           echo "==> Cleanup done. Re-trigger this workflow to start fresh."
 
       - name: Update DGX_MINIKUBE_KUBECONFIG org secret
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
         run: |
           KUBECONFIG_B64=$(kubectl config view \
             --raw --minify --flatten --context=minikube \
             | base64 -w0)
-          gh secret set DGX_MINIKUBE_KUBECONFIG \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set DGX_MINIKUBE_KUBECONFIG \
             --org miramar-labs-org \
             --body "${KUBECONFIG_B64}"
           echo "==> DGX_MINIKUBE_KUBECONFIG updated"
