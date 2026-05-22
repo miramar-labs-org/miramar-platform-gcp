@@ -65,15 +65,15 @@ else
   # Pre-pull kicbase via docker directly so the image is already cached when
   # minikube start runs. --download-only also calls createHost internally and
   # hits the same 360s timeout on slow first pulls.
-  KICBASE_IMAGE=$(minikube config defaults KicBaseImage 2>/dev/null \
-    || minikube start --dry-run --driver=docker 2>&1 \
-       | grep -oE 'gcr\.io/k8s-minikube/kicbase:v[0-9.]+' | head -1 \
-    || true)
+  # The kicbase image reference is compiled into the minikube binary — extract
+  # it with grep on the binary (works without strings/objdump).
+  KICBASE_IMAGE=$(grep -ao 'gcr\.io/k8s-minikube/kicbase:v[0-9.]*' \
+    /usr/local/bin/minikube 2>/dev/null | head -1 || true)
   if [[ -n "${KICBASE_IMAGE}" ]]; then
     log "Pre-pulling ${KICBASE_IMAGE} via docker..."
     docker pull "${KICBASE_IMAGE}"
   else
-    log "Could not detect kicbase image tag — proceeding (may be slow on first pull)"
+    log "WARNING: could not detect kicbase image — minikube start may time out on first pull"
   fi
 
   minikube start \
