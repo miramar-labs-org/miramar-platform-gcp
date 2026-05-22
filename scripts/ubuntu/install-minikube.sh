@@ -53,13 +53,28 @@ else
   EXTRA_FLAGS=()
   [[ ${EUID:-$(id -u)} -eq 0 ]] && EXTRA_FLAGS+=(--force)
 
-  # Pre-pull kicbase (~500 MB) without the 360s host-creation timeout so slow
-  # first-pull doesn't abort the actual start.
-  log "Pre-pulling kicbase image (no timeout)..."
-  minikube start --download-only \
-    --driver=docker \
-    --container-runtime=docker \
-    "${EXTRA_FLAGS[@]}"
+  # Detect stale profile (machine state file exists but Docker container is gone).
+  # This happens when minikube was force-deleted or the container was removed manually.
+  # Purge before starting to avoid "cannot change memory/CPU" and host-creation errors.
+  if minikube profile list 2>/dev/null | grep -q minikube && \
+     ! docker inspect minikube &>/dev/null; then
+    log "Stale minikube profile detected (container gone) — purging..."
+    minikube delete --all --purge 2>/dev/null || true
+  fi
+
+  # Pre-pull kicbase via docker directly so the image is already cached when
+  # minikube start runs. --download-only also calls createHost internally and
+  # hits the same 360s timeout on slow first pulls.
+  KICBASE_IMAGE=$(minikube config defaults KicBaseImage 2>/dev/null \
+    || minikube start --dry-run --driver=docker 2>&1 \
+       | grep -oE 'gcr\.io/k8s-minikube/kicbase:v[0-9.]+' | head -1 \
+    || true)
+  if [[ -n "${KICBASE_IMAGE}" ]]; then
+    log "Pre-pulling ${KICBASE_IMAGE} via docker..."
+    docker pull "${KICBASE_IMAGE}"
+  else
+    log "Could not detect kicbase image tag — proceeding (may be slow on first pull)"
+  fi
 
   minikube start \
     --driver=docker \
