@@ -20,11 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up minikube kubeconfig
+      - name: Fix kubeconfig paths
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.DGX_MINIKUBE_KUBECONFIG }}" | base64 -d > ~/.kube/minikube-config
-          echo "KUBECONFIG=$HOME/.kube/minikube-config" >> "$GITHUB_ENV"
+          sed -i "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" 2>/dev/null || true
 
       - name: Verify cluster access
         run: kubectl get nodes

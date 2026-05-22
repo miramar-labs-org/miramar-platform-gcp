@@ -19,6 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fix kubeconfig paths
+        run: |
+          sed -i "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" 2>/dev/null || true
+
       - name: Verify cluster access
         run: kubectl get nodes
 
