@@ -5,10 +5,9 @@ workflows — there are no local shell scripts.
 
 | Workflow | Purpose |
 |---|---|
-| **Minikube Setup** | Install binary on host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` |
-| **Minikube Stop** | `minikube stop` — preserves cluster state |
-| **Minikube Pause** | `minikube pause` — freezes workloads, frees CPU/GPU without stopping the cluster |
-| **Minikube Resume** | `minikube unpause` — restores frozen workloads |
+| **Minikube Install** | Install binary on host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` |
+| **Minikube Uninstall** | Delete cluster, purge state, remove binary from host |
+| **Minikube Toggle** | Pause or resume workloads (`pause` \| `resume` input) |
 
 ## Workloads
 
@@ -49,13 +48,13 @@ docker stop mlabs-runner-arm64
 ./scripts/gha/launch-runner.sh --detach
 ```
 
-Then trigger the **Minikube Setup** workflow from the GitHub Actions UI. It will download the
+Then trigger the **Minikube Install** workflow from the GitHub Actions UI. It will download the
 latest binary onto the host, start a fresh cluster, pin the nvidia-device-plugin, enable addons,
 label the node, and update `DGX_MINIKUBE_KUBECONFIG`.
 
 ## GitHub Secret — `DGX_MINIKUBE_KUBECONFIG`
 
-The **Minikube Setup** workflow updates this secret automatically. If you ever need to regenerate
+The **Minikube Install** workflow updates this secret automatically. If you ever need to regenerate
 it manually (e.g. after `minikube delete` without running the workflow):
 
 ```sh

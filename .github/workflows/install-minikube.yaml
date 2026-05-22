@@ -50,6 +50,7 @@ jobs:
 
       - name: Update DGX_MINIKUBE_KUBECONFIG org secret
         run: |
+          set -o pipefail
           KUBECONFIG_B64=$(kubectl config view \
             --raw --minify --flatten --context=minikube \
             | base64 -w0)

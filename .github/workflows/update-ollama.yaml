@@ -1,0 +1,34 @@
+name: Ollama Update
+
+# Install or upgrade Ollama on self-hosted machines.
+# Idempotent — skips if the installed version is already the latest.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine"
+        required: true
+        type: choice
+        options:
+          - all
+          - dgx
+          - wsl2
+          - agx
+
+jobs:
+  update:
+    strategy:
+      matrix:
+        runner: ${{ fromJson(
+            inputs.runner == 'all' && '["dgx","wsl2","agx"]' ||
+            format('["{0}"]', inputs.runner)
+          ) }}
+      fail-fast: false
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install / upgrade Ollama
+        run: bash scripts/ubuntu/install-ollama.sh
