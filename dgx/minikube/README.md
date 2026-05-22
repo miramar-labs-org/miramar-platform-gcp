@@ -9,6 +9,12 @@ Scripts for managing the minikube cluster on the NVIDIA DGX Spark.
 | `pause.sh` | Freeze all workloads (preserves cluster state, frees CPU) |
 | `resume.sh` | Unfreeze workloads after a pause |
 
+## Workloads
+
+| Folder | Contents |
+|---|---|
+| [nemo/](nemo/) | NeMo Microservices Helm chart install — setup, credentials, NIM deployment, teardown |
+
 The `kubectl proxy` on port `8001` is managed by the systemd service in [../systemd/dashboard.service](../systemd/). It starts automatically and does not need to be managed manually.
 
 ## Usage
