@@ -32,6 +32,10 @@ scripts/
   gha/             # GHA runner launch script
   ubuntu/          # Host setup scripts
 mlabs-runner/      # Docker image for self-hosted GHA runners
+dgx/               # DGX Spark host config and local tooling
+  minikube/        # Scripts to start/stop/pause/resume minikube on DGX
+  systemd/         # Systemd user service unit files + install/uninstall scripts
+wsl2/              # WSL2 host config and bootstrap scripts
 .github/workflows/ # CI/CD workflows
 ```
 
@@ -49,6 +53,8 @@ mlabs-runner/      # Docker image for self-hosted GHA runners
 | `scripts/ubuntu/install-terraform.sh` | Install `terraform` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-gh.sh` | Install `gh` (GitHub CLI) via apt on Ubuntu/Debian |
 | `scripts/gcp/gke/find-gpu-capacity.sh` | Probe actual GPU capacity across all GPU types and zones in parallel. Default scope: all US regions (`us-*`). Pass a region to narrow (`us-central1`). Shows top 5 cheapest options split by [USE NOW] / [REQUEST QUOTA FIRST] with ready-to-use GKE Expand GPU settings. |
+| `dgx/minikube/up.sh` / `down.sh` | Start / stop minikube on the DGX. `pause.sh` / `resume.sh` freeze and unfreeze workloads without stopping the cluster. |
+| `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the three DGX systemd user services (dashboard proxy, JupyterLab, MLflow port-forward). |
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
 
@@ -144,3 +150,20 @@ Local machine env vars required: `GITHUB_ORG_GHCR_PAT` (pull runner image), `GIT
 **Runner registration tokens** are obtained from GitHub UI or API and expire after 1 hour. The container deregisters cleanly on `SIGTERM`.
 
 To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile` or trigger `workflow_dispatch` with the `runner_version` input.
+
+## DGX local services
+
+The DGX Spark runs a minikube cluster hosting platform workloads. Three systemd user services start automatically — managed via `dgx/systemd/`:
+
+| Service | Port | Purpose |
+|---|---|---|
+| `dashboard` | `8001` | `kubectl proxy --context minikube` for the Kubernetes dashboard |
+| `jupyterlab` | `8888` | JupyterLab in the pyNeMo Python environment |
+| `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` — org MLflow instance |
+
+**MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — this works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
+
+Access all services from a laptop via SSH tunnel:
+```sh
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@spark-79b7.local
+```

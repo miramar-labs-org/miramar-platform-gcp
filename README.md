@@ -63,13 +63,9 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
 
 ## minikube (DGX)
 
-The DGX runs a minikube cluster with the dashboard enabled. Start the kubectl proxy on the DGX once — it survives across sessions:
+The DGX runs a minikube cluster with the dashboard and metrics-server addons enabled. The `dashboard.service` systemd service keeps a `kubectl proxy` running on port `8001` automatically — see [dgx/systemd/](dgx/systemd/). Use [dgx/minikube/](dgx/minikube/) scripts to start, stop, pause, and resume the cluster.
 
-```sh
-nohup kubectl --context minikube proxy --port=8001 --address=127.0.0.1 > ~/kubectl-proxy.log 2>&1 &
-```
-
-Then SSH tunnel from your laptop:
+Open an SSH tunnel from your laptop:
 
 ```sh
 ssh -L 8001:localhost:8001 <user>@spark-79b7.local
