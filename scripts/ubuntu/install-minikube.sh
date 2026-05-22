@@ -62,27 +62,43 @@ else
     minikube delete --all --purge 2>/dev/null || true
   fi
 
-  # Pre-pull kicbase via docker directly so the image is already cached when
-  # minikube start runs. --download-only also calls createHost internally and
-  # hits the same 360s timeout on slow first pulls.
-  # The kicbase image reference is compiled into the minikube binary — extract
-  # it with grep on the binary (works without strings/objdump).
-  KICBASE_IMAGE=$(grep -ao 'gcr\.io/k8s-minikube/kicbase:v[0-9.]*' \
-    /usr/local/bin/minikube 2>/dev/null | head -1 || true)
+  # kicbase (~500 MB) must be in Docker's cache before minikube start or the
+  # 360s createHost timeout fires. Try to detect and pre-pull the image; if
+  # detection fails, the first start attempt will pull it as a side-effect and
+  # we retry once the image is cached.
+  KICBASE_IMAGE=$(grep -ao \
+      -e 'gcr\.io/k8s-minikube/kicbase:v[0-9.]*' \
+      -e 'registry\.k8s\.io/kicbase/kicbase:v[0-9.]*' \
+      /usr/local/bin/minikube 2>/dev/null | head -1 || true)
   if [[ -n "${KICBASE_IMAGE}" ]]; then
     log "Pre-pulling ${KICBASE_IMAGE} via docker..."
     docker pull "${KICBASE_IMAGE}"
   else
-    log "WARNING: could not detect kicbase image — minikube start may time out on first pull"
+    log "Could not detect kicbase image — will retry on timeout if needed."
   fi
 
-  minikube start \
-    --driver=docker \
-    --container-runtime=docker \
-    --cpus=no-limit \
-    --memory=no-limit \
-    --gpus=all \
-    "${EXTRA_FLAGS[@]}"
+  minikube_start() {
+    minikube start \
+      --driver=docker \
+      --container-runtime=docker \
+      --cpus=no-limit \
+      --memory=no-limit \
+      --gpus=all \
+      "${EXTRA_FLAGS[@]}"
+  }
+
+  if ! minikube_start; then
+    EXIT=$?
+    if [[ $EXIT -eq 37 ]]; then
+      # Exit 37 = DRV_CREATE_TIMEOUT: kicbase pull raced with the 360s limit.
+      # The pull ran as a side-effect — clean up and retry from cache.
+      log "Start timed out (exit 37) — kicbase should now be cached. Retrying..."
+      minikube delete --all --purge 2>/dev/null || true
+      minikube_start
+    else
+      exit $EXIT
+    fi
+  fi
 
   # Pin nvidia-device-plugin to v0.18.0 — fixes GPU advertisement bug on GB10
   log "Pinning nvidia-device-plugin to v0.18.0 (GB10 / Spark DGX fix)..."
