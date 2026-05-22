@@ -14,7 +14,8 @@ workflows — there are no local shell scripts.
 
 | Folder | Contents |
 |---|---|
-| [nemo/](nemo/) | NeMo Microservices Helm chart install — setup, credentials, NIM deployment, teardown |
+| [nemo/](nemo/) | NeMo Microservices Helm chart install — values, credentials, deployment config |
+| [nim/](nim/) | NIM inference scripts — deploy, undeploy, and log tailing |
 
 The `kubectl proxy` on port `8001` is managed by the systemd service in [../systemd/dashboard.service](../systemd/). It starts automatically and does not need to be managed manually.
 

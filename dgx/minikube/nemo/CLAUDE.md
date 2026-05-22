@@ -15,12 +15,12 @@ No local shell scripts manage the platform lifecycle. Trigger all of the above f
 
 ## NIM inference (local, on the DGX)
 
-`deploy_nim.sh` and `undeploy_nim.sh` are **sourced** — they define shell functions:
+NIM scripts live in [../nim/](../nim/):
 
 ```bash
-source ./deploy_nim.sh && deploy_nim meta llama-3.1-8b-instruct-dgx-spark 1.0.0-variant
-source ./undeploy_nim.sh && undeploy_nim meta llama-3.1-8b-instruct-dgx-spark
-./nimlogs.sh   # tail NIM pod logs
+source ../nim/deploy_nim.sh && deploy_nim meta llama-3.1-8b-instruct-dgx-spark 1.0.0-variant
+source ../nim/undeploy_nim.sh && undeploy_nim meta llama-3.1-8b-instruct-dgx-spark
+../nim/nimlogs.sh   # tail NIM pod logs
 ```
 
 ## Systemd services
