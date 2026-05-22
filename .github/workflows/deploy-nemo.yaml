@@ -111,6 +111,24 @@ jobs:
           '
           kubectl get pods -n nemo-microservices
 
+      - name: Configure DNS on DGX host
+        run: |
+          MINIKUBE_IP=$(kubectl get node minikube \
+            -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+          echo "Minikube IP: ${MINIKUBE_IP}"
+          # Runner is inside a Docker container — use the mounted Docker socket to
+          # spin up a short-lived container with the host /etc bind-mounted so we
+          # can write to the real /etc/hosts on the DGX.
+          docker run --rm \
+            -e MINIKUBE_IP="${MINIKUBE_IP}" \
+            -v /etc:/host-etc \
+            alpine sh -c '
+              sed -i "/nemo\.test/d; /nim\.test/d; /data-store\.test/d; /# Added by NeMo/d" /host-etc/hosts
+              printf "%s nemo.test nim.test data-store.test\n" "$MINIKUBE_IP" >> /host-etc/hosts
+              echo "Updated /etc/hosts entries:"
+              grep -E "nemo\.test|nim\.test|data-store\.test" /host-etc/hosts
+            '
+
       - name: Summary
         if: always()
         run: |
@@ -123,11 +141,4 @@ jobs:
             echo "| Namespace | \`nemo-microservices\` |"
             echo "| Helm chart | \`${CHART_VER}\` |"
             echo "| Pods | \`${POD_COUNT}\` |"
-            echo ""
-            echo "**Post-deploy steps on DGX:**"
-            echo "\`\`\`sh"
-            echo "MINIKUBE_IP=\$(minikube ip)"
-            echo "sudo tee -a /etc/hosts <<<\"\$MINIKUBE_IP  nemo.test  nim.test  data-store.test\""
-            echo "systemctl --user restart dashboard.service mlflow-portfwd.service jupyterlab.service"
-            echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
