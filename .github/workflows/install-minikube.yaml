@@ -51,6 +51,7 @@ jobs:
       - name: Update DGX_MINIKUBE_KUBECONFIG org secret
         run: |
           set -o pipefail
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
           sudo chmod -R a+rX "${HOME}/.minikube"
           TMP_KC=$(mktemp)
           sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
