@@ -59,6 +59,24 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser. Th
 
 ---
 
+## minikube (DGX)
+
+The DGX runs a minikube cluster with the dashboard enabled. Start the kubectl proxy on the DGX once — it survives across sessions:
+
+```sh
+nohup kubectl --context minikube proxy --port=8001 --address=127.0.0.1 > ~/kubectl-proxy.log 2>&1 &
+```
+
+Then SSH tunnel from your laptop:
+
+```sh
+ssh -L 8001:localhost:8001 <user>@spark-79b7.local
+```
+
+Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/](http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/)**.
+
+---
+
 ## GitHub Secrets & Variables
 
 ### Org-level secrets — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/secrets/actions)
