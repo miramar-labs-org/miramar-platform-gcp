@@ -1,0 +1,12 @@
+ftfy
+requests
+bs4
+datasets
+jupyterlab
+nemo-microservices
+huggingface_hub
+lm-eval[api]
+transformers
+ipywidgets
+notebook
+mlflow

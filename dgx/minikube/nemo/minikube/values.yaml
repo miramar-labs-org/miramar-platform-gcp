@@ -1,0 +1,121 @@
+guardrails:
+  enabled: false
+
+studio:
+  enabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  # optional: keep your existing annotations, or add them under ingress.annotations if your chart supports it
+  # annotations:
+  #   nginx.ingress.kubernetes.io/proxy-body-size: 50g
+
+  hosts:
+    default:
+      name: nemo.test
+      paths:
+        # === Entity Store (this is what the Python SDK uses for namespaces/projects/datasets/etc.) ===
+        - path: /v1/namespaces
+          pathType: Prefix
+          service: nemo-entity-store
+          port: 8000
+        - path: /v1/projects
+          pathType: Prefix
+          service: nemo-entity-store
+          port: 8000
+        - path: /v1/datasets
+          pathType: Prefix
+          service: nemo-entity-store
+          port: 8000
+        - path: /v1/repos
+          pathType: Prefix
+          service: nemo-entity-store
+          port: 8000
+        - path: /v1/models
+          pathType: Prefix
+          service: nemo-entity-store
+          port: 8000
+
+        # === Platform services ===
+        - path: /v1/deployment
+          pathType: Prefix
+          service: nemo-deployment-management
+          port: 8000
+        - path: /v1/jobs
+          pathType: Prefix
+          service: nemo-core-api
+          port: 8000
+        - path: /v2/inference/gateway
+          pathType: Prefix
+          service: nemo-core-api
+          port: 8000
+        - path: /v2/inference
+          pathType: Prefix
+          service: nemo-core-api
+          port: 8000
+        - path: /v2/models
+          pathType: Prefix
+          service: nemo-core-api
+          port: 8000
+
+        # === Optional microservices (keep if you installed/enabled them) ===
+        - path: /v1/customization
+          pathType: Prefix
+          service: nemo-customizer
+          port: 8000
+        - path: /v1/evaluation
+          pathType: Prefix
+          service: nemo-evaluator
+          port: 7331
+        - path: /v2/evaluation
+          pathType: Prefix
+          service: nemo-evaluator
+          port: 7331
+        - path: /v1/data-designer
+          pathType: Prefix
+          service: nemo-data-designer
+          port: 8000
+        - path: /v1beta1/audit
+          pathType: Prefix
+          service: nemo-auditor
+          port: 5000
+        - path: /v1beta1/safe-synthesizer
+          pathType: Prefix
+          service: nemo-safe-synthesizer
+          port: 8000
+        - path: /v1/intake
+          pathType: Prefix
+          service: nemo-intake
+          port: 8000
+
+        # guardrails.disabled -> omit /v1/guardrail
+        # studio.disabled    -> omit /studio
+
+    nimProxy:
+      name: nim.test
+      paths:
+        - path: /v1/completions
+          pathType: Prefix
+          service: nemo-nim-proxy
+          port: 8000
+        - path: /v1/chat
+          pathType: Prefix
+          service: nemo-nim-proxy
+          port: 8000
+        - path: /v1/embeddings
+          pathType: Prefix
+          service: nemo-nim-proxy
+          port: 8000
+        - path: /v1/models
+          pathType: Prefix
+          service: nemo-nim-proxy
+          port: 8000
+
+    dataStore:
+      name: data-store.test
+      paths:
+        - path: /
+          pathType: Prefix
+          service: nemo-data-store
+          port: 3000

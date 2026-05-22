@@ -1,225 +1,216 @@
-# NeMo Microservices on DGX Spark (minikube)
+# NVidia NeMo Microservices Cluster on minikube/Spark DGX
 
-Installs the NVIDIA NeMo Microservices platform into the DGX Spark's local minikube cluster using the official Helm chart, with Spark DGX-specific patches.
+## Issues (1/13/2026)
 
-Source repo: [miramar-labs-org/nemo-k8s-spark-dgx](https://github.com/miramar-labs-org/nemo-k8s-spark-dgx)
+- The current minikube `nvidia-device-plugin` addon ships with an issue that prevents the spark-dgx GPU from advertising itself as being available. I patched the nemo creation script to install a newer version of this addon that contained the fix. 
+- I also use a values.yaml file to disable `guardrails` for now as it hasn't been ported to ARM/SparkDGX arch yet.
+- In addition, the current NIM's ship with a TensorRT issue that prevents them from coming up, so I use patched versions of those for now.
+- The create script warned that the GB10 GPU was not on the 'approved' list .. but it is clearly capable of running these models, so I patched that warning.
+- The script also requires that 2 GPUs (on their list of supported GPUs) are available. But I don't have the money for another Spark DGX, so I patched that to 1 and will have to devise a way to share the GPU between inference and customization/eval workflows... likely scaling down inference pods to do cust/eval and vice versa... fingers crossed this works !
 
-## Prerequisites
+[NeMo Framework](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html)
 
-**Software** (all must be on `$PATH`):
+[NeMo Microservices](https://docs.nvidia.com/nemo/microservices/latest/get-started/index.html)
 
-| Tool | Min version |
-|---|---|
-| minikube | 1.33.0 |
-| Docker | 27.0.0 |
-| kubectl | any recent |
-| helm | any recent |
-| NVIDIA Container Toolkit | 1.16.2 |
-| jq | any |
-| Python + `huggingface_hub` | 3.11.14+ |
+[NeMo Demo Cluster on minikube](https://docs.nvidia.com/nemo/microservices/25.12.0/get-started/index.html)
 
-**Credentials:**
+[NGC Catalog](https://catalog.ngc.nvidia.com/)
 
-| Variable | Where to get it |
-|---|---|
-| `NVIDIA_API_KEY` | [build.nvidia.com](https://build.nvidia.com) → API Keys |
-| `HF_TOKEN` | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
+[llama-3.1-8b-instruct-dgx-spark](https://catalog.ngc.nvidia.com/orgs/nim/teams/meta/containers/llama-3.1-8b-instruct-dgx-spark?version=1.0.0-variant)
 
-**System:**
-- NVIDIA GPU driver ≥ 560.35.03
-- ≥ 200 GB free disk space
+Get yourself un-gated on the model here:
 
-## DGX Spark-specific patches
+[meta-llama/llama-3.1-8b-instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
 
-The upstream NeMo Microservices chart has three incompatibilities with the Spark DGX that the `nemo-k8s-spark-dgx` scripts patch automatically:
+SDK Docs
 
-1. **`REQUIRED_GPUS=1`** — upstream requires 2 GPUs; patched to 1 for the single GB10 Superchip.
-2. **nvidia-device-plugin pinned to v0.18.0** — fixes a GPU advertisement bug on the GB10 architecture.
-3. **GB10 GPU allowlist patch** — GB10 is not on the upstream approved GPU list; the check is patched out.
-4. **`guardrails.enabled: false`** and **`studio.enabled: false`** — these components do not have ARM-compatible images.
+[Python SDK](https://docs.nvidia.com/nemo/microservices/latest/pysdk/index.html)
 
-## Installation
+[Microservice APIs](https://docs.nvidia.com/nemo/microservices/latest/api/index.html)
+## Installing NeMo on minikube
 
-All steps are handled by `create-platform.sh` in the `nemo-k8s-spark-dgx` repo. The sequence below documents what it does.
+Create a pyenv virtual environment and activate it
 
-### 1. Start minikube
+    pyenv install 3.11.14
+    pyenv virtualenv 3.11.14 pyNeMo 
+    cd nemo-k8s-spark-dgx
+    pyenv local pyNeMo
+    pip install -r requirements.txt
 
-```sh
-minikube start --driver=docker --gpus=all
-minikube addons enable ingress
-minikube addons enable dashboard
-minikube addons enable metrics-server
-# Pin nvidia-device-plugin to v0.18.0 (GB10 fix)
-minikube addons enable nvidia-device-plugin
-kubectl label node minikube feature.node.kubernetes.io/pci-10de.present=true
-```
+To install the NeMo platform (with MLflow):
 
-### 2. Create Kubernetes secrets
+    cd nemo-k8s-spark-dgx
+    
+    chmod +x *.sh 
 
-```sh
-# Image pull secret for nvcr.io
-kubectl create secret docker-registry nvcrimagepullsecret \
-  --docker-server=nvcr.io \
-  --docker-username='$oauthtoken' \
-  --docker-password="${NVIDIA_API_KEY}"
+    ./create-platform.sh
 
-# NGC / NVIDIA API key secrets
-kubectl create secret generic ngc-api \
-  --from-literal=NGC_API_KEY="${NVIDIA_API_KEY}"
+and to clean up:
 
-kubectl create secret generic nvidia-api \
-  --from-literal=NVIDIA_API_KEY="${NVIDIA_API_KEY}"
+    ./destroy-platform.sh
 
-# HuggingFace token (required for gated models e.g. Llama 3.1)
-kubectl create secret generic hf-token \
-  --from-literal=HF_TOKEN="${HF_TOKEN}"
-```
+If all goes well, after about 30m you will see:
 
-All four secrets are created in the `default` namespace.
+    NAME                                                              READY   STATUS    RESTARTS       AGE
+    modeldeployment-meta-llama-3-1-8b-instruct-dgx-spark-5d5cbj7dnh   1/1     Running   0              139m
+    nemo-core-api-54674f5989-9kx4d                                    1/1     Running   0              149m
+    nemo-core-controller-9d9b6b99c-cpkqk                              1/1     Running   7 (143m ago)   149m
+    nemo-core-jobs-logcollector-7787759b6c-6967g                      1/1     Running   0              149m
+    nemo-customizer-6bd475bfb4-jnt4p                                  1/1     Running   0              110m
+    nemo-customizerdb-0                                               1/1     Running   0              149m
+    nemo-data-designer-6c6df98589-22srb                               1/1     Running   0              149m
+    nemo-data-store-556cb7ff85-pwzsb                                  1/1     Running   0              149m
+    nemo-deployment-management-f489c5d5-ldlxs                         1/1     Running   0              149m
+    nemo-entity-store-77bb854685-zqvlh                                1/1     Running   0              149m
+    nemo-entity-storedb-0                                             1/1     Running   0              149m
+    nemo-evaluator-7ccf95dc7d-464ss                                   2/2     Running   0              110m
+    nemo-evaluatordb-0                                                1/1     Running   0              149m
+    nemo-jobsdb-0                                                     1/1     Running   0              149m
+    nemo-nemo-operator-controller-manager-7bd775c8-6zb7s              2/2     Running   0              149m
+    nemo-nim-operator-bbdfdb6cb-rtg55                                 1/1     Running   0              149m
+    nemo-nim-proxy-b5f6b5765-t7gcv                                    1/1     Running   0              149m
+    nemo-opentelemetry-collector-8f484bdff-kl8z4                      1/1     Running   0              149m
+    nemo-postgresql-0                                                 1/1     Running   0              149m
+    
+    NAME                              READY   STATUS    RESTARTS   AGE
+    minio-58f6897bd5-v86jm            1/1     Running   0          111m
+    mlflow-tracking-985b69644-v4llm   1/1     Running   0          111m
 
-### 3. Install Volcano scheduler
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[INFO] 🎉 Setup Complete! NeMo Microservices Platform is ready!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Volcano provides the gang-scheduling backend required by NeMo Customizer jobs.
+[INFO] 📍 Your endpoints:
 
-```sh
-kubectl apply -f https://raw.githubusercontent.com/volcano-sh/volcano/v1.9.0/installer/volcano-development.yaml
-sleep 15
-```
+  • NIM Gateway:   http://nim.test
 
-### 4. Install the NeMo Microservices Helm chart
+  • Data Store:    http://data-store.test
 
-```sh
-helm repo add nmp https://helm.ngc.nvidia.com/nvidia/nemo-microservices \
-  --username='$oauthtoken' \
-  --password="${NVIDIA_API_KEY}"
-helm repo update
+  • Platform APIs: http://nemo.test (all /v1/* endpoints)
 
-helm install nemo nmp/nemo-microservices-helm-chart \
-  --namespace default \
-  -f minikube/values.yaml \
-  --timeout 30m
-```
+[INFO] 📚 Quick tests:
 
-**Key values overrides** (`minikube/values.yaml`):
+  • List models:        curl http://nim.test/v1/models
 
-```yaml
-guardrails:
-  enabled: false   # no ARM image
-studio:
-  enabled: false   # no ARM image
-ingress:
-  # nginx ingress with three virtual hosts:
-  #   nemo.test       → core API / all microservices
-  #   nim.test        → NIM inference proxy
-  #   data-store.test → HuggingFace-compatible data store
-```
+  • Data Store health:  curl http://data-store.test/v1/health
 
-### 5. Wait for pods
+  • List namespaces:    curl http://nemo.test/v1/namespaces
 
-All pods in the `default` namespace should reach `Running` or `Completed`. This takes up to 30 minutes on first install (image pulls). Check progress:
+  • Customization API:  curl http://nemo.test/v1/customization/jobs
 
-```sh
-kubectl get pods -n default -w
-```
+[INFO] 💡 Useful commands:
 
-### 6. Configure DNS
+  • View all pods:        kubectl get pods -n default
 
-```sh
-MINIKUBE_IP=$(minikube ip)   # typically 192.168.49.2
-sudo tee -a /etc/hosts <<EOF
-${MINIKUBE_IP} nemo.test
-${MINIKUBE_IP} nim.test
-${MINIKUBE_IP} data-store.test
-EOF
-```
+  • Check service status: kubectl get svc -n default
 
-## Deployed microservices
+  • View logs:            kubectl logs <pod-name> -n default
 
-| Pod | Role |
-|---|---|
-| `nemo-core-api` | REST API gateway |
-| `nemo-core-controller` | Workflow orchestrator |
-| `nemo-entity-store` | Namespace / project / model metadata (+ PostgreSQL) |
-| `nemo-data-store` | HuggingFace-compatible artifact server |
-| `nemo-data-designer` | Synthetic data generation |
-| `nemo-customizer` | Fine-tuning microservice (+ PostgreSQL) |
-| `nemo-evaluator` | Evaluation microservice (+ PostgreSQL) |
-| `nemo-nim-proxy` | Inference gateway |
-| `nemo-nim-operator` | NIM lifecycle management |
-| `nemo-deployment-management` | Model deployment API |
-| `nemo-postgresql` | Shared PostgreSQL instance |
-| `nemo-opentelemetry-collector` | Observability |
+  • Clean up:             ./destroy-nmp-deployment.sh
 
-## API endpoints (from DGX)
+[INFO] 📖 Documentation: https://docs.nvidia.com/nemo/microservices/
 
-| URL | Service |
-|---|---|
-| `http://nemo.test` | NeMo core API |
-| `http://nim.test` | NIM inference gateway |
-| `http://data-store.test` | HuggingFace-compatible data API |
+## UI endpoints (from Windows browser):
 
-## Deploying a NIM model
+### Minikube dashboard
 
-```sh
-# Llama 3.1 8B Instruct (Spark DGX variant)
-source ./deploy_nim.sh
-deploy_nim meta llama-3.1-8b-instruct-dgx-spark 1.0.0-variant
+![dashboard](./res/dash1.png)
 
-# NVIDIA Nemotron Nano 9B v2 (Spark DGX variant, tools enabled)
-deploy_nim nvidia nvidia-nemotron-nano-9b-v2-dgx-spark 1.0.0-variant
-```
+windows browser (after `up.ps1`):
 
-NIM pods appear in the `default` namespace and take up to 30 minutes on first pull. Monitor:
+    http://127.0.0.1:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/workloads?namespace=default
 
-```sh
-kubectl get pods -n default -l app=<nim_name> -w
-```
+### JupyterLAB 
 
-Undeploy:
+![jupyterLAB](./res/jlab.png)
 
-```sh
-source ./undeploy_nim.sh
-undeploy_nim meta llama-3.1-8b-instruct-dgx-spark
-```
+windows browser (after `up.ps1`):
 
-## MLflow integration
+    http://127.0.0.1:8888/lab
 
-MLflow is deployed into a separate `mlflow-system` namespace and reuses NeMo's PostgreSQL instance. The `mlflow/integrate-mlflow.sh` script in the `nemo-k8s-spark-dgx` repo handles this automatically as part of `create-platform.sh`. See the MLflow port-forward in [../../../systemd/](../systemd/) for the DGX systemd service that exposes it on port `5000`.
+### MLflow
 
-## Daily start / stop
+![MLflow](./res/mlflow.png)
 
-The DGX systemd services restart automatically. The minikube cluster itself must be started manually after a reboot:
+windows browser (after `up.ps1`):
 
-```sh
-# Start (from nemo-k8s-spark-dgx repo)
-./up.sh
+    http://127.0.0.1:5000/
 
-# Stop
-./down.sh
-```
 
-`up.sh` starts minikube and restarts the `dashboard`, `mlflow-portfwd`, and `jupyterlab` systemd services. `down.sh` stops them and halts minikube.
+## up/down scripts (graceful start/stop when putting spark/laptop to sleep)
 
-## Python SDK
+### resuming session:
 
-```python
-from nemo_microservices import NeMoMicroservices
+spark (after reboot):
 
-client = NeMoMicroservices(
-    base_url="http://nemo.test",
-    inference_base_url="http://nim.test"
-)
+    ./up.sh
 
-namespaces = client.namespaces.list()
-```
+powershell (after spark reboot):
 
-Install: `pip install nemo-microservices`
+    ./up.ps1
 
-## Teardown
+### pausing session:
 
-```sh
-# Full destruction (from nemo-k8s-spark-dgx repo)
-./destroy-platform.sh
-```
+powershell:
 
-Stops all systemd services, removes MLflow and MinIO, deletes minikube, and removes the `/etc/hosts` DNS entries.
+    ./down.ps1
+
+spark:
+
+    ./down.sh
+
+## Service Endpoints (from SSH terminal)
+After deploying the services to minikube, the following service endpoints are available:
+
+**Base URL**: http://nemo.test
+
+- This is the main endpoint for interacting with the NeMo microservices platform (REST APIs)
+
+**Nemo Data Store HuggingFace Endpoint**: http://data-store.test/v1/hf
+
+- The Data Store microservice exposes a HuggingFace-compatible API at this endpoint.
+
+- Set the HF_ENDPOINT environment variable to this URL.
+
+        export HF_ENDPOINT=http://data-store.test/v1/hf
+
+**Inference URL**: http://nim.test
+
+- This is the endpoint for the NIM Proxy microservice deployed as a part of the platform.
+
+## Python Client SDK
+
+    pip install nemo-microservices
+
+Test Synchronous Client:
+
+    from nemo_microservices import NeMoMicroservices
+
+    # Initialize the client
+    client = NeMoMicroservices(
+        base_url="http://nemo.test",
+        inference_base_url="http://nim.test"
+    )
+
+    # List namespaces
+    namespaces = client.namespaces.list()
+    print(namespaces.data)
+
+Test Asynchronous Client:
+
+    import asyncio
+    from nemo_microservices import AsyncNeMoMicroservices
+
+    async def main():
+        # Initialize the async client
+        client = AsyncNeMoMicroservices(
+            base_url="http://nemo.test",
+            inference_base_url="http://nim.test"
+        )
+        
+        # List namespaces
+        namespaces = await client.namespaces.list()
+        print(namespaces.data)
+
+    # Run the async function
+    asyncio.run(main())

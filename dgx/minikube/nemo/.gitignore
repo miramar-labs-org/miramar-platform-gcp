@@ -1,0 +1,8 @@
+nemo-errors*
+archive*
+law-*
+.ipynb_checkpoints
+results.json
+__pycache__
+eval-*
+results_*.json

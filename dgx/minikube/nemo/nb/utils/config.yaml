@@ -1,0 +1,141 @@
+# ---------------------------------------------------------------------------------------------------
+# YAML FILE TO CONFIGURE THE LLM INFERENCE SIZING SERVER
+# 
+# Modify this yaml file to:
+# - Configure the tabs displayed in the server
+# - Select the path for the data files
+# - Set up default values for the controls
+# 
+# The available metrics are:
+# metric[str] = ["latency_per_token", "latency", "latency_per_token_decoding", "latency_first_token",
+#                "prompts_per_s", "prompts_per_s_per_8_gpus",
+#                "prompts_per_s_decoding", "prompts_per_s_per_8_gpus_decoding",
+#                "out_tokens_per_s", "out_tokens_per_s_per_8_gpus"]
+# The available variables are:
+# variable[str] = ["model", "input_len", "output_len", "n_gpus", "TP", "device",
+#                  "full_args_final_max_input_len", "full_args_final_max_output_len",
+#                  "batch_size", "batch_size_per_8"]
+#
+# The available variables are best visible in preprocess_data.py:46
+# ---------------------------------------------------------------------------------------------------
+#
+# Define the displayed tabs. Each tab satisfies the template:
+# tabs:
+#   tab1:
+#     tab_name[str]: name displayed as title of the tab
+#     plot:
+#       x[metric[str]]: choose one of ["latency_per_token", "latency_per_token_decoding", "latency_first_token", "latency"]
+#       y[metric[str]]: choose one of ["prompts_per_s_per_8_gpus", "prompts_per_s_per_8_gpus_decoding"]
+#       x_label[str]: x label shown in the plot
+#       y_label[str]: y label shown in the plot
+#     table:
+#       # Each row of the table needs a metric and a label
+#       # Add more elements to metrics and labels to add more rows
+#       metrics:
+#         - metric[str] or variable[str]
+#         - ...
+#
+#   # To add more tabs, repeat the template
+#   tab2:
+#     ...
+
+columns_labels:
+  latency_first_token: First Token Latency (ms)
+  latency_per_token_decoding: Latency per generated token (ms)
+  latency: End-to-end latency (ms)
+  prompts_per_s_per_8_gpus: Prompts per second per 8 GPUs
+  prompts_per_s_per_gpu: Prompts per second per 1 GPU
+  prompts_per_s: Prompts per second per 1 instance
+  out_tokens_per_s: Out Tokens per Second per 1 instance
+  out_tokens_per_s_per_user: Out Tokens per Second per user
+  out_tokens_per_s_per_8_gpus: Out Tokens per Second per 8 GPUs
+  TP: Tensor Parallelism
+  PP: Pipeline Parallelism
+  precision: Precision
+  batch_size: Batch size
+  model: Model
+  device: GPU
+  input_len: Input Length (tokens)
+  output_len: Output Length (tokens)
+  ttft_ratio: "Ratio of TTFT to E2E Latency"
+
+deployment_definition_metrics:
+  - TP
+  - precision
+  - batch_size
+  - model
+  - device
+  - input_len
+  - output_len
+
+tabs:
+  # First tab: Prefill
+  prefill:
+    tab_name: "Time to first token (Prefill)"
+    plot:
+      x: "latency_first_token"
+      y: "prompts_per_s_per_8_gpus"
+      x_label: ${columns_labels[${.x}]}
+      y_label: ${columns_labels[${.y}]}
+    table:
+      results_metrics:
+        - latency_first_token
+        - prompts_per_s_per_8_gpus
+        - latency_per_token_decoding
+        - prompts_per_s_per_gpu
+      metrics: ${add:${.results_metrics},${deployment_definition_metrics}}
+  # Second tab: Decoding
+  decoding:
+    tab_name: "Inter token latency (Decoding)"
+    plot:
+      x: "latency_per_token_decoding"
+      y: "prompts_per_s_per_8_gpus"
+      x_label: ${columns_labels[${.x}]}
+      y_label: ${columns_labels[${.y}]}
+    table:
+      results_metrics:
+        - latency_per_token_decoding
+        - prompts_per_s_per_8_gpus
+        - prompts_per_s_per_gpu
+        - latency_first_token
+      metrics: ${add:${.results_metrics},${deployment_definition_metrics}}
+  # Third tab: Prefill + Decoding
+  end_2_end:
+    tab_name: "End to End time (Prefill + Decoding)"
+    plot:
+      x: "latency"
+      y: "prompts_per_s_per_8_gpus"
+      x_label: ${columns_labels[${.x}]}
+      y_label: ${columns_labels[${.y}]}
+    table:
+      results_metrics:
+        - latency
+        - prompts_per_s_per_8_gpus
+        - latency_first_token
+        - latency_per_token_decoding
+        - prompts_per_s_per_gpu
+      metrics: ${add:${.results_metrics},${deployment_definition_metrics}}
+
+# Define path of jsonl data files
+files_glob: 
+  nemo_pbr_jsonl: "./pbr_data/pbr_*/*/*_gpus/*/*.jsonl"
+  trtllm_pbr_csv: "./pbr_data/trtllm_090_release/*.csv"
+
+version_name: TRT-LLM v0.9.0
+
+# Define path of dataframe with preprocessed data
+df_csv: "./pbr_data/preprocessed_data/trt_llm_0_9_0.csv"
+
+# Define other defaults of the dash server
+defaults:
+  latency_ms:
+    e2e_latency:
+      max: 18000
+      preset: 18000
+    token_latency:
+      max: 14000
+      preset: 14000
+  prompts_s:
+    min: 0
+    max: 10
+    preset: 0

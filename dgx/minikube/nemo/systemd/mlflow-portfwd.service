@@ -1,0 +1,31 @@
+[Unit]
+Description=kubectl port-forward MLflow (5000 -> svc/mlflow-tracking:80)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+Environment=HOME=%h
+Environment=KUBECONFIG=%h/.kube/config
+
+# Wait until the service exists and has at least one ready endpoint
+ExecStartPre=/usr/bin/bash -lc '\
+/usr/local/bin/kubectl -n mlflow-system get svc mlflow-tracking >/dev/null || { echo "svc/mlflow-tracking not found"; exit 1; }; \
+for i in {1..60}; do \
+  ip=$(/usr/local/bin/kubectl -n mlflow-system get endpoints mlflow-tracking -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
+  if [ -n "$ip" ]; then exit 0; fi; \
+  sleep 2; \
+done; \
+echo "Timed out waiting for ready endpoints for svc/mlflow-tracking"; \
+/usr/local/bin/kubectl -n mlflow-system get endpoints mlflow-tracking -o wide || true; \
+exit 1'
+
+ExecStart=/usr/local/bin/kubectl -n mlflow-system port-forward svc/mlflow-tracking 5000:80 --address 127.0.0.1
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+
