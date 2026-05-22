@@ -17,7 +17,7 @@ _xtrace_push() { __XTRACE_WAS_ON=0; case "$-" in *x*) __XTRACE_WAS_ON=1; set +x 
 _xtrace_pop()  { (( ${__XTRACE_WAS_ON:-0} )) && set -x; unset __XTRACE_WAS_ON; }
 
 # Kubernetes namespace for NIM pods; inherits from parent script or defaults to "default"
-NAMESPACE="${NAMESPACE:-default}"
+NAMESPACE="${NAMESPACE:-nemo-microservices}"
 
 # === Phase 6: Deploy NIM ===
 # USAGE:

@@ -10,7 +10,7 @@ PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 #set -x
 
 # === Config ===
-NAMESPACE="default"
+NAMESPACE="nemo-microservices"
 REQUIRED_DISK_GB=200
 REQUIRED_GPUS=1
 NVIDIA_API_KEY="${NVIDIA_API_KEY:-}"
@@ -817,11 +817,13 @@ install_nemo_microservices() {
     if [[ "$HELM_CHART_VERSION" == "latest" ]]; then
       log "Installing latest available NeMo microservices version from helm repository..."
       helm install nemo nmp/nemo-microservices-helm-chart --namespace "$NAMESPACE" \
+        --create-namespace \
         "${helm_args[@]}" \
         --timeout 30m 2>&1 | filter_k8s_warnings
     else
       log "Installing NeMo microservices version $HELM_CHART_VERSION from helm repository..."
       helm install nemo nmp/nemo-microservices-helm-chart --namespace "$NAMESPACE" \
+        --create-namespace \
         --version "$HELM_CHART_VERSION" \
         "${helm_args[@]}" \
         --timeout 30m 2>&1 | filter_k8s_warnings
@@ -829,6 +831,7 @@ install_nemo_microservices() {
   else
     log "Installing NeMo microservices from local chart file..."
     helm install nemo nemo-microservices-helm-chart --namespace "$NAMESPACE" \
+      --create-namespace \
       "${helm_args[@]}" \
       --timeout 30m 2>&1 | filter_k8s_warnings
   fi
@@ -1127,9 +1130,9 @@ main() {
   echo "  • Customization API:  curl http://nemo.test/v1/customization/jobs"
   echo ""
   log "💡 Useful commands:"
-  echo "  • View all pods:        kubectl get pods -n default"
-  echo "  • Check service status: kubectl get svc -n default"
-  echo "  • View logs:            kubectl logs <pod-name> -n default"
+  echo "  • View all pods:        kubectl get pods -n $NAMESPACE"
+  echo "  • Check service status: kubectl get svc -n $NAMESPACE"
+  echo "  • View logs:            kubectl logs <pod-name> -n $NAMESPACE"
   echo "  • Clean up:             ./destroy-nmp-deployment.sh"
   echo ""
   log "📖 Documentation: https://docs.nvidia.com/nemo/microservices/"

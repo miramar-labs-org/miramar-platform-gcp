@@ -17,7 +17,7 @@ log "Starting NeMo ↔ MLflow integration (Helm-values driven)"
 
 # ---- Config ----
 NEMO_RELEASE="nemo"
-NEMO_NS="default"
+NEMO_NS="nemo-microservices"
 
 MLFLOW_NS="mlflow-system"
 MLFLOW_RELEASE="mlflow-tracking"     # results in svc/mlflow-tracking

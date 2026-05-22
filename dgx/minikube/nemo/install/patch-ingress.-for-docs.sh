@@ -1,4 +1,4 @@
-ns=default
+ns=nemo-microservices
 ing=nemo-microservices-helm-chart
 
 core_port=$(kubectl -n "$ns" get svc nemo-core-api -o jsonpath='{.spec.ports[0].port}')
