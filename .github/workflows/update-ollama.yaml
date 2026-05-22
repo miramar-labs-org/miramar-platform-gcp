@@ -41,6 +41,17 @@ jobs:
             scripts/ubuntu/install-ollama.sh \
             "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}:/tmp/install-ollama.sh"
 
+      - name: Debug install environment
+        run: |
+          echo "hostname=$(hostname)"
+          echo "whoami=$(whoami)"
+          echo "uname=$(uname -a)"
+          echo "PATH=$PATH"
+          echo "zstd=$(command -v zstd || true)"
+          zstd --version || true
+          echo "ollama=$(command -v ollama || true)"
+          ls -l /usr/bin/zstd /usr/local/bin/zstd 2>/dev/null || true
+
       - name: Install / upgrade Ollama on DGX host
         shell: bash
         run: |
