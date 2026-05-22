@@ -52,6 +52,15 @@ else
   log "Starting minikube (docker driver, all GPUs, no resource limits)..."
   EXTRA_FLAGS=()
   [[ ${EUID:-$(id -u)} -eq 0 ]] && EXTRA_FLAGS+=(--force)
+
+  # Pre-pull kicbase (~500 MB) without the 360s host-creation timeout so slow
+  # first-pull doesn't abort the actual start.
+  log "Pre-pulling kicbase image (no timeout)..."
+  minikube start --download-only \
+    --driver=docker \
+    --container-runtime=docker \
+    "${EXTRA_FLAGS[@]}"
+
   minikube start \
     --driver=docker \
     --container-runtime=docker \

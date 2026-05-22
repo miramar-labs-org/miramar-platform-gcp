@@ -190,11 +190,14 @@ DOCKER_VOLS=(
 
 # DGX only: minikube state must persist across ephemeral runner containers.
 # WSL2 has no minikube; its ~/.kube/config holds GKE contexts we don't want exposed.
+# /host-bin exposes the host's /usr/local/bin so workflows can install binaries there
+# (e.g. setup-minikube copies the runner image's baked-in minikube to the DGX host).
 if [[ "${DEFAULT_LABELS}" == *"dgx"* ]]; then
     mkdir -p "${HOME}/.minikube" "${HOME}/.kube"
     DOCKER_VOLS+=(
         -v "${HOME}/.minikube:/home/runner/.minikube"
         -v "${HOME}/.kube:/home/runner/.kube"
+        -v /usr/local/bin:/host-bin
     )
 fi
 
