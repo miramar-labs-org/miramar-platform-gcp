@@ -5,27 +5,10 @@ name: Ollama Update
 
 on:
   workflow_dispatch:
-    inputs:
-      runner:
-        description: "Target machine"
-        required: true
-        type: choice
-        options:
-          - all
-          - dgx
-          - wsl2
-          - agx
 
 jobs:
   update:
-    strategy:
-      matrix:
-        runner: ${{ fromJson(
-            inputs.runner == 'all' && '["dgx","wsl2","agx"]' ||
-            format('["{0}"]', inputs.runner)
-          ) }}
-      fail-fast: false
-    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    runs-on:  [self-hosted, dgx]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
