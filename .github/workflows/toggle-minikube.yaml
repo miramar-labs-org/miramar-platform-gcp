@@ -1,0 +1,34 @@
+name: Minikube Toggle
+
+# Pause or unpause the minikube cluster on the DGX.
+# Pause freezes all workloads without stopping the cluster — faster to
+# recover than a full stop/start and preserves all in-memory state.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "pause or resume"
+        required: true
+        type: choice
+        options:
+          - pause
+          - resume
+
+jobs:
+  toggle:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minikube binary
+        run: bash scripts/ubuntu/install-minikube.sh
+
+      - name: ${{ inputs.action == 'pause' && 'Pause cluster' || 'Resume cluster' }}
+        run: |
+          if [[ "${{ inputs.action }}" == "pause" ]]; then
+            minikube pause
+          else
+            minikube unpause
+          fi
