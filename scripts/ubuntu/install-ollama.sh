@@ -8,18 +8,33 @@ set -euo pipefail
 # the latest. Uses the official installer, which also sets up the ollama system
 # user and systemd service.
 
+as_root() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+if command -v apt-get >/dev/null 2>&1; then
+  echo "==> Ensuring required packages are installed..."
+  as_root apt-get update
+  as_root apt-get install -y curl ca-certificates zstd
+else
+  echo "ERROR: This installer currently expects Debian/Ubuntu with apt-get." >&2
+  exit 1
+fi
+
 case "$(uname -m)" in
   x86_64)        ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
   *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
 esac
 
-# Resolve the latest release tag via GitHub's redirect (no API key needed).
 LATEST=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
   https://github.com/ollama/ollama/releases/latest | sed 's|.*/tag/||')
 
 if command -v ollama &>/dev/null; then
-  # ollama --version prints e.g. "ollama version 0.6.5"
   INSTALLED="v$(ollama --version 2>/dev/null | awk '{print $NF}')"
   if [[ "${INSTALLED}" == "${LATEST}" ]]; then
     echo "==> ollama ${INSTALLED} is already the latest version, nothing to do."

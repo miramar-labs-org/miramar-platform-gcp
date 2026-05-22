@@ -11,10 +11,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install prerequisites
+      - name: Prepare SSH key for DGX host
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y curl ca-certificates zstd
+          set -euo pipefail
 
-      - name: Install / upgrade Ollama
-        run: bash scripts/ubuntu/install-ollama.sh
+          install -m 700 -d ~/.ssh
+
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
+          chmod 600 ~/.ssh/dgx_host
+
+          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Verify DGX host target
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/dgx_host \
+            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            'hostname; uname -a; command -v nvidia-smi >/dev/null && nvidia-smi -L || true'
+
+      - name: Copy Ollama installer to DGX host
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          scp -i ~/.ssh/dgx_host \
+            scripts/ubuntu/install-ollama.sh \
+            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}:/tmp/install-ollama.sh"
+
+      - name: Install / upgrade Ollama on DGX host
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/dgx_host \
+            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            'chmod +x /tmp/install-ollama.sh && sudo /tmp/install-ollama.sh'
