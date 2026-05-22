@@ -110,6 +110,13 @@ else
     --registries="NvidiaDevicePlugin=nvcr.io"
 fi
 
+# Rewrite kubeconfig cert paths to use the current HOME. Minikube may have
+# previously been started on the DGX host (home=/home/aaron) and written those
+# absolute paths into ~/.kube/config; they don't resolve inside the runner
+# container (home=/home/runner) even though the same files are mounted there.
+sed -i "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+    "${HOME}/.kube/config" 2>/dev/null || true
+
 addon_enabled() {
   minikube addons list 2>/dev/null | awk -v a="$1" '$1==a {print $2}' | grep -qi '^enabled$'
 }
