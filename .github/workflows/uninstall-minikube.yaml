@@ -1,0 +1,32 @@
+name: Minikube Uninstall
+
+# Stops the cluster, deletes all minikube state and cache (purge), and
+# removes the minikube binary from the DGX host.
+# Run this before a clean reinstall via the Minikube Install workflow.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  uninstall:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minikube binary
+        run: bash scripts/ubuntu/install-minikube.sh
+
+      - name: Delete cluster and purge state
+        run: |
+          minikube delete --all --purge 2>/dev/null || true
+          echo "==> Cluster deleted and state purged."
+
+      - name: Remove minikube binary from DGX host
+        run: |
+          if [[ -f /host-bin/minikube ]]; then
+            sudo rm -f /host-bin/minikube
+            echo "==> Removed minikube from DGX host (/usr/local/bin/minikube)."
+          else
+            echo "==> minikube not on DGX host, skipping."
+          fi

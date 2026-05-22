@@ -109,7 +109,8 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | GKE Expand GPU | `gke-expand-gpu.yaml` | `terraform apply` in `gcp/terraform-gpu/` to add a GPU node pool; expands namespace quota |
 | GKE Restore GPU | `gke-restore-gpu.yaml` | `terraform destroy` in `gcp/terraform-gpu/` to remove the GPU pool; restores namespace quota |
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probes all GPU types and zones in parallel; shows top 5 cheapest options split by [USE NOW] vs [REQUEST QUOTA FIRST] with exact settings for GKE Expand GPU |
-| Minikube Setup | `setup-minikube.yaml` | Install minikube on DGX host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` secret |
+| Minikube Install | `install-minikube.yaml` | Install minikube on DGX host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` secret |
+| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove minikube binary from DGX host |
 | Minikube Stop | `stop-minikube.yaml` | Stop the minikube cluster (preserves state) |
 | Minikube Pause | `pause-minikube.yaml` | Freeze workloads without stopping the cluster |
 | Minikube Resume | `resume-minikube.yaml` | Unfreeze paused workloads |
@@ -170,7 +171,7 @@ The DGX Spark runs a minikube cluster hosting platform workloads. Four systemd u
 
 **MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — this works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
 
-**Minikube lifecycle** is managed exclusively via GHA workflows (`setup-minikube`, `stop-minikube`, `pause-minikube`, `resume-minikube`). The minikube binary lives on the DGX host at `/usr/local/bin/minikube` — installed by the Setup workflow. The runner container mounts `~/.minikube` and `~/.kube` from the host (DGX-only) so cluster state persists across ephemeral runner containers.
+**Minikube lifecycle** is managed exclusively via GHA workflows (`install-minikube`, `uninstall-minikube`, `stop-minikube`, `pause-minikube`, `resume-minikube`). The minikube binary lives on the DGX host at `/usr/local/bin/minikube` — installed by the Install workflow. The runner container mounts `~/.minikube` and `~/.kube` from the host (DGX-only) so cluster state persists across ephemeral runner containers.
 
 Access all services from a laptop via SSH tunnel:
 ```sh
