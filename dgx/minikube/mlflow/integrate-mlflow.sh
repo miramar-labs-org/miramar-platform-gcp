@@ -3,7 +3,6 @@ set -euo pipefail
 IFS=$'\n\t'
 
 log()  { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
-warn() { printf "\n\033[1;33mWARN:\033[0m %s\n" "$*" >&2; }
 die()  { printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "Missing: $1"; }
 rand_alnum() { (set +o pipefail; tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-24}"); }
@@ -14,7 +13,7 @@ need base64
 need awk
 need sed
 
-log "Starting MLflow install"
+log "Starting NeMo ↔ MLflow integration (Helm-values driven)"
 
 # ---- Config ----
 NEMO_RELEASE="nemo"
@@ -22,7 +21,20 @@ NEMO_NS="nemo-microservices"
 
 MLFLOW_NS="mlflow-system"
 MLFLOW_RELEASE="mlflow-tracking"     # results in svc/mlflow-tracking
-MINIO_RELEASE="minio"                # used only for cleanup; we deploy MinIO via YAML
+MINIO_RELEASE="minio"                # used only for cleanup now; we deploy MinIO via YAML
+
+# In-cluster URLs (stable DNS)
+PG_HOST="nemo-postgresql.${NEMO_NS}.svc.cluster.local"
+MINIO_SVC_DNS="minio.${MLFLOW_NS}.svc.cluster.local"
+MLFLOW_SVC_DNS="${MLFLOW_RELEASE}.${MLFLOW_NS}.svc.cluster.local"
+
+MLFLOW_TRACKING_URL="http://${MLFLOW_SVC_DNS}:80"
+MLFLOW_S3_ENDPOINT_URL="http://${MINIO_SVC_DNS}:9000"
+
+# You can override these via env vars if you want fixed credentials
+MLFLOW_DB_NAME="${MLFLOW_DB_NAME:-mlflow}"
+MLFLOW_DB_USER="${MLFLOW_DB_USER:-mlflow}"
+MLFLOW_DB_PASSWORD="${MLFLOW_DB_PASSWORD:-$(rand_alnum 24)}"
 
 # MinIO creds
 MINIO_ROOT_USER="${MINIO_ROOT_USER:-mlflowadmin}"
@@ -34,138 +46,42 @@ MINIO_PVC_SIZE="${MINIO_PVC_SIZE:-20Gi}"
 MINIO_STORAGE_CLASS="${MINIO_STORAGE_CLASS:-standard}"
 MINIO_BUCKET="${MINIO_BUCKET:-mlflow}"
 
-# You can override these via env vars if you want fixed credentials
-MLFLOW_DB_NAME="${MLFLOW_DB_NAME:-mlflow}"
-MLFLOW_DB_USER="${MLFLOW_DB_USER:-mlflow}"
-MLFLOW_DB_PASSWORD="${MLFLOW_DB_PASSWORD:-$(rand_alnum 24)}"
+# ---- Preflight: confirm NeMo release + nemo-postgresql exist ----
+log "Checking NeMo Helm release exists: ${NEMO_RELEASE} in ${NEMO_NS}"
+helm -n "${NEMO_NS}" status "${NEMO_RELEASE}" >/dev/null 2>&1 || die "Helm release ${NEMO_RELEASE} not found in ${NEMO_NS}"
 
-# ---- Check if NeMo is available (integration is optional) ----
-log "Checking for NeMo Helm release: ${NEMO_RELEASE} in ${NEMO_NS}"
-NEMO_PRESENT=false
-if helm -n "${NEMO_NS}" status "${NEMO_RELEASE}" >/dev/null 2>&1 \
-   && kubectl -n "${NEMO_NS}" get svc nemo-postgresql >/dev/null 2>&1 \
-   && kubectl -n "${NEMO_NS}" get secret nemo-postgresql >/dev/null 2>&1; then
-    NEMO_PRESENT=true
-    log "NeMo found — will use NeMo postgres as MLflow backend"
-else
-    warn "NeMo not found — deploying standalone postgres in ${MLFLOW_NS}"
-fi
+log "Checking nemo-postgresql exists in ${NEMO_NS}"
+kubectl -n "${NEMO_NS}" get svc nemo-postgresql >/dev/null 2>&1 || die "Service nemo-postgresql not found in ${NEMO_NS}"
+kubectl -n "${NEMO_NS}" get secret nemo-postgresql >/dev/null 2>&1 || die "Secret nemo-postgresql not found in ${NEMO_NS}"
 
-# In-cluster URLs (stable DNS)
-if [[ "${NEMO_PRESENT}" == "true" ]]; then
-    PG_HOST="nemo-postgresql.${NEMO_NS}.svc.cluster.local"
-else
-    PG_HOST="mlflow-postgres.${MLFLOW_NS}.svc.cluster.local"
-fi
-MINIO_SVC_DNS="minio.${MLFLOW_NS}.svc.cluster.local"
-MLFLOW_SVC_DNS="${MLFLOW_RELEASE}.${MLFLOW_NS}.svc.cluster.local"
+PG_POD="$(kubectl -n "${NEMO_NS}" get pods --no-headers | awk '$1 ~ /^nemo-postgresql/ {print $1; exit}')"
+[[ -n "${PG_POD}" ]] || die "Could not find a pod starting with nemo-postgresql in ${NEMO_NS}"
 
-MLFLOW_TRACKING_URL="http://${MLFLOW_SVC_DNS}:80"
-MLFLOW_S3_ENDPOINT_URL="http://${MINIO_SVC_DNS}:9000"
+# Extract postgres superuser password from NeMo secret (support multiple common keys)
+get_b64() {
+  local key="${1:-}"
+  [[ -n "${key}" ]] || return 0
+  # bracket form handles keys containing dashes
+  kubectl -n "${NEMO_NS}" get secret nemo-postgresql -o "jsonpath={.data['${key}']}" 2>/dev/null || true
+}
+
+PG_ADMIN_PW_B64="$(get_b64 postgres-password)"
+[[ -n "${PG_ADMIN_PW_B64}" ]] || PG_ADMIN_PW_B64="$(get_b64 password)"
+[[ -n "${PG_ADMIN_PW_B64}" ]] || PG_ADMIN_PW_B64="$(get_b64 postgresql-postgres-password)"
+[[ -n "${PG_ADMIN_PW_B64}" ]] || die "Couldn't find a postgres admin password key in secret nemo-postgresql (tried postgres-password, password, postgresql-postgres-password)"
+PG_ADMIN_PW="$(printf "%s" "${PG_ADMIN_PW_B64}" | base64 -d)"
 
 # ---- Ensure namespace for MLflow/MinIO ----
 log "Ensuring namespace ${MLFLOW_NS} exists"
 kubectl get ns "${MLFLOW_NS}" >/dev/null 2>&1 || kubectl create ns "${MLFLOW_NS}" >/dev/null
 
-# ---- Standalone postgres (when NeMo is absent) ----
-if [[ "${NEMO_PRESENT}" == "false" ]]; then
-    log "Deploying standalone postgres for MLflow in ${MLFLOW_NS}"
-    kubectl apply -f - <<YAML
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mlflow-postgres-pvc
-  namespace: ${MLFLOW_NS}
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources:
-    requests:
-      storage: 5Gi
-  storageClassName: ${MINIO_STORAGE_CLASS}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mlflow-postgres
-  namespace: ${MLFLOW_NS}
-spec:
-  replicas: 1
-  selector:
-    matchLabels: { app: mlflow-postgres }
-  template:
-    metadata:
-      labels: { app: mlflow-postgres }
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:16
-          env:
-            - name: POSTGRES_DB
-              value: "${MLFLOW_DB_NAME}"
-            - name: POSTGRES_USER
-              value: "${MLFLOW_DB_USER}"
-            - name: POSTGRES_PASSWORD
-              value: "${MLFLOW_DB_PASSWORD}"
-          ports:
-            - containerPort: 5432
-          volumeMounts:
-            - name: data
-              mountPath: /var/lib/postgresql/data
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: mlflow-postgres-pvc
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mlflow-postgres
-  namespace: ${MLFLOW_NS}
-spec:
-  selector: { app: mlflow-postgres }
-  ports:
-    - port: 5432
-      targetPort: 5432
-YAML
+# ---- Create MLflow DB + user inside NeMo Postgres (Job-based) ----
+log "Creating/ensuring DB '${MLFLOW_DB_NAME}' and user '${MLFLOW_DB_USER}' in NeMo Postgres (via Job)"
 
-    log "Waiting for standalone postgres to be Ready"
-    kubectl -n "${MLFLOW_NS}" rollout status deploy/mlflow-postgres --timeout=5m
+JOB_NAME="psql-mlflow-bootstrap"
+kubectl -n "${NEMO_NS}" delete job "${JOB_NAME}" --ignore-not-found >/dev/null 2>&1 || true
 
-    log "Waiting for postgres to accept connections"
-    kubectl -n "${MLFLOW_NS}" wait pod \
-        -l app=mlflow-postgres \
-        --for=condition=Ready \
-        --timeout=3m >/dev/null
-fi
-
-# ---- NeMo postgres bootstrap job (only when using NeMo postgres) ----
-if [[ "${NEMO_PRESENT}" == "true" ]]; then
-    log "Checking nemo-postgresql exists in ${NEMO_NS}"
-    kubectl -n "${NEMO_NS}" get svc nemo-postgresql >/dev/null 2>&1 || die "Service nemo-postgresql not found in ${NEMO_NS}"
-    kubectl -n "${NEMO_NS}" get secret nemo-postgresql >/dev/null 2>&1 || die "Secret nemo-postgresql not found in ${NEMO_NS}"
-
-    PG_POD="$(kubectl -n "${NEMO_NS}" get pods --no-headers | awk '$1 ~ /^nemo-postgresql/ {print $1; exit}')"
-    [[ -n "${PG_POD}" ]] || die "Could not find a pod starting with nemo-postgresql in ${NEMO_NS}"
-
-    # Extract postgres superuser password from NeMo secret (support multiple common keys)
-    get_b64() {
-      local key="${1:-}"
-      [[ -n "${key}" ]] || return 0
-      kubectl -n "${NEMO_NS}" get secret nemo-postgresql -o "jsonpath={.data['${key}']}" 2>/dev/null || true
-    }
-
-    PG_ADMIN_PW_B64="$(get_b64 postgres-password)"
-    [[ -n "${PG_ADMIN_PW_B64}" ]] || PG_ADMIN_PW_B64="$(get_b64 password)"
-    [[ -n "${PG_ADMIN_PW_B64}" ]] || PG_ADMIN_PW_B64="$(get_b64 postgresql-postgres-password)"
-    [[ -n "${PG_ADMIN_PW_B64}" ]] || die "Couldn't find a postgres admin password key in secret nemo-postgresql (tried postgres-password, password, postgresql-postgres-password)"
-    PG_ADMIN_PW="$(printf "%s" "${PG_ADMIN_PW_B64}" | base64 -d)"
-
-    log "Creating/ensuring DB '${MLFLOW_DB_NAME}' and user '${MLFLOW_DB_USER}' in NeMo Postgres (via Job)"
-
-    JOB_NAME="psql-mlflow-bootstrap"
-    kubectl -n "${NEMO_NS}" delete job "${JOB_NAME}" --ignore-not-found >/dev/null 2>&1 || true
-
-    kubectl -n "${NEMO_NS}" apply -f - <<YAML
+kubectl -n "${NEMO_NS}" apply -f - <<YAML
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -238,21 +154,20 @@ spec:
               "GRANT ALL PRIVILEGES ON DATABASE ${MLFLOW_DB_NAME} TO ${MLFLOW_DB_USER};"
 YAML
 
-    log "Waiting for DB bootstrap job to complete"
-    if ! kubectl -n "${NEMO_NS}" wait --for=condition=complete "job/${JOB_NAME}" --timeout=5m >/dev/null; then
-      echo
-      echo "----- DB bootstrap job did not complete; dumping diagnostics -----" >&2
-      kubectl -n "${NEMO_NS}" get pods -l job-name="${JOB_NAME}" -o wide >&2 || true
-      POD="$(kubectl -n "${NEMO_NS}" get pods -l job-name="${JOB_NAME}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-      if [[ -n "${POD}" ]]; then
-        kubectl -n "${NEMO_NS}" describe pod "${POD}" >&2 || true
-        kubectl -n "${NEMO_NS}" logs "${POD}" >&2 || true
-      fi
-      die "DB bootstrap job failed or timed out"
-    fi
-
-    log "DB bootstrap completed"
+log "Waiting for DB bootstrap job to complete"
+if ! kubectl -n "${NEMO_NS}" wait --for=condition=complete "job/${JOB_NAME}" --timeout=5m >/dev/null; then
+  echo
+  echo "----- DB bootstrap job did not complete; dumping diagnostics -----" >&2
+  kubectl -n "${NEMO_NS}" get pods -l job-name="${JOB_NAME}" -o wide >&2 || true
+  POD="$(kubectl -n "${NEMO_NS}" get pods -l job-name="${JOB_NAME}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [[ -n "${POD}" ]]; then
+    kubectl -n "${NEMO_NS}" describe pod "${POD}" >&2 || true
+    kubectl -n "${NEMO_NS}" logs "${POD}" >&2 || true
+  fi
+  die "DB bootstrap job failed or timed out"
 fi
+
+log "DB bootstrap completed"
 
 # ---- Helm repos ----
 log "Adding/updating Helm repos"
@@ -386,37 +301,33 @@ helm upgrade --install "${MLFLOW_RELEASE}" community-charts/mlflow \
 
 rm -f "${MLFLOW_VALUES}"
 
-# ---- Integrate NeMo (only when NeMo is deployed) ----
-if [[ "${NEMO_PRESENT}" == "true" ]]; then
-    log "Injecting MLflow/MinIO env vars into NeMo deployments via kubectl set env"
+# ---- Integrate NeMo WITHOUT Helm upgrade ----
+log "Injecting MLflow/MinIO env vars into NeMo deployments via kubectl set env"
 
-    kubectl -n "${NEMO_NS}" set env deploy/nemo-evaluator \
-      MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URL}" \
-      MLFLOW_EXPERIMENT_NAME="nemo-evaluator" \
-      MLFLOW_S3_ENDPOINT_URL="${MLFLOW_S3_ENDPOINT_URL}" \
-      AWS_ACCESS_KEY_ID="${MINIO_ROOT_USER}" \
-      AWS_SECRET_ACCESS_KEY="${MINIO_ROOT_PASSWORD}" \
-      AWS_DEFAULT_REGION="us-east-1" \
-      AWS_S3_FORCE_PATH_STYLE="true" \
-      >/dev/null
+kubectl -n "${NEMO_NS}" set env deploy/nemo-evaluator \
+  MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URL}" \
+  MLFLOW_EXPERIMENT_NAME="nemo-evaluator" \
+  MLFLOW_S3_ENDPOINT_URL="${MLFLOW_S3_ENDPOINT_URL}" \
+  AWS_ACCESS_KEY_ID="${MINIO_ROOT_USER}" \
+  AWS_SECRET_ACCESS_KEY="${MINIO_ROOT_PASSWORD}" \
+  AWS_DEFAULT_REGION="us-east-1" \
+  AWS_S3_FORCE_PATH_STYLE="true" \
+  >/dev/null
 
-    kubectl -n "${NEMO_NS}" set env deploy/nemo-customizer \
-      MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URL}" \
-      MLFLOW_S3_ENDPOINT_URL="${MLFLOW_S3_ENDPOINT_URL}" \
-      AWS_ACCESS_KEY_ID="${MINIO_ROOT_USER}" \
-      AWS_SECRET_ACCESS_KEY="${MINIO_ROOT_PASSWORD}" \
-      AWS_DEFAULT_REGION="us-east-1" \
-      AWS_S3_FORCE_PATH_STYLE="true" \
-      >/dev/null || true
+kubectl -n "${NEMO_NS}" set env deploy/nemo-customizer \
+  MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URL}" \
+  MLFLOW_S3_ENDPOINT_URL="${MLFLOW_S3_ENDPOINT_URL}" \
+  AWS_ACCESS_KEY_ID="${MINIO_ROOT_USER}" \
+  AWS_SECRET_ACCESS_KEY="${MINIO_ROOT_PASSWORD}" \
+  AWS_DEFAULT_REGION="us-east-1" \
+  AWS_S3_FORCE_PATH_STYLE="true" \
+  >/dev/null || true
 
-    log "Waiting for NeMo customizer/evaluator rollout"
-    kubectl -n "${NEMO_NS}" rollout status deploy/nemo-evaluator  --timeout=5m || true
-    kubectl -n "${NEMO_NS}" rollout status deploy/nemo-customizer --timeout=5m || true
-else
-    log "Skipping NeMo integration (NeMo not deployed)"
-fi
+log "Waiting for NeMo customizer/evaluator rollout"
+kubectl -n "${NEMO_NS}" rollout status deploy/nemo-evaluator  --timeout=5m || true
+kubectl -n "${NEMO_NS}" rollout status deploy/nemo-customizer --timeout=5m || true
 
-log "Complete"
+log "✅ Complete"
 echo "MLflow Tracking (in-cluster): ${MLFLOW_TRACKING_URL}"
 echo "MinIO S3 endpoint  (in-cluster): ${MLFLOW_S3_ENDPOINT_URL}"
 echo
@@ -428,8 +339,4 @@ echo "Credentials (dev):"
 echo "  MinIO access key:  ${MINIO_ROOT_USER}"
 echo "  MinIO secret key:  ${MINIO_ROOT_PASSWORD}"
 echo
-if [[ "${NEMO_PRESENT}" == "true" ]]; then
-    echo "Postgres (NeMo):     ${PG_HOST}:5432 db=${MLFLOW_DB_NAME} user=${MLFLOW_DB_USER}"
-else
-    echo "Postgres (standalone): ${PG_HOST}:5432 db=${MLFLOW_DB_NAME} user=${MLFLOW_DB_USER}"
-fi
+echo "Postgres (reused): ${PG_HOST}:5432 db=${MLFLOW_DB_NAME} user=${MLFLOW_DB_USER}"
