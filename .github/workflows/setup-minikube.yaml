@@ -4,9 +4,13 @@ name: Minikube Setup
 # with GPU support, DGX Spark / NeMo settings, and required addons.
 # Safe to re-run — idempotent; skips start if cluster is already running.
 #
+# After starting, updates the DGX_MINIKUBE_KUBECONFIG org secret with a fresh
+# self-contained kubeconfig (certs are rotated on every minikube delete+recreate).
+#
 # Prerequisites:
 #   - Docker running on the DGX host
 #   - mlabs-runner container launched via scripts/gha/launch-runner.sh
+#   - GITHUB_ORG_ADMIN_PAT org secret with admin:org scope (for secret write)
 
 on:
   workflow_dispatch:
@@ -20,3 +24,15 @@ jobs:
 
       - name: Install minikube and start cluster
         run: bash scripts/ubuntu/install-minikube.sh --start
+
+      - name: Update DGX_MINIKUBE_KUBECONFIG org secret
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+        run: |
+          KUBECONFIG_B64=$(kubectl config view \
+            --raw --minify --flatten --context=minikube \
+            | base64 -w0)
+          gh secret set DGX_MINIKUBE_KUBECONFIG \
+            --org miramar-labs-org \
+            --body "${KUBECONFIG_B64}"
+          echo "==> DGX_MINIKUBE_KUBECONFIG updated"
