@@ -19,10 +19,16 @@ done
 
 # ---- Install / upgrade binary ----
 
-ARCH=$(dpkg --print-architecture)
+case "$(uname -m)" in
+  x86_64)        ARCH=amd64 ;;
+  aarch64|arm64) ARCH=arm64 ;;
+  *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
+esac
 INSTALL_PATH=/usr/local/bin/minikube
 
-LATEST=$(curl -fsSL https://storage.googleapis.com/minikube/releases/latest/version.txt | tr -d '[:space:]')
+# version.txt was removed from GCS; use GitHub Releases API instead
+LATEST=$(curl -fsSL https://api.github.com/repos/kubernetes/minikube/releases/latest \
+  | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
 
 if [[ -x "$INSTALL_PATH" ]]; then
   INSTALLED=$(minikube version --short 2>/dev/null | tr -d '[:space:]')
