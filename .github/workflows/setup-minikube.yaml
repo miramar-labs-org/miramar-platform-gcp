@@ -22,7 +22,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install minikube and start cluster
+      - name: Install minikube on DGX host
+        run: |
+          ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+          echo "==> Installing minikube (${ARCH}) on DGX host..."
+          # Run with --network host so the container uses host internet access.
+          # -v /usr/local/bin:/usr/local/bin mounts the HOST's /usr/local/bin
+          # (Docker volume paths always resolve against the host, not this container).
+          docker run --rm --network host \
+            -v /usr/local/bin:/usr/local/bin \
+            alpine sh -c "
+              apk add --no-cache curl >/dev/null 2>&1 &&
+              curl -fsSL \
+                'https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-${ARCH}' \
+                -o /usr/local/bin/minikube &&
+              chmod +x /usr/local/bin/minikube
+            "
+          echo "==> minikube installed on host"
+
+      - name: Start cluster and configure addons
         run: bash scripts/ubuntu/install-minikube.sh --start
 
       - name: Update DGX_MINIKUBE_KUBECONFIG org secret
