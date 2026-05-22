@@ -22,7 +22,7 @@ echo "Timed out waiting for ready endpoints for svc/mlflow-tracking"; \
 /usr/local/bin/kubectl --context minikube -n mlflow-system get endpoints mlflow-tracking -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl --context minikube -n mlflow-system port-forward svc/mlflow-tracking 5000:80 --address 127.0.0.1
+ExecStart=/usr/local/bin/kubectl --context minikube -n mlflow-system port-forward svc/mlflow-tracking 5000:80 --address 0.0.0.0
 Restart=on-failure
 RestartSec=3
 
