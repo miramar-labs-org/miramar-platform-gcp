@@ -4,7 +4,7 @@ name: NeMo Deploy
 # minikube cluster.
 #
 # Prerequisites:
-#   - minikube running on the DGX (managed by dgx/minikube/up.sh)
+#   - minikube running on the DGX (start via the Minikube Setup workflow)
 #   - DGX_MINIKUBE_KUBECONFIG org secret set (see dgx/minikube/README.md)
 #   - NVIDIA_API_KEY org secret set
 #   - HF_TOKEN org secret set
