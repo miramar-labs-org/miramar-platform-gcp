@@ -1,17 +1,20 @@
 name: Ollama Update
 
-# Install or upgrade Ollama on self-hosted machines.
-# Idempotent — skips if the installed version is already the latest.
-
 on:
   workflow_dispatch:
 
 jobs:
   update:
-    runs-on:  [self-hosted, dgx]
+    runs-on: [self-hosted, dgx]
     timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates zstd
 
       - name: Install / upgrade Ollama
         run: bash scripts/ubuntu/install-ollama.sh
