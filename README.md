@@ -441,6 +441,12 @@ Install the GitHub CLI via apt on Ubuntu/Debian.
 ./scripts/ubuntu/install-gh.sh
 ```
 
+#### [install-ollama.sh](scripts/ubuntu/install-ollama.sh)
+Install or upgrade Ollama on the host. Skips if the installed version is already the latest. Sets up the `ollama` system user and `ollama.service` systemd unit automatically.
+```sh
+./scripts/ubuntu/install-ollama.sh
+```
+
 ---
 
 ### `gcp/` — GCP provisioning
