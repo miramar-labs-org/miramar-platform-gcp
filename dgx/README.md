@@ -23,5 +23,14 @@ Four user services start automatically on boot (via linger) — see [systemd/](s
 `dashboard` and `jupyterlab` bind to `127.0.0.1`; `mlflow-portfwd` binds to `0.0.0.0` so the runner container can reach it. Access from your laptop via SSH tunnel:
 
 ```sh
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 11434:localhost:11434 <user>@spark-79b7.local
 ```
+
+| Port | Service |
+|---|---|
+| `8001` | Kubernetes dashboard |
+| `8888` | JupyterLab |
+| `5000` | MLflow |
+| `11434` | Ollama API |
+
+Ollama (`port 11434`) is installed via `scripts/ubuntu/install-ollama.sh` and runs as a native systemd service — not in the table above as it is not a user service managed by `dgx/systemd/`.
