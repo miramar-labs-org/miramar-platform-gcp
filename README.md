@@ -49,13 +49,15 @@ GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Fed
 
 ## MLflow (DGX)
 
-MLflow runs on the NVIDIA Spark DGX out of `~/mlflow`. It is not exposed publicly — access the UI by opening an SSH tunnel from your laptop:
+MLflow runs in minikube (`mlflow-system` namespace, `svc/mlflow-tracking`). The `mlflow-portfwd.service` systemd service keeps a `kubectl port-forward` to port `5000` running automatically — see [dgx/systemd/](dgx/systemd/).
+
+Access the UI by opening an SSH tunnel from your laptop:
 
 ```sh
 ssh -L 5000:localhost:5000 <user>@spark-79b7.local
 ```
 
-Then open **[http://localhost:5000](http://localhost:5000)** in your browser. The tunnel stays open for as long as the SSH session is running.
+Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
 
 ---
 

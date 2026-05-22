@@ -4,10 +4,12 @@ Scripts for managing the minikube cluster on the NVIDIA DGX Spark.
 
 | Script | Purpose |
 |---|---|
-| `up.sh` | Start minikube, enable dashboard, start kubectl proxy |
-| `down.sh` | Stop kubectl proxy and shut down minikube |
+| `up.sh` | Start minikube and enable dashboard + metrics-server addons |
+| `down.sh` | Shut down minikube |
 | `pause.sh` | Freeze all workloads (preserves cluster state, frees CPU) |
 | `resume.sh` | Unfreeze workloads after a pause |
+
+The `kubectl proxy` on port `8001` is managed by the systemd service in [../systemd/dashboard.service](../systemd/). It starts automatically and does not need to be managed manually.
 
 ## Usage
 
@@ -17,11 +19,11 @@ Scripts for managing the minikube cluster on the NVIDIA DGX Spark.
 ./up.sh
 ```
 
-Starts minikube if it is not already running, enables the `dashboard` and `metrics-server` addons, and starts `kubectl proxy` on port `8001` in the background. The proxy log is written to `~/kubectl-proxy.log`. All operations are idempotent — safe to run again if the cluster or proxy is already up.
+Starts minikube if it is not already running and enables the `dashboard` and `metrics-server` addons. Idempotent — safe to run again if the cluster is already up.
 
 ### Access the dashboard
 
-The proxy only binds to `127.0.0.1`, so open an SSH tunnel from your laptop:
+The proxy is always running via `dashboard.service`. Open an SSH tunnel from your laptop:
 
 ```sh
 ssh -L 8001:localhost:8001 <user>@spark-79b7.local
@@ -33,15 +35,13 @@ Then open the dashboard in your browser:
 http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/
 ```
 
-The tunnel (and the proxy on the DGX) persist across shell sessions — you only need to run `up.sh` once after a reboot.
-
 ### Stop
 
 ```sh
 ./down.sh
 ```
 
-Kills the kubectl proxy and runs `minikube stop`. The cluster state is preserved on disk — `up.sh` will bring it back up from the same state.
+Runs `minikube stop`. The cluster state is preserved on disk — `up.sh` will bring it back up from the same state. The `dashboard.service` proxy will reconnect automatically once minikube is started again.
 
 ### Pause / Resume
 
@@ -52,7 +52,7 @@ Kills the kubectl proxy and runs `minikube stop`. The cluster state is preserved
 
 Pause suspends all containers via `minikube pause` without stopping the cluster. Useful for temporarily freeing CPU/memory when the DGX is needed for a training run. Resume with `./resume.sh` (`minikube unpause`).
 
-> Pause does not stop the kubectl proxy — the proxy process keeps running and the SSH tunnel stays live. The dashboard will show the cluster as paused.
+> The `dashboard.service` proxy keeps running while paused — the SSH tunnel stays live and the dashboard will show the cluster as paused.
 
 ## GitHub Secret — `DGX_MINIKUBE_KUBECONFIG`
 
