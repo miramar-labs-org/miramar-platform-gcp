@@ -16,4 +16,4 @@ jobs:
         run: bash scripts/ubuntu/install-minikube.sh
 
       - name: Resume cluster
-        run: bash dgx/minikube/resume.sh
+        run: minikube unpause

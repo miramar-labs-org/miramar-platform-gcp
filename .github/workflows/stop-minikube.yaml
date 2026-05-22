@@ -18,4 +18,4 @@ jobs:
         run: bash scripts/ubuntu/install-minikube.sh
 
       - name: Stop cluster
-        run: bash dgx/minikube/down.sh
+        run: minikube stop

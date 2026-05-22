@@ -1,13 +1,14 @@
 # minikube (DGX)
 
-Scripts for managing the minikube cluster on the NVIDIA DGX Spark.
+Minikube cluster on the NVIDIA DGX Spark. Lifecycle is managed exclusively via GitHub Actions
+workflows — there are no local shell scripts.
 
-| Script | Purpose |
+| Workflow | Purpose |
 |---|---|
-| `up.sh` | Start minikube and enable dashboard + metrics-server addons |
-| `down.sh` | Shut down minikube |
-| `pause.sh` | Freeze all workloads (preserves cluster state, frees CPU) |
-| `resume.sh` | Unfreeze workloads after a pause |
+| **Minikube Setup** | Install binary on host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` |
+| **Minikube Stop** | `minikube stop` — preserves cluster state |
+| **Minikube Pause** | `minikube pause` — freezes workloads, frees CPU/GPU without stopping the cluster |
+| **Minikube Resume** | `minikube unpause` — restores frozen workloads |
 
 ## Workloads
 
@@ -17,17 +18,7 @@ Scripts for managing the minikube cluster on the NVIDIA DGX Spark.
 
 The `kubectl proxy` on port `8001` is managed by the systemd service in [../systemd/dashboard.service](../systemd/). It starts automatically and does not need to be managed manually.
 
-## Usage
-
-### Start
-
-```sh
-./up.sh
-```
-
-Starts minikube if it is not already running and enables the `dashboard` and `metrics-server` addons. Idempotent — safe to run again if the cluster is already up.
-
-### Access the dashboard
+## Access the dashboard
 
 The proxy is always running via `dashboard.service`. Open an SSH tunnel from your laptop:
 
@@ -41,25 +32,6 @@ Then open the dashboard in your browser:
 http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/
 ```
 
-### Stop
-
-```sh
-./down.sh
-```
-
-Runs `minikube stop`. The cluster state is preserved on disk — `up.sh` will bring it back up from the same state. The `dashboard.service` proxy will reconnect automatically once minikube is started again.
-
-### Pause / Resume
-
-```sh
-./pause.sh   # freeze workloads, keep cluster state
-./resume.sh  # unfreeze
-```
-
-Pause suspends all containers via `minikube pause` without stopping the cluster. Useful for temporarily freeing CPU/memory when the DGX is needed for a training run. Resume with `./resume.sh` (`minikube unpause`).
-
-> The `dashboard.service` proxy keeps running while paused — the SSH tunnel stays live and the dashboard will show the cluster as paused.
-
 ## Reinstalling from scratch
 
 To wipe the existing cluster and re-test the setup workflow from a clean state:
@@ -68,50 +40,29 @@ To wipe the existing cluster and re-test the setup workflow from a clean state:
 # 1. Delete the cluster and purge all minikube state
 minikube delete --all --purge
 
-# 2. Remove the binary
+# 2. Remove the binary from the host
 sudo rm -f /usr/local/bin/minikube
 
-# 3. Restart the runner so it picks up the ~/.minikube and ~/.kube volume mounts
+# 3. Restart the runner to pick up the /host-bin mount
 docker stop mlabs-runner-arm64
 ./scripts/gha/launch-runner.sh --detach
 ```
 
 Then trigger the **Minikube Setup** workflow from the GitHub Actions UI. It will download the
-latest binary, start a fresh cluster, pin the nvidia-device-plugin, enable addons, and label
-the node.
-
-> After a fresh install, re-generate `DGX_MINIKUBE_KUBECONFIG` — the TLS certs change on every
-> `minikube delete` + recreate. See the section below.
+latest binary onto the host, start a fresh cluster, pin the nvidia-device-plugin, enable addons,
+label the node, and update `DGX_MINIKUBE_KUBECONFIG`.
 
 ## GitHub Secret — `DGX_MINIKUBE_KUBECONFIG`
 
-CI/CD workflows that deploy to minikube need a self-contained kubeconfig stored as an org-level GitHub secret. `kubectl config view --raw` does not embed the certs inline for minikube — you must build the kubeconfig manually:
+The **Minikube Setup** workflow updates this secret automatically. If you ever need to regenerate
+it manually (e.g. after `minikube delete` without running the workflow):
 
 ```sh
-cat > /tmp/minikube-embedded.yaml << EOF
-apiVersion: v1
-clusters:
-- cluster:
-    certificate-authority-data: $(base64 -w0 < /home/aaron/.minikube/ca.crt)
-    server: https://192.168.49.2:8443
-  name: minikube
-contexts:
-- context:
-    cluster: minikube
-    user: minikube
-  name: minikube
-current-context: minikube
-kind: Config
-users:
-- name: minikube
-  user:
-    client-certificate-data: $(base64 -w0 < /home/aaron/.minikube/profiles/minikube/client.crt)
-    client-key-data: $(base64 -w0 < /home/aaron/.minikube/profiles/minikube/client.key)
-EOF
-
-base64 -w0 < /tmp/minikube-embedded.yaml
+kubectl config view --raw --minify --flatten --context=minikube | base64 -w0
 ```
 
-Paste the output into the `DGX_MINIKUBE_KUBECONFIG` org secret at [github.com/organizations/miramar-labs-org/settings/secrets/actions](https://github.com/organizations/miramar-labs-org/settings/secrets/actions).
+Paste the output into the `DGX_MINIKUBE_KUBECONFIG` org secret at
+[github.com/organizations/miramar-labs-org/settings/secrets/actions](https://github.com/organizations/miramar-labs-org/settings/secrets/actions).
 
-> The certs are rotated when minikube is deleted and recreated. Re-run this whenever you do a fresh `minikube start` from scratch.
+> The certs rotate on every `minikube delete` + recreate — re-run the workflow or the command
+> above whenever you do a fresh start from scratch.
