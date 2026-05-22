@@ -10,6 +10,8 @@ GCP infrastructure and CI/CD tooling for the Miramar Labs platform.
 [![GKE Expand GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml)
 [![GKE Restore GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml)
 [![Find GPU Capacity](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml)
+[![Minikube Setup](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/setup-minikube.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/setup-minikube.yaml)
+[![NeMo Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nemo.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nemo.yaml)
 
 ## Platform Overview
 
@@ -63,7 +65,7 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
 
 ## minikube (DGX)
 
-The DGX runs a minikube cluster with the dashboard and metrics-server addons enabled. The `dashboard.service` systemd service keeps a `kubectl proxy` running on port `8001` automatically — see [dgx/systemd/](dgx/systemd/). Use [dgx/minikube/](dgx/minikube/) scripts to start, stop, pause, and resume the cluster.
+The DGX runs a minikube cluster with the dashboard and metrics-server addons enabled. The `dashboard.service` systemd service keeps a `kubectl proxy` running on port `8001` automatically — see [dgx/systemd/](dgx/systemd/). Cluster lifecycle (start, stop, pause, resume) is managed via GHA workflows — see [dgx/minikube/](dgx/minikube/).
 
 Open an SSH tunnel from your laptop:
 
@@ -145,7 +147,7 @@ Docker automatically pulls the correct variant for the host architecture.
 
 | Category | Packages |
 |---|---|
-| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `gh`, `helm`, `make` |
+| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `gh`, `helm`, `ngc`, `make` |
 | PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.6 wheels (amd64: pytorch.org/whl/cu126; arm64: standard PyPI) |
 | HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate`, `datasets` |
 | ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |

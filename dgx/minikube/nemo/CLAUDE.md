@@ -1,58 +1,50 @@
-# CLAUDE.md
+# CLAUDE.md — dgx/minikube/nemo
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+NeMo Microservices deployment for the DGX Spark minikube cluster.
 
-## What This Repo Is
+## Platform lifecycle — GHA workflows only
 
-Scripts and notebooks for running the **NVIDIA NeMo Microservices Platform** on a single **Spark DGX** (ARM/GB10 GPU) using **minikube**. The repo handles full platform lifecycle: install, daily resume/pause, NIM inference deployment, MLflow experiment tracking, and LLM fine-tuning/evaluation workflows via Jupyter notebooks.
+| Workflow | Purpose |
+|---|---|
+| **NeMo Deploy** (`deploy-nemo.yaml`) | Helm install — namespace, secrets, Volcano, chart, pod wait, /etc/hosts DNS |
+| **NeMo Undeploy** (`undeploy-nemo.yaml`) | Helm uninstall, optional namespace delete, /etc/hosts cleanup |
+| **Minikube Setup** (`setup-minikube.yaml`) | Start cluster, enable addons, update kubeconfig secret |
+| **Minikube Stop/Pause/Resume** | Cluster lifecycle |
 
-## Key Commands
+No local shell scripts manage the platform lifecycle. Trigger all of the above from the GitHub Actions UI.
 
-### Platform Lifecycle (run from repo root on the Spark DGX)
+## NIM inference (local, on the DGX)
 
-```bash
-# Full install (~30 min first time)
-./create-platform.sh
-
-# Tear everything down
-./destroy-platform.sh
-
-# After DGX reboot — resume minikube + restart systemd services
-./up.sh
-
-# Before putting DGX to sleep
-./down.sh
-```
-
-### NIM Inference (deploy/undeploy a model)
+`deploy_nim.sh` and `undeploy_nim.sh` are **sourced** — they define shell functions:
 
 ```bash
-# Deploy (uses NeMo deployment API + waits for READY)
 source ./deploy_nim.sh && deploy_nim meta llama-3.1-8b-instruct-dgx-spark 1.0.0-variant
-
-# Undeploy
 source ./undeploy_nim.sh && undeploy_nim meta llama-3.1-8b-instruct-dgx-spark
-
-# Tail NIM pod logs
-./nimlogs.sh
+./nimlogs.sh   # tail NIM pod logs
 ```
 
-### Windows (PowerShell) — port-forward to localhost for browser access
+## Systemd services
 
-```powershell
-./up.ps1   # start port-forwards (dashboard :8001, JupyterLab :8888, MLflow :5000)
-./down.ps1 # stop port-forwards
-```
+Always running on the DGX — no manual start needed. Managed via `dgx/systemd/`.
 
-### Systemd services (on the Spark DGX, managed via `up.sh`)
+| Service | Port | What it does |
+|---|---|---|
+| `minikube` | — | Starts minikube on boot |
+| `dashboard` | `8001` | `kubectl proxy` → Kubernetes dashboard |
+| `jupyterlab` | `8888` | JupyterLab |
+| `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
+
+Access from laptop via SSH tunnel:
 
 ```bash
-systemctl --user {restart,stop,status} dashboard.service
-systemctl --user {restart,stop,status} mlflow-portfwd.service
-systemctl --user {restart,stop,status} jupyterlab.service
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@spark-79b7.local
 ```
 
-### Ad-hoc API checks
+## Required secrets
+
+`NVIDIA_API_KEY` and `HF_TOKEN` are stored as GitHub org secrets — injected by workflows. Not needed locally unless running NIM scripts directly.
+
+## Ad-hoc API checks
 
 ```bash
 curl http://nim.test/v1/models
@@ -61,56 +53,24 @@ curl http://nemo.test/v1/namespaces
 curl http://nemo.test/v1/customization/jobs
 ```
 
-## Architecture
+## Ingress routing (`install/values.yaml`)
 
-### Deployment Flow
-
-`create-platform.sh` → `minikube/create-nmp-spark-deployment.sh` (Helm install of NeMo chart with `minikube/values.yaml`) → `mlflow/integrate-mlflow.sh` (deploys MLflow + MinIO into `mlflow-system` namespace) → `up.sh` (starts systemd services).
-
-### Ingress Routing (`minikube/values.yaml`)
-
-All traffic is routed through nginx ingress with three virtual hosts:
 - `nemo.test` → NeMo microservices (entity-store, customizer, evaluator, data-designer, deployment-management, core-api)
 - `nim.test` → `nemo-nim-proxy` (inference gateway)
 - `data-store.test` → `nemo-data-store` (HuggingFace-compatible API)
 
-### NIM Deploy/Undeploy Scripts
+## DGX-specific patches (applied by deploy-nemo workflow)
 
-`deploy_nim.sh` and `undeploy_nim.sh` are **sourced, not executed** — they define shell functions (`deploy_nim`, `undeploy_nim`, `wait_for_nim`, `verify_nim_endpoint`) intended to be called after sourcing. They POST/DELETE to the NeMo deployment API at `http://nemo.test/v1/deployment/model-deployments`.
-
-### Notebooks (`nb/`)
-
-- `01-NIM-Evaluation.ipynb` — evaluate a NIM endpoint directly
-- `02-Evaluator_notebook.ipynb` — NeMo Evaluator microservice workflows
-- `03-Customizer.ipynb` — fine-tune via NeMo Customizer microservice
-- `nb/custom_dataset/` — training data + config for fine-tuning jobs
-- `nb/integrations/` — MLflow and W&B tracking integration examples
-
-### GKE Alternative (`gke/`)
-
-Terraform config to deploy the same platform on Google Kubernetes Engine instead of minikube. Not used in the primary Spark DGX workflow.
-
-## Required Environment Variables
-
-```bash
-export NVIDIA_API_KEY="..."   # NGC registry auth (required for NIM image pulls)
-export HF_TOKEN="..."         # HuggingFace token (for gated models like Llama 3.1)
-export HF_ENDPOINT="http://data-store.test/v1/hf"  # redirect HF downloads through NeMo data store
-```
-
-## Spark DGX-Specific Patches
-
-The `minikube/create-nmp-spark-deployment.sh` script applies several patches vs. the upstream NeMo install guide:
-- Installs a newer `nvidia-device-plugin` addon (fixes GPU advertisement bug on the GB10)
-- Sets `REQUIRED_GPUS=1` (upstream requires 2)
-- Disables `guardrails` and `studio` in `values.yaml` (not yet ARM-compatible)
-- Patches the GPU allowlist check (GB10 not on upstream's approved list)
-- Uses patched NIM image tags that work around a TensorRT bug on Spark DGX
+- Newer `nvidia-device-plugin` addon — fixes GPU advertisement bug on GB10
+- `REQUIRED_GPUS=1` (upstream requires 2)
+- `guardrails` and `studio` disabled in `install/values.yaml` (not ARM-compatible)
+- GB10 patched past the upstream GPU allowlist check
+- Patched NIM image tags that work around a TensorRT bug on Spark DGX
 
 ## Python SDK
 
 ```bash
-pip install -r requirements.txt  # installs nemo-microservices and notebook deps
+pip install nemo-microservices
 ```
 
 ```python

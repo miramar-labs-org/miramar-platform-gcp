@@ -33,7 +33,7 @@ scripts/
   ubuntu/          # Host setup scripts
 mlabs-runner/      # Docker image for self-hosted GHA runners
 dgx/               # DGX Spark host config and local tooling
-  minikube/        # Scripts to start/stop/pause/resume minikube on DGX
+  minikube/        # GHA workflows for minikube lifecycle + NeMo deployment
   systemd/         # Systemd user service unit files + install/uninstall scripts
 wsl2/              # WSL2 host config and bootstrap scripts
 .github/workflows/ # CI/CD workflows
@@ -53,8 +53,7 @@ wsl2/              # WSL2 host config and bootstrap scripts
 | `scripts/ubuntu/install-terraform.sh` | Install `terraform` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-gh.sh` | Install `gh` (GitHub CLI) via apt on Ubuntu/Debian |
 | `scripts/gcp/gke/find-gpu-capacity.sh` | Probe actual GPU capacity across all GPU types and zones in parallel. Default scope: all US regions (`us-*`). Pass a region to narrow (`us-central1`). Shows top 5 cheapest options split by [USE NOW] / [REQUEST QUOTA FIRST] with ready-to-use GKE Expand GPU settings. |
-| `dgx/minikube/up.sh` / `down.sh` | Start / stop minikube on the DGX. `pause.sh` / `resume.sh` freeze and unfreeze workloads without stopping the cluster. |
-| `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the three DGX systemd user services (dashboard proxy, JupyterLab, MLflow port-forward). |
+| `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the four DGX systemd user services (minikube, dashboard proxy, JupyterLab, MLflow port-forward). |
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
 
@@ -109,6 +108,12 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | GKE Expand GPU | `gke-expand-gpu.yaml` | `terraform apply` in `gcp/terraform-gpu/` to add a GPU node pool; expands namespace quota |
 | GKE Restore GPU | `gke-restore-gpu.yaml` | `terraform destroy` in `gcp/terraform-gpu/` to remove the GPU pool; restores namespace quota |
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probes all GPU types and zones in parallel; shows top 5 cheapest options split by [USE NOW] vs [REQUEST QUOTA FIRST] with exact settings for GKE Expand GPU |
+| Minikube Setup | `setup-minikube.yaml` | Install minikube on DGX host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` secret |
+| Minikube Stop | `stop-minikube.yaml` | Stop the minikube cluster (preserves state) |
+| Minikube Pause | `pause-minikube.yaml` | Freeze workloads without stopping the cluster |
+| Minikube Resume | `resume-minikube.yaml` | Unfreeze paused workloads |
+| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices via Helm on the DGX minikube cluster |
+| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo Microservices, optionally delete namespace |
 
 Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
 
@@ -153,15 +158,18 @@ To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`
 
 ## DGX local services
 
-The DGX Spark runs a minikube cluster hosting platform workloads. Three systemd user services start automatically — managed via `dgx/systemd/`:
+The DGX Spark runs a minikube cluster hosting platform workloads. Four systemd user services start automatically on boot (via linger) — managed via `dgx/systemd/`:
 
 | Service | Port | Purpose |
 |---|---|---|
+| `minikube` | — | Starts/stops minikube; other services depend on it |
 | `dashboard` | `8001` | `kubectl proxy --context minikube` for the Kubernetes dashboard |
 | `jupyterlab` | `8888` | JupyterLab in the pyNeMo Python environment |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` — org MLflow instance |
 
 **MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — this works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
+
+**Minikube lifecycle** is managed exclusively via GHA workflows (`setup-minikube`, `stop-minikube`, `pause-minikube`, `resume-minikube`). The minikube binary lives on the DGX host at `/usr/local/bin/minikube` — installed by the Setup workflow. The runner container mounts `~/.minikube` and `~/.kube` from the host (DGX-only) so cluster state persists across ephemeral runner containers.
 
 Access all services from a laptop via SSH tunnel:
 ```sh
