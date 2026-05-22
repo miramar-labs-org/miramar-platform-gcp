@@ -84,6 +84,17 @@ jobs:
             --force-update
           helm repo update
 
+      - name: Clear any stuck Helm release
+        run: |
+          STATUS=$(helm status nemo -n nemo-microservices -o json 2>/dev/null | jq -r '.info.status // empty')
+          if [[ "$STATUS" == "pending-install" || "$STATUS" == "pending-upgrade" || "$STATUS" == "pending-rollback" ]]; then
+            echo "Release is stuck in '${STATUS}' — rolling back to clear lock"
+            helm rollback nemo -n nemo-microservices 2>/dev/null || \
+              kubectl delete secret -n nemo-microservices -l owner=helm,name=nemo --ignore-not-found
+          else
+            echo "Release status: '${STATUS:-not found}' — no cleanup needed"
+          fi
+
       - name: Install NeMo Microservices
         run: |
           helm upgrade --install nemo nmp/nemo-microservices-helm-chart \
