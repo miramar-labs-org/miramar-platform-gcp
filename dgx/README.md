@@ -34,3 +34,5 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 1143
 | `11434` | Ollama API |
 
 Ollama (`port 11434`) is installed via `scripts/ubuntu/install-ollama.sh` and runs as a native systemd service — not in the table above as it is not a user service managed by `dgx/systemd/`.
+
+On Windows, [Bitvise SSH Client](https://www.bitvise.com/ssh-client) is used to configure all tunnels at once in a saved session profile — no need to pass `-L` flags on the command line each time.
