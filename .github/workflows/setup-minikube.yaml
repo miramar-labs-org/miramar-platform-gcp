@@ -1,0 +1,22 @@
+name: Minikube Setup
+
+# Installs the minikube binary (if needed) and starts the cluster on the DGX
+# with GPU support, DGX Spark / NeMo settings, and required addons.
+# Safe to re-run — idempotent; skips start if cluster is already running.
+#
+# Prerequisites:
+#   - Docker running on the DGX host
+#   - mlabs-runner container launched via scripts/gha/launch-runner.sh
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minikube and start cluster
+        run: bash scripts/ubuntu/install-minikube.sh --start

@@ -1,0 +1,19 @@
+name: Minikube Resume
+
+# Unpauses a previously paused minikube cluster, restoring all frozen workloads.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  resume:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minikube binary
+        run: bash scripts/ubuntu/install-minikube.sh
+
+      - name: Resume cluster
+        run: bash dgx/minikube/resume.sh

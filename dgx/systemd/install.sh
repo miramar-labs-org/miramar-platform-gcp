@@ -3,9 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="$HOME/.config/systemd/user"
-SERVICES=(dashboard jupyterlab mlflow-portfwd)
+# minikube first — dashboard and mlflow-portfwd depend on it
+SERVICES=(minikube dashboard jupyterlab mlflow-portfwd)
 
 mkdir -p "$DEST"
+
+# Enable linger so user services start on boot without requiring an interactive login
+loginctl enable-linger "$(id -un)"
 
 for svc in "${SERVICES[@]}"; do
     echo "Installing ${svc}.service..."

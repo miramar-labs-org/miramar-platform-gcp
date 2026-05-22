@@ -1,6 +1,7 @@
 [Unit]
 Description=kubectl proxy for Minikube dashboard (fixed port)
-After=network-online.target
+After=network-online.target minikube.service
+Wants=minikube.service
 
 [Service]
 Type=simple

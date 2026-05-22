@@ -1,0 +1,21 @@
+name: Minikube Stop
+
+# Stops the minikube cluster on the DGX.
+# Does NOT delete the cluster — state is preserved for a future start.
+# Does NOT affect any other workloads on the host.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stop:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minikube binary
+        run: bash scripts/ubuntu/install-minikube.sh
+
+      - name: Stop cluster
+        run: bash dgx/minikube/down.sh

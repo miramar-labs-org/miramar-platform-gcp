@@ -183,10 +183,24 @@ echo "Image revision : ${IMAGE_REVISION:0:7}"
 WORK_DIR="${HOME}/runner/_work"
 mkdir -p "${WORK_DIR}"
 
+DOCKER_VOLS=(
+    -v /var/run/docker.sock:/var/run/docker.sock
+    -v "${WORK_DIR}:/home/runner/_work"
+)
+
+# DGX only: minikube state must persist across ephemeral runner containers.
+# WSL2 has no minikube; its ~/.kube/config holds GKE contexts we don't want exposed.
+if [[ "${DEFAULT_LABELS}" == *"dgx"* ]]; then
+    mkdir -p "${HOME}/.minikube" "${HOME}/.kube"
+    DOCKER_VOLS+=(
+        -v "${HOME}/.minikube:/home/runner/.minikube"
+        -v "${HOME}/.kube:/home/runner/.kube"
+    )
+fi
+
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "${WORK_DIR}:/home/runner/_work" \
+    "${DOCKER_VOLS[@]}" \
     --group-add "$(stat -c '%g' /var/run/docker.sock)" \
     --gpus all \
     --dns 8.8.8.8 \

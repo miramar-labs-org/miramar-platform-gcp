@@ -1,7 +1,7 @@
 [Unit]
 Description=kubectl port-forward MLflow (5000 -> svc/mlflow-tracking:80)
-After=network-online.target
-Wants=network-online.target
+After=network-online.target minikube.service
+Wants=network-online.target minikube.service
 StartLimitIntervalSec=60
 StartLimitBurst=3
 

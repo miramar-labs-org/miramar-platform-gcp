@@ -2,7 +2,8 @@
 set -euo pipefail
 
 DEST="$HOME/.config/systemd/user"
-SERVICES=(dashboard jupyterlab mlflow-portfwd)
+# Stop in reverse dependency order (dependents first, minikube last)
+SERVICES=(mlflow-portfwd jupyterlab dashboard minikube)
 
 for svc in "${SERVICES[@]}"; do
     echo "Removing ${svc}..."

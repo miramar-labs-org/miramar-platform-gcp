@@ -1,0 +1,21 @@
+name: Minikube Pause
+
+# Freezes all workloads in the minikube cluster without stopping it.
+# Preserves cluster state and resumes faster than a full stop/start cycle.
+# Use before putting the DGX to sleep or reclaiming GPU memory temporarily.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pause:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minikube binary
+        run: bash scripts/ubuntu/install-minikube.sh
+
+      - name: Pause cluster
+        run: bash dgx/minikube/pause.sh
