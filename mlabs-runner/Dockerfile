@@ -45,6 +45,12 @@ RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release
         -o /usr/local/bin/kubectl && \
     chmod +x /usr/local/bin/kubectl
 
+# Install minikube
+RUN curl -fsSL \
+        "https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-${TARGETARCH}" \
+        -o /usr/local/bin/minikube && \
+    chmod +x /usr/local/bin/minikube
+
 # Install gcloud, terraform, and gh via their apt repos
 RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
