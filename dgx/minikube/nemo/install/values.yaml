@@ -1,5 +1,5 @@
-#guardrails:
-#  enabled: false
+guardrails:
+  enabled: false
 
 studio:
   enabled: false
