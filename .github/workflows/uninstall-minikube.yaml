@@ -20,6 +20,10 @@ jobs:
       - name: Delete cluster and purge state
         run: |
           minikube delete --all --purge 2>/dev/null || true
+          # --purge removes ~/.minikube entirely, which breaks the bind mount
+          # in any running runner container. Recreate the directory immediately
+          # so the mount target exists for subsequent workflow runs.
+          mkdir -p "${HOME}/.minikube"
           echo "==> Cluster deleted and state purged."
 
       - name: Remove minikube binary from DGX host
