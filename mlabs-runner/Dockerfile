@@ -72,6 +72,21 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
 # Install helm
 RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
+# Install NGC CLI (arm64: v4.5.2, amd64: v3.41.3)
+RUN case "${TARGETARCH}" in \
+        amd64) ZIP_NAME="ngccli_linux.zip";  NGC_VER="3.41.3" ;; \
+        arm64) ZIP_NAME="ngccli_arm64.zip";  NGC_VER="4.5.2"  ;; \
+        *) echo "Unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fL --retry 5 --retry-delay 2 \
+        -o /tmp/ngccli.zip \
+        "https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_VER}/files/${ZIP_NAME}" && \
+    unzip -q /tmp/ngccli.zip -d /tmp/ngccli && \
+    cp -a /tmp/ngccli/ngc-cli /opt/ngc-cli && \
+    ln -sf /opt/ngc-cli/ngc /usr/local/bin/ngc && \
+    chmod +x /usr/local/bin/ngc && \
+    rm -rf /tmp/ngccli.zip /tmp/ngccli
+
 LABEL org.opencontainers.image.version="${RUNNER_VERSION}"
 
 # PyTorch with CUDA 12.6
