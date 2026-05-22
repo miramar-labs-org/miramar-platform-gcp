@@ -110,16 +110,9 @@ else
     --registries="NvidiaDevicePlugin=nvcr.io"
 fi
 
-addon_enabled() {
-  minikube addons list 2>/dev/null | awk -v a="$1" '$1==a {print $2}' | grep -qi '^enabled$'
-}
 for addon in ingress dashboard metrics-server; do
-  if addon_enabled "$addon"; then
-    log "$addon already enabled."
-  else
-    log "Enabling $addon..."
-    minikube addons enable "$addon"
-  fi
+  log "Enabling addon: $addon"
+  minikube addons enable "$addon"
 done
 
 log "Labeling node for NVIDIA GPU scheduling..."
