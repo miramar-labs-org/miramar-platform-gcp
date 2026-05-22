@@ -26,29 +26,18 @@ case "$(uname -m)" in
 esac
 INSTALL_PATH=/usr/local/bin/minikube
 
-# version.txt was removed from GCS; use GitHub Releases API instead
-LATEST=$(curl -fsSL https://api.github.com/repos/kubernetes/minikube/releases/latest \
-  | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+# Use GitHub's /releases/latest/download/ redirect — no version API call needed.
+DOWNLOAD_URL="https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-${ARCH}"
 
 if [[ -x "$INSTALL_PATH" ]]; then
   INSTALLED=$(minikube version --short 2>/dev/null | tr -d '[:space:]')
-  if [[ "$INSTALLED" == "$LATEST" ]]; then
-    echo "==> minikube ${INSTALLED} already installed, nothing to do."
-  else
-    echo "==> Upgrading minikube ${INSTALLED} -> ${LATEST}..."
-    curl -fsSL "https://storage.googleapis.com/minikube/releases/latest/minikube-linux-${ARCH}" \
-      -o /tmp/minikube
-    sudo install -m 0755 /tmp/minikube "$INSTALL_PATH"
-    rm /tmp/minikube
-    echo "==> Installed minikube $(minikube version --short)"
-  fi
+  echo "==> minikube ${INSTALLED} already installed, nothing to do."
 else
-  echo "==> Installing minikube ${LATEST} (${ARCH})..."
-  curl -fsSL "https://storage.googleapis.com/minikube/releases/latest/minikube-linux-${ARCH}" \
-    -o /tmp/minikube
+  echo "==> Installing minikube (${ARCH})..."
+  curl -fsSL "${DOWNLOAD_URL}" -o /tmp/minikube
   sudo install -m 0755 /tmp/minikube "$INSTALL_PATH"
   rm /tmp/minikube
-  echo "==> Installed minikube $(minikube version --short)"
+  echo "==> Installed $(minikube version --short)"
 fi
 
 [[ "$START" == "false" ]] && exit 0
