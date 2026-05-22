@@ -4,15 +4,18 @@ name: MLflow Install
 # cluster and integrates with an existing NeMo Microservices deployment.
 # MLflow uses NeMo's postgres as its backend store.
 #
-# Prerequisites:
-#   - minikube running on the DGX (Minikube Install workflow)
-#   - NeMo Microservices deployed (NeMo Deploy workflow)
+# Triggers automatically after a successful NeMo Deploy run, or manually
+# via workflow_dispatch (NeMo must already be deployed).
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["NeMo Deploy"]
+    types: [completed]
 
 jobs:
   install:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: [self-hosted, dgx]
     timeout-minutes: 30
     steps:
