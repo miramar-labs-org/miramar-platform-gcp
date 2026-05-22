@@ -56,6 +56,15 @@ sudo apt-get install -y --no-install-recommends \
   fastfetch \
   iftop nethogs vnstat
 
+log "Install K8s utils"
+sudo snap install k9s
+sudo apt install -y kubectx
+echo "alias k=kubectl" >> ~/.zshrc
+echo "alias kctx=kubectx" >> ~/.zshrc
+echo "alias kns=kubens" >> ~/.zshrc
+echo 'source <(kubectl completion zsh)' >> ~/.zshrc
+echo 'compdef k=kubectl' >> ~/.zshrc
+
 log "Install tmux plugins"
 if [[ ! -d "$HOME/.tmux/plugins/tpm" ]]; then
   git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
