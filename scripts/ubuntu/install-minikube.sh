@@ -53,12 +53,23 @@ else
   EXTRA_FLAGS=()
   [[ ${EUID:-$(id -u)} -eq 0 ]] && EXTRA_FLAGS+=(--force)
 
-  # Detect stale profile (machine state file exists but Docker container is gone).
-  # This happens when minikube was force-deleted or the container was removed manually.
-  # Purge before starting to avoid "cannot change memory/CPU" and host-creation errors.
-  if minikube profile list 2>/dev/null | grep -q minikube && \
-     ! docker inspect minikube &>/dev/null; then
-    log "Stale minikube profile detected (container gone) — purging..."
+  # Detect stale profile (container gone) or malformed profile (exit code 37).
+  # Both require a purge before starting to avoid host-creation / parse errors.
+  MINIKUBE_NEEDS_PURGE=false
+  if minikube profile list 2>/dev/null | grep -q minikube; then
+    if ! docker inspect minikube &>/dev/null; then
+      log "Stale minikube profile detected (container gone) — purging..."
+      MINIKUBE_NEEDS_PURGE=true
+    else
+      _STATUS_CODE=0
+      minikube status &>/dev/null || _STATUS_CODE=$?
+      if [[ $_STATUS_CODE -eq 37 ]]; then
+        log "Malformed minikube profile detected (exit 37) — purging..."
+        MINIKUBE_NEEDS_PURGE=true
+      fi
+    fi
+  fi
+  if [[ "$MINIKUBE_NEEDS_PURGE" == "true" ]]; then
     minikube delete --all --purge 2>/dev/null || true
   fi
 
@@ -66,11 +77,12 @@ else
   # into ~/.minikube/cache/ (host-mounted, persists across runs) without
   # creating a Docker container. This keeps the 360s createHost window free
   # for actual container creation rather than network downloads.
+  # Non-fatal: if pre-download fails the actual start will download inline.
   log "Pre-downloading minikube assets (no container creation)..."
   minikube start --download-only \
     --driver=docker \
     --container-runtime=docker \
-    "${EXTRA_FLAGS[@]}"
+    "${EXTRA_FLAGS[@]}" || log "Pre-download failed — assets will be fetched during start."
 
   minikube start \
     --driver=docker \
