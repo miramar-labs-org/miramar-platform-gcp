@@ -1,6 +1,6 @@
 name: Minikube Toggle
 
-# Pause or unpause the minikube cluster on the DGX.
+# Pause or unpause the minikube cluster on the DGX host via SSH.
 # Pause freezes all workloads without stopping the cluster — faster to
 # recover than a full stop/start and preserves all in-memory state.
 
@@ -14,21 +14,37 @@ on:
         options:
           - pause
           - resume
+      runner:
+        description: Runner host that can SSH to the DGX
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - wsl2
 
 jobs:
   toggle:
-    runs-on: [self-hosted, dgx]
-    timeout-minutes: 15
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install minikube binary
-        run: bash scripts/ubuntu/install-minikube.sh
-
-      - name: ${{ inputs.action == 'pause' && 'Pause cluster' || 'Resume cluster' }}
+      - name: Prepare SSH key for DGX host
+        shell: bash
         run: |
-          if [[ "${{ inputs.action }}" == "pause" ]]; then
-            minikube pause
-          else
-            minikube unpause
-          fi
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
+          chmod 600 ~/.ssh/dgx_host
+          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: ${{ inputs.action == 'pause' && 'Pause minikube on DGX' || 'Resume minikube on DGX' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/dgx_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            "minikube ${{ inputs.action == 'pause' && 'pause' || 'unpause' }}"
