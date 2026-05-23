@@ -87,6 +87,8 @@ on:
   push:
     branches:
       - my-feature
+    paths:
+      - '.github/workflows/my-workflow.yaml'  # scope to own file — without this, every push triggers every workflow on the branch
   workflow_dispatch:
     inputs:
       distro_name:
@@ -94,7 +96,7 @@ on:
 
 jobs:
   my-job:
-    runs-on: ${{ inputs.runner || 'dgx' }}   # fallback required
+    runs-on: ${{ inputs.runner || 'dgx' }}   # fallback required — push trigger carries no inputs
     steps:
       - run: echo "${{ inputs.distro_name || 'test' }}"  # fallback required
 ```
