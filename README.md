@@ -1,6 +1,6 @@
 # miramar-platform-gcp
 
-GCP infrastructure and CI/CD tooling for the Miramar Labs AI Platform.
+Local/GCP infrastructure and CI/CD tooling for the Miramar Labs AI Platform.
 
 [![Miramar Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml)
 [![Miramar Platform Destroy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-destroy.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-destroy.yaml)
@@ -97,6 +97,9 @@ Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dash
 | Secret | Value | Purpose |
 |---|---|---|
 | `GCP_SERVICE_ACCOUNT` | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops SA — used by platform lifecycle workflows |
+| `DGX_HOST` | hostname or IP of the DGX Spark | SSH target for Ollama Update workflow |
+| `DGX_HOST_USER` | SSH user on the DGX host | SSH login for Ollama Update workflow |
+| `DGX_HOST_SSH_KEY` | Private SSH key (Ed25519 or RSA) | Key used to SSH into the DGX host from the runner |
 
 ### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
 
@@ -153,7 +156,7 @@ Docker automatically pulls the correct variant for the host architecture.
 
 | Category | Packages |
 |---|---|
-| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `gh`, `helm`, `ngc`, `make` |
+| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `gh`, `helm`, `ngc`, `make`, `openssh-client`, `zstd` |
 | PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.6 wheels (amd64: pytorch.org/whl/cu126; arm64: standard PyPI) |
 | HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate`, `datasets` |
 | ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |
@@ -448,9 +451,9 @@ Install the GitHub CLI via apt on Ubuntu/Debian.
 ```
 
 #### [install-ollama.sh](scripts/ubuntu/install-ollama.sh)
-Install or upgrade Ollama on the host. Skips if the installed version is already the latest. Sets up the `ollama` system user and `ollama.service` systemd unit automatically.
+Install or upgrade Ollama on the host. Skips if the installed version is already the latest. Installs `zstd` as a prerequisite, then runs the official Ollama installer which sets up the `ollama` system user and `ollama.service` systemd unit. Designed to be copied to the DGX host via SCP and run remotely by the **Ollama Update** workflow, but also works when run directly.
 ```sh
-./scripts/ubuntu/install-ollama.sh
+sudo ./scripts/ubuntu/install-ollama.sh
 ```
 
 ---
@@ -597,3 +600,35 @@ Actions → Find GPU Capacity → Run workflow
 Optional `region` input narrows the search to a single region (e.g. `us-central1`). Leave blank to scan all US regions.
 
 > Requires `roles/compute.instanceAdmin` on the cluster-ops SA — granted by `bootstrap-miramar-platform.zsh`. Run in the workflow (wsl2 runner) rather than locally if the local account lacks this role.
+
+---
+
+## Ollama
+
+### [Ollama Update](.github/workflows/update-ollama.yaml)
+
+Installs or upgrades Ollama on the DGX host via SSH. The workflow does not run Ollama itself — it runs on a self-hosted runner (`dgx` or `wsl2`, your choice) and SSHes into the DGX host to update it there. Idempotent — if Ollama is already at the latest version, it exits without doing anything.
+
+**How it works:**
+1. Writes `DGX_HOST_SSH_KEY` to `~/.ssh/dgx_host` inside the runner and scans `DGX_HOST` into `known_hosts`
+2. Verifies connectivity (`hostname`, `uname -a`, `nvidia-smi -L`)
+3. Copies `scripts/ubuntu/install-ollama.sh` to `/tmp/install-ollama.sh` on the DGX via SCP
+4. Runs the installer on the DGX as root via SSH
+
+**Inputs:**
+
+| Input | Options | Default | Purpose |
+|---|---|---|---|
+| `runner` | `dgx`, `wsl2` | `dgx` | Which self-hosted runner to use for the SSH connection |
+
+**Required secrets** (repo-level):
+
+| Secret | Purpose |
+|---|---|
+| `DGX_HOST` | Hostname or IP of the DGX Spark |
+| `DGX_HOST_USER` | SSH user on the DGX host |
+| `DGX_HOST_SSH_KEY` | Private SSH key — must match an authorized key on the DGX |
+
+```
+Actions → Ollama Update → Run workflow
+```

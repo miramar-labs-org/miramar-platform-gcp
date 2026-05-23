@@ -52,7 +52,7 @@ wsl2/              # WSL2 host config and bootstrap scripts
 | `scripts/ubuntu/install-gcloud.sh` | Install `gcloud` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-terraform.sh` | Install `terraform` via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-gh.sh` | Install `gh` (GitHub CLI) via apt on Ubuntu/Debian |
-| `scripts/ubuntu/install-ollama.sh` | Install or upgrade Ollama on the host; skips if already at latest version |
+| `scripts/ubuntu/install-ollama.sh` | Install or upgrade Ollama on the host (run as root); installs `zstd` prerequisite; skips if already at latest version. Deployed to DGX via SCP by the **Ollama Update** workflow. |
 | `scripts/gcp/gke/find-gpu-capacity.sh` | Probe actual GPU capacity across all GPU types and zones in parallel. Default scope: all US regions (`us-*`). Pass a region to narrow (`us-central1`). Shows top 5 cheapest options split by [USE NOW] / [REQUEST QUOTA FIRST] with ready-to-use GKE Expand GPU settings. |
 | `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the four DGX systemd user services (minikube, dashboard proxy, JupyterLab, MLflow port-forward). |
 
@@ -116,7 +116,7 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo Microservices, optionally delete namespace |
 | MLflow Install | `install-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrate with NeMo postgres |
 | MLflow Uninstall | `uninstall-mlflow.yaml` | Remove MLflow and MinIO; optional `delete_namespace` input |
-| Ollama Update | `update-ollama.yaml` | Install or upgrade Ollama on selected machine(s) (dgx \| wsl2 \| agx \| all) |
+| Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |
 
 Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
 
