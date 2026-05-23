@@ -1,0 +1,102 @@
+name: WSL2 Unprovision
+
+# Unregisters a WSL2 distro on the Windows laptop (removes it from WSL; does not delete C:\wsl\<name> files).
+# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      distro_name:
+        description: "Name of the WSL2 distro to unregister"
+        required: true
+        default: dev
+      delete_files:
+        description: "Delete the distro folder at C:\\wsl\\<name> after unregistering"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      runner:
+        description: "Runner to SSH from"
+        required: false
+        default: dgx
+        type: choice
+        options:
+          - dgx
+          - agx
+          - wsl2
+
+jobs:
+  unprovision:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Set up SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > ~/.ssh/wsl2_host
+          chmod 600 ~/.ssh/wsl2_host
+          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: List existing WSL distros
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "wsl.exe --list --verbose" || true
+
+      - name: Unregister WSL2 distro
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "wsl.exe --unregister \"${{ inputs.distro_name }}\""
+
+      - name: Delete distro folder
+        if: ${{ inputs.delete_files == 'true' }}
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "powershell -Command \"Remove-Item -Recurse -Force 'C:\\wsl\\${{ inputs.distro_name }}' -ErrorAction SilentlyContinue\""
+
+      - name: List WSL distros after unprovision
+        if: always()
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "wsl.exe --list --verbose" || true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## WSL2 Unprovision"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Distro | \`${{ inputs.distro_name }}\` |"
+            echo "| Files deleted | \`${{ inputs.delete_files }}\` |"
+            echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

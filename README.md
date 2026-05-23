@@ -22,6 +22,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 [![Ollama Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml)
 [![Ollama Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml)
 [![Ollama Update](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml)
+[![WSL2 Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml)
+[![WSL2 Unprovision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml)
 
 ## Platform Overview
 
@@ -771,6 +773,37 @@ Undeploys a NIM via the NeMo deployment API. Safe to run if the NIM is already g
 
 ```
 Actions → NIM Undeploy → Run workflow
+```
+
+## WSL2 Environments (Windows laptop)
+
+WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template.
+
+### [WSL2 Provision](.github/workflows/provision-wsl2.yaml)
+
+Imports a new distro from the template. Requires `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY` secrets.
+
+| Input | Default | Description |
+|---|---|---|
+| `distro_name` | `dev` | Name for the new distro |
+| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`, `wsl2`) |
+
+```
+Actions → WSL2 Provision → distro_name: dev → Run workflow
+```
+
+### [WSL2 Unprovision](.github/workflows/unprovision-wsl2.yaml)
+
+Unregisters a distro. Optionally deletes `C:\wsl\<name>` from disk.
+
+| Input | Default | Description |
+|---|---|---|
+| `distro_name` | `dev` | Name of distro to unregister |
+| `delete_files` | `false` | Delete `C:\wsl\<name>` folder after unregistering |
+| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`, `wsl2`) |
+
+```
+Actions → WSL2 Unprovision → distro_name: dev → Run workflow
 ```
 
 ## Development Workflow

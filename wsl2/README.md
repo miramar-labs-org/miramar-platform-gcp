@@ -1,6 +1,60 @@
-# My WSL Image Configs
+# WSL2 Dev Environments
 
-## Create WSL base image:
+## GHA Workflows
+
+Provision and unprovision WSL2 distros from the configured template tarball via GitHub Actions.
+
+| Workflow | Purpose |
+|---|---|
+| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar` |
+| **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregister a distro; optionally delete the folder at `C:\wsl\<name>` |
+
+```
+Actions → WSL2 Provision   → distro_name: dev
+Actions → WSL2 Unprovision → distro_name: dev  delete_files: false
+```
+
+Both workflows SSH into the Windows laptop from a self-hosted runner (`dgx`, `agx`, or `wsl2`).
+
+### Prerequisites
+
+**1. Enable OpenSSH Server on Windows**
+
+Settings → System → Optional features → Add a feature → OpenSSH Server, then:
+
+```powershell
+Start-Service sshd
+Set-Service -Name sshd -StartupType Automatic
+```
+
+**2. Set PowerShell as the default SSH shell** (so commands are interpreted correctly):
+
+```powershell
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" `
+  -Name DefaultShell `
+  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" `
+  -PropertyType String -Force
+```
+
+**3. Authorize the SSH key**
+
+Add the public key to `C:\Users\<user>\.ssh\authorized_keys`.
+
+**4. Create the template tarball** (one-time, see [Build a configured template](#build-a-configured-template) below).
+
+**5. Set GitHub secrets** (repo or org level):
+
+| Secret | Value |
+|---|---|
+| `WSL2_HOST` | Windows hostname or IP (e.g. `msi-laptop.local`) |
+| `WSL2_HOST_USER` | Windows username |
+| `WSL2_HOST_SSH_KEY` | Private SSH key (PEM format) |
+
+---
+
+# Manual Setup
+
+## Build a configured template
 
         wsl --update
 
