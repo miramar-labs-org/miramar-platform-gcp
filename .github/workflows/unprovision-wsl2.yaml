@@ -68,7 +68,7 @@ jobs:
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "wsl.exe --unregister \"${{ inputs.distro_name || 'test' }}\""
+            "powershell -Command \"wsl.exe --unregister '${{ inputs.distro_name || 'dev' }}'; if (\$LASTEXITCODE -ne 0) { Write-Host 'Distro not found or already removed.' }\""
 
       - name: Delete distro folder
         if: ${{ inputs.delete_files == 'true' }}
