@@ -49,14 +49,42 @@ jobs:
             | sudo tee -a /etc/hosts >/dev/null
           echo "nemo.test → $MINIKUBE_IP"
 
+      - name: Check for Ollama conflict
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
+          chmod 600 ~/.ssh/dgx_host
+          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Ollama runs on the DGX host (not in this container), so SSH to check it
+          loaded=$(ssh -i ~/.ssh/dgx_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            'curl -s --connect-timeout 5 --max-time 10 http://localhost:11434/api/ps \
+             | jq -r ".models[]?.name" 2>/dev/null || true')
+
+          if [[ -n "$loaded" ]]; then
+            echo "::error::An Ollama model is loaded in GPU memory and will conflict with NIM deployment."
+            while IFS= read -r m; do echo "  → $m"; done <<< "$loaded"
+            echo "Run the Ollama Undeploy workflow first, then retry."
+            exit 1
+          fi
+          echo "No Ollama models loaded — clear to deploy NIM."
+
       - name: Undeploy existing NIM if different
         env:
           TARGET_ORG: ${{ inputs.nim_org }}
           TARGET_NAME: ${{ inputs.nim_name }}
         run: |
+          # NeMo API returns {"data":[...]} not {"items":[...]}
           existing=$(curl -s --connect-timeout 5 --max-time 15 \
             http://nemo.test/v1/deployment/model-deployments 2>/dev/null \
-            | jq -r '.items[]? | "\(.namespace) \(.name)"' || true)
+            | jq -r '.data[]? | "\(.namespace) \(.name)"' || true)
 
           if [[ -z "$existing" ]]; then
             echo "No existing NIM deployments found."
