@@ -31,8 +31,9 @@ jobs:
                       print(f"Warning: could not parse {path}: {e}")
                       continue
 
-              on = doc.get('on', {}) or {}
-              if isinstance(on, str):
+              # PyYAML parses bare 'on' as boolean True — check both
+              on = doc.get(True, doc.get('on', {})) or {}
+              if not isinstance(on, dict):
                   continue
               push = on.get('push', {}) or {}
               if not push:
