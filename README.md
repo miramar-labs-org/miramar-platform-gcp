@@ -835,14 +835,20 @@ git branch -d my-feature
 
 `workflow_dispatch` workflows can be run from any branch — useful for validating a fix before merging the PR.
 
-**Use the `gh` CLI** — not the GitHub UI:
+**For changes to existing workflows** — use `gh` CLI with `--ref` to run from your branch:
 
 ```sh
 gh workflow run deploy-ollama.yaml --ref my-feature --field model=llama3.3:70b-instruct-q4_K_M
 gh run watch
 ```
 
-The GitHub Actions UI only lists workflows that exist on the **default branch** (`main`). If a new workflow file lives only on a feature branch, it will not appear in the UI at all — `gh workflow run --ref <branch>` is the only way to trigger it without merging first. This is a known GitHub limitation and the reason the CLI should be preferred for pre-merge testing.
+Or via the GitHub UI: **Actions → [Workflow] → Run workflow → select branch → Run**.
+
+**For new workflow files** — GitHub requires the workflow to exist on `main` before it can be triggered at all (UI or CLI). The `--ref` flag only controls which branch the workflow runs *from*, not where GitHub looks it up. New workflows cannot be pre-merge tested via GitHub Actions. Options:
+
+- **Push directly to `main`** using the admin bypass (`enforce_admins` is off), test, then merge the PR as a code-review formality
+- **Merge the PR first**, test, revert if broken
+- **Use [`act`](https://github.com/nektos/act)** to run workflows locally before pushing
 
 ## Branch Protection
 
