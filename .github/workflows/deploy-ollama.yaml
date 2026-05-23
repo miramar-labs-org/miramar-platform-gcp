@@ -1,0 +1,54 @@
+name: Ollama Deploy
+
+# Pulls an Ollama model and loads it into GPU memory on the DGX Spark.
+# Fails if a NIM or another Ollama model is already using the 128 GB GPU pool.
+# Requires minikube to be running for the NIM conflict check (skipped if not).
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Ollama model tag (e.g. llama3.3:70b-instruct-q4_K_M)"
+        required: false
+        default: llama3.3:70b-instruct-q4_K_M
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare SSH key for DGX host
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
+          chmod 600 ~/.ssh/dgx_host
+          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Check conflicts and deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/dgx_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            bash -s -- "${{ inputs.model }}" \
+            < dgx/ollama/deploy_ollama.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Ollama Deploy"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Model | \`${{ inputs.model }}\` |"
+            echo "| Host | \`${{ secrets.DGX_HOST }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -19,6 +19,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 [![NIM Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nim.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nim.yaml)
 [![MLflow Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-mlflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-mlflow.yaml)
 [![MLflow Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-mlflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-mlflow.yaml)
+[![Ollama Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml)
+[![Ollama Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml)
 [![Ollama Update](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml)
 
 ## Platform Overview
@@ -626,6 +628,31 @@ Optional `region` input narrows the search to a single region (e.g. `us-central1
 ## Ollama
 
 See [dgx/ollama/README.md](dgx/ollama/README.md) for recommended models, pull commands, and curl inference examples.
+
+### [Ollama Deploy](.github/workflows/deploy-ollama.yaml)
+
+Pulls an Ollama model and loads it into GPU memory on the DGX Spark. **Fails with a clear error if a NIM or another Ollama model is already occupying the 128 GB GPU pool** — resolve the conflict first, then retry.
+
+| Input | Default | Description |
+|---|---|---|
+| `model` | `llama3.3:70b-instruct-q4_K_M` | Ollama model tag to pull and load |
+
+```
+Actions → Ollama Deploy → Run workflow
+```
+
+### [Ollama Undeploy](.github/workflows/undeploy-ollama.yaml)
+
+Unloads the active Ollama model from GPU memory. Auto-detects the running model from `ollama ps` if `model` is left blank. Safe to run when no model is loaded (no-op).
+
+| Input | Default | Description |
+|---|---|---|
+| `model` | *(auto-detect)* | Model tag to unload — leave blank to auto-detect |
+| `delete_model` | `false` | Also delete the model from disk (`ollama rm`) |
+
+```
+Actions → Ollama Undeploy → Run workflow
+```
 
 ### [Ollama Update](.github/workflows/update-ollama.yaml)
 
