@@ -5,6 +5,9 @@ name: WSL2 Provision
 # Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
 
 on:
+  push:
+      branches:
+        - wsl2-provision-workflows
   workflow_dispatch:
     inputs:
       distro_name:
@@ -23,7 +26,7 @@ on:
 
 jobs:
   provision:
-    runs-on: ${{ inputs.runner }}
+    runs-on: ${{ inputs.runner || 'dgx' }}
     timeout-minutes: 30
 
     steps:
@@ -73,7 +76,7 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=10 \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "powershell -ExecutionPolicy Bypass -File \"%USERPROFILE%\\wsl-from-tar.ps1\" -Name \"${{ inputs.distro_name }}\""
+            "powershell -ExecutionPolicy Bypass -File \"%USERPROFILE%\\wsl-from-tar.ps1\" -Name \"${{ inputs.distro_name || 'test' }}\""
 
       - name: List WSL distros after provision
         if: always()
