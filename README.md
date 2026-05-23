@@ -833,14 +833,16 @@ git branch -d my-feature
 
 ### Testing workflows before merge
 
-`workflow_dispatch` workflows can be run from any branch — useful for validating a fix before merging the PR:
+`workflow_dispatch` workflows can be run from any branch — useful for validating a fix before merging the PR.
+
+**Use the `gh` CLI** — not the GitHub UI:
 
 ```sh
-# Run a workflow from your feature branch
 gh workflow run deploy-ollama.yaml --ref my-feature --field model=llama3.3:70b-instruct-q4_K_M
+gh run watch
 ```
 
-Or via the GitHub UI: **Actions → [Workflow] → Run workflow → select branch → Run**.
+The GitHub Actions UI only lists workflows that exist on the **default branch** (`main`). If a new workflow file lives only on a feature branch, it will not appear in the UI at all — `gh workflow run --ref <branch>` is the only way to trigger it without merging first. This is a known GitHub limitation and the reason the CLI should be preferred for pre-merge testing.
 
 ## Branch Protection
 
