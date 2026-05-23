@@ -75,7 +75,7 @@ jobs:
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "powershell -Command \"Remove-Item -Recurse -Force 'C:\\wsl\\${{ inputs.distro_name }}' -ErrorAction SilentlyContinue\""
+            "if exist \"C:\\wsl\\${{ inputs.distro_name || 'test' }}\" rd /s /q \"C:\\wsl\\${{ inputs.distro_name || 'test' }}\"" || true
 
       - name: List WSL distros after unprovision
         if: always()
