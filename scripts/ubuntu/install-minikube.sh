@@ -115,6 +115,10 @@ for addon in ingress dashboard metrics-server; do
   minikube addons enable "$addon"
 done
 
+log "Waiting for ingress-nginx controller to be ready..."
+kubectl rollout status deployment/ingress-nginx-controller \
+  -n ingress-nginx --timeout=120s
+
 log "Labeling node for NVIDIA GPU scheduling..."
 kubectl label node minikube feature.node.kubernetes.io/pci-10de.present=true --overwrite
 
