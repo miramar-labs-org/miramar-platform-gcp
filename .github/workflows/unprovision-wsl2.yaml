@@ -4,6 +4,11 @@ name: WSL2 Unprovision
 # Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
 
 on:
+  push:
+    branches:
+      - wsl2-provision-workflows
+    paths:
+      - '.github/workflows/unprovision-wsl2.yaml'
   workflow_dispatch:
     inputs:
       distro_name:
@@ -30,7 +35,7 @@ on:
 
 jobs:
   unprovision:
-    runs-on: ${{ inputs.runner }}
+    runs-on: ${{ inputs.runner || 'dgx' }}
     timeout-minutes: 10
 
     steps:
@@ -63,7 +68,7 @@ jobs:
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "wsl.exe --unregister \"${{ inputs.distro_name }}\""
+            "wsl.exe --unregister \"${{ inputs.distro_name || 'test' }}\""
 
       - name: Delete distro folder
         if: ${{ inputs.delete_files == 'true' }}
