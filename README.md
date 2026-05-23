@@ -798,6 +798,17 @@ git branch -d my-feature
 
 `gh pr merge --squash` merges and deletes the remote branch in one shot. Direct pushes to `main` are blocked by branch protection — PRs are the only path in.
 
+### Testing workflows before merge
+
+`workflow_dispatch` workflows can be run from any branch — useful for validating a fix before merging the PR:
+
+```sh
+# Run a workflow from your feature branch
+gh workflow run deploy-ollama.yaml --ref my-feature --field model=llama3.3:70b-instruct-q4_K_M
+```
+
+Or via the GitHub UI: **Actions → [Workflow] → Run workflow → select branch → Run**.
+
 ## Branch Protection
 
 `main` is protected — all changes must go through a pull request before merging. No approval is required (solo repo), but the PR workflow enforces review discipline and maintains an audit trail.
