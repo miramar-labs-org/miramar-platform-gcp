@@ -23,50 +23,39 @@ fi
 
 # --- Check for NIM conflict ---
 # The minikube Docker network is not routed from the DGX host OS, so we cannot curl
-# the ingress IP directly. Instead: kubectl port-forward to the NeMo API service
-# (kubectl works on the host since ~/.kube/config and ~/.minikube/ are present),
-# with a pod-label check as fallback if the namespace or ingress is not found.
+# the ingress IP directly. Strategy:
+#  1. kubectl port-forward to nemo-deployment-management:8000 and query the API
+#     (NeMo API response uses "data" array, not "items")
+#  2. Fall back to kubectl label selector app.nvidia.com/nim-type=inference if the
+#     namespace or service is unavailable
 log "Checking for active NIM deployments..."
 active_nims=""
 
 if kubectl --context minikube get ns nemo-microservices &>/dev/null 2>&1; then
-  # Find the NeMo API service that backs the nemo.test host in the ingress
-  nemo_svc=$(kubectl --context minikube get ingress -n nemo-microservices -o json 2>/dev/null \
-    | jq -r '
-        .items[].spec.rules[]
-        | select(.host == "nemo.test")
-        | .http.paths[0].backend.service
-        | "\(.name):\(.port.number // .port.name)"
-      ' 2>/dev/null | head -1 || true)
+  pf_port=19871
+  kubectl --context minikube port-forward -n nemo-microservices \
+    svc/nemo-deployment-management "${pf_port}:8000" &>/dev/null &
+  pf_pid=$!
+  sleep 2
 
-  if [[ -n "$nemo_svc" ]]; then
-    svc_name="${nemo_svc%:*}"
-    svc_port="${nemo_svc#*:}"
-    pf_port=19871
+  nim_response=$(curl -s --connect-timeout 5 --max-time 10 \
+    "http://localhost:${pf_port}/v1/deployment/model-deployments" 2>/dev/null || true)
+  kill "$pf_pid" 2>/dev/null || true
+  wait "$pf_pid" 2>/dev/null || true
 
-    kubectl --context minikube port-forward -n nemo-microservices \
-      "svc/${svc_name}" "${pf_port}:${svc_port}" &>/dev/null &
-    pf_pid=$!
-    sleep 2
-
-    nim_response=$(curl -s --connect-timeout 5 --max-time 10 \
-      "http://localhost:${pf_port}/v1/deployment/model-deployments" 2>/dev/null || true)
-    kill "$pf_pid" 2>/dev/null || true
-    wait "$pf_pid" 2>/dev/null || true
-
-    # Any item in the list means a NIM is registered (deploying or ready)
-    nim_count=$(printf '%s' "$nim_response" | jq '.items | length' 2>/dev/null || echo 0)
-    if (( nim_count > 0 )); then
-      active_nims=$(printf '%s' "$nim_response" \
-        | jq -r '.items[] | "\(.namespace // "")/\(.name)"' 2>/dev/null || true)
-    fi
+  # NeMo API returns { "data": [...] } — any entry means a NIM is registered
+  nim_count=$(printf '%s' "$nim_response" | jq '.data | length' 2>/dev/null || echo 0)
+  if (( nim_count > 0 )); then
+    active_nims=$(printf '%s' "$nim_response" \
+      | jq -r '.data[] | "\(.namespace)/\(.name)"' 2>/dev/null || true)
   else
-    # Fallback: check for running pods whose app label matches DGX Spark NIM naming
-    log "NeMo ingress not found — falling back to pod check."
+    # Fallback: pods labelled as NIM inference pods (set by k8s-nim-operator)
     active_nims=$(kubectl --context minikube get pods -n nemo-microservices \
+      -l 'app.nvidia.com/nim-type=inference' \
       --field-selector=status.phase=Running \
-      -o jsonpath='{range .items[*]}{.metadata.labels.app}{"\n"}{end}' \
-      2>/dev/null | grep -v '^$' | grep 'dgx-spark' || true)
+      --no-headers \
+      -o custom-columns='APP:.metadata.labels.app' \
+      2>/dev/null | grep -v '^$' || true)
   fi
 else
   log "nemo-microservices namespace not found — no NIM deployed."
