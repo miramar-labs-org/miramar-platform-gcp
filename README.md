@@ -775,16 +775,12 @@ Actions → NIM Undeploy → Run workflow
 
 ## Branch Protection
 
-`main` is protected — all changes must go through a pull request with **1 approval** before merging.
+`main` is protected — all changes must go through a pull request before merging. No approval is required (solo repo), but the PR workflow enforces review discipline and maintains an audit trail.
 
 - Direct pushes to `main` are blocked
 - Force pushes are blocked
 - Approvals are dismissed when new commits are pushed (stale review dismissal)
-- The `enforce_admins` flag is off — org admins can merge without approval if needed in an emergency
-
-### AI code review
-
-Consider installing [CodeRabbit](https://coderabbit.ai) or enabling [GitHub Copilot code review](https://docs.github.com/en/copilot/using-github-copilot/code-review/using-copilot-code-review) to act as the required approver on solo PRs. Both integrate as GitHub Apps and can auto-approve when they find no issues.
+- The `enforce_admins` flag is off — org admins can merge without a PR if needed in an emergency
 
 ### Remove protection
 
@@ -803,7 +799,7 @@ gh api repos/miramar-labs-org/miramar-platform-gcp/branches/main/protection \
   "required_status_checks": null,
   "enforce_admins": false,
   "required_pull_request_reviews": {
-    "required_approving_review_count": 1,
+    "required_approving_review_count": 0,
     "dismiss_stale_reviews": true,
     "require_code_owner_reviews": false
   },
