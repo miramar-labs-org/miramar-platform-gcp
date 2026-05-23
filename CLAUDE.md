@@ -111,7 +111,7 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probes all GPU types and zones in parallel; shows top 5 cheapest options split by [USE NOW] vs [REQUEST QUOTA FIRST] with exact settings for GKE Expand GPU |
 | Minikube Install | `install-minikube.yaml` | Install minikube on DGX host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` secret |
 | Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove minikube binary from DGX host |
-| Minikube Toggle | `toggle-minikube.yaml` | Pause or resume workloads (input: `pause` \| `resume`) |
+| Minikube Toggle | `toggle-minikube.yaml` | SSH to DGX host and run `minikube pause` / `minikube unpause`. Inputs: `action` (`pause` \| `resume`), `runner` (`dgx` \| `wsl2`, default: `dgx`) |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices + Volcano via Helm on the DGX minikube cluster; triggers MLflow Deploy on success |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; input: `delete_namespace` (bool, default true) |
 | NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via the NeMo deployment API; swaps any different running NIM first. Inputs: `nim_name` (default: `nvidia-nemotron-nano-9b-v2-dgx-spark`), `nim_org` (default: `nvidia`), `image_tag` (default: `1.0.0-variant`) |
