@@ -15,8 +15,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 [![Minikube Toggle](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/toggle-minikube.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/toggle-minikube.yaml)
 [![NeMo Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nemo.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nemo.yaml)
 [![NeMo Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nemo.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nemo.yaml)
-[![MLflow Install](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/install-mlflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/install-mlflow.yaml)
-[![MLflow Uninstall](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/uninstall-mlflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/uninstall-mlflow.yaml)
+[![MLflow Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-mlflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-mlflow.yaml)
+[![MLflow Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-mlflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-mlflow.yaml)
 [![Ollama Update](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml)
 
 ## Platform Overview

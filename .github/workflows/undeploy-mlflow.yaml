@@ -1,23 +1,15 @@
-name: MLflow Install
+name: MLflow Undeploy
 
-# Deploys MLflow + MinIO into the mlflow-system namespace on the DGX minikube
-# cluster and integrates with an existing NeMo Microservices deployment.
-# MLflow uses NeMo's postgres as its backend store.
-#
-# Triggers automatically after a successful NeMo Deploy run, or manually
-# via workflow_dispatch (NeMo must already be deployed).
+# Removes MLflow and MinIO from the mlflow-system namespace,
+# then deletes the namespace entirely.
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["NeMo Deploy"]
-    types: [completed]
 
 jobs:
-  install:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+  undeploy:
     runs-on: [self-hosted, dgx]
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -35,5 +27,7 @@ jobs:
       - name: Verify cluster access
         run: kubectl get nodes
 
-      - name: Deploy MLflow and integrate with NeMo
-        run: bash dgx/minikube/mlflow/integrate-mlflow.sh
+      - name: Destroy MLflow and MinIO
+        env:
+          DELETE_NS: "true"
+        run: bash dgx/minikube/mlflow/destroy-mlflow.sh

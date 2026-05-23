@@ -114,8 +114,8 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Minikube Toggle | `toggle-minikube.yaml` | Pause or resume workloads (input: `pause` \| `resume`) |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices via Helm on the DGX minikube cluster |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo Microservices, optionally delete namespace |
-| MLflow Install | `install-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrate with NeMo postgres |
-| MLflow Uninstall | `uninstall-mlflow.yaml` | Remove MLflow and MinIO; optional `delete_namespace` input |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrate with NeMo postgres |
+| MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow and MinIO; always deletes mlflow-system namespace |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |
 
 Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
