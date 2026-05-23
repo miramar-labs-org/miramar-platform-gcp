@@ -22,6 +22,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 [![Ollama Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml)
 [![Ollama Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml)
 [![Ollama Update](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/update-ollama.yaml)
+[![WSL2 Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml)
+[![WSL2 Unprovision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml)
 
 ## Platform Overview
 
@@ -773,75 +775,37 @@ Undeploys a NIM via the NeMo deployment API. Safe to run if the NIM is already g
 Actions → NIM Undeploy → Run workflow
 ```
 
-## Development Workflow
+## WSL2 Environments (Windows laptop)
 
-```sh
-# 1. Create a branch off main
-git checkout -b my-feature
+WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template.
 
-# 2. Make changes, commit
-git add <files>
-git commit -m "..."
+### [WSL2 Provision](.github/workflows/provision-wsl2.yaml)
 
-# 3. Push and open a PR
-git push -u origin my-feature
-gh pr create --title "..." --body "..."
+Imports a new distro from the template. Requires `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY` secrets.
 
-# 4. Merge and clean up
-gh pr merge --squash --delete-branch
+| Input | Default | Description |
+|---|---|---|
+| `distro_name` | `dev` | Name for the new distro |
+| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`, `wsl2`) |
 
-# 5. Sync local main
-git checkout main
-git pull
-git branch -d my-feature
+```
+Actions → WSL2 Provision → distro_name: dev → Run workflow
 ```
 
-`gh pr merge --squash` merges and deletes the remote branch in one shot. Direct pushes to `main` are blocked by branch protection — PRs are the only path in.
+### [WSL2 Unprovision](.github/workflows/unprovision-wsl2.yaml)
 
-### Testing workflows before merge
+Unregisters a distro. Optionally deletes `C:\wsl\<name>` from disk.
 
-`workflow_dispatch` workflows can be run from any branch — useful for validating a fix before merging the PR:
+| Input | Default | Description |
+|---|---|---|
+| `distro_name` | `dev` | Name of distro to unregister |
+| `delete_files` | `false` | Delete `C:\wsl\<name>` folder after unregistering |
+| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`, `wsl2`) |
 
-```sh
-# Run a workflow from your feature branch
-gh workflow run deploy-ollama.yaml --ref my-feature --field model=llama3.3:70b-instruct-q4_K_M
+```
+Actions → WSL2 Unprovision → distro_name: dev → Run workflow
 ```
 
-Or via the GitHub UI: **Actions → [Workflow] → Run workflow → select branch → Run**.
+## Contributing
 
-## Branch Protection
-
-`main` is protected — all changes must go through a pull request before merging. No approval is required (solo repo), but the PR workflow enforces review discipline and maintains an audit trail.
-
-- Direct pushes to `main` are blocked
-- Force pushes are blocked
-- Approvals are dismissed when new commits are pushed (stale review dismissal)
-- The `enforce_admins` flag is off — org admins (and Claude Code, which runs as the org owner) can push directly to `main` and merge without a PR. Set `enforce_admins: true` to enforce the PR workflow for everyone without exception
-
-### Remove protection
-
-```sh
-gh api repos/miramar-labs-org/miramar-platform-gcp/branches/main/protection --method DELETE
-```
-
-### Re-apply protection
-
-```sh
-gh api repos/miramar-labs-org/miramar-platform-gcp/branches/main/protection \
-  --method PUT \
-  --header "Content-Type: application/json" \
-  --input - <<'EOF'
-{
-  "required_status_checks": null,
-  "enforce_admins": false,
-  "required_pull_request_reviews": {
-    "required_approving_review_count": 0,
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": false
-  },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false
-}
-EOF
-```
+Branch workflow, PR process, testing strategies, branch protection commands, and secrets setup: see [DEVELOPER.md](DEVELOPER.md).

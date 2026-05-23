@@ -1,0 +1,101 @@
+name: WSL2 Provision
+
+# Creates a new WSL2 distro on the Windows laptop from the configured template tarball.
+# Prerequisites: OpenSSH Server enabled on Windows; template tar at C:\wsl-templates\ubuntu-22.04-configured-template.tar
+# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      distro_name:
+        description: "Name for the new WSL2 distro"
+        required: true
+        default: dev
+      runner:
+        description: "Runner to SSH from"
+        required: false
+        default: dgx
+        type: choice
+        options:
+          - dgx
+          - agx
+          - wsl2
+
+jobs:
+  provision:
+    runs-on: ${{ inputs.runner || 'dgx' }}
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > ~/.ssh/wsl2_host
+          chmod 600 ~/.ssh/wsl2_host
+          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: List existing WSL distros
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "wsl.exe --list --verbose" || true
+
+      - name: Copy provisioning script to Windows host
+        shell: bash
+        run: |
+          scp -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            wsl2/wsl-from-tar.ps1 \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}:wsl-from-tar.ps1"
+
+      - name: Provision WSL2 distro
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "powershell -ExecutionPolicy Bypass -File \"%USERPROFILE%\\wsl-from-tar.ps1\" -Name \"${{ inputs.distro_name || 'test' }}\""
+
+      - name: List WSL distros after provision
+        if: always()
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "wsl.exe --list --verbose" || true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## WSL2 Provision"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Distro | \`${{ inputs.distro_name }}\` |"
+            echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
+            echo "| Template | \`C:\\wsl-templates\\ubuntu-22.04-configured-template.tar\` |"
+            echo "| Install path | \`C:\\wsl\\${{ inputs.distro_name }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
