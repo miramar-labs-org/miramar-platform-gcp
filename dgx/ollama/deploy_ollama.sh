@@ -22,25 +22,63 @@ if ! curl -sf --connect-timeout 5 --max-time 10 \
 fi
 
 # --- Check for NIM conflict ---
+# The minikube Docker network is not routed from the DGX host OS, so we cannot curl
+# the ingress IP directly. Instead: kubectl port-forward to the NeMo API service
+# (kubectl works on the host since ~/.kube/config and ~/.minikube/ are present),
+# with a pod-label check as fallback if the namespace or ingress is not found.
 log "Checking for active NIM deployments..."
-MINIKUBE_IP=$(minikube ip 2>/dev/null || true)
-if [[ -n "$MINIKUBE_IP" ]]; then
-  nim_response=$(curl -s --connect-timeout 5 --max-time 10 \
-    -H "Host: nemo.test" \
-    "http://${MINIKUBE_IP}/v1/deployment/model-deployments" 2>/dev/null || true)
-  active_nims=$(printf '%s' "$nim_response" \
-    | jq -r '.items[]? | select(.status_details.status == "ready") | "\(.namespace)/\(.name)"' \
-    2>/dev/null || true)
-  if [[ -n "$active_nims" ]]; then
-    err "A NIM is currently deployed and holds GPU memory on the shared 128 GB pool:"
-    while IFS= read -r nim; do err "  → $nim"; done <<< "$active_nims"
-    warn "Run the NIM Undeploy workflow first, then retry."
-    CONFLICT=1
+active_nims=""
+
+if kubectl --context minikube get ns nemo-microservices &>/dev/null 2>&1; then
+  # Find the NeMo API service that backs the nemo.test host in the ingress
+  nemo_svc=$(kubectl --context minikube get ingress -n nemo-microservices -o json 2>/dev/null \
+    | jq -r '
+        .items[].spec.rules[]
+        | select(.host == "nemo.test")
+        | .http.paths[0].backend.service
+        | "\(.name):\(.port.number // .port.name)"
+      ' 2>/dev/null | head -1 || true)
+
+  if [[ -n "$nemo_svc" ]]; then
+    svc_name="${nemo_svc%:*}"
+    svc_port="${nemo_svc#*:}"
+    pf_port=19871
+
+    kubectl --context minikube port-forward -n nemo-microservices \
+      "svc/${svc_name}" "${pf_port}:${svc_port}" &>/dev/null &
+    pf_pid=$!
+    sleep 2
+
+    nim_response=$(curl -s --connect-timeout 5 --max-time 10 \
+      "http://localhost:${pf_port}/v1/deployment/model-deployments" 2>/dev/null || true)
+    kill "$pf_pid" 2>/dev/null || true
+    wait "$pf_pid" 2>/dev/null || true
+
+    # Any item in the list means a NIM is registered (deploying or ready)
+    nim_count=$(printf '%s' "$nim_response" | jq '.items | length' 2>/dev/null || echo 0)
+    if (( nim_count > 0 )); then
+      active_nims=$(printf '%s' "$nim_response" \
+        | jq -r '.items[] | "\(.namespace // "")/\(.name)"' 2>/dev/null || true)
+    fi
   else
-    log "No active NIM deployments."
+    # Fallback: check for running pods whose app label matches DGX Spark NIM naming
+    log "NeMo ingress not found — falling back to pod check."
+    active_nims=$(kubectl --context minikube get pods -n nemo-microservices \
+      --field-selector=status.phase=Running \
+      -o jsonpath='{range .items[*]}{.metadata.labels.app}{"\n"}{end}' \
+      2>/dev/null | grep -v '^$' | grep 'dgx-spark' || true)
   fi
 else
-  log "Minikube not running — skipping NIM conflict check."
+  log "nemo-microservices namespace not found — no NIM deployed."
+fi
+
+if [[ -n "$active_nims" ]]; then
+  err "A NIM is currently deployed and holds GPU memory on the shared 128 GB pool:"
+  while IFS= read -r nim; do err "  → $nim"; done <<< "$active_nims"
+  warn "Run the NIM Undeploy workflow first, then retry."
+  CONFLICT=1
+else
+  log "No active NIM deployments."
 fi
 
 # --- Check for Ollama model already loaded ---
