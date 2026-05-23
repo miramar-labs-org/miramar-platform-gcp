@@ -39,6 +39,16 @@ jobs:
       - name: Verify cluster access
         run: kubectl get nodes
 
+      - name: Set up /etc/hosts for NeMo endpoints
+        run: |
+          MINIKUBE_IP=$(kubectl get node minikube \
+            -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+          sudo sed -i '/nemo\.test/d' /etc/hosts || true
+          sudo sed -i '/nim\.test/d'  /etc/hosts || true
+          printf '%s nemo.test\n%s nim.test\n' "$MINIKUBE_IP" "$MINIKUBE_IP" \
+            | sudo tee -a /etc/hosts >/dev/null
+          echo "nemo.test → $MINIKUBE_IP"
+
       - name: Undeploy existing NIM if different
         env:
           TARGET_ORG: ${{ inputs.nim_org }}

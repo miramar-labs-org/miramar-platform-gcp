@@ -7,7 +7,7 @@ warn() { printf "\033[1;33m[WARN]\033[0m %b\n" "$*"; }
 err() { printf "\033[1;31m[ERROR]\033[0m %b\n" "$*" >&2; }
 suggest_fix() { printf "\033[1;36m[SUGGESTION]\033[0m %b\n" "$*"; }
 die() {
-  show_help
+  declare -f show_help >/dev/null 2>&1 && show_help
   err "$*"
   echo
   exit 1
