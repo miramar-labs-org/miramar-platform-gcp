@@ -816,7 +816,7 @@ Or via the GitHub UI: **Actions → [Workflow] → Run workflow → select branc
 - Direct pushes to `main` are blocked
 - Force pushes are blocked
 - Approvals are dismissed when new commits are pushed (stale review dismissal)
-- The `enforce_admins` flag is off — org admins can merge without a PR if needed in an emergency
+- The `enforce_admins` flag is off — org admins (and Claude Code, which runs as the org owner) can push directly to `main` and merge without a PR. Set `enforce_admins: true` to enforce the PR workflow for everyone without exception
 
 ### Remove protection
 
