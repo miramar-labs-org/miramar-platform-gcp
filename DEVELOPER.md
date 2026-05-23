@@ -111,6 +111,16 @@ Merge the PR first, then test on main. Revert with another PR if broken.
 
 [`act`](https://github.com/nektos/act) runs GitHub Actions workflows locally using Docker. No push needed.
 
+## PR checks
+
+`pr-checks.yaml` runs automatically on every PR to `main` via a `pull_request` trigger. It currently checks:
+
+- **No feature-branch push triggers** — fails if any workflow file has a `push` trigger scoped to a non-main branch
+
+`pull_request` triggered workflows behave differently from `workflow_dispatch` — they run from the **PR branch HEAD**, not from `main`. This means a new `pull_request` workflow added on a feature branch will run correctly on that branch's own PR, without needing to be on `main` first.
+
+> **PyYAML gotcha:** In YAML, bare `on` is parsed as the boolean `True` (not the string `"on"`). Any tooling that parses GitHub Actions workflow files with PyYAML must use `doc.get(True, doc.get('on', {}))` to read the trigger block.
+
 ## Setting secrets
 
 ```sh
