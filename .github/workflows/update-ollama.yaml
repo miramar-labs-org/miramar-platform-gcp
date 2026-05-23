@@ -2,10 +2,19 @@ name: Ollama Update
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: Runner host that can SSH to the DGX
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - wsl2
 
 jobs:
   update:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 10
 
     steps:
