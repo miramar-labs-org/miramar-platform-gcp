@@ -687,7 +687,7 @@ Actions → NeMo Deploy → Run workflow
 
 ### [NeMo Undeploy](.github/workflows/undeploy-nemo.yaml)
 
-Uninstalls the NeMo Helm release, removes Volcano and its `volcano-system` namespace, and cleans up `/etc/hosts` entries. Optionally deletes the `nemo-microservices` namespace (default: true).
+Uninstalls the NeMo Helm release, removes Volcano and its `volcano-system` namespace, and cleans up `/etc/hosts` entries. Explicitly deletes the postgres PVCs before uninstall so the next NeMo deploy always initialises a fresh database — preventing password drift between the Kubernetes secret and the on-disk data. Optionally deletes the `nemo-microservices` namespace (default: true).
 
 | Input | Default | Description |
 |---|---|---|

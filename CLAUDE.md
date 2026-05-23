@@ -113,10 +113,10 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove minikube binary from DGX host |
 | Minikube Toggle | `toggle-minikube.yaml` | SSH to DGX host and run `minikube pause` / `minikube unpause`. Inputs: `action` (`pause` \| `resume`), `runner` (`dgx` \| `wsl2`, default: `dgx`) |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices + Volcano via Helm on the DGX minikube cluster; triggers MLflow Deploy on success |
-| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; input: `delete_namespace` (bool, default true) |
+| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs before uninstall to prevent password drift on redeploy; input: `delete_namespace` (bool, default true) |
 | NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via the NeMo deployment API; swaps any different running NIM first. Inputs: `nim_name` (default: `nvidia-nemotron-nano-9b-v2-dgx-spark`), `nim_org` (default: `nvidia`), `image_tag` (default: `1.0.0-variant`) |
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy a NIM via the NeMo deployment API; 404 is a no-op. Inputs: `nim_name`, `nim_org` |
-| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrate with NeMo postgres. Auto-triggered by NeMo Deploy. |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrates with NeMo postgres via pg_hba.conf trust bootstrap (no superuser password needed). Auto-triggered by NeMo Deploy. |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow and MinIO; always deletes mlflow-system namespace |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |
 
