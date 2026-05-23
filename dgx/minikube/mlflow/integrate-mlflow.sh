@@ -55,17 +55,22 @@ kubectl -n "${NEMO_NS}" get svc nemo-postgresql >/dev/null 2>&1 || die "Service 
 PG_POD="$(kubectl -n "${NEMO_NS}" get pods --no-headers | awk '$1 ~ /^nemo-postgresql/ {print $1; exit}')"
 [[ -n "${PG_POD}" ]] || die "Could not find a pod starting with nemo-postgresql in ${NEMO_NS}"
 
+# Read the postgres superuser password from the pod's own environment —
+# always in sync with what the running PostgreSQL instance has, regardless
+# of which secret key Bitnami chose to use.
+PG_ADMIN_PW="$(kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- bash -c 'printf "%s" "${POSTGRES_PASSWORD}"')"
+[[ -n "${PG_ADMIN_PW}" ]] || die "Could not read POSTGRES_PASSWORD from pod ${PG_POD}"
+
 # ---- Ensure namespace for MLflow/MinIO ----
 log "Ensuring namespace ${MLFLOW_NS} exists"
 kubectl get ns "${MLFLOW_NS}" >/dev/null 2>&1 || kubectl create ns "${MLFLOW_NS}" >/dev/null
 
 # ---- Create MLflow DB + user inside NeMo Postgres (via kubectl exec) ----
-# Uses the unix socket inside the pod — no password extraction needed.
 log "Creating/ensuring DB '${MLFLOW_DB_NAME}' and user '${MLFLOW_DB_USER}' in NeMo Postgres"
 
 pg_exec() {
   kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- \
-    psql -U postgres -v ON_ERROR_STOP=1 -Atqc "$1"
+    bash -c "PGPASSWORD='${PG_ADMIN_PW}' psql -U postgres -v ON_ERROR_STOP=1 -Atqc '$1'"
 }
 
 role_exists="$(pg_exec "SELECT 1 FROM pg_roles WHERE rolname='${MLFLOW_DB_USER}'")"
