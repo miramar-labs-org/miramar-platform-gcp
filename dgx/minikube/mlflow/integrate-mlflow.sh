@@ -58,8 +58,8 @@ PG_POD="$(kubectl -n "${NEMO_NS}" get pods --no-headers | awk '$1 ~ /^nemo-postg
 # Read the postgres superuser password from the pod's own environment —
 # always in sync with what the running PostgreSQL instance has, regardless
 # of which secret key Bitnami chose to use.
-PG_ADMIN_PW="$(kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- bash -c 'printf "%s" "${POSTGRES_PASSWORD}"')"
-[[ -n "${PG_ADMIN_PW}" ]] || die "Could not read POSTGRES_PASSWORD from pod ${PG_POD}"
+PG_ADMIN_PW="$(kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- bash -c 'printf "%s" "${POSTGRES_POSTGRES_PASSWORD}"')"
+[[ -n "${PG_ADMIN_PW}" ]] || die "Could not read POSTGRES_POSTGRES_PASSWORD from pod ${PG_POD}"
 
 # ---- Ensure namespace for MLflow/MinIO ----
 log "Ensuring namespace ${MLFLOW_NS} exists"
