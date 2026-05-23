@@ -75,7 +75,7 @@ wait_for_nim() {
   local nim_label_selector="app=$nim_name"
   local nim_api_url="http://nemo.test/v1/deployment/model-deployments/$nim_api_namespace/$nim_name"
 
-  log "Waiting for $nim_name NIM to reach READY status (up to 30 minutes)... Press Ctrl+C to exit early."
+  log "Waiting for $nim_name NIM to reach READY status (up to 5 hours)... Press Ctrl+C to exit early."
 
   local old_err_trap
   old_err_trap=$(trap -p ERR)
@@ -83,7 +83,7 @@ wait_for_nim() {
 
   local start_time end_time
   start_time=$(date +%s)
-  end_time=$((start_time + 3600))
+  end_time=$((start_time + 18000))
 
   while true; do
     local nim_pod_statuses
@@ -160,7 +160,7 @@ wait_for_nim() {
     local current_time
     current_time=$(date +%s)
     if (( current_time >= end_time )); then
-      err "Timeout waiting for $nim_name NIM to reach READY state after 30 minutes."
+      err "Timeout waiting for $nim_name NIM to reach READY state after 5 hours."
       warn "Gathering final diagnostics for $nim_name pods (if any exist)..."
       local final_pods=()
       mapfile -t final_pods < <(kubectl get pods -n "$NAMESPACE" -l "$nim_label_selector" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null || true)

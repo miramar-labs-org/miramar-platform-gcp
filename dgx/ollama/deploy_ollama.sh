@@ -96,7 +96,7 @@ ollama pull "$MODEL"
 
 # --- Load into GPU memory ---
 log "Loading $MODEL into GPU memory (keep_alive=-1 = permanent until undeployed)..."
-curl -sf --connect-timeout 10 --max-time 300 \
+curl -sf --connect-timeout 10 --max-time 600 \
   -X POST http://localhost:11434/api/generate \
   -H "Content-Type: application/json" \
   -d "{\"model\":\"${MODEL}\",\"keep_alive\":-1}" \
