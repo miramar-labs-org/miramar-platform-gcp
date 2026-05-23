@@ -114,6 +114,8 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Minikube Toggle | `toggle-minikube.yaml` | Pause or resume workloads (input: `pause` \| `resume`) |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices via Helm on the DGX minikube cluster |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo Microservices, optionally delete namespace |
+| NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via the NeMo deployment API; swaps out any different running NIM first. Inputs: `nim_name` (default: `nvidia-nemotron-nano-9b-v2-dgx-spark`), `nim_org` (default: `nvidia`), `image_tag` (default: `1.0.0-variant`) |
+| NIM Undeploy | `undeploy-nim.yaml` | Undeploy a NIM via the NeMo deployment API; no-op if already gone. Inputs: `nim_name`, `nim_org` |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrate with NeMo postgres |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow and MinIO; always deletes mlflow-system namespace |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |

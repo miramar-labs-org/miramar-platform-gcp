@@ -1,0 +1,54 @@
+name: NIM Undeploy
+
+# Undeploys a NIM from the DGX minikube cluster via the NeMo Microservices deployment API.
+# NeMo Microservices must be running. Safe to run if the NIM is already gone (404 → no-op).
+
+on:
+  workflow_dispatch:
+    inputs:
+      nim_name:
+        description: "NIM model name (e.g. nvidia-nemotron-nano-9b-v2-dgx-spark)"
+        required: false
+        default: nvidia-nemotron-nano-9b-v2-dgx-spark
+      nim_org:
+        description: "NIM org / NGC namespace (e.g. nvidia, meta)"
+        required: false
+        default: nvidia
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Undeploy NIM
+        env:
+          NIM_ORG: ${{ inputs.nim_org }}
+          NIM_NAME: ${{ inputs.nim_name }}
+        run: |
+          # shellcheck source=dgx/minikube/nim/undeploy_nim.sh
+          source dgx/minikube/nim/undeploy_nim.sh
+          undeploy_nim "$NIM_ORG" "$NIM_NAME"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## NIM Undeploy"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| NIM | \`${{ inputs.nim_org }}/${{ inputs.nim_name }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

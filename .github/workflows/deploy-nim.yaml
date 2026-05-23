@@ -1,0 +1,86 @@
+name: NIM Deploy
+
+# Deploys a NIM on the DGX minikube cluster via the NeMo Microservices deployment API.
+# If a different NIM is already deployed it is undeployed first.
+# NeMo Microservices must be running before triggering this workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      nim_name:
+        description: "NIM model name (e.g. nvidia-nemotron-nano-9b-v2-dgx-spark)"
+        required: false
+        default: nvidia-nemotron-nano-9b-v2-dgx-spark
+      nim_org:
+        description: "NIM org / NGC namespace (e.g. nvidia, meta)"
+        required: false
+        default: nvidia
+      image_tag:
+        description: "NIM image tag"
+        required: false
+        default: "1.0.0-variant"
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Undeploy existing NIM if different
+        env:
+          TARGET_ORG: ${{ inputs.nim_org }}
+          TARGET_NAME: ${{ inputs.nim_name }}
+        run: |
+          existing=$(curl -s --connect-timeout 5 --max-time 15 \
+            http://nemo.test/v1/deployment/model-deployments 2>/dev/null \
+            | jq -r '.items[]? | "\(.namespace) \(.name)"' || true)
+
+          if [[ -z "$existing" ]]; then
+            echo "No existing NIM deployments found."
+          else
+            while IFS=' ' read -r org name; do
+              [[ -z "$org" || -z "$name" ]] && continue
+              if [[ "$org/$name" != "$TARGET_ORG/$TARGET_NAME" ]]; then
+                echo "Undeploying existing NIM: $org/$name"
+                # shellcheck source=dgx/minikube/nim/undeploy_nim.sh
+                source dgx/minikube/nim/undeploy_nim.sh
+                undeploy_nim "$org" "$name"
+              else
+                echo "Target NIM $org/$name already registered — will redeploy."
+              fi
+            done <<< "$existing"
+          fi
+
+      - name: Deploy NIM
+        env:
+          NIM_ORG: ${{ inputs.nim_org }}
+          NIM_NAME: ${{ inputs.nim_name }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          # shellcheck source=dgx/minikube/nim/deploy_nim.sh
+          source dgx/minikube/nim/deploy_nim.sh
+          deploy_nim "$NIM_ORG" "$NIM_NAME" "$IMAGE_TAG"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## NIM Deploy"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| NIM | \`${{ inputs.nim_org }}/${{ inputs.nim_name }}\` |"
+            echo "| Image tag | \`${{ inputs.image_tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
