@@ -59,17 +59,6 @@ jobs:
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "wsl.exe --list --verbose" || true
 
-      - name: Shutdown WSL
-        shell: bash
-        run: |
-          ssh -i ~/.ssh/wsl2_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o PreferredAuthentications=publickey \
-            -o PasswordAuthentication=no \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "wsl.exe --shutdown" || true
-
       - name: Unregister WSL2 distro
         shell: bash
         run: |
