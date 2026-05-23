@@ -32,40 +32,10 @@ jobs:
 
           ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Verify DGX host target
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ssh -i ~/.ssh/dgx_host \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
-            'hostname; uname -a; command -v nvidia-smi >/dev/null && nvidia-smi -L || true'
-
-      - name: Copy Ollama installer to DGX host
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          scp -i ~/.ssh/dgx_host \
-            scripts/ubuntu/install-ollama.sh \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}:/tmp/install-ollama.sh"
-
-      - name: Debug install environment
-        run: |
-          echo "hostname=$(hostname)"
-          echo "whoami=$(whoami)"
-          echo "uname=$(uname -a)"
-          echo "PATH=$PATH"
-          echo "zstd=$(command -v zstd || true)"
-          zstd --version || true
-          echo "ollama=$(command -v ollama || true)"
-          ls -l /usr/bin/zstd /usr/local/bin/zstd 2>/dev/null || true
-
       - name: Install / upgrade Ollama on DGX host
         shell: bash
         run: |
           set -euo pipefail
 
-          ssh -i ~/.ssh/dgx_host \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
-            'chmod +x /tmp/install-ollama.sh && sudo /tmp/install-ollama.sh'
+          ssh -i ~/.ssh/dgx_host "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            'sudo bash -s' < scripts/ubuntu/install-ollama.sh
