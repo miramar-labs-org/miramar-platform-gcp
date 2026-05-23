@@ -115,8 +115,8 @@ for attempt in $(seq 1 $MAX_PULL_ATTEMPTS); do
 done
 
 # Verify the model actually landed — ollama pull can exit 0 on partial failures
-if ! ollama list 2>/dev/null | grep -q "^${MODEL%%:*}"; then
-  err "Model $MODEL not found in 'ollama list' after pull — download may be incomplete."
+if ! ollama show "$MODEL" &>/dev/null; then
+  err "Model $MODEL not found after pull — download may be incomplete."
   err "Run: ollama list"
   exit 1
 fi
