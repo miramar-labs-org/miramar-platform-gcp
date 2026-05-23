@@ -91,8 +91,35 @@ if (( CONFLICT )); then
 fi
 
 # --- Pull model ---
-log "Pulling $MODEL (no-op if already on disk)..."
-ollama pull "$MODEL"
+# Retry up to 3 times: Ollama downloads from Cloudflare R2 and DNS resolution
+# for that CDN hostname can transiently fail ("server misbehaving" from
+# systemd-resolved), causing the pull to fail after ~10 minutes of retries.
+# Each failed attempt exits non-zero — catch it explicitly and retry with backoff
+# so the error is visible rather than silently killing the script via pipefail.
+MAX_PULL_ATTEMPTS=3
+for attempt in $(seq 1 $MAX_PULL_ATTEMPTS); do
+  log "Pulling $MODEL (attempt $attempt/$MAX_PULL_ATTEMPTS)..."
+  if ollama pull "$MODEL"; then
+    break
+  fi
+  if (( attempt == MAX_PULL_ATTEMPTS )); then
+    err "ollama pull failed after $MAX_PULL_ATTEMPTS attempts."
+    err "Last error is above. Common cause: transient DNS failure for Cloudflare R2."
+    warn "Diagnostics:"
+    warn "  curl -sv https://ollama.com 2>&1 | grep -E 'Host|Connected|SSL'"
+    warn "  sudo resolvectl flush-caches && sudo systemctl restart systemd-resolved"
+    exit 1
+  fi
+  warn "Pull attempt $attempt failed — retrying in 60s..."
+  sleep 60
+done
+
+# Verify the model actually landed — ollama pull can exit 0 on partial failures
+if ! ollama list 2>/dev/null | grep -q "^${MODEL%%:*}"; then
+  err "Model $MODEL not found in 'ollama list' after pull — download may be incomplete."
+  err "Run: ollama list"
+  exit 1
+fi
 
 # --- Load into GPU memory ---
 log "Loading $MODEL into GPU memory (keep_alive=-1 = permanent until undeployed)..."

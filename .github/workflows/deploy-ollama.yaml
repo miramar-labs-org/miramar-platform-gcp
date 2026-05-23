@@ -38,6 +38,8 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=20 \
             "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
             bash -s -- "${{ inputs.model }}" \
             < dgx/ollama/deploy_ollama.sh
