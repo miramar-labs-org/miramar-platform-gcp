@@ -1,16 +1,10 @@
 name: MLflow Uninstall
 
-# Removes MLflow and MinIO from the mlflow-system namespace.
-# Optionally deletes the namespace itself.
+# Removes MLflow and MinIO from the mlflow-system namespace,
+# then deletes the namespace entirely.
 
 on:
   workflow_dispatch:
-    inputs:
-      delete_namespace:
-        description: "Delete the mlflow-system namespace entirely"
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   uninstall:
@@ -35,5 +29,5 @@ jobs:
 
       - name: Destroy MLflow and MinIO
         env:
-          DELETE_NS: ${{ inputs.delete_namespace && 'true' || 'false' }}
+          DELETE_NS: "true"
         run: bash dgx/minikube/mlflow/destroy-mlflow.sh

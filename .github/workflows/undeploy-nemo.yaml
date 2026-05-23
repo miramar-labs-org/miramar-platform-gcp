@@ -55,6 +55,13 @@ jobs:
         if: ${{ inputs.delete_namespace }}
         run: kubectl delete namespace nemo-microservices --ignore-not-found
 
+      - name: Uninstall Volcano scheduler
+        run: |
+          kubectl delete -f \
+            https://raw.githubusercontent.com/volcano-sh/volcano/v1.9.0/installer/volcano-development.yaml \
+            --ignore-not-found || true
+          kubectl delete namespace volcano-system --ignore-not-found || true
+
       - name: Clean up /etc/hosts
         run: |
           sudo sed -i '/nemo\.test/d'       /etc/hosts || true
@@ -70,4 +77,5 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
+            echo "| Volcano removed | \`true\` |"
           } >> "$GITHUB_STEP_SUMMARY"
