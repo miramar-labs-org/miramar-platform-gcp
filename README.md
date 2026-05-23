@@ -1,6 +1,6 @@
 # miramar-platform-gcp
 
-Local/GCP infrastructure and CI/CD tooling for the Miramar Labs AI Platform.
+Local+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Platform.
 
 [![Miramar Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml)
 [![Miramar Platform Destroy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-destroy.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-destroy.yaml)
@@ -611,9 +611,8 @@ Installs or upgrades Ollama on the DGX host via SSH. The workflow does not run O
 
 **How it works:**
 1. Writes `DGX_HOST_SSH_KEY` to `~/.ssh/dgx_host` inside the runner and scans `DGX_HOST` into `known_hosts`
-2. Verifies connectivity (`hostname`, `uname -a`, `nvidia-smi -L`)
-3. Copies `scripts/ubuntu/install-ollama.sh` to `/tmp/install-ollama.sh` on the DGX via SCP
-4. Runs the installer on the DGX as root via SSH
+2. Derives and prints the public-key fingerprint with `ssh-keygen` for troubleshooting
+3. SSHes to `DGX_HOST_USER@DGX_HOST` and pipes `scripts/ubuntu/install-ollama.sh` into `sudo bash -s` on the DGX
 
 **Inputs:**
 
@@ -627,7 +626,24 @@ Installs or upgrades Ollama on the DGX host via SSH. The workflow does not run O
 |---|---|
 | `DGX_HOST` | Hostname or IP of the DGX Spark |
 | `DGX_HOST_USER` | SSH user on the DGX host |
-| `DGX_HOST_SSH_KEY` | Private SSH key — must match an authorized key on the DGX |
+| `DGX_HOST_SSH_KEY` | Private SSH key — the matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
+
+**SSH key notes:**
+
+`DGX_HOST_SSH_KEY` stores the private key only. GitHub Actions writes it to `~/.ssh/dgx_host` on the runner, derives its public key, and prints the fingerprint in the workflow log. The DGX must authorize that same public key for the target Linux user.
+
+On the DGX, check the authorized key fingerprints as `DGX_HOST_USER`:
+
+```bash
+ssh-keygen -lf ~/.ssh/authorized_keys
+```
+
+The workflow fingerprint must appear in that output. If it does not, append the matching public key to `~/.ssh/authorized_keys`, then lock down permissions:
+
+```bash
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+```
 
 ```
 Actions → Ollama Update → Run workflow
