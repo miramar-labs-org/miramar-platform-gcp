@@ -6,8 +6,10 @@ name: WSL2 Provision
 
 on:
   push:
-      branches:
-        - wsl2-provision-workflows
+    branches:
+      - wsl2-provision-workflows
+    paths:
+      - '.github/workflows/provision-wsl2.yaml'
   workflow_dispatch:
     inputs:
       distro_name:
