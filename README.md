@@ -89,7 +89,7 @@ Actions → MLflow Undeploy → Run workflow
 
 ## minikube (DGX)
 
-The DGX runs a minikube cluster with the dashboard and metrics-server addons enabled. The `dashboard.service` systemd service keeps a `kubectl proxy` running on port `8001` automatically — see [dgx/systemd/](dgx/systemd/). Cluster lifecycle is managed via GHA workflows (**Minikube Install**, **Minikube Uninstall**, **Minikube Toggle**) — see [dgx/minikube/](dgx/minikube/).
+The DGX runs a minikube cluster with the ingress, dashboard, and metrics-server addons enabled. The `dashboard.service` systemd service keeps a `kubectl proxy` running on port `8001` automatically — see [dgx/systemd/](dgx/systemd/). Cluster lifecycle is managed via GHA workflows (**Minikube Install**, **Minikube Uninstall**, **Minikube Toggle**) — see [dgx/minikube/](dgx/minikube/).
 
 Open an SSH tunnel from your laptop:
 

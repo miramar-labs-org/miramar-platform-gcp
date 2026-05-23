@@ -109,7 +109,7 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | GKE Expand GPU | `gke-expand-gpu.yaml` | `terraform apply` in `gcp/terraform-gpu/` to add a GPU node pool; expands namespace quota |
 | GKE Restore GPU | `gke-restore-gpu.yaml` | `terraform destroy` in `gcp/terraform-gpu/` to remove the GPU pool; restores namespace quota |
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probes all GPU types and zones in parallel; shows top 5 cheapest options split by [USE NOW] vs [REQUEST QUOTA FIRST] with exact settings for GKE Expand GPU |
-| Minikube Install | `install-minikube.yaml` | Install minikube on DGX host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` secret |
+| Minikube Install | `install-minikube.yaml` | Install minikube on DGX host, start cluster, enable addons (ingress, dashboard, metrics-server), wait for ingress-nginx readiness, update `DGX_MINIKUBE_KUBECONFIG` secret |
 | Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove minikube binary from DGX host |
 | Minikube Toggle | `toggle-minikube.yaml` | SSH to DGX host and run `minikube pause` / `minikube unpause`. Inputs: `action` (`pause` \| `resume`), `runner` (`dgx` \| `wsl2`, default: `dgx`) |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices + Volcano via Helm on the DGX minikube cluster; triggers MLflow Deploy on success |
