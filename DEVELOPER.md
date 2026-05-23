@@ -101,7 +101,7 @@ jobs:
       - run: echo "${{ inputs.distro_name || 'test' }}"  # fallback required
 ```
 
-Push a commit to trigger it. Remove the `push` trigger before merging.
+Push a commit to trigger it. **Remove the `push` trigger before merging** — a PR check (`pr-checks.yaml`) runs on every PR to `main` and fails if it finds push triggers on non-main branches.
 
 **2. `gh` CLI after merge to main**
 
