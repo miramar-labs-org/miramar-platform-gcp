@@ -773,6 +773,31 @@ Undeploys a NIM via the NeMo deployment API. Safe to run if the NIM is already g
 Actions → NIM Undeploy → Run workflow
 ```
 
+## Development Workflow
+
+```sh
+# 1. Create a branch off main
+git checkout -b my-feature
+
+# 2. Make changes, commit
+git add <files>
+git commit -m "..."
+
+# 3. Push and open a PR
+git push -u origin my-feature
+gh pr create --title "..." --body "..."
+
+# 4. Merge and clean up
+gh pr merge --squash --delete-branch
+
+# 5. Sync local main
+git checkout main
+git pull
+git branch -d my-feature
+```
+
+`gh pr merge --squash` merges and deletes the remote branch in one shot. Direct pushes to `main` are blocked by branch protection — PRs are the only path in.
+
 ## Branch Protection
 
 `main` is protected — all changes must go through a pull request before merging. No approval is required (solo repo), but the PR workflow enforces review discipline and maintains an audit trail.
