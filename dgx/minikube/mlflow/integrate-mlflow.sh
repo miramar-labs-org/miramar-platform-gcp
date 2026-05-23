@@ -9,7 +9,6 @@ rand_alnum() { (set +o pipefail; tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1
 
 need kubectl
 need helm
-need base64
 need awk
 need sed
 
@@ -52,120 +51,42 @@ helm -n "${NEMO_NS}" status "${NEMO_RELEASE}" >/dev/null 2>&1 || die "Helm relea
 
 log "Checking nemo-postgresql exists in ${NEMO_NS}"
 kubectl -n "${NEMO_NS}" get svc nemo-postgresql >/dev/null 2>&1 || die "Service nemo-postgresql not found in ${NEMO_NS}"
-kubectl -n "${NEMO_NS}" get secret nemo-postgresql >/dev/null 2>&1 || die "Secret nemo-postgresql not found in ${NEMO_NS}"
 
 PG_POD="$(kubectl -n "${NEMO_NS}" get pods --no-headers | awk '$1 ~ /^nemo-postgresql/ {print $1; exit}')"
 [[ -n "${PG_POD}" ]] || die "Could not find a pod starting with nemo-postgresql in ${NEMO_NS}"
-
-# Extract postgres superuser password from NeMo secret (support multiple common keys)
-get_b64() {
-  local key="${1:-}"
-  [[ -n "${key}" ]] || return 0
-  # bracket form handles keys containing dashes
-  kubectl -n "${NEMO_NS}" get secret nemo-postgresql -o "jsonpath={.data['${key}']}" 2>/dev/null || true
-}
-
-PG_ADMIN_PW_B64="$(get_b64 postgres-password)"
-[[ -n "${PG_ADMIN_PW_B64}" ]] || PG_ADMIN_PW_B64="$(get_b64 password)"
-[[ -n "${PG_ADMIN_PW_B64}" ]] || PG_ADMIN_PW_B64="$(get_b64 postgresql-postgres-password)"
-[[ -n "${PG_ADMIN_PW_B64}" ]] || die "Couldn't find a postgres admin password key in secret nemo-postgresql (tried postgres-password, password, postgresql-postgres-password)"
-PG_ADMIN_PW="$(printf "%s" "${PG_ADMIN_PW_B64}" | base64 -d)"
 
 # ---- Ensure namespace for MLflow/MinIO ----
 log "Ensuring namespace ${MLFLOW_NS} exists"
 kubectl get ns "${MLFLOW_NS}" >/dev/null 2>&1 || kubectl create ns "${MLFLOW_NS}" >/dev/null
 
-# ---- Create MLflow DB + user inside NeMo Postgres (Job-based) ----
-log "Creating/ensuring DB '${MLFLOW_DB_NAME}' and user '${MLFLOW_DB_USER}' in NeMo Postgres (via Job)"
+# ---- Create MLflow DB + user inside NeMo Postgres (via kubectl exec) ----
+# Uses the unix socket inside the pod — no password extraction needed.
+log "Creating/ensuring DB '${MLFLOW_DB_NAME}' and user '${MLFLOW_DB_USER}' in NeMo Postgres"
 
-JOB_NAME="psql-mlflow-bootstrap"
-kubectl -n "${NEMO_NS}" delete job "${JOB_NAME}" --ignore-not-found >/dev/null 2>&1 || true
+pg_exec() {
+  kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- \
+    psql -U postgres -v ON_ERROR_STOP=1 -Atqc "$1"
+}
 
-kubectl -n "${NEMO_NS}" apply -f - <<YAML
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: ${JOB_NAME}
-spec:
-  backoffLimit: 0
-  ttlSecondsAfterFinished: 300
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-      - name: psql
-        image: postgres:16
-        env:
-        - name: PGHOST
-          value: "${PG_HOST}"
-        - name: PGPORT
-          value: "5432"
-        - name: PGUSER
-          value: "postgres"
-        - name: PGPASSWORD
-          value: "${PG_ADMIN_PW}"
-        - name: MLFLOW_DB_USER
-          value: "${MLFLOW_DB_USER}"
-        - name: MLFLOW_DB_PASSWORD
-          value: "${MLFLOW_DB_PASSWORD}"
-        - name: MLFLOW_DB_NAME
-          value: "${MLFLOW_DB_NAME}"
-        command: ["/bin/bash","-lc"]
-        args:
-          - |
-            set -euo pipefail
-
-            echo "Waiting for Postgres to accept connections..."
-            for i in {1..60}; do
-              if psql -d postgres -Atqc "select 1" >/dev/null 2>&1; then
-                break
-              fi
-              sleep 2
-            done
-
-            # Hard fail if still not reachable
-            psql -d postgres -v ON_ERROR_STOP=1 -Atqc "select 1" >/dev/null
-
-            # IMPORTANT: escape $ so outer script doesn't expand it under set -u
-            psql_admin() { psql -v ON_ERROR_STOP=1 -d postgres -Atqc "\$1"; }
-
-            role_exists="\$(psql_admin "SELECT 1 FROM pg_roles WHERE rolname='${MLFLOW_DB_USER}'")"
-            if [[ "\${role_exists}" != "1" ]]; then
-              echo "Creating role ${MLFLOW_DB_USER}"
-              psql -v ON_ERROR_STOP=1 -d postgres -qc \
-                "CREATE ROLE ${MLFLOW_DB_USER} LOGIN PASSWORD '${MLFLOW_DB_PASSWORD}';"
-            else
-              echo "Updating password for role ${MLFLOW_DB_USER}"
-              psql -v ON_ERROR_STOP=1 -d postgres -qc \
-                "ALTER ROLE ${MLFLOW_DB_USER} WITH PASSWORD '${MLFLOW_DB_PASSWORD}';"
-            fi
-
-            db_exists="\$(psql_admin "SELECT 1 FROM pg_database WHERE datname='${MLFLOW_DB_NAME}'")"
-            if [[ "\${db_exists}" != "1" ]]; then
-              echo "Creating database ${MLFLOW_DB_NAME}"
-              psql -v ON_ERROR_STOP=1 -d postgres -qc \
-                "CREATE DATABASE ${MLFLOW_DB_NAME} OWNER ${MLFLOW_DB_USER};"
-            else
-              echo "Database ${MLFLOW_DB_NAME} already exists"
-            fi
-
-            echo "Granting privileges"
-            psql -v ON_ERROR_STOP=1 -d postgres -qc \
-              "GRANT ALL PRIVILEGES ON DATABASE ${MLFLOW_DB_NAME} TO ${MLFLOW_DB_USER};"
-YAML
-
-log "Waiting for DB bootstrap job to complete"
-if ! kubectl -n "${NEMO_NS}" wait --for=condition=complete "job/${JOB_NAME}" --timeout=5m >/dev/null; then
-  echo
-  echo "----- DB bootstrap job did not complete; dumping diagnostics -----" >&2
-  kubectl -n "${NEMO_NS}" get pods -l job-name="${JOB_NAME}" -o wide >&2 || true
-  POD="$(kubectl -n "${NEMO_NS}" get pods -l job-name="${JOB_NAME}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-  if [[ -n "${POD}" ]]; then
-    kubectl -n "${NEMO_NS}" describe pod "${POD}" >&2 || true
-    kubectl -n "${NEMO_NS}" logs "${POD}" >&2 || true
-  fi
-  die "DB bootstrap job failed or timed out"
+role_exists="$(pg_exec "SELECT 1 FROM pg_roles WHERE rolname='${MLFLOW_DB_USER}'")"
+if [[ "${role_exists}" != "1" ]]; then
+  echo "Creating role ${MLFLOW_DB_USER}"
+  pg_exec "CREATE ROLE ${MLFLOW_DB_USER} LOGIN PASSWORD '${MLFLOW_DB_PASSWORD}';" >/dev/null
+else
+  echo "Updating password for role ${MLFLOW_DB_USER}"
+  pg_exec "ALTER ROLE ${MLFLOW_DB_USER} WITH PASSWORD '${MLFLOW_DB_PASSWORD}';" >/dev/null
 fi
+
+db_exists="$(pg_exec "SELECT 1 FROM pg_database WHERE datname='${MLFLOW_DB_NAME}'")"
+if [[ "${db_exists}" != "1" ]]; then
+  echo "Creating database ${MLFLOW_DB_NAME}"
+  pg_exec "CREATE DATABASE ${MLFLOW_DB_NAME} OWNER ${MLFLOW_DB_USER};" >/dev/null
+else
+  echo "Database ${MLFLOW_DB_NAME} already exists"
+fi
+
+echo "Granting privileges"
+pg_exec "GRANT ALL PRIVILEGES ON DATABASE ${MLFLOW_DB_NAME} TO ${MLFLOW_DB_USER};" >/dev/null
 
 log "DB bootstrap completed"
 
