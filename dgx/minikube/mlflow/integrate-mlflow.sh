@@ -55,43 +55,65 @@ kubectl -n "${NEMO_NS}" get svc nemo-postgresql >/dev/null 2>&1 || die "Service 
 PG_POD="$(kubectl -n "${NEMO_NS}" get pods --no-headers | awk '$1 ~ /^nemo-postgresql/ {print $1; exit}')"
 [[ -n "${PG_POD}" ]] || die "Could not find a pod starting with nemo-postgresql in ${NEMO_NS}"
 
-# Read the postgres superuser password from the pod's own environment —
-# always in sync with what the running PostgreSQL instance has, regardless
-# of which secret key Bitnami chose to use.
-PG_ADMIN_PW="$(kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- bash -c 'printf "%s" "${POSTGRES_POSTGRES_PASSWORD}"')"
-[[ -n "${PG_ADMIN_PW}" ]] || die "Could not read POSTGRES_POSTGRES_PASSWORD from pod ${PG_POD}"
-
 # ---- Ensure namespace for MLflow/MinIO ----
 log "Ensuring namespace ${MLFLOW_NS} exists"
 kubectl get ns "${MLFLOW_NS}" >/dev/null 2>&1 || kubectl create ns "${MLFLOW_NS}" >/dev/null
 
-# ---- Create MLflow DB + user inside NeMo Postgres (via kubectl exec) ----
+# ---- Create MLflow DB + user inside NeMo Postgres ----
+# Bitnami PostgreSQL uses md5 for all connections (including local socket) and
+# the superuser password is unknown when the PVC survives a redeploy. Work
+# around by temporarily prepending a trust rule for the postgres superuser,
+# reloading, bootstrapping, then restoring the original pg_hba.conf.
 log "Creating/ensuring DB '${MLFLOW_DB_NAME}' and user '${MLFLOW_DB_USER}' in NeMo Postgres"
+
+HBA=/opt/bitnami/postgresql/conf/pg_hba.conf
+PG_DATA=/bitnami/postgresql/data
+
+_restore_hba() {
+  kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- bash -c "
+    [[ -f '${HBA}.bak' ]] || exit 0
+    cp '${HBA}.bak' '${HBA}'
+    kill -HUP \$(head -1 '${PG_DATA}/postmaster.pid') 2>/dev/null || true
+    rm -f '${HBA}.bak'
+  " 2>/dev/null || true
+}
+trap _restore_hba EXIT
+
+kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- bash -c "
+  set -euo pipefail
+  cp '${HBA}' '${HBA}.bak'
+  printf 'local all postgres trust\n' | cat - '${HBA}.bak' > /tmp/_pg_hba_tmp
+  cp /tmp/_pg_hba_tmp '${HBA}'
+  kill -HUP \$(head -1 '${PG_DATA}/postmaster.pid')
+  sleep 1
+"
 
 pg_exec() {
   kubectl exec -n "${NEMO_NS}" "${PG_POD}" -- \
-    bash -c "PGPASSWORD='${PG_ADMIN_PW}' psql -U postgres -v ON_ERROR_STOP=1 -Atqc '$1'"
+    psql -U postgres -v ON_ERROR_STOP=1 -Atqc "$1"
 }
 
 role_exists="$(pg_exec "SELECT 1 FROM pg_roles WHERE rolname='${MLFLOW_DB_USER}'")"
 if [[ "${role_exists}" != "1" ]]; then
   echo "Creating role ${MLFLOW_DB_USER}"
-  pg_exec "CREATE ROLE ${MLFLOW_DB_USER} LOGIN PASSWORD '${MLFLOW_DB_PASSWORD}';" >/dev/null
+  pg_exec "CREATE ROLE ${MLFLOW_DB_USER} LOGIN PASSWORD '${MLFLOW_DB_PASSWORD}'" >/dev/null
 else
   echo "Updating password for role ${MLFLOW_DB_USER}"
-  pg_exec "ALTER ROLE ${MLFLOW_DB_USER} WITH PASSWORD '${MLFLOW_DB_PASSWORD}';" >/dev/null
+  pg_exec "ALTER ROLE ${MLFLOW_DB_USER} WITH PASSWORD '${MLFLOW_DB_PASSWORD}'" >/dev/null
 fi
 
 db_exists="$(pg_exec "SELECT 1 FROM pg_database WHERE datname='${MLFLOW_DB_NAME}'")"
 if [[ "${db_exists}" != "1" ]]; then
   echo "Creating database ${MLFLOW_DB_NAME}"
-  pg_exec "CREATE DATABASE ${MLFLOW_DB_NAME} OWNER ${MLFLOW_DB_USER};" >/dev/null
+  pg_exec "CREATE DATABASE ${MLFLOW_DB_NAME} OWNER ${MLFLOW_DB_USER}" >/dev/null
 else
   echo "Database ${MLFLOW_DB_NAME} already exists"
 fi
 
-echo "Granting privileges"
-pg_exec "GRANT ALL PRIVILEGES ON DATABASE ${MLFLOW_DB_NAME} TO ${MLFLOW_DB_USER};" >/dev/null
+pg_exec "GRANT ALL PRIVILEGES ON DATABASE ${MLFLOW_DB_NAME} TO ${MLFLOW_DB_USER}" >/dev/null
+
+_restore_hba
+trap - EXIT
 
 log "DB bootstrap completed"
 

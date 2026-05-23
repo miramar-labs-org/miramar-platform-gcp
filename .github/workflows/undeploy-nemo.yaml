@@ -43,6 +43,15 @@ jobs:
           kubectl get crd -o name 2>/dev/null | grep nvidia.com \
             | xargs -r kubectl delete --ignore-not-found || true
 
+      - name: Delete postgres PVCs
+        run: |
+          # Helm uninstall orphans PVCs; delete them explicitly so the next
+          # NeMo deploy always initialises postgres fresh with the current secret.
+          kubectl delete pvc -n nemo-microservices \
+            -l app.kubernetes.io/name=postgresql --ignore-not-found || true
+          kubectl delete pvc -n nemo-microservices \
+            -l app.kubernetes.io/component=primary --ignore-not-found || true
+
       - name: Uninstall NeMo Helm release
         run: |
           if helm list -n nemo-microservices 2>/dev/null | grep -q nemo; then
