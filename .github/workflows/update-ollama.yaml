@@ -30,6 +30,13 @@ jobs:
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
 
+          hostname
+          whoami
+          ssh -V || true
+          wc -c < ~/.ssh/dgx_host
+          ssh-keygen -y -f ~/.ssh/dgx_host > ~/.ssh/dgx_host.pub
+          ssh-keygen -lf ~/.ssh/dgx_host.pub
+
           ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Install / upgrade Ollama on DGX host
@@ -37,5 +44,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -i ~/.ssh/dgx_host "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+          ssh -vvv -i ~/.ssh/dgx_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
             'sudo bash -s' < scripts/ubuntu/install-ollama.sh
