@@ -34,6 +34,7 @@ scripts/
 mlabs-runner/      # Docker image for self-hosted GHA runners
 dgx/               # DGX Spark host config and local tooling
   minikube/        # GHA workflows for minikube lifecycle + NeMo deployment
+  ollama/          # Ollama deploy/undeploy scripts and model catalog
   systemd/         # Systemd user service unit files + install/uninstall scripts
 wsl2/              # WSL2 host config and bootstrap scripts
 .github/workflows/ # CI/CD workflows
@@ -54,6 +55,8 @@ wsl2/              # WSL2 host config and bootstrap scripts
 | `scripts/ubuntu/install-gh.sh` | Install `gh` (GitHub CLI) via apt on Ubuntu/Debian |
 | `scripts/ubuntu/install-ollama.sh` | Install or upgrade Ollama on the host (run as root); installs `zstd` prerequisite; skips if already at latest version. Deployed to DGX via SCP by the **Ollama Update** workflow. |
 | `scripts/gcp/gke/find-gpu-capacity.sh` | Probe actual GPU capacity across all GPU types and zones in parallel. Default scope: all US regions (`us-*`). Pass a region to narrow (`us-central1`). Shows top 5 cheapest options split by [USE NOW] / [REQUEST QUOTA FIRST] with ready-to-use GKE Expand GPU settings. |
+| `dgx/ollama/deploy_ollama.sh` | Run on DGX host via SSH to pull an Ollama model and load it into GPU memory. Fails if a NIM or another Ollama model is already using the 128 GB pool. Called by the **Ollama Deploy** workflow. |
+| `dgx/ollama/undeploy_ollama.sh` | Run on DGX host via SSH to unload an Ollama model from GPU memory. Auto-detects the loaded model if no arg given. Called by the **Ollama Undeploy** workflow. |
 | `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the four DGX systemd user services (minikube, dashboard proxy, JupyterLab, MLflow port-forward). |
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
@@ -118,6 +121,8 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy a NIM via the NeMo deployment API; 404 is a no-op. Inputs: `nim_name`, `nim_org` |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrates with NeMo postgres via pg_hba.conf trust bootstrap (no superuser password needed). Auto-triggered by NeMo Deploy. |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow and MinIO; always deletes mlflow-system namespace |
+| Ollama Deploy | `deploy-ollama.yaml` | SSH to DGX host and pull + load an Ollama model into GPU memory. Fails with an explicit error if a NIM or another Ollama model is already using the 128 GB pool. Input: `model` (default: `llama3.3:70b-instruct-q4_K_M`) |
+| Ollama Undeploy | `undeploy-ollama.yaml` | SSH to DGX host and unload the active Ollama model from GPU memory. Auto-detects loaded model if `model` input is blank. Input: `model` (optional), `delete_model` (bool, default false) |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |
 
 Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
@@ -174,11 +179,13 @@ The DGX Spark runs a minikube cluster hosting platform workloads. Four systemd u
 
 **Minikube lifecycle** is managed exclusively via GHA workflows (`install-minikube`, `uninstall-minikube`, `toggle-minikube`). The minikube binary lives on the DGX host at `/usr/local/bin/minikube` — installed by the Install workflow. The runner container mounts `~/.minikube` and `~/.kube` from the host (DGX-only) so cluster state persists across ephemeral runner containers.
 
-**DGX workload stack** (deployment order): Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy
+**DGX workload stack** (deployment order): Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy (or Ollama Deploy)
 
 **NeMo Microservices** runs in minikube (`nemo-microservices` namespace). Exposes `nemo.test` (deployment API) and `nim.test` (inference) via ingress entries in `/etc/hosts`. Requires `NVIDIA_API_KEY` secret.
 
-**NIM** pods run inside `nemo-microservices`, deployed via the NeMo deployment API. The default NIM is `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (tools enabled). Available NIMs for DGX Spark: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`, `meta/llama-3.1-8b-instruct-dgx-spark`. Scripts in `dgx/minikube/nim/`.
+**NIM** pods run inside `nemo-microservices`, deployed via the NeMo deployment API. The default NIM is `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (tools enabled). Available NIMs for DGX Spark: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`, `meta/llama-3.1-8b-instruct-dgx-spark`. Scripts in `dgx/minikube/nim/`. See `dgx/minikube/nim/NIM.md` for the full catalog.
+
+**Ollama** runs as a systemd service on the DGX host (not in minikube). Managed via the **Ollama Deploy** / **Ollama Undeploy** / **Ollama Update** workflows. Scripts in `dgx/ollama/`. See `dgx/ollama/README.md` for the model catalog and curl examples. **NIM and Ollama share the 128 GB unified memory pool — only one can be active at a time.** The deploy scripts enforce this and fail with a clear error if there is a conflict.
 
 **MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
 

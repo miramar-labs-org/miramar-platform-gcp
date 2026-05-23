@@ -7,6 +7,38 @@ on DGX Spark (vLLM and TGI have open sm_121/aarch64 issues).
 
 Ollama is installed on the DGX host via the **Ollama Update** GHA workflow (`update-ollama.yaml`).
 
+> **NIM and Ollama share the 128 GB unified memory pool — only one can be active at a time.**
+> The deploy workflow and `deploy_ollama.sh` check for conflicts and fail with a clear error before pulling.
+
+## GHA Workflows
+
+| Workflow | Purpose |
+|---|---|
+| **Ollama Deploy** (`deploy-ollama.yaml`) | Pull a model and load it into GPU memory. Fails if a NIM or Ollama model is already loaded. |
+| **Ollama Undeploy** (`undeploy-ollama.yaml`) | Unload the active model from GPU memory. Auto-detects if `model` input is left blank. |
+| **Ollama Update** (`update-ollama.yaml`) | Install or upgrade Ollama on the DGX host. |
+
+```
+Actions → Ollama Deploy  → model: llama3.3:70b-instruct-q4_K_M
+Actions → Ollama Undeploy → (leave model blank to auto-detect)
+```
+
+## Scripts
+
+`deploy_ollama.sh` and `undeploy_ollama.sh` run on the DGX **host** (not in the runner container) via SSH.
+The workflows pipe them via stdin with `bash -s -- <args>`.
+
+```bash
+# Deploy manually (on DGX host)
+bash dgx/ollama/deploy_ollama.sh llama3.3:70b-instruct-q4_K_M
+
+# Undeploy manually (on DGX host) — auto-detects loaded model
+bash dgx/ollama/undeploy_ollama.sh
+
+# Undeploy and delete from disk
+bash dgx/ollama/undeploy_ollama.sh llama3.3:70b-instruct-q4_K_M true
+```
+
 Source: [Ollama DGX Spark performance blog](https://ollama.com/blog/nvidia-spark-performance) (official benchmarks, Ollama v0.12.6)
 
 ## Top 5 Models
