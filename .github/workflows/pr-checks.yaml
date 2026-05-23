@@ -1,0 +1,54 @@
+name: PR Checks
+
+# Runs on every PR targeting main. Fails if workflow files contain push
+# triggers scoped to feature branches — a pattern used for branch testing
+# that must be removed before merging.
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-push-triggers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for feature-branch push triggers in workflow files
+        run: |
+          python3 - <<'EOF'
+          import yaml, sys, glob
+
+          ALLOWED_BRANCHES = {'main', 'master', 'develop'}
+          found = False
+
+          for path in sorted(glob.glob('.github/workflows/*.yaml') + glob.glob('.github/workflows/*.yml')):
+              with open(path) as f:
+                  try:
+                      doc = yaml.safe_load(f)
+                  except Exception as e:
+                      print(f"Warning: could not parse {path}: {e}")
+                      continue
+
+              on = doc.get('on', {}) or {}
+              if isinstance(on, str):
+                  continue
+              push = on.get('push', {}) or {}
+              if not push:
+                  continue
+              branches = push.get('branches', []) or []
+              bad = [b for b in branches if b not in ALLOWED_BRANCHES]
+              if bad:
+                  print(f"::error file={path}::Push trigger on feature branch(es) {bad} — remove before merging to main")
+                  found = True
+
+          if found:
+              print("")
+              print("Feature-branch push triggers are used for testing workflows before merge.")
+              print("They must be removed from workflow files before the PR is merged.")
+              print("See DEVELOPER.md for the branch testing pattern.")
+              sys.exit(1)
+          else:
+              print("No feature-branch push triggers found.")
+          EOF
