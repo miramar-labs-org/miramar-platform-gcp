@@ -625,6 +625,8 @@ Optional `region` input narrows the search to a single region (e.g. `us-central1
 
 ## Ollama
 
+See [dgx/ollama/README.md](dgx/ollama/README.md) for recommended models, pull commands, and curl inference examples.
+
 ### [Ollama Update](.github/workflows/update-ollama.yaml)
 
 Installs or upgrades Ollama on the DGX host via SSH. The workflow does not run Ollama itself — it runs on a self-hosted runner (`dgx` or `wsl2`, your choice) and SSHes into the DGX host to update it there. Idempotent — if Ollama is already at the latest version, it exits without doing anything.
@@ -702,6 +704,8 @@ Actions → NeMo Undeploy → Run workflow
 ## NIM (DGX)
 
 NIM (NVIDIA Inference Microservices) are deployed via the NeMo Microservices deployment API and run as pods in the `nemo-microservices` namespace. Each NIM serves a model at `http://nim.test/v1`. NeMo Microservices must be deployed before deploying a NIM.
+
+See [dgx/minikube/nim/NIM.md](dgx/minikube/nim/NIM.md) for the full model catalog, deploy args, and curl inference examples.
 
 **Available NIMs built for DGX Spark:**
 
