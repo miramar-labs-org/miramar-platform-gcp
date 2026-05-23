@@ -4,11 +4,6 @@ name: WSL2 Unprovision
 # Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
 
 on:
-  push:
-    branches:
-      - wsl2-provision-workflows
-    paths:
-      - '.github/workflows/unprovision-wsl2.yaml'
   workflow_dispatch:
     inputs:
       distro_name:
