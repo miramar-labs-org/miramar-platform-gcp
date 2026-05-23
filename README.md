@@ -772,3 +772,44 @@ Undeploys a NIM via the NeMo deployment API. Safe to run if the NIM is already g
 ```
 Actions → NIM Undeploy → Run workflow
 ```
+
+## Branch Protection
+
+`main` is protected — all changes must go through a pull request with **1 approval** before merging.
+
+- Direct pushes to `main` are blocked
+- Force pushes are blocked
+- Approvals are dismissed when new commits are pushed (stale review dismissal)
+- The `enforce_admins` flag is off — org admins can merge without approval if needed in an emergency
+
+### AI code review
+
+Consider installing [CodeRabbit](https://coderabbit.ai) or enabling [GitHub Copilot code review](https://docs.github.com/en/copilot/using-github-copilot/code-review/using-copilot-code-review) to act as the required approver on solo PRs. Both integrate as GitHub Apps and can auto-approve when they find no issues.
+
+### Remove protection
+
+```sh
+gh api repos/miramar-labs-org/miramar-platform-gcp/branches/main/protection --method DELETE
+```
+
+### Re-apply protection
+
+```sh
+gh api repos/miramar-labs-org/miramar-platform-gcp/branches/main/protection \
+  --method PUT \
+  --header "Content-Type: application/json" \
+  --input - <<'EOF'
+{
+  "required_status_checks": null,
+  "enforce_admins": false,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 1,
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+EOF
+```
