@@ -112,11 +112,11 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Minikube Install | `install-minikube.yaml` | Install minikube on DGX host, start cluster, enable addons, update `DGX_MINIKUBE_KUBECONFIG` secret |
 | Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove minikube binary from DGX host |
 | Minikube Toggle | `toggle-minikube.yaml` | Pause or resume workloads (input: `pause` \| `resume`) |
-| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices via Helm on the DGX minikube cluster |
-| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo Microservices, optionally delete namespace |
-| NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via the NeMo deployment API; swaps out any different running NIM first. Inputs: `nim_name` (default: `nvidia-nemotron-nano-9b-v2-dgx-spark`), `nim_org` (default: `nvidia`), `image_tag` (default: `1.0.0-variant`) |
-| NIM Undeploy | `undeploy-nim.yaml` | Undeploy a NIM via the NeMo deployment API; no-op if already gone. Inputs: `nim_name`, `nim_org` |
-| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrate with NeMo postgres |
+| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices + Volcano via Helm on the DGX minikube cluster; triggers MLflow Deploy on success |
+| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; input: `delete_namespace` (bool, default true) |
+| NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via the NeMo deployment API; swaps any different running NIM first. Inputs: `nim_name` (default: `nvidia-nemotron-nano-9b-v2-dgx-spark`), `nim_org` (default: `nvidia`), `image_tag` (default: `1.0.0-variant`) |
+| NIM Undeploy | `undeploy-nim.yaml` | Undeploy a NIM via the NeMo deployment API; 404 is a no-op. Inputs: `nim_name`, `nim_org` |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; integrate with NeMo postgres. Auto-triggered by NeMo Deploy. |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow and MinIO; always deletes mlflow-system namespace |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |
 
@@ -172,9 +172,15 @@ The DGX Spark runs a minikube cluster hosting platform workloads. Four systemd u
 | `jupyterlab` | `8888` | JupyterLab in the pyNeMo Python environment |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` — org MLflow instance |
 
-**MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — this works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
-
 **Minikube lifecycle** is managed exclusively via GHA workflows (`install-minikube`, `uninstall-minikube`, `toggle-minikube`). The minikube binary lives on the DGX host at `/usr/local/bin/minikube` — installed by the Install workflow. The runner container mounts `~/.minikube` and `~/.kube` from the host (DGX-only) so cluster state persists across ephemeral runner containers.
+
+**DGX workload stack** (deployment order): Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy
+
+**NeMo Microservices** runs in minikube (`nemo-microservices` namespace). Exposes `nemo.test` (deployment API) and `nim.test` (inference) via ingress entries in `/etc/hosts`. Requires `NVIDIA_API_KEY` secret.
+
+**NIM** pods run inside `nemo-microservices`, deployed via the NeMo deployment API. The default NIM is `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (tools enabled). Available NIMs for DGX Spark: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`, `meta/llama-3.1-8b-instruct-dgx-spark`. Scripts in `dgx/minikube/nim/`.
+
+**MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
 
 Access all services from a laptop via SSH tunnel:
 ```sh

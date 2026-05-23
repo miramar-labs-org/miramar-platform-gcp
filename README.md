@@ -69,6 +69,22 @@ ssh -L 5000:localhost:5000 <user>@spark-79b7.local
 
 Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
 
+### [MLflow Deploy](.github/workflows/deploy-mlflow.yaml)
+
+Deploys MLflow + MinIO into the `mlflow-system` namespace on the DGX minikube cluster. Integrates MLflow with the NeMo Microservices postgres as its backend store. Triggered automatically after a successful **NeMo Deploy** run, or manually via `workflow_dispatch`. NeMo must be deployed before running this.
+
+```
+Actions → MLflow Deploy → Run workflow
+```
+
+### [MLflow Undeploy](.github/workflows/undeploy-mlflow.yaml)
+
+Removes MLflow and MinIO and deletes the `mlflow-system` namespace entirely.
+
+```
+Actions → MLflow Undeploy → Run workflow
+```
+
 ---
 
 ## minikube (DGX)
@@ -82,6 +98,8 @@ ssh -L 8001:localhost:8001 <user>@spark-79b7.local
 ```
 
 Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/](http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/)**.
+
+**DGX stack deployment order:** Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy
 
 ---
 
@@ -649,4 +667,77 @@ chmod 600 ~/.ssh/authorized_keys
 
 ```
 Actions → Ollama Update → Run workflow
+```
+
+---
+
+## NeMo Microservices (DGX)
+
+NeMo Microservices runs in minikube (`nemo-microservices` namespace). It provides the model deployment API used by NIM, and exposes endpoints at `nemo.test` and `nim.test` (configured in `/etc/hosts` on the runner). Requires minikube to be running.
+
+**Required secret** (repo-level): `NVIDIA_API_KEY`
+
+### [NeMo Deploy](.github/workflows/deploy-nemo.yaml)
+
+Installs NeMo Microservices via Helm on the DGX minikube cluster. Also installs the Volcano batch scheduler (required for distributed workloads) and configures DNS entries in `/etc/hosts`. Triggers **MLflow Deploy** automatically on success.
+
+```
+Actions → NeMo Deploy → Run workflow
+```
+
+### [NeMo Undeploy](.github/workflows/undeploy-nemo.yaml)
+
+Uninstalls the NeMo Helm release, removes Volcano and its `volcano-system` namespace, and cleans up `/etc/hosts` entries. Optionally deletes the `nemo-microservices` namespace (default: true).
+
+| Input | Default | Description |
+|---|---|---|
+| `delete_namespace` | `true` | Delete the `nemo-microservices` namespace after uninstall |
+
+```
+Actions → NeMo Undeploy → Run workflow
+```
+
+---
+
+## NIM (DGX)
+
+NIM (NVIDIA Inference Microservices) are deployed via the NeMo Microservices deployment API and run as pods in the `nemo-microservices` namespace. Each NIM serves a model at `http://nim.test/v1`. NeMo Microservices must be deployed before deploying a NIM.
+
+**Available NIMs built for DGX Spark:**
+
+| Model | org | nim_name | Notes |
+|---|---|---|---|
+| Nemotron Nano 9B v2 | `nvidia` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | Tools enabled — **default** |
+| Llama 3.1 8B Instruct | `meta` | `llama-3.1-8b-instruct-dgx-spark` | |
+
+### [NIM Deploy](.github/workflows/deploy-nim.yaml)
+
+Deploys a NIM via the NeMo deployment API. If a different NIM is already deployed it is automatically undeployed first. Waits up to 90 minutes for the NIM to reach READY status (model download included).
+
+| Input | Default | Description |
+|---|---|---|
+| `nim_name` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | NIM model name |
+| `nim_org` | `nvidia` | NIM org / NGC namespace |
+| `image_tag` | `1.0.0-variant` | NIM image tag |
+
+```
+Actions → NIM Deploy → Run workflow
+```
+
+Query the running model after deployment:
+```sh
+curl http://nim.test/v1/models
+```
+
+### [NIM Undeploy](.github/workflows/undeploy-nim.yaml)
+
+Undeploys a NIM via the NeMo deployment API. Safe to run if the NIM is already gone (404 → no-op).
+
+| Input | Default | Description |
+|---|---|---|
+| `nim_name` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | NIM model name |
+| `nim_org` | `nvidia` | NIM org / NGC namespace |
+
+```
+Actions → NIM Undeploy → Run workflow
 ```
