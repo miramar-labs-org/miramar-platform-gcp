@@ -4,7 +4,7 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 
 > **New here?** Read [SOWHAT.md](SOWHAT.md) — what this repo demonstrates and why it matters.
 
-> **Contributors:** [DEVELOPER.md](DEVELOPER.md) — branch workflow, PR process, testing strategies, and gotchas.
+> **Dev Workflow:** [DEVELOPER.md](DEVELOPER.md) — branch workflow, PR process, testing strategies, and gotchas.
 
 ```mermaid
 flowchart LR
