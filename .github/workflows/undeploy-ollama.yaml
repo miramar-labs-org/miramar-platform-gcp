@@ -38,13 +38,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # printf '%q' ensures empty model arg isn't dropped by SSH arg concatenation
+          model=$(printf '%q' "${{ inputs.model }}")
           ssh -i ~/.ssh/dgx_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
-            bash -s -- "${{ inputs.model }}" "${{ inputs.delete_model }}" \
+            "bash -s -- ${model} ${{ inputs.delete_model }}" \
             < dgx/ollama/undeploy_ollama.sh
 
       - name: Summary

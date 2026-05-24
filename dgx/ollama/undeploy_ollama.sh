@@ -8,6 +8,11 @@ set -euo pipefail
 
 MODEL="${1:-}"
 DELETE_MODEL="${2:-false}"
+# Guard: SSH drops empty-string args, shifting delete_model into $1
+if [[ ("$MODEL" == "true" || "$MODEL" == "false") && -z "${2:-}" ]]; then
+  DELETE_MODEL="$MODEL"
+  MODEL=""
+fi
 
 log()  { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
 warn() { printf "\033[1;33m[WARN]\033[0m %b\n" "$*"; }
