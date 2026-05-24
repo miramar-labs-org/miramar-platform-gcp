@@ -1,0 +1,110 @@
+name: Repo Code Quality Checker
+
+on:
+  workflow_dispatch:
+    inputs:
+      fix_mode:
+        description: "Run formatters in write mode instead of check mode"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+jobs:
+  repo-quality:
+    name: Repo quality checks
+    runs-on: [self-hosted, Linux, X64, wsl2]
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show tool versions
+        run: |
+          terraform version
+          shellcheck --version
+          shfmt --version
+          yamllint --version
+          hadolint --version
+          actionlint --version
+          node --version || true
+          npm --version || true
+          npx prettier --version || true
+
+      - name: Terraform format check
+        if: ${{ inputs.fix_mode == 'false' }}
+        run: terraform fmt -check -recursive gcp/terraform
+
+      - name: Terraform format write
+        if: ${{ inputs.fix_mode == 'true' }}
+        run: terraform fmt -recursive gcp/terraform
+
+      - name: Terraform validate
+        working-directory: gcp/terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Shell format check
+        if: ${{ inputs.fix_mode == 'false' }}
+        run: |
+          files="$(find . -type f \( -name '*.sh' -o -name '*.bash' \) \
+            -not -path './.git/*' \
+            -not -path './.terraform/*')"
+
+          if [ -n "$files" ]; then
+            shfmt -d $files
+          else
+            echo "No shell files found."
+          fi
+
+      - name: Shell format write
+        if: ${{ inputs.fix_mode == 'true' }}
+        run: |
+          files="$(find . -type f \( -name '*.sh' -o -name '*.bash' \) \
+            -not -path './.git/*' \
+            -not -path './.terraform/*')"
+
+          if [ -n "$files" ]; then
+            shfmt -w $files
+          else
+            echo "No shell files found."
+          fi
+
+      - name: Shell lint
+        run: |
+          files="$(find . -type f \( -name '*.sh' -o -name '*.bash' \) \
+            -not -path './.git/*' \
+            -not -path './.terraform/*')"
+
+          if [ -n "$files" ]; then
+            shellcheck $files
+          else
+            echo "No shell files found."
+          fi
+
+      - name: YAML lint
+        run: yamllint .
+
+      - name: GitHub Actions lint
+        run: actionlint
+
+      - name: Dockerfile lint
+        run: hadolint mlabs-runner/Dockerfile
+
+      - name: Prettier check
+        if: ${{ inputs.fix_mode == 'false' }}
+        run: npx prettier --check "**/*.{yml,yaml,json,md}"
+
+      - name: Prettier write
+        if: ${{ inputs.fix_mode == 'true' }}
+        run: npx prettier --write "**/*.{yml,yaml,json,md}"
+
+      - name: Show formatting changes
+        if: ${{ inputs.fix_mode == 'true' }}
+        run: git diff -- . ':!package-lock.json'

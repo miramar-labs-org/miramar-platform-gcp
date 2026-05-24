@@ -3,6 +3,10 @@ FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
 ARG RUNNER_VERSION=2.334.0
 ARG TARGETARCH
 
+ARG SHFMT_VERSION=3.10.0
+ARG HADOLINT_VERSION=2.12.0
+ARG ACTIONLINT_VERSION=1.7.7
+
 ENV DEBIAN_FRONTEND=noninteractive \
     RUNNER_USER=runner \
     RUNNER_HOME=/home/runner
@@ -45,7 +49,7 @@ RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release
         -o /usr/local/bin/kubectl && \
     chmod +x /usr/local/bin/kubectl
 
-# Install openssf-client
+# Install openssh-client and zstd
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -78,7 +82,52 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         python3 \
         python3-pip \
         python-is-python3 \
+        shellcheck \
+        yamllint \
+        nodejs \
+        npm \
     && rm -rf /var/lib/apt/lists/*
+
+# Install repo-quality tools that are not reliably available from apt
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) SHFMT_ARCH="amd64" ;; \
+        arm64) SHFMT_ARCH="arm64" ;; \
+        *) echo "Unsupported arch for shfmt: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /usr/local/bin/shfmt \
+        "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_${SHFMT_ARCH}"; \
+    chmod +x /usr/local/bin/shfmt; \
+    shfmt --version
+
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) HADOLINT_ARCH="x86_64" ;; \
+        arm64) HADOLINT_ARCH="arm64" ;; \
+        *) echo "Unsupported arch for hadolint: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /usr/local/bin/hadolint \
+        "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-Linux-${HADOLINT_ARCH}"; \
+    chmod +x /usr/local/bin/hadolint; \
+    hadolint --version
+
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) ACTIONLINT_ARCH="amd64" ;; \
+        arm64) ACTIONLINT_ARCH="arm64" ;; \
+        *) echo "Unsupported arch for actionlint: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/actionlint.tar.gz \
+        "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_${ACTIONLINT_ARCH}.tar.gz"; \
+    tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint; \
+    mv /tmp/actionlint /usr/local/bin/actionlint; \
+    chmod +x /usr/local/bin/actionlint; \
+    rm -f /tmp/actionlint.tar.gz; \
+    actionlint --version
+
+RUN set -eux; \
+    npm install -g prettier; \
+    prettier --version
 
 # Install helm
 RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash

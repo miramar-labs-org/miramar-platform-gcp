@@ -56,6 +56,24 @@ sudo apt-get install -y --no-install-recommends \
   fastfetch \
   iftop nethogs vnstat zstd
 
+log "Installing local dev tools"
+sudo apt-get update
+sudo apt-get install -y \
+  shellcheck \
+  yamllint 
+
+curl -sSLo /tmp/hadolint \
+  https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+
+chmod +x /tmp/hadolint
+sudo mv /tmp/hadolint /usr/local/bin/hadolint
+
+curl -sSLo /tmp/shfmt \
+  https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
+
+chmod +x /tmp/shfmt
+sudo mv /tmp/shfmt /usr/local/bin/shfmt
+
 log "Install K8s utils"
 sudo snap install k9s
 sudo apt install -y kubectx
