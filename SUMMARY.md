@@ -190,7 +190,7 @@ This is important because infrastructure repositories are judged not just by whe
 ├── scripts/                # Bootstrap, GitHub Actions, GCP, and runner scripts
 ├── wsl2/                   # WSL2 runner provisioning support
 ├── README.md               # Detailed operational runbook
-└── README2.md              # Hiring-manager / portfolio landing page
+└── SUMMARY.md              # Hiring-manager / portfolio landing page
 ```
 
 ---
