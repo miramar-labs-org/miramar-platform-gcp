@@ -50,12 +50,20 @@ if ! curl -sf --connect-timeout 10 --max-time 120 \
 fi
 log "Unload request sent."
 
-# --- Verify ---
-sleep 2
-remaining=$(curl -s http://localhost:11434/api/ps \
-  | jq -r '.models[]?.name' 2>/dev/null || true)
-if [[ -n "$remaining" ]]; then
-  err "Model still loaded after unload attempt: $remaining"
+# --- Verify (poll up to 60s for VRAM to free) ---
+log "Waiting for model to unload..."
+unloaded=false
+for i in $(seq 1 30); do
+  sleep 2
+  remaining=$(curl -s http://localhost:11434/api/ps \
+    | jq -r '.models[]?.name' 2>/dev/null || true)
+  if [[ -z "$remaining" ]]; then
+    unloaded=true
+    break
+  fi
+done
+if [[ "$unloaded" != "true" ]]; then
+  err "Model still loaded after 60s: $remaining"
   exit 1
 fi
 log "GPU memory cleared."
