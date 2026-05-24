@@ -185,7 +185,7 @@ The DGX Spark runs a minikube cluster hosting platform workloads. Four systemd u
 
 **NIM** pods run inside `nemo-microservices`, deployed via the NeMo deployment API. The default NIM is `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (tools enabled). Available NIMs for DGX Spark: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`, `meta/llama-3.1-8b-instruct-dgx-spark`. Scripts in `dgx/minikube/nim/`. See `dgx/minikube/nim/NIM.md` for the full catalog.
 
-**Ollama** runs as a systemd service on the DGX host (not in minikube). Managed via the **Ollama Deploy** / **Ollama Undeploy** / **Ollama Update** workflows. Scripts in `dgx/ollama/`. See `dgx/ollama/README.md` for the model catalog and curl examples. **NIM and Ollama share the 128 GB unified memory pool — only one can be active at a time.** The deploy scripts enforce this and fail with a clear error if there is a conflict.
+**Ollama** runs as a systemd service on the DGX host (not in minikube). Managed via the **Ollama Deploy** / **Ollama Undeploy** / **Ollama Update** workflows. Scripts in `dgx/ollama/`. See `dgx/ollama/README.md` for the model catalog and curl examples. **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for system use (minikube, OS), leaving ~100 GB for workloads — they can coexist as long as their combined memory fits within that budget. The deploy scripts check for insufficient headroom and fail with a clear error if there is a conflict.
 
 Ollama API quirks (relevant when editing scripts):
 - Unloading is done via `POST /api/generate` with `{"model":"...","prompt":"","keep_alive":0}`. The `prompt` field is required — omitting it causes the request to be silently ignored and the model stays loaded.

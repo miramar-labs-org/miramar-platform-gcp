@@ -7,8 +7,8 @@ on DGX Spark (vLLM and TGI have open sm_121/aarch64 issues).
 
 Ollama is installed on the DGX host via the **Ollama Update** GHA workflow (`update-ollama.yaml`).
 
-> **NIM and Ollama share the 128 GB unified memory pool — only one can be active at a time.**
-> The deploy workflow and `deploy_ollama.sh` check for conflicts and fail with a clear error before pulling.
+> **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for system use (minikube, OS), leaving ~100 GB for workloads. They can coexist as long as their combined memory fits within that budget.
+> The deploy workflow and `deploy_ollama.sh` check for conflicts and fail with a clear error if there is insufficient headroom.
 
 ## GHA Workflows
 
