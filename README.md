@@ -2,9 +2,39 @@
 
 Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Platform.
 
-> **New here?** Start with [SUMMARY.md](SUMMARY.md) for a plain-English overview of the platform.
+> **New here?** Read [SOWHAT.md](SOWHAT.md) — what this repo demonstrates and why it matters.
 
 > **Contributors:** [DEVELOPER.md](DEVELOPER.md) — branch workflow, PR process, testing strategies, and gotchas.
+
+```mermaid
+flowchart LR
+    Dev[Developer Workstation] --> GH[GitHub Repository]
+    GH --> GHA[GitHub Actions]
+
+    GHA --> WSL2[Self-hosted Runner: WSL2 / RTX 4060]
+    GHA --> DGX[Self-hosted Runner: DGX Spark / arm64 GPU]
+    GHA --> AGX[Self-hosted Runner: Jetson AGX Orin]
+
+    WSL2 --> RunnerImage[mlabs-runner Docker Image]
+    DGX --> RunnerImage
+    AGX --> RunnerImage
+
+    RunnerImage --> GHCR[GitHub Container Registry]
+    RunnerImage --> Tools[Terraform / gcloud / kubectl / Docker CLI / Helm / NGC / ML tools]
+
+    GHA --> WIF[Workload Identity Federation]
+    WIF --> GCP[GCP Project: miramar-platform]
+
+    GCP --> GKE[GKE Standard Cluster]
+    GCP --> GAR[Artifact Registry]
+    GCP --> GCS[GCS State + Snapshots]
+
+    DGX --> Mini[minikube on DGX]
+    Mini --> Nemo[NeMo Microservices]
+    Mini --> MLflow[MLflow + MinIO]
+    Mini --> NIM[NVIDIA NIM]
+    DGX --> Ollama[Ollama]
+```
 
 [![Miramar Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml)
 [![Miramar Platform Destroy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-destroy.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-destroy.yaml)
