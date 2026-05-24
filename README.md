@@ -3,6 +3,7 @@
 Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Platform.
 
 > **New here?** Start with [SUMMARY.md](SUMMARY.md) for a plain-English overview of the platform.
+
 > **Contributors:** [DEVELOPER.md](DEVELOPER.md) — branch workflow, PR process, testing strategies, and gotchas.
 
 [![Miramar Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml)
