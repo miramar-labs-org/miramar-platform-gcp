@@ -121,6 +121,42 @@ Merge the PR first, then test on main. Revert with another PR if broken.
 
 > **PyYAML gotcha:** In YAML, bare `on` is parsed as the boolean `True` (not the string `"on"`). Any tooling that parses GitHub Actions workflow files with PyYAML must use `doc.get(True, doc.get('on', {}))` to read the trigger block.
 
+## SSH argument passing gotcha
+
+When a workflow passes positional args to a remote script via SSH, **SSH concatenates all command args with spaces into a single command string**. Empty string arguments are dropped in this concatenation:
+
+```sh
+# Local runner sends this:
+ssh host bash -s -- "" "false" < script.sh
+
+# Remote shell receives and parses:
+bash -s -- false          # "" was dropped — $1="false", not $2
+```
+
+This causes silent arg-shifting. If the first arg is optional (e.g., `model`), the second arg (`delete_model`) lands in `$1`.
+
+**Fix:** use `printf '%q'` on the caller side to produce a quoted empty string (`''`) that survives the concatenation:
+
+```yaml
+# In the workflow run: block
+model=$(printf '%q' "${{ inputs.model }}")   # '' when blank
+ssh ... "bash -s -- ${model} ${{ inputs.delete_model }}" < script.sh
+```
+
+The remote shell then sees `bash -s -- '' false` and correctly assigns $1="" and $2="false".
+
+**Defence in the script:** guard against boolean bleed-through in case the workflow is called without the `printf '%q'` fix:
+
+```bash
+MODEL="${1:-}"
+DELETE_MODEL="${2:-false}"
+# Detect if SSH dropped the empty model arg and shifted delete_model into $1
+if [[ ("$MODEL" == "true" || "$MODEL" == "false") && -z "${2:-}" ]]; then
+  DELETE_MODEL="$MODEL"
+  MODEL=""
+fi
+```
+
 ## Setting secrets
 
 ```sh

@@ -187,6 +187,11 @@ The DGX Spark runs a minikube cluster hosting platform workloads. Four systemd u
 
 **Ollama** runs as a systemd service on the DGX host (not in minikube). Managed via the **Ollama Deploy** / **Ollama Undeploy** / **Ollama Update** workflows. Scripts in `dgx/ollama/`. See `dgx/ollama/README.md` for the model catalog and curl examples. **NIM and Ollama share the 128 GB unified memory pool — only one can be active at a time.** The deploy scripts enforce this and fail with a clear error if there is a conflict.
 
+Ollama API quirks (relevant when editing scripts):
+- Unloading is done via `POST /api/generate` with `{"model":"...","prompt":"","keep_alive":0}`. The `prompt` field is required — omitting it causes the request to be silently ignored and the model stays loaded.
+- The API call returns before VRAM is actually freed; poll `GET /api/ps` until `.models` is empty (up to ~60s for a 70B model).
+- SSH workflows that pass an optional model arg use `printf '%q'` to avoid empty-string args being dropped by SSH arg concatenation — see `undeploy-ollama.yaml` and `DEVELOPER.md`.
+
 **MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
 
 Access all services from a laptop via SSH tunnel:
