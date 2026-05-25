@@ -11,16 +11,25 @@ flowchart LR
     Dev[Developer Workstation] --> GH[GitHub Repository]
     GH --> GHA[GitHub Actions]
 
-    GHA --> WSL2[Self-hosted Runner: WSL2 / RTX 4060]
-    GHA --> DGX[Self-hosted Runner: DGX Spark / arm64 GPU]
-    GHA --> AGX[Self-hosted Runner: Jetson AGX Orin]
+    subgraph runners[Self-hosted Runners]
+        direction TB
+        WSL2[WSL2 / amd64]
+        AGX[Jetson AGX Orin / arm64]
+        DGX[DGX Spark / arm64]
+    end
+
+    GHA --> WSL2
+    GHA --> AGX
+    GHA --> DGX
 
     WSL2 --> RunnerImage[mlabs-runner Docker Image]
-    DGX --> RunnerImage
     AGX --> RunnerImage
+    DGX --> RunnerImage
 
     RunnerImage --> GHCR[GitHub Container Registry]
     RunnerImage --> Tools[Terraform / gcloud / kubectl / Docker CLI / Helm / NGC / ML tools]
+
+    DGX --> Ollama[Ollama]
 
     GHA --> WIF[Workload Identity Federation]
     WIF --> GCP[GCP Project: miramar-platform]
@@ -33,7 +42,6 @@ flowchart LR
     Mini --> Nemo[NeMo Microservices]
     Mini --> MLflow[MLflow + MinIO]
     Mini --> NIM[NVIDIA NIM]
-    DGX --> Ollama[Ollama]
 ```
 
 [![Miramar Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml)
