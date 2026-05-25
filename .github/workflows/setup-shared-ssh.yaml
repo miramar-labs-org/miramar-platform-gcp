@@ -29,7 +29,7 @@ jobs:
   # -----------------------------------------------------------------------
 
   setup-dgx:
-    runs-on: dgx
+    runs-on: agx
     steps:
       - name: Set up SSH key for DGX host
         run: |
@@ -144,7 +144,7 @@ jobs:
 
   setup-orin:
     needs: setup-dgx
-    runs-on: dgx
+    runs-on: agx
     steps:
       - name: Set up SSH key for DGX host
         run: |
@@ -244,7 +244,7 @@ jobs:
   summary:
     needs: [setup-dgx, setup-orin]
     if: always()
-    runs-on: dgx
+    runs-on: agx
     steps:
       - name: Summary
         run: |
