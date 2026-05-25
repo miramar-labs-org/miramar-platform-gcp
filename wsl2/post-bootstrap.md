@@ -13,6 +13,13 @@ These steps cannot be scripted inside `bootstrap.sh` — they require either Win
 Administrator access, a `wsl --shutdown` cycle that ends the session, or being on a
 different machine to push keys.
 
+### Multi-instance note
+
+Each WSL2 distro gets its own **named SSH alias** (`wsl2-<distro_name>`, e.g.
+`wsl2-dev`, `wsl2-ml`) and its own **sshd port** (2222 for the first instance;
+increment by 1 for each additional). Pass `ssh_port` when running
+**WSL2 Post-Provision** and **WSL2 Verify SSH Topology**.
+
 ---
 
 ## Step 1 — Windows `.wslconfig` (mirrored networking)
@@ -44,9 +51,10 @@ wsl
 
 ---
 
-## Step 2 — Windows Firewall: allow port 2222 inbound
+## Step 2 — Windows Firewall: allow distro's sshd port inbound
 
-WSL2 sshd listens on port 2222. Open an **Administrator PowerShell** and run:
+WSL2 sshd listens on the port chosen at provision time (default 2222). Open an
+**Administrator PowerShell** and run (replace `2222` with your distro's port):
 
 ```powershell
 New-NetFirewallRule `
@@ -115,43 +123,45 @@ ssh orin hostname
 
 ## Step 5 — Add DGX and Orin public keys to WSL2
 
-From **DGX**, push its key to WSL2 (using its LAN IP and port 2222):
+From **DGX**, push its key to WSL2 (using the Windows host's IP and the distro's port):
 
 ```bash
-ssh-copy-id -p 2222 -i ~/.ssh/id_ed25519.pub aaron@192.168.1.201
+ssh-copy-id -p 2222 -i ~/.ssh/id_ed25519.pub aaron@<WSL2_HOST>
 ```
 
 From **Orin**:
 
 ```bash
-ssh-copy-id -p 2222 -i ~/.ssh/id_ed25519.pub aaron@192.168.1.201
+ssh-copy-id -p 2222 -i ~/.ssh/id_ed25519.pub aaron@<WSL2_HOST>
 ```
 
 Test from DGX:
 
 ```bash
-ssh -o BatchMode=yes wsl2 hostname   # expected: wsl2
+ssh -o BatchMode=yes wsl2-dev hostname   # expected: dev
 ```
 
 Test from Orin:
 
 ```bash
-ssh -o BatchMode=yes wsl2 hostname   # expected: wsl2
+ssh -o BatchMode=yes wsl2-dev hostname   # expected: dev
 ```
 
 ---
 
 ## Step 6 — SSH client configs on DGX and Orin
 
-Both machines need `~/.ssh/config` to reach WSL2 by name. Run on each.
+Both machines need `~/.ssh/config` to reach WSL2 by the per-distro alias. The
+alias is `wsl2-<distro_name>` and `HostName` is the Windows host (not a WSL2 IP —
+mirrored networking means WSL2 sshd is reachable via the Windows host address).
 
 **On DGX** (`ssh spark`):
 
 ```bash
-cat >> ~/.ssh/config <<'EOF'
+cat >> ~/.ssh/config << 'EOF'
 
-Host wsl2
-    HostName 192.168.1.201
+Host wsl2-dev
+    HostName <WSL2_HOST>
     User aaron
     Port 2222
     IdentityFile /home/aaron/.ssh/id_ed25519
@@ -160,52 +170,31 @@ EOF
 chmod 600 ~/.ssh/config
 ```
 
-**On Orin** (`ssh orin`):
-
-```bash
-cat >> ~/.ssh/config <<'EOF'
-
-Host wsl2
-    HostName 192.168.1.201
-    User aaron
-    Port 2222
-    IdentityFile /home/aaron/.ssh/id_ed25519
-    IdentitiesOnly yes
-EOF
-chmod 600 ~/.ssh/config
-```
+**On Orin** (`ssh orin`): same block.
 
 ---
 
-## Step 7 — SSH client config on MSI Windows (for `ssh wsl2`)
+## Step 7 — SSH client config on MSI Windows (for `ssh wsl2-<distro>`)
 
-On **MSI Windows** PowerShell:
-
-```powershell
-notepad C:\Users\aaron\.ssh\config
-```
-
-Add:
+On **MSI Windows** PowerShell, add a block to `%USERPROFILE%\.ssh\config`:
 
 ```sshconfig
-Host wsl2
-    HostName 192.168.1.201
+Host wsl2-dev
+    HostName localhost
     User aaron
     Port 2222
     IdentityFile C:\Users\aaron\.ssh\id_ed25519
     IdentitiesOnly yes
 ```
 
+> Windows SSH config uses `HostName localhost` because the distro sshd runs on
+> the same machine. DGX and Orin use the Windows host's network name/IP.
+
 Test:
 
 ```powershell
-ssh wsl2 hostname   # expected: wsl2
+ssh wsl2-dev hostname   # expected: dev
 ```
-
-> If `wsl2.local` does not resolve on Windows, add a static hosts entry:
-> `192.168.1.201 wsl2 wsl2.local` in
-> `C:\Windows\System32\drivers\etc\hosts` (requires Administrator), then
-> `ipconfig /flushdns`.
 
 ---
 
@@ -216,14 +205,14 @@ ssh wsl2 hostname   # expected: wsl2
 | WSL2 | `ssh msi hostname` | MSI Windows hostname |
 | WSL2 | `ssh orin hostname` | `orin` |
 | WSL2 | `ssh spark hostname` | `spark-79b7` (or DGX hostname) |
-| DGX | `ssh wsl2 hostname` | `wsl2` |
-| Orin | `ssh wsl2 hostname` | `wsl2` |
-| MSI Windows | `ssh wsl2 hostname` | `wsl2` |
+| DGX | `ssh wsl2-dev hostname` | `dev` |
+| Orin | `ssh wsl2-dev hostname` | `dev` |
+| MSI Windows | `ssh wsl2-dev hostname` | `dev` |
 
 BatchMode test (confirms no password fallback):
 
 ```bash
-ssh -o BatchMode=yes wsl2 hostname
+ssh -o BatchMode=yes wsl2-dev hostname
 ```
 
 ---

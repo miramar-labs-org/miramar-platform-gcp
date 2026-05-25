@@ -2,8 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$Name,
 
-  [string]$User      = $env:USERNAME,
-  [string]$WslLanIP  = '192.168.1.201'
+  [string]$User = $env:USERNAME,
+  [int]$Port    = 2222
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,21 +54,31 @@ if ($needsShutdown) {
 }
 
 # -----------------------------------------------------------------------
-# Step 2: Windows Firewall — allow port 2222 inbound
+# Step 2: Windows Firewall — allow distro's sshd port inbound
 # -----------------------------------------------------------------------
-Step 'Firewall rule: WSL2 port 2222 inbound'
-$rule = Get-NetFirewallRule -DisplayName 'WSL2 SSH 2222 Inbound' -ErrorAction SilentlyContinue
+$fwRuleName = "WSL2 SSH $Port Inbound"
+Step "Firewall rule: $fwRuleName"
+$rule = Get-NetFirewallRule -DisplayName $fwRuleName -ErrorAction SilentlyContinue
 if ($rule) {
   Write-Host 'Rule already exists'
 } else {
   New-NetFirewallRule `
-    -DisplayName 'WSL2 SSH 2222 Inbound' `
+    -DisplayName $fwRuleName `
     -Direction   Inbound `
     -Protocol    TCP `
-    -LocalPort   2222 `
+    -LocalPort   $Port `
     -Action      Allow | Out-Null
-  Write-Host 'Firewall rule created'
+  Write-Host "Firewall rule created: $fwRuleName"
 }
+
+# -----------------------------------------------------------------------
+# Step 2b: Set sshd port inside the distro and restart sshd
+# The template always bakes port 2222; this overrides it for non-default
+# instances and makes the configured port explicit for all instances.
+# -----------------------------------------------------------------------
+Step "Configure sshd port $Port in distro '$Name'"
+& wsl.exe -d $Name -u root -- bash -c "printf 'Port %d\n' $Port > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh"
+Write-Host "sshd configured on port $Port"
 
 # -----------------------------------------------------------------------
 # Step 3: Start distro and read WSL2 public key
@@ -127,7 +137,8 @@ foreach ($keyFile in @("$env:USERPROFILE\dgx-key.pub", "$env:USERPROFILE\agx-key
 # -----------------------------------------------------------------------
 # Step 7: Windows SSH client config — add wsl2 host block
 # -----------------------------------------------------------------------
-Step 'Windows SSH client config: wsl2 host block'
+$hostAlias = "wsl2-$Name"
+Step "Windows SSH client config: $hostAlias host block"
 $sshDir     = Join-Path $env:USERPROFILE '.ssh'
 $sshCfgPath = Join-Path $sshDir 'config'
 New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
@@ -137,20 +148,20 @@ if (-not (Test-Path $sshCfgPath)) {
 $existingCfg = Get-Content $sshCfgPath -Raw -ErrorAction SilentlyContinue
 if (-not $existingCfg) { $existingCfg = '' }
 
-if ($existingCfg -like '*Host wsl2*') {
-  Write-Host 'wsl2 host block already present'
+if ($existingCfg -like "*Host $hostAlias*") {
+  Write-Host "$hostAlias host block already present"
 } else {
   $wsl2Block = @"
 
-Host wsl2
-    HostName $WslLanIP
+Host $hostAlias
+    HostName localhost
     User $User
-    Port 2222
+    Port $Port
     IdentityFile $sshDir\id_ed25519
     IdentitiesOnly yes
 "@
   Add-Content $sshCfgPath $wsl2Block
-  Write-Host 'wsl2 host block added'
+  Write-Host "$hostAlias host block added (localhost:$Port)"
 }
 
 # -----------------------------------------------------------------------

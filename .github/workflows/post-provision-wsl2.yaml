@@ -2,7 +2,7 @@ name: WSL2 Post-Provision
 
 # Automates all manual steps from wsl2/post-bootstrap.md:
 #   1. Write .wslconfig (mirrored networking) + wsl --shutdown
-#   2. Windows Firewall rule for port 2222
+#   2. Windows Firewall rule for the distro's sshd port
 #   3. WSL2 pubkey → MSI administrators_authorized_keys
 #   4. WSL2 pubkey → DGX and Orin authorized_keys
 #   5. DGX and Orin pubkeys → WSL2 authorized_keys
@@ -20,10 +20,10 @@ on:
         description: "WSL2 distro name to configure"
         required: true
         default: dev
-      wsl2_lan_ip:
-        description: "WSL2 LAN IP address"
+      ssh_port:
+        description: "sshd port for this distro (2222 for first instance, increment for each additional)"
         required: false
-        default: "192.168.1.201"
+        default: "2222"
       runner:
         description: "Runner for Windows SSH steps"
         required: false
@@ -112,7 +112,7 @@ jobs:
             "powershell -ExecutionPolicy Bypass -File \"%USERPROFILE%\\post-provision.ps1\" \
               -Name \"${{ inputs.distro_name }}\" \
               -User \"${{ secrets.WSL2_HOST_USER }}\" \
-              -WslLanIP \"${{ inputs.wsl2_lan_ip }}\"")
+              -Port \"${{ inputs.ssh_port }}\"")
           echo "$OUTPUT"
           WSL2_PUBKEY=$(echo "$OUTPUT" | grep '^WSL2_PUBKEY=' | cut -d= -f2-)
           if [[ -z "$WSL2_PUBKEY" ]]; then
@@ -139,22 +139,24 @@ jobs:
           grep -qF "$WSL2_PUBKEY" ~/.ssh/authorized_keys 2>/dev/null || \
             printf '\n%s\n' "$WSL2_PUBKEY" >> ~/.ssh/authorized_keys
 
-      - name: Add wsl2 host block to DGX ~/.ssh/config (idempotent)
+      - name: Add wsl2-<distro> host block to DGX ~/.ssh/config (idempotent)
         env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
+          DISTRO_NAME: ${{ inputs.distro_name }}
+          SSH_PORT: ${{ inputs.ssh_port }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
         run: |
           touch ~/.ssh/config
           chmod 600 ~/.ssh/config
-          grep -q '^Host wsl2' ~/.ssh/config 2>/dev/null && exit 0
-          cat >> ~/.ssh/config <<EOF
-
-Host wsl2
-    HostName ${WSL2_LAN_IP}
-    User aaron
-    Port 2222
-    IdentityFile /home/aaron/.ssh/id_ed25519
-    IdentitiesOnly yes
-EOF
+          grep -q "^Host wsl2-${DISTRO_NAME}" ~/.ssh/config 2>/dev/null && exit 0
+          {
+            echo ""
+            echo "Host wsl2-${DISTRO_NAME}"
+            echo "    HostName ${WSL2_HOST}"
+            echo "    User aaron"
+            echo "    Port ${SSH_PORT}"
+            echo "    IdentityFile /home/aaron/.ssh/id_ed25519"
+            echo "    IdentitiesOnly yes"
+          } >> ~/.ssh/config
 
   agx-setup:
     needs: windows-setup
@@ -170,22 +172,24 @@ EOF
           grep -qF "$WSL2_PUBKEY" ~/.ssh/authorized_keys 2>/dev/null || \
             printf '\n%s\n' "$WSL2_PUBKEY" >> ~/.ssh/authorized_keys
 
-      - name: Add wsl2 host block to Orin ~/.ssh/config (idempotent)
+      - name: Add wsl2-<distro> host block to Orin ~/.ssh/config (idempotent)
         env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
+          DISTRO_NAME: ${{ inputs.distro_name }}
+          SSH_PORT: ${{ inputs.ssh_port }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
         run: |
           touch ~/.ssh/config
           chmod 600 ~/.ssh/config
-          grep -q '^Host wsl2' ~/.ssh/config 2>/dev/null && exit 0
-          cat >> ~/.ssh/config <<EOF
-
-Host wsl2
-    HostName ${WSL2_LAN_IP}
-    User aaron
-    Port 2222
-    IdentityFile /home/aaron/.ssh/id_ed25519
-    IdentitiesOnly yes
-EOF
+          grep -q "^Host wsl2-${DISTRO_NAME}" ~/.ssh/config 2>/dev/null && exit 0
+          {
+            echo ""
+            echo "Host wsl2-${DISTRO_NAME}"
+            echo "    HostName ${WSL2_HOST}"
+            echo "    User aaron"
+            echo "    Port ${SSH_PORT}"
+            echo "    IdentityFile /home/aaron/.ssh/id_ed25519"
+            echo "    IdentitiesOnly yes"
+          } >> ~/.ssh/config
 
   # -----------------------------------------------------------------------
   # Summary
@@ -203,8 +207,9 @@ EOF
             echo "| | |"
             echo "|---|---|"
             echo "| Distro | \`${{ inputs.distro_name }}\` |"
+            echo "| SSH alias | \`wsl2-${{ inputs.distro_name }}\` |"
+            echo "| Port | \`${{ inputs.ssh_port }}\` |"
             echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
-            echo "| WSL2 LAN IP | \`${{ inputs.wsl2_lan_ip }}\` |"
             echo ""
             echo "### Configured"
             echo "| Step | Status |"
