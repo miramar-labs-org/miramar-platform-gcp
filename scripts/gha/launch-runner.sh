@@ -205,9 +205,18 @@ if [[ "${DEFAULT_LABELS}" == *"dgx"* ]]; then
     )
 fi
 
+# Resolve .local mDNS names on the host and inject them into the container
+# via --add-host so they work regardless of in-container mDNS support.
+DOCKER_HOSTS=()
+for _host in spark-79b7.local orin.local msi.local; do
+    _ip=$(getent hosts "$_host" 2>/dev/null | awk '{print $1}' | grep -v ':' | head -1)
+    [[ -n "$_ip" ]] && DOCKER_HOSTS+=(--add-host "$_host:$_ip")
+done
+
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     "${DOCKER_VOLS[@]}" \
+    "${DOCKER_HOSTS[@]}" \
     --group-add "$(stat -c '%g' /var/run/docker.sock)" \
     --gpus all \
     --network host \
