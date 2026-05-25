@@ -17,7 +17,8 @@ name: Setup Shared SSH Store
 # Prerequisites:
 #   - DGX ~/shared Samba share configured and running
 #   - DGX host can already SSH to orin.local (pre-existing lab SSH)
-#   - Secrets: DGX_HOST, DGX_HOST_USER, DGX_HOST_SSH_KEY, DGX_SMB_PASSWORD
+#   - Vars:    DGX_HOST, DGX_HOST_USER
+#   - Secrets: DGX_HOST_SSH_KEY, DGX_SMB_PASSWORD
 
 on:
   workflow_dispatch:
@@ -36,7 +37,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
-          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Initialise ~/shared/ssh/ and create symlinks on DGX host
         run: |
@@ -45,7 +46,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" bash -s << 'EOF'
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" bash -s << 'EOF'
           set -euo pipefail
 
           mkdir -p ~/shared/ssh
@@ -151,7 +152,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
-          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Install cifs-utils + create mountpoint on Orin (via DGX host)
         run: |
@@ -160,14 +161,14 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
               orin.local 'sudo apt-get install -y --no-install-recommends cifs-utils && mkdir -p ~/shared'"
 
       - name: Write .smbcredentials on Orin (via DGX host, stdin — password never in args)
         env:
           DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
-          DGX_HOST_USER: ${{ secrets.DGX_HOST_USER }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
         run: |
           printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \
             ssh -i ~/.ssh/dgx_host \
@@ -175,7 +176,7 @@ jobs:
               -o IdentitiesOnly=yes \
               -o PreferredAuthentications=publickey \
               -o PasswordAuthentication=no \
-              "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+              "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
               "ssh -o BatchMode=yes -o IdentitiesOnly=yes orin.local \
                 'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'"
           echo "Written .smbcredentials on Orin"
@@ -187,7 +188,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes orin.local bash -s" << 'EOF'
           set -euo pipefail
           if grep -q '/home/aaron/shared' /etc/fstab 2>/dev/null; then
@@ -212,7 +213,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes orin.local bash -s" << 'EOF'
           set -euo pipefail
           for f in config known_hosts authorized_keys; do

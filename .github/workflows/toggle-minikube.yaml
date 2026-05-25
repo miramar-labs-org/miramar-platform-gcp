@@ -35,7 +35,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
-          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts
 
       - name: ${{ inputs.action == 'pause' && 'Pause minikube on DGX' || 'Resume minikube on DGX' }}
         shell: bash
@@ -46,5 +46,5 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "minikube ${{ inputs.action == 'pause' && 'pause' || 'unpause' }}"

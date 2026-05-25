@@ -32,7 +32,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
-          ssh-keyscan -H "${{ secrets.DGX_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Unload model
         shell: bash
@@ -45,7 +45,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.DGX_HOST_USER }}@${{ secrets.DGX_HOST }}" \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "bash -s -- ${model} ${{ inputs.delete_model }}" \
             < dgx/ollama/undeploy_ollama.sh
 
@@ -58,5 +58,5 @@ jobs:
             echo "|---|---|"
             echo "| Model | \`${{ inputs.model || '(auto-detected)' }}\` |"
             echo "| Deleted from disk | \`${{ inputs.delete_model }}\` |"
-            echo "| Host | \`${{ secrets.DGX_HOST }}\` |"
+            echo "| Host | \`${{ vars.DGX_HOST }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

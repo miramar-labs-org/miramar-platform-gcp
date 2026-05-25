@@ -116,7 +116,7 @@ jobs:
               -Name \"${{ inputs.distro_name }}\" \
               -User \"${{ secrets.WSL2_HOST_USER }}\" \
               -Port \"${{ inputs.ssh_port }}\" \
-              -DgxHost \"${{ secrets.DGX_HOST }}\" \
+              -DgxHost \"${{ vars.DGX_HOST }}\" \
               -SmbPassword \"${{ secrets.DGX_SMB_PASSWORD }}\"")
           echo "$OUTPUT"
           WSL2_PUBKEY=$(echo "$OUTPUT" | grep '^WSL2_PUBKEY=' | cut -d= -f2-)
