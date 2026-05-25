@@ -880,7 +880,6 @@ Validates every SSH path in the mesh and checks `~/.ssh/config` host blocks and 
 | Input | Default | Description |
 |---|---|---|
 | `distro_name` | `dev` | Expected WSL2 hostname |
-| `wsl2_lan_ip` | `192.168.1.201` | WSL2 LAN IP |
 | `runner` | `dgx` | Runner for Windows SSH steps |
 
 ```

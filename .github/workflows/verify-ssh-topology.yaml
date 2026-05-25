@@ -21,10 +21,6 @@ on:
         description: "WSL2 distro name (used to verify hostname)"
         required: true
         default: dev
-      wsl2_lan_ip:
-        description: "WSL2 LAN IP address"
-        required: false
-        default: "192.168.1.201"
       runner:
         description: "Runner for Windows SSH steps"
         required: false
@@ -52,18 +48,6 @@ jobs:
             exit 1
           fi
           echo "PASS: wsl2 host block present in DGX ~/.ssh/config"
-
-      - name: Check WSL2 pubkey in authorized_keys
-        env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
-        run: |
-          # Pull the pubkey from WSL2's known IP to verify it's in our authorized_keys
-          # (we're confirming the file exists and is non-empty; actual auth is proven by the ssh test)
-          if [[ ! -s ~/.ssh/authorized_keys ]]; then
-            echo "WARN: ~/.ssh/authorized_keys is empty or missing on DGX"
-          else
-            echo "PASS: authorized_keys is present on DGX"
-          fi
 
       - name: SSH from DGX to WSL2
         env:
@@ -186,64 +170,55 @@ jobs:
     outputs:
       result: ${{ steps.report.outputs.result }}
     steps:
-      - name: Set up SSH key for WSL2
-        env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
+      - name: Set up SSH known hosts for WSL2
         run: |
           install -m 700 -d ~/.ssh
-          # Use the runner's own key — it was injected into WSL2 by post-provision
-          ssh-keyscan -p 2222 -H "$WSL2_LAN_IP" >> ~/.ssh/known_hosts 2>/dev/null
+          # Use the runner's own key — it was injected into WSL2 by post-provision.
+          # WSL2 shares the Windows host's IP (mirrored networking), so WSL2_HOST:2222 reaches sshd.
+          ssh-keyscan -p 2222 -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Check SSH config inside WSL2
-        env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
         run: |
           for host in spark orin msi github.com; do
             PRESENT=$(ssh \
               -o BatchMode=yes \
               -o IdentitiesOnly=yes \
               -o ConnectTimeout=15 \
-              -p 2222 "aaron@${WSL2_LAN_IP}" \
+              -p 2222 "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
               "grep -q \"^Host.*\\b${host}\\b\" ~/.ssh/config && echo PASS || echo MISSING")
             echo "WSL2 ~/.ssh/config 'Host $host': $PRESENT"
             [[ "$PRESENT" == "PASS" ]] || echo "WARN: Host $host block missing in WSL2 SSH config"
           done
 
       - name: SSH from WSL2 to DGX (spark)
-        env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
         run: |
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o ConnectTimeout=15 \
-            -p 2222 "aaron@${WSL2_LAN_IP}" \
+            -p 2222 "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 spark hostname")
           echo "WSL2 → spark hostname: $HOSTNAME"
           echo "PASS"
 
       - name: SSH from WSL2 to Orin
-        env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
         run: |
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o ConnectTimeout=15 \
-            -p 2222 "aaron@${WSL2_LAN_IP}" \
+            -p 2222 "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 orin hostname")
           echo "WSL2 → orin hostname: $HOSTNAME"
           echo "PASS"
 
       - name: SSH from WSL2 to MSI Windows
-        env:
-          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
         run: |
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o ConnectTimeout=15 \
-            -p 2222 "aaron@${WSL2_LAN_IP}" \
+            -p 2222 "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 msi hostname")
           echo "WSL2 → msi hostname: $HOSTNAME"
           echo "PASS"
@@ -275,7 +250,7 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Distro | \`${{ inputs.distro_name }}\` |"
-            echo "| WSL2 LAN IP | \`${{ inputs.wsl2_lan_ip }}\` |"
+            echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
             echo ""
             echo "### Results"
             echo "| Path | Result |"
