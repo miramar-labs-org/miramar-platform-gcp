@@ -210,6 +210,6 @@ docker run --rm ${DETACH_FLAG} \
     "${DOCKER_VOLS[@]}" \
     --group-add "$(stat -c '%g' /var/run/docker.sock)" \
     --gpus all \
-    --dns 8.8.8.8 \
+    --network host \
     --name "${CONTAINER_NAME}" \
     "${IMAGE}"
