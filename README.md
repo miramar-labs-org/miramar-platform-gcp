@@ -153,32 +153,35 @@ Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dash
 |---|---|---|
 | `WIF_PROVIDER` | output of `bootstrap-miramar-platform.zsh` | WIF provider resource path — shared by all repos for GCP auth |
 | `HF_TOKEN` | Hugging Face API token | Injected into workflow steps via `${{ secrets.HF_TOKEN }}` — no longer set on individual machines |
+| `NVIDIA_API_KEY` | NVIDIA NGC API key | Required by NeMo Microservices and NIM workflows |
+| `DGX_HOST_SSH_KEY` | Private SSH key (Ed25519) | Key used to SSH into the DGX host from runners; matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
+| `DGX_SMB_PASSWORD` | Samba password for the DGX `aaron` user | Used by **Setup Shared SSH Store** (Orin CIFS mount) and **WSL2 Post-Provision** (WSL2 CIFS mount) |
+| `DGX_MINIKUBE_KUBECONFIG` | base64-encoded kubeconfig | Written by **Minikube Install**; used by minikube workflows to reach the DGX cluster |
 
 ### Repo-level secrets — [miramar-platform-gcp settings](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions)
 
 | Secret | Value | Purpose |
 |---|---|---|
 | `GCP_SERVICE_ACCOUNT` | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops SA — used by platform lifecycle workflows |
-| `DGX_HOST` | hostname or IP of the DGX Spark | SSH target for Ollama Update workflow |
-| `DGX_HOST_USER` | SSH user on the DGX host | SSH login for Ollama Update workflow |
-| `DGX_HOST_SSH_KEY` | Private SSH key (Ed25519 or RSA) | Key used to SSH into the DGX host from the runner |
 | `WSL2_HOST` | hostname or IP of the MSI Windows laptop | SSH target for WSL2 workflows |
 | `WSL2_HOST_USER` | Windows SSH user | SSH login for WSL2 workflows |
 | `WSL2_HOST_SSH_KEY` | Private SSH key | Key used to SSH into Windows from runners; matching public key in `C:\ProgramData\ssh\administrators_authorized_keys` |
-| `DGX_SMB_PASSWORD` | Samba password for the DGX user | Used by **Setup Shared SSH Store** (Orin CIFS mount) and **WSL2 Post-Provision** (WSL2 CIFS mount) |
 
 ### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
 
-Shared platform config — available to all repos in the org via `${{ vars.* }}`. **Synced from `gcp/terraform/terraform.tfvars`** — do not edit directly. Run `scripts/gha/sync-github-tf-vars.sh` after changing tfvars.
+Available to all repos via `${{ vars.* }}`. GCP vars are **synced from `gcp/terraform/terraform.tfvars`** — do not edit directly; run `scripts/gha/sync-github-tf-vars.sh` after changing tfvars. Lab host vars are set manually.
 
-| Variable | Value |
-|---|---|
-| `GCP_PROJECT_ID` | `miramar-platform` |
-| `GKE_CLUSTER_NAME` | `miramar-shared-gke` |
-| `GKE_ZONE` | `us-central1-b` *(current; sourced from tfvars)* |
-| `GCP_REGION` | `us-central1` *(current; sourced from tfvars)* |
-| `GAR_REPO` | `apps` |
-| `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` *(set manually — not in tfvars)* |
+| Variable | Value | Notes |
+|---|---|---|
+| `GCP_PROJECT_ID` | `miramar-platform` | synced from tfvars |
+| `GKE_CLUSTER_NAME` | `miramar-shared-gke` | synced from tfvars |
+| `GKE_ZONE` | `us-central1-b` | synced from tfvars |
+| `GCP_REGION` | `us-central1` | synced from tfvars |
+| `GAR_REPO` | `apps` | synced from tfvars |
+| `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` | set manually — not in tfvars |
+| `DGX_HOST` | `spark-79b7.local` | set manually — mDNS hostname of the DGX Spark |
+| `DGX_HOST_USER` | `aaron` | set manually — SSH user on the DGX host |
+| `MLFLOW_TRACKING_URI` | `http://localhost:5000` | set manually — used by ML workflows |
 
 ---
 
@@ -713,13 +716,13 @@ Installs or upgrades Ollama on the DGX host via SSH. The workflow does not run O
 |---|---|---|---|
 | `runner` | `dgx`, `wsl2` | `dgx` | Which self-hosted runner to use for the SSH connection |
 
-**Required secrets** (repo-level):
+**Required org-level variables and secrets:**
 
-| Secret | Purpose |
-|---|---|
-| `DGX_HOST` | Hostname or IP of the DGX Spark |
-| `DGX_HOST_USER` | SSH user on the DGX host |
-| `DGX_HOST_SSH_KEY` | Private SSH key — the matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
+| Name | Kind | Purpose |
+|---|---|---|
+| `DGX_HOST` | org variable | Hostname of the DGX Spark (`spark-79b7.local`) |
+| `DGX_HOST_USER` | org variable | SSH user on the DGX host (`aaron`) |
+| `DGX_HOST_SSH_KEY` | org secret | Private SSH key — matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
 
 **SSH key notes:**
 
