@@ -56,7 +56,8 @@ sudo apt-get install -y --no-install-recommends \
   ethtool \
   whois \
   iperf3 \
-  iftop nethogs vnstat
+  iftop nethogs vnstat \
+  cifs-utils
 
 log "Install neofetch"
 sudo apt-get install -y --no-install-recommends neofetch
@@ -80,6 +81,9 @@ log "Prepare ~/.ssh/authorized_keys"
 touch "$HOME/.ssh/authorized_keys"
 chmod 600 "$HOME/.ssh/authorized_keys"
 chown -R "${USER}:${USER}" "$HOME/.ssh"
+
+log "Create ~/shared mountpoint (DGX CIFS share — mounted by post-provision)"
+mkdir -p "$HOME/shared"
 
 log "Configure mDNS (.local resolution via avahi + libnss-mdns)"
 sudo systemctl enable avahi-daemon
@@ -396,4 +400,8 @@ echo ""
 echo "SSH public key (copy this to DGX, Orin, and MSI Windows):"
 cat "$HOME/.ssh/id_ed25519.pub" 2>/dev/null || true
 echo ""
-echo "See wsl2/post-bootstrap.md for remaining manual steps (Windows firewall, key distribution)."
+echo "Next steps:"
+echo "  1. Run setup-shared-ssh workflow (once — initialises DGX ~/shared/ssh/ and wires Orin)"
+echo "  2. Run WSL2 Post-Provision workflow (per distro — mounts ~/shared, creates symlinks, wires mesh)"
+echo "  3. Run WSL2 Verify SSH Topology workflow"
+echo "See wsl2/post-bootstrap.md for manual fallback steps."

@@ -4,14 +4,17 @@ name: WSL2 Post-Provision
 #   1. Write .wslconfig (mirrored networking) + wsl --shutdown
 #   2. Windows Firewall rule for the distro's sshd port
 #   3. WSL2 pubkey → MSI administrators_authorized_keys
-#   4. WSL2 pubkey → DGX and Orin authorized_keys
-#   5. DGX and Orin pubkeys → WSL2 authorized_keys
-#   6. SSH client config on DGX and Orin (wsl2 host block)
-#   7. SSH client config on Windows (wsl2 host block)
+#   4. Mount ~/shared (CIFS → DGX ~/shared) + create ~/.ssh symlinks
+#   5. DGX and Orin pubkeys → shared authorized_keys (via WSL2 symlink)
+#   6. WSL2 pubkey → shared authorized_keys (via Windows path)
+#   7. wsl2-<name> host block → shared SSH config (all machines pick it up)
+#   8. Windows ~/.ssh/config hardlink → shared config
 #
 # Prerequisites:
 #   - WSL2 distro already provisioned (run WSL2 Provision first)
-#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
+#   - setup-shared-ssh workflow already run (initialises DGX ~/shared/ssh/)
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY,
+#              DGX_HOST, DGX_HOST_USER, DGX_SMB_PASSWORD
 
 on:
   workflow_dispatch:
@@ -58,7 +61,7 @@ jobs:
         run: echo "value=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
 
   # -----------------------------------------------------------------------
-  # Phase 2: Windows-side setup
+  # Phase 2: Windows-side setup (all SSH mesh wiring via post-provision.ps1)
   # -----------------------------------------------------------------------
 
   windows-setup:
@@ -112,7 +115,9 @@ jobs:
             "powershell -ExecutionPolicy Bypass -File \"%USERPROFILE%\\post-provision.ps1\" \
               -Name \"${{ inputs.distro_name }}\" \
               -User \"${{ secrets.WSL2_HOST_USER }}\" \
-              -Port \"${{ inputs.ssh_port }}\"")
+              -Port \"${{ inputs.ssh_port }}\" \
+              -DgxHost \"${{ secrets.DGX_HOST }}\" \
+              -SmbPassword \"${{ secrets.DGX_SMB_PASSWORD }}\"")
           echo "$OUTPUT"
           WSL2_PUBKEY=$(echo "$OUTPUT" | grep '^WSL2_PUBKEY=' | cut -d= -f2-)
           if [[ -z "$WSL2_PUBKEY" ]]; then
@@ -122,81 +127,11 @@ jobs:
           echo "wsl2_pubkey=${WSL2_PUBKEY}" >> "$GITHUB_OUTPUT"
 
   # -----------------------------------------------------------------------
-  # Phase 3: runner-side setup (parallel, depends on windows-setup)
-  # -----------------------------------------------------------------------
-
-  dgx-setup:
-    needs: windows-setup
-    runs-on: dgx
-    steps:
-      - name: Add WSL2 pubkey to DGX authorized_keys (idempotent)
-        env:
-          WSL2_PUBKEY: ${{ needs.windows-setup.outputs.wsl2_pubkey }}
-        run: |
-          mkdir -p ~/.ssh
-          touch ~/.ssh/authorized_keys
-          chmod 600 ~/.ssh/authorized_keys
-          grep -qF "$WSL2_PUBKEY" ~/.ssh/authorized_keys 2>/dev/null || \
-            printf '\n%s\n' "$WSL2_PUBKEY" >> ~/.ssh/authorized_keys
-
-      - name: Add wsl2-<distro> host block to DGX ~/.ssh/config (idempotent)
-        env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
-          SSH_PORT: ${{ inputs.ssh_port }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-        run: |
-          touch ~/.ssh/config
-          chmod 600 ~/.ssh/config
-          grep -q "^Host wsl2-${DISTRO_NAME}" ~/.ssh/config 2>/dev/null && exit 0
-          {
-            echo ""
-            echo "Host wsl2-${DISTRO_NAME}"
-            echo "    HostName ${WSL2_HOST}"
-            echo "    User aaron"
-            echo "    Port ${SSH_PORT}"
-            echo "    IdentityFile /home/aaron/.ssh/id_ed25519"
-            echo "    IdentitiesOnly yes"
-          } >> ~/.ssh/config
-
-  agx-setup:
-    needs: windows-setup
-    runs-on: agx
-    steps:
-      - name: Add WSL2 pubkey to Orin authorized_keys (idempotent)
-        env:
-          WSL2_PUBKEY: ${{ needs.windows-setup.outputs.wsl2_pubkey }}
-        run: |
-          mkdir -p ~/.ssh
-          touch ~/.ssh/authorized_keys
-          chmod 600 ~/.ssh/authorized_keys
-          grep -qF "$WSL2_PUBKEY" ~/.ssh/authorized_keys 2>/dev/null || \
-            printf '\n%s\n' "$WSL2_PUBKEY" >> ~/.ssh/authorized_keys
-
-      - name: Add wsl2-<distro> host block to Orin ~/.ssh/config (idempotent)
-        env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
-          SSH_PORT: ${{ inputs.ssh_port }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-        run: |
-          touch ~/.ssh/config
-          chmod 600 ~/.ssh/config
-          grep -q "^Host wsl2-${DISTRO_NAME}" ~/.ssh/config 2>/dev/null && exit 0
-          {
-            echo ""
-            echo "Host wsl2-${DISTRO_NAME}"
-            echo "    HostName ${WSL2_HOST}"
-            echo "    User aaron"
-            echo "    Port ${SSH_PORT}"
-            echo "    IdentityFile /home/aaron/.ssh/id_ed25519"
-            echo "    IdentitiesOnly yes"
-          } >> ~/.ssh/config
-
-  # -----------------------------------------------------------------------
   # Summary
   # -----------------------------------------------------------------------
 
   summary:
-    needs: [windows-setup, dgx-setup, agx-setup]
+    needs: windows-setup
     if: always()
     runs-on: ${{ inputs.runner }}
     steps:
@@ -214,9 +149,7 @@ jobs:
             echo "### Configured"
             echo "| Step | Status |"
             echo "|---|---|"
-            echo "| \`.wslconfig\` + firewall + Windows SSH config | ${{ needs.windows-setup.result }} |"
-            echo "| DGX \`authorized_keys\` + \`~/.ssh/config\` | ${{ needs.dgx-setup.result }} |"
-            echo "| Orin \`authorized_keys\` + \`~/.ssh/config\` | ${{ needs.agx-setup.result }} |"
+            echo "| \`.wslconfig\` + firewall + sshd port + CIFS mount + symlinks + SSH mesh | ${{ needs.windows-setup.result }} |"
             echo ""
             echo "### Next step"
             echo "Run **WSL2 Verify SSH Topology** to confirm all SSH paths work end-to-end."

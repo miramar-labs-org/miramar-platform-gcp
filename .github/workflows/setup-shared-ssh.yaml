@@ -1,0 +1,213 @@
+name: Setup Shared SSH Store
+
+# One-time infrastructure setup — run before provisioning any WSL2 distro.
+#
+# Initialises ~/shared/ssh/ on DGX with the canonical SSH config, known_hosts,
+# and authorized_keys, then wires up the CIFS mount and ~/.ssh symlinks on Orin.
+# After this runs, all machines read SSH config from a single source of truth.
+#
+# Run order:
+#   1. Setup Shared SSH Store   ← this workflow (once)
+#   2. WSL2 Provision           (per distro)
+#   3. WSL2 Post-Provision      (per distro)
+#   4. WSL2 Verify SSH Topology (per distro)
+#
+# Prerequisites:
+#   - DGX ~/shared Samba share configured and running
+#   - Secrets: DGX_HOST, DGX_HOST_USER, DGX_SMB_PASSWORD
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  # -----------------------------------------------------------------------
+  # DGX: initialise ~/shared/ssh/ and create local symlinks
+  # -----------------------------------------------------------------------
+
+  setup-dgx:
+    runs-on: dgx
+    steps:
+      - name: Initialise ~/shared/ssh/ structure
+        run: |
+          mkdir -p ~/shared/ssh
+          chmod 700 ~/shared/ssh
+
+          # config — write canonical lab host blocks if not already present
+          if [[ ! -f ~/shared/ssh/config ]]; then
+            {
+              echo "Host msi"
+              echo "    HostName msi.local"
+              echo "    User aaron"
+              echo "    IdentityFile ~/.ssh/id_ed25519"
+              echo "    IdentitiesOnly yes"
+              echo ""
+              echo "Host orin"
+              echo "    HostName orin.local"
+              echo "    User aaron"
+              echo "    IdentityFile ~/.ssh/id_ed25519"
+              echo "    IdentitiesOnly yes"
+              echo ""
+              echo "Host dgx spark spark-79b7"
+              echo "    HostName spark-79b7.local"
+              echo "    User aaron"
+              echo "    IdentityFile ~/.ssh/id_ed25519"
+              echo "    IdentitiesOnly yes"
+              echo ""
+              echo "Host github.com"
+              echo "    HostName github.com"
+              echo "    User git"
+              echo "    IdentityFile ~/.ssh/id_ed25519"
+              echo "    IdentitiesOnly yes"
+            } > ~/shared/ssh/config
+            chmod 600 ~/shared/ssh/config
+            echo "Created ~/shared/ssh/config"
+          else
+            echo "~/shared/ssh/config already exists — skipping"
+          fi
+
+          # known_hosts
+          if [[ ! -f ~/shared/ssh/known_hosts ]]; then
+            touch ~/shared/ssh/known_hosts
+            chmod 644 ~/shared/ssh/known_hosts
+            echo "Created ~/shared/ssh/known_hosts"
+          else
+            echo "~/shared/ssh/known_hosts already exists — skipping"
+          fi
+
+          # authorized_keys
+          if [[ ! -f ~/shared/ssh/authorized_keys ]]; then
+            touch ~/shared/ssh/authorized_keys
+            chmod 600 ~/shared/ssh/authorized_keys
+            echo "Created ~/shared/ssh/authorized_keys"
+          else
+            echo "~/shared/ssh/authorized_keys already exists — skipping"
+          fi
+
+      - name: Add DGX pubkey to shared authorized_keys (idempotent)
+        run: |
+          DGX_PUBKEY=$(cat ~/.ssh/id_ed25519.pub)
+          grep -qF "$DGX_PUBKEY" ~/shared/ssh/authorized_keys 2>/dev/null || \
+            printf '\n%s\n' "$DGX_PUBKEY" >> ~/shared/ssh/authorized_keys
+          echo "PASS: DGX pubkey present"
+
+      - name: Create ~/.ssh symlinks on DGX (idempotent)
+        run: |
+          for f in config known_hosts authorized_keys; do
+            target="$HOME/shared/ssh/$f"
+            link="$HOME/.ssh/$f"
+            if [[ -L "$link" ]]; then
+              echo "$f: already a symlink — skipping"
+            elif [[ -f "$link" ]]; then
+              mv "$link" "${link}.bak"
+              echo "$f: backed up existing file → ${link}.bak"
+              ln -sf "$target" "$link"
+              echo "$f: symlinked"
+            else
+              ln -sf "$target" "$link"
+              echo "$f: symlinked"
+            fi
+          done
+
+  # -----------------------------------------------------------------------
+  # Orin: CIFS mount + symlinks + add Orin pubkey
+  # -----------------------------------------------------------------------
+
+  setup-orin:
+    needs: setup-dgx
+    runs-on: agx
+    steps:
+      - name: Install cifs-utils (idempotent)
+        run: sudo apt-get install -y --no-install-recommends cifs-utils
+
+      - name: Write .smbcredentials
+        env:
+          DGX_USER: ${{ secrets.DGX_HOST_USER }}
+          DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
+        run: |
+          printf 'username=%s\npassword=%s\n' "$DGX_USER" "$DGX_SMB_PASSWORD" \
+            > ~/.smbcredentials
+          chmod 600 ~/.smbcredentials
+          echo "Written ~/.smbcredentials"
+
+      - name: Add CIFS mount to /etc/fstab (idempotent)
+        env:
+          DGX_HOST: ${{ secrets.DGX_HOST }}
+        run: |
+          if grep -q '/home/aaron/shared' /etc/fstab 2>/dev/null; then
+            echo "fstab entry already present"
+          else
+            printf '//%s/shared /home/aaron/shared cifs credentials=/home/aaron/.smbcredentials,uid=%s,gid=%s,file_mode=0600,dir_mode=0700,_netdev 0 0\n' \
+              "$DGX_HOST" "$(id -u)" "$(id -g)" | sudo tee -a /etc/fstab
+            echo "fstab entry added"
+          fi
+
+      - name: Mount ~/shared (idempotent)
+        run: |
+          mkdir -p ~/shared
+          if mountpoint -q ~/shared; then
+            echo "Already mounted"
+          else
+            sudo mount ~/shared
+            echo "Mounted"
+          fi
+
+      - name: Create ~/.ssh symlinks on Orin (idempotent)
+        run: |
+          for f in config known_hosts authorized_keys; do
+            target="$HOME/shared/ssh/$f"
+            link="$HOME/.ssh/$f"
+            if [[ -L "$link" ]]; then
+              echo "$f: already a symlink — skipping"
+            elif [[ -f "$link" ]]; then
+              mv "$link" "${link}.bak"
+              echo "$f: backed up existing file → ${link}.bak"
+              ln -sf "$target" "$link"
+              echo "$f: symlinked"
+            else
+              ln -sf "$target" "$link"
+              echo "$f: symlinked"
+            fi
+          done
+
+      - name: Add Orin pubkey to shared authorized_keys (idempotent)
+        run: |
+          ORIN_PUBKEY=$(cat ~/.ssh/id_ed25519.pub)
+          grep -qF "$ORIN_PUBKEY" ~/shared/ssh/authorized_keys 2>/dev/null || \
+            printf '\n%s\n' "$ORIN_PUBKEY" >> ~/shared/ssh/authorized_keys
+          echo "PASS: Orin pubkey present in shared authorized_keys"
+
+  # -----------------------------------------------------------------------
+  # Summary
+  # -----------------------------------------------------------------------
+
+  summary:
+    needs: [setup-dgx, setup-orin]
+    if: always()
+    runs-on: dgx
+    steps:
+      - name: Summary
+        run: |
+          dgx="${{ needs.setup-dgx.result }}"
+          orin="${{ needs.setup-orin.result }}"
+
+          pass() { [[ "$1" == "success" ]] && echo "✅" || echo "❌ ($1)"; }
+
+          {
+            echo "## Setup Shared SSH Store"
+            echo ""
+            echo "| Machine | Status |"
+            echo "|---|---|"
+            echo "| DGX — init \`~/shared/ssh/\` + symlinks | $(pass $dgx) |"
+            echo "| Orin — CIFS mount + symlinks + pubkey | $(pass $orin) |"
+            echo ""
+            echo "### Shared store layout"
+            echo "\`\`\`"
+            echo "~/shared/ssh/config          ← all Host blocks (all machines read this)"
+            echo "~/shared/ssh/known_hosts     ← trusted host keys"
+            echo "~/shared/ssh/authorized_keys ← all machine pubkeys"
+            echo "\`\`\`"
+            echo ""
+            echo "### Next step"
+            echo "Run **WSL2 Provision** then **WSL2 Post-Provision** to add a new distro."
+          } >> "$GITHUB_STEP_SUMMARY"

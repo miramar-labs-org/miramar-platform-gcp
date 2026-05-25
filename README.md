@@ -57,6 +57,7 @@ flowchart LR
 [![NIM Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nim.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nim.yaml)
 [![Ollama Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml)
 [![Ollama Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml)
+[![Setup Shared SSH Store](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/setup-shared-ssh.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/setup-shared-ssh.yaml)
 [![WSL2 Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml)
 [![WSL2 Post-Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/post-provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/post-provision-wsl2.yaml)
 [![WSL2 Verify SSH Topology](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml)
@@ -164,6 +165,7 @@ Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dash
 | `WSL2_HOST` | hostname or IP of the MSI Windows laptop | SSH target for WSL2 workflows |
 | `WSL2_HOST_USER` | Windows SSH user | SSH login for WSL2 workflows |
 | `WSL2_HOST_SSH_KEY` | Private SSH key | Key used to SSH into Windows from runners; matching public key in `C:\ProgramData\ssh\administrators_authorized_keys` |
+| `DGX_SMB_PASSWORD` | Samba password for the DGX user | Used by **Setup Shared SSH Store** (Orin CIFS mount) and **WSL2 Post-Provision** (WSL2 CIFS mount) |
 
 ### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
 
@@ -821,7 +823,12 @@ WSL2 distros are provisioned from a pre-built configured template tarball (`C:\w
 
 **Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `ml`) and its own sshd port (2222 for the first, increment by 1 for each additional). All SSH configs use the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-ml`) so instances never conflict.
 
-**Normal provisioning sequence:**
+**One-time infrastructure setup** (run once, before any distro):
+```
+Actions → Setup Shared SSH Store
+```
+
+**Per-distro provisioning sequence:**
 ```
 Actions → WSL2 Provision           → distro_name: dev
 Actions → WSL2 Post-Provision      → distro_name: dev  ssh_port: 2222
@@ -835,6 +842,16 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 | `WSL2_HOST` | Hostname or IP of the MSI Windows laptop |
 | `WSL2_HOST_USER` | Windows SSH user |
 | `WSL2_HOST_SSH_KEY` | Private SSH key — matching public key must be in `C:\ProgramData\ssh\administrators_authorized_keys` on Windows |
+
+### [Setup Shared SSH Store](.github/workflows/setup-shared-ssh.yaml)
+
+**Run once before provisioning any WSL2 distro.** Initialises `~/shared/ssh/` on DGX as the single source of truth for SSH config across all machines, then wires up the CIFS mount and `~/.ssh` symlinks on Orin.
+
+After this runs, `~/.ssh/config`, `~/.ssh/known_hosts`, and `~/.ssh/authorized_keys` on DGX and Orin are symlinks into `~/shared/ssh/`. New host blocks and keys written anywhere are immediately visible everywhere.
+
+```
+Actions → Setup Shared SSH Store → Run workflow
+```
 
 ### [WSL2 Provision](.github/workflows/provision-wsl2.yaml)
 

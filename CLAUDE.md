@@ -131,8 +131,9 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Ollama Deploy | `deploy-ollama.yaml` | SSH to DGX host and pull + load an Ollama model into GPU memory. Fails with an explicit error if a NIM or another Ollama model is already using the 128 GB pool. Input: `model` (default: `llama3.3:70b-instruct-q4_K_M`) |
 | Ollama Undeploy | `undeploy-ollama.yaml` | SSH to DGX host and unload the active Ollama model from GPU memory. Auto-detects loaded model if `model` input is blank. Input: `model` (optional), `delete_model` (bool, default false) |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |
+| Setup Shared SSH Store | `setup-shared-ssh.yaml` | **One-time setup.** Initialises `~/shared/ssh/` on DGX (canonical config/known_hosts/authorized_keys), creates `~/.ssh` symlinks on DGX and Orin, wires Orin CIFS mount. Run before first WSL2 Post-Provision. Requires `DGX_SMB_PASSWORD` secret. |
 | WSL2 Provision | `provision-wsl2.yaml` | Import a new WSL2 distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar` on the Windows host. |
-| WSL2 Post-Provision | `post-provision-wsl2.yaml` | Wire up the full SSH mesh (`.wslconfig`, firewall rule for `ssh_port`, per-distro sshd port config, key distribution, `wsl2-<name>` SSH configs on all machines). Input: `ssh_port` (default `2222` — increment per additional instance). |
+| WSL2 Post-Provision | `post-provision-wsl2.yaml` | Per-distro SSH mesh setup: `.wslconfig`, firewall, sshd port, CIFS mount of `~/shared` in WSL2, `~/.ssh` symlinks, key distribution into shared store, `wsl2-<name>` host block in shared config, Windows SSH hardlink. Requires `DGX_SMB_PASSWORD`. |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Validate every SSH path in the lab mesh using `wsl2-<distro_name>` alias; checks `~/.ssh/config` host blocks on each machine; reports ✅/❌ per path. Inputs: `distro_name`, `ssh_port`. |
 | WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister a WSL2 distro; optionally delete `C:\wsl\<name>` from disk. |
 
