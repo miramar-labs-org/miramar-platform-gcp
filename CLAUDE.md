@@ -64,7 +64,7 @@ docs/              # Architecture and runbooks
 | `dgx/ollama/undeploy_ollama.sh` | Run on DGX host via SSH to unload an Ollama model from GPU memory. Auto-detects the loaded model if no arg given. Called by the **Ollama Undeploy** workflow. |
 | `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the four DGX systemd user services (minikube, dashboard proxy, JupyterLab, MLflow port-forward). |
 | `wsl2/bootstrap.sh` | One-time setup for a fresh WSL2 distro — installs dev tools, Docker, Kubernetes tooling, pyenv, Miniforge, Go, Java, and configures SSH (sshd on port 2222, ed25519 key, mDNS, `~/.ssh/config` for lab hosts). Run inside the distro before exporting the template. |
-| `wsl2/post-provision.ps1` | PowerShell script run on the Windows host by the **WSL2 Post-Provision** workflow. Params: `-Name` (distro), `-User`, `-Port` (default 2222). Handles `.wslconfig`, per-distro firewall rule (`WSL2 SSH <Port> Inbound`), sshd port inside the distro, WSL2 pubkey → `administrators_authorized_keys`, runner pubkey injection into WSL2 `authorized_keys`, and Windows SSH client config (`Host wsl2-<Name>` → `localhost:<Port>`). |
+| `wsl2/post-provision.ps1` | PowerShell script run on the Windows host by the **WSL2 Post-Provision** workflow. Params: `-Name` (distro), `-User`, `-Port` (default 2222), `-DgxHost` (default `spark-79b7.local`), `-SmbPassword`. Handles: `.wslconfig` (mirrored networking), per-distro firewall rule (`WSL2 SSH <Port> Inbound`), sshd port override inside the distro, WSL2 pubkey → `administrators_authorized_keys`, CIFS mount of DGX `~/shared` inside WSL2 (`~/shared`), `~/.ssh` symlinks in WSL2 to shared store, WSL2 pubkey → shared `authorized_keys`, `wsl2-<Name>` host block → shared `config`, Windows `%USERPROFILE%\.ssh\config` hardlink → shared config. |
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
 
@@ -172,6 +172,8 @@ The cluster is intentionally minimized. These constraints must be preserved:
 ```
 Token is fetched automatically via `GITHUB_ORG_ADMIN_PAT`. Idempotent — re-running while the container is already up just prints status. Work directory is mounted from `~/runner/_work` on the host into `/home/runner/_work` in the container.
 
+**Network:** containers run with `--network=host` so `.local` mDNS names (`spark-79b7.local`, `orin.local`, `msi.local`) resolve correctly. The image includes `libnss-mdns` with `mdns4_minimal` in `/etc/nsswitch.conf`.
+
 Local machine env vars required: `GITHUB_ORG_GHCR_PAT` (pull runner image), `GITHUB_ORG_ADMIN_PAT` (register/deregister runner). `HF_TOKEN` is a GitHub org secret — injected by workflows, not needed locally.
 
 **Runner registration tokens** are obtained from GitHub UI or API and expire after 1 hour. The container deregisters cleanly on `SIGTERM`.
@@ -204,7 +206,7 @@ Ollama API quirks (relevant when editing scripts):
 - The API call returns before VRAM is actually freed; poll `GET /api/ps` until `.models` is empty (up to ~60s for a 70B model).
 - SSH workflows that pass an optional model arg use `printf '%q'` to avoid empty-string args being dropped by SSH arg concatenation — see `undeploy-ollama.yaml` and `DEVELOPER.md`.
 
-**MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` — works from inside the mlabs-runner container because the port-forward binds to `0.0.0.0`. All other services bind to `127.0.0.1`.
+**MLflow** runs in minikube (`mlflow-system` namespace). `MLFLOW_TRACKING_URI=http://localhost:5000` — with `--network=host`, the runner container shares the host's network so `localhost` reaches the port-forward directly. The port-forward binds to `0.0.0.0`; all other services bind to `127.0.0.1`.
 
 Access all services from a laptop via SSH tunnel:
 ```sh

@@ -1,5 +1,17 @@
 # SSH Runbook: DGX, Orin, MSI, and WSL2
 
+> **Most of this is automated.** The shared SSH store (`~/shared/ssh/` on DGX, CIFS-mounted into Orin and each WSL2 distro) holds the canonical `config`, `known_hosts`, and `authorized_keys` for all machines. GHA workflows manage it:
+>
+> | Workflow | What it does |
+> |---|---|
+> | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on DGX, create symlinks on DGX + Orin, wire Orin CIFS mount |
+> | **WSL2 Post-Provision** | Per-distro: CIFS mount + symlinks in WSL2, add WSL2 pubkey to shared store, write `wsl2-<name>` host block to shared config, hardlink Windows config |
+> | **WSL2 Verify SSH Topology** | Validate all SSH paths end-to-end |
+>
+> The manual steps below are kept as a **reference and troubleshooting fallback** only.
+
+---
+
 This runbook documents the SSH and DNS setup for a local lab consisting of:
 
 | Machine | Hostname | DNS |
@@ -16,17 +28,21 @@ The goal is seamless SSH between all machines using `id_ed25519` keys.
 ## Final Topology
 
 ```text
-ssh msi   -> MSI Windows OpenSSH shell on port 22
-ssh wsl2  -> WSL2 Linux shell on port 2222
-ssh orin  -> Jetson Orin
-ssh spark -> DGX / Spark
+ssh msi          -> MSI Windows OpenSSH shell on port 22
+ssh wsl2-<name>  -> WSL2 distro Linux shell on its assigned port (2222, 2223, …)
+ssh orin         -> Jetson Orin
+ssh spark        -> DGX / Spark
 ```
+
+Each WSL2 distro gets a unique alias (`wsl2-dev`, `wsl2-ml`, etc.) and sshd port.
+The `Host wsl2-<name>` block is written to the shared SSH config by **WSL2 Post-Provision**
+and picked up by all machines automatically via the shared store.
 
 Important distinction:
 
 ```text
 MSI Windows OpenSSH uses port 22.
-WSL2 sshd uses port 2222.
+WSL2 sshd uses port 2222 (first distro) or higher.
 ```
 
 This avoids the problem where `ssh wsl2` accidentally lands in the MSI Windows shell.
@@ -715,53 +731,37 @@ Editing requires Administrator privileges.
 
 # Part 18: Validation Matrix
 
+> **Automated:** run **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) — it tests all paths and reports ✅/❌. Manual steps below are for debugging.
+
 ## From DGX
 
 ```bash
-ssh wsl2 hostname
+ssh wsl2-dev hostname   # replace 'dev' with your distro name
 ```
 
-Expected:
-
-```text
-wsl2
-```
+Expected: distro name (e.g. `dev`)
 
 Manual direct test:
 
 ```bash
-ssh -o BatchMode=yes -p 2222 -i /home/aaron/.ssh/id_ed25519 aaron@192.168.1.201 hostname
-```
-
-Expected:
-
-```text
-wsl2
+ssh -o BatchMode=yes -p 2222 -i /home/aaron/.ssh/id_ed25519 aaron@<WSL2_HOST> hostname
 ```
 
 ## From Orin
 
 ```bash
-ssh wsl2 hostname
+ssh wsl2-dev hostname
 ```
 
-Expected:
-
-```text
-wsl2
-```
+Expected: distro name
 
 ## From MSI Windows PowerShell
 
 ```powershell
-ssh wsl2 hostname
+ssh wsl2-dev hostname
 ```
 
-Expected:
-
-```text
-wsl2
-```
+Expected: distro name
 
 ## From WSL2
 
@@ -784,13 +784,7 @@ spark-79b7 or DGX hostname
 Use this when verifying that passwordless SSH works:
 
 ```bash
-ssh -o BatchMode=yes wsl2 hostname
-```
-
-Expected:
-
-```text
-wsl2
+ssh -o BatchMode=yes wsl2-dev hostname
 ```
 
 If BatchMode fails, key-based auth is not working and SSH would otherwise have asked for a password.
@@ -979,40 +973,24 @@ wsl2
 
 # Part 20: Final Known-Good Commands
 
+Replace `<name>` with the WSL2 distro name (e.g. `dev`).
+
 ## From DGX to WSL2
 
 ```bash
-ssh wsl2 hostname
-```
-
-Expected:
-
-```text
-wsl2
+ssh wsl2-<name> hostname
 ```
 
 ## From Orin to WSL2
 
 ```bash
-ssh wsl2 hostname
-```
-
-Expected:
-
-```text
-wsl2
+ssh wsl2-<name> hostname
 ```
 
 ## From MSI Windows to WSL2
 
 ```powershell
-ssh wsl2 hostname
-```
-
-Expected:
-
-```text
-wsl2
+ssh wsl2-<name> hostname
 ```
 
 ## From WSL2 to MSI
@@ -1040,12 +1018,13 @@ ssh spark hostname
 After this runbook is complete:
 
 ```text
-DGX  -> ssh wsl2 -> WSL2 Linux shell on port 2222
-Orin -> ssh wsl2 -> WSL2 Linux shell on port 2222
-MSI  -> ssh wsl2 -> WSL2 Linux shell on port 2222
-WSL2 -> ssh msi  -> MSI Windows shell on port 22
-WSL2 -> ssh orin -> Jetson Orin
-WSL2 -> ssh spark -> DGX / Spark
+DGX  -> ssh wsl2-<name> -> WSL2 distro Linux shell on its assigned port
+Orin -> ssh wsl2-<name> -> WSL2 distro Linux shell on its assigned port
+MSI  -> ssh wsl2-<name> -> WSL2 distro Linux shell on its assigned port
+WSL2 -> ssh msi         -> MSI Windows shell on port 22
+WSL2 -> ssh orin        -> Jetson Orin
+WSL2 -> ssh spark       -> DGX / Spark
 ```
 
-All SSH paths use `id_ed25519` keys and absolute paths in SSH config files.
+All SSH paths use `id_ed25519` keys. SSH config, `known_hosts`, and `authorized_keys` are
+managed centrally in `~/shared/ssh/` on DGX and symlinked into `~/.ssh/` on all machines.

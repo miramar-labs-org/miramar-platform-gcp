@@ -103,97 +103,32 @@ ssh msi hostname
 
 ---
 
-## Step 4 — Distribute WSL2 public key to DGX and Orin
+## Steps 4–7 — Automated by WSL2 Post-Provision
 
-From **WSL2**, push the key to each machine:
+> **These steps are fully automated by the WSL2 Post-Provision workflow.** Run it instead.
 
-```bash
-ssh-copy-id -i ~/.ssh/id_ed25519.pub aaron@spark-79b7.local
-ssh-copy-id -i ~/.ssh/id_ed25519.pub aaron@orin.local
-```
+The workflow handles:
+- **Step 4** (WSL2 pubkey → DGX + Orin): WSL2 pubkey is written to the shared `authorized_keys` via `~/shared/ssh/authorized_keys` (accessible to all machines via the CIFS mount).
+- **Step 5** (DGX + Orin pubkeys → WSL2): DGX and Orin runner pubkeys are injected into WSL2 `authorized_keys` directly.
+- **Step 6** (SSH client config on DGX + Orin): The `wsl2-<name>` host block is written to the shared `~/shared/ssh/config`, which all machines pick up automatically via their `~/.ssh/config` symlink.
+- **Step 7** (SSH client config on Windows): `%USERPROFILE%\.ssh\config` is hardlinked to `C:\Users\aaron\shared\ssh\config` by `post-provision.ps1`.
 
-Test:
-
-```bash
-ssh spark hostname
-ssh orin hostname
-```
-
----
-
-## Step 5 — Add DGX and Orin public keys to WSL2
-
-From **DGX**, push its key to WSL2 (using the Windows host's IP and the distro's port):
+**Manual fallback** (if the workflow fails and you need to wire a machine by hand):
 
 ```bash
-ssh-copy-id -p 2222 -i ~/.ssh/id_ed25519.pub aaron@<WSL2_HOST>
-```
+# From the machine that needs access to WSL2, add its pubkey to shared authorized_keys:
+cat ~/.ssh/id_ed25519.pub >> ~/shared/ssh/authorized_keys
 
-From **Orin**:
+# Add wsl2-<name> host block to shared config:
+cat >> ~/shared/ssh/config << 'EOF'
 
-```bash
-ssh-copy-id -p 2222 -i ~/.ssh/id_ed25519.pub aaron@<WSL2_HOST>
-```
-
-Test from DGX:
-
-```bash
-ssh -o BatchMode=yes wsl2-dev hostname   # expected: dev
-```
-
-Test from Orin:
-
-```bash
-ssh -o BatchMode=yes wsl2-dev hostname   # expected: dev
-```
-
----
-
-## Step 6 — SSH client configs on DGX and Orin
-
-Both machines need `~/.ssh/config` to reach WSL2 by the per-distro alias. The
-alias is `wsl2-<distro_name>` and `HostName` is the Windows host (not a WSL2 IP —
-mirrored networking means WSL2 sshd is reachable via the Windows host address).
-
-**On DGX** (`ssh spark`):
-
-```bash
-cat >> ~/.ssh/config << 'EOF'
-
-Host wsl2-dev
+Host wsl2-<name>
     HostName <WSL2_HOST>
     User aaron
-    Port 2222
-    IdentityFile /home/aaron/.ssh/id_ed25519
+    Port <PORT>
+    IdentityFile ~/.ssh/id_ed25519
     IdentitiesOnly yes
 EOF
-chmod 600 ~/.ssh/config
-```
-
-**On Orin** (`ssh orin`): same block.
-
----
-
-## Step 7 — SSH client config on MSI Windows (for `ssh wsl2-<distro>`)
-
-On **MSI Windows** PowerShell, add a block to `%USERPROFILE%\.ssh\config`:
-
-```sshconfig
-Host wsl2-dev
-    HostName localhost
-    User aaron
-    Port 2222
-    IdentityFile C:\Users\aaron\.ssh\id_ed25519
-    IdentitiesOnly yes
-```
-
-> Windows SSH config uses `HostName localhost` because the distro sshd runs on
-> the same machine. DGX and Orin use the Windows host's network name/IP.
-
-Test:
-
-```powershell
-ssh wsl2-dev hostname   # expected: dev
 ```
 
 ---
