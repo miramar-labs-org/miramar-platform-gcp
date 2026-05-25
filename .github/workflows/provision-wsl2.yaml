@@ -98,4 +98,8 @@ jobs:
             echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
             echo "| Template | \`C:\\wsl-templates\\ubuntu-22.04-configured-template.tar\` |"
             echo "| Install path | \`C:\\wsl\\${{ inputs.distro_name }}\` |"
+            echo ""
+            echo "### Next steps"
+            echo "1. Start the distro on MSI Windows: \`wsl -d ${{ inputs.distro_name }}\`"
+            echo "2. Complete key distribution: see \`wsl2/post-bootstrap.md\` steps 4–7"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -49,6 +49,9 @@ sudo apt-get install -y --no-install-recommends \
   nmap \
   socat netcat-openbsd \
   openssh-client \
+  openssh-server \
+  avahi-daemon \
+  libnss-mdns \
   rsync \
   ethtool \
   whois \
@@ -57,6 +60,66 @@ sudo apt-get install -y --no-install-recommends \
 
 log "Install neofetch"
 sudo apt-get install -y --no-install-recommends neofetch
+
+log "Configure SSH server: port 2222 for WSL2"
+sudo mkdir -p /etc/ssh/sshd_config.d
+echo 'Port 2222' | sudo tee /etc/ssh/sshd_config.d/wsl2-port.conf >/dev/null
+sudo systemctl enable ssh
+sudo systemctl start ssh || true
+
+log "Generate ed25519 SSH key (idempotent)"
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+if [[ ! -f "$HOME/.ssh/id_ed25519" ]]; then
+  ssh-keygen -t ed25519 -f "$HOME/.ssh/id_ed25519" -C "${USER}@wsl2" -N ""
+fi
+chmod 600 "$HOME/.ssh/id_ed25519"
+chmod 644 "$HOME/.ssh/id_ed25519.pub"
+
+log "Prepare ~/.ssh/authorized_keys"
+touch "$HOME/.ssh/authorized_keys"
+chmod 600 "$HOME/.ssh/authorized_keys"
+chown -R "${USER}:${USER}" "$HOME/.ssh"
+
+log "Configure mDNS (.local resolution via avahi + libnss-mdns)"
+sudo systemctl enable avahi-daemon
+sudo systemctl start avahi-daemon || true
+sudo sed -i \
+  's/^hosts:.*/hosts: files mdns4_minimal [NOTFOUND=return] dns/' \
+  /etc/nsswitch.conf
+sudo systemctl restart avahi-daemon || true
+sudo systemctl restart systemd-resolved 2>/dev/null || true
+
+log "Write ~/.ssh/config (lab hosts, skipped if file already exists)"
+SSH_CFG="$HOME/.ssh/config"
+if [[ ! -s "$SSH_CFG" ]]; then
+  cat > "$SSH_CFG" <<EOF
+Host msi
+    HostName msi.local
+    User ${USER}
+    IdentityFile ${HOME}/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+Host orin
+    HostName orin.local
+    User ${USER}
+    IdentityFile ${HOME}/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+Host dgx spark spark-79b7
+    HostName spark-79b7.local
+    User ${USER}
+    IdentityFile ${HOME}/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ${HOME}/.ssh/id_ed25519
+    IdentitiesOnly yes
+EOF
+  chmod 600 "$SSH_CFG"
+fi
 
 log "Set zsh as default shell for current user"
 if [[ "${SHELL:-}" != "$(command -v zsh)" ]]; then
@@ -325,6 +388,12 @@ echo "  kubectl version --client"
 echo "  minikube version"
 echo "  go version"
 echo "  java -version"
+echo "  ss -tlnp | grep 2222          # verify sshd is on port 2222"
 echo "Note: Docker may not fully start until after you run wsl --shutdown (systemd)."
 echo "Note: If docker group membership was added, you may need to restart WSL for it to apply."
 echo "Powerlevel10k installed. Run 'p10k configure' once after opening zsh."
+echo ""
+echo "SSH public key (copy this to DGX, Orin, and MSI Windows):"
+cat "$HOME/.ssh/id_ed25519.pub" 2>/dev/null || true
+echo ""
+echo "See wsl2/post-bootstrap.md for remaining manual steps (Windows firewall, key distribution)."

@@ -1,0 +1,218 @@
+name: WSL2 Post-Provision
+
+# Automates all manual steps from wsl2/post-bootstrap.md:
+#   1. Write .wslconfig (mirrored networking) + wsl --shutdown
+#   2. Windows Firewall rule for port 2222
+#   3. WSL2 pubkey → MSI administrators_authorized_keys
+#   4. WSL2 pubkey → DGX and Orin authorized_keys
+#   5. DGX and Orin pubkeys → WSL2 authorized_keys
+#   6. SSH client config on DGX and Orin (wsl2 host block)
+#   7. SSH client config on Windows (wsl2 host block)
+#
+# Prerequisites:
+#   - WSL2 distro already provisioned (run WSL2 Provision first)
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      distro_name:
+        description: "WSL2 distro name to configure"
+        required: true
+        default: dev
+      wsl2_lan_ip:
+        description: "WSL2 LAN IP address"
+        required: false
+        default: "192.168.1.201"
+      runner:
+        description: "Runner for Windows SSH steps"
+        required: false
+        default: dgx
+        type: choice
+        options:
+          - dgx
+          - agx
+
+jobs:
+
+  # -----------------------------------------------------------------------
+  # Phase 1: collect public keys from each runner (parallel)
+  # -----------------------------------------------------------------------
+
+  collect-keys-dgx:
+    runs-on: dgx
+    outputs:
+      pubkey: ${{ steps.pubkey.outputs.value }}
+    steps:
+      - id: pubkey
+        name: Read DGX public key
+        run: echo "value=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
+
+  collect-keys-agx:
+    runs-on: agx
+    outputs:
+      pubkey: ${{ steps.pubkey.outputs.value }}
+    steps:
+      - id: pubkey
+        name: Read Orin public key
+        run: echo "value=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
+
+  # -----------------------------------------------------------------------
+  # Phase 2: Windows-side setup
+  # -----------------------------------------------------------------------
+
+  windows-setup:
+    needs: [collect-keys-dgx, collect-keys-agx]
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      wsl2_pubkey: ${{ steps.run-script.outputs.wsl2_pubkey }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH key for Windows host
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > ~/.ssh/wsl2_host
+          chmod 600 ~/.ssh/wsl2_host
+          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Write runner pubkey files for transfer
+        env:
+          DGX_PUBKEY: ${{ needs.collect-keys-dgx.outputs.pubkey }}
+          AGX_PUBKEY: ${{ needs.collect-keys-agx.outputs.pubkey }}
+        run: |
+          printf '%s\n' "$DGX_PUBKEY" > /tmp/dgx-key.pub
+          printf '%s\n' "$AGX_PUBKEY" > /tmp/agx-key.pub
+
+      - name: Copy script and key files to Windows host
+        run: |
+          scp -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            wsl2/post-provision.ps1 \
+            /tmp/dgx-key.pub \
+            /tmp/agx-key.pub \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}:"
+
+      - name: Run post-provision.ps1 on Windows host
+        id: run-script
+        run: |
+          set -euo pipefail
+          OUTPUT=$(ssh -i ~/.ssh/wsl2_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "powershell -ExecutionPolicy Bypass -File \"%USERPROFILE%\\post-provision.ps1\" \
+              -Name \"${{ inputs.distro_name }}\" \
+              -User \"${{ secrets.WSL2_HOST_USER }}\" \
+              -WslLanIP \"${{ inputs.wsl2_lan_ip }}\"")
+          echo "$OUTPUT"
+          WSL2_PUBKEY=$(echo "$OUTPUT" | grep '^WSL2_PUBKEY=' | cut -d= -f2-)
+          if [[ -z "$WSL2_PUBKEY" ]]; then
+            echo "ERROR: post-provision.ps1 did not output WSL2_PUBKEY" >&2
+            exit 1
+          fi
+          echo "wsl2_pubkey=${WSL2_PUBKEY}" >> "$GITHUB_OUTPUT"
+
+  # -----------------------------------------------------------------------
+  # Phase 3: runner-side setup (parallel, depends on windows-setup)
+  # -----------------------------------------------------------------------
+
+  dgx-setup:
+    needs: windows-setup
+    runs-on: dgx
+    steps:
+      - name: Add WSL2 pubkey to DGX authorized_keys (idempotent)
+        env:
+          WSL2_PUBKEY: ${{ needs.windows-setup.outputs.wsl2_pubkey }}
+        run: |
+          mkdir -p ~/.ssh
+          touch ~/.ssh/authorized_keys
+          chmod 600 ~/.ssh/authorized_keys
+          grep -qF "$WSL2_PUBKEY" ~/.ssh/authorized_keys 2>/dev/null || \
+            printf '\n%s\n' "$WSL2_PUBKEY" >> ~/.ssh/authorized_keys
+
+      - name: Add wsl2 host block to DGX ~/.ssh/config (idempotent)
+        env:
+          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
+        run: |
+          touch ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          grep -q '^Host wsl2' ~/.ssh/config 2>/dev/null && exit 0
+          cat >> ~/.ssh/config <<EOF
+
+Host wsl2
+    HostName ${WSL2_LAN_IP}
+    User aaron
+    Port 2222
+    IdentityFile /home/aaron/.ssh/id_ed25519
+    IdentitiesOnly yes
+EOF
+
+  agx-setup:
+    needs: windows-setup
+    runs-on: agx
+    steps:
+      - name: Add WSL2 pubkey to Orin authorized_keys (idempotent)
+        env:
+          WSL2_PUBKEY: ${{ needs.windows-setup.outputs.wsl2_pubkey }}
+        run: |
+          mkdir -p ~/.ssh
+          touch ~/.ssh/authorized_keys
+          chmod 600 ~/.ssh/authorized_keys
+          grep -qF "$WSL2_PUBKEY" ~/.ssh/authorized_keys 2>/dev/null || \
+            printf '\n%s\n' "$WSL2_PUBKEY" >> ~/.ssh/authorized_keys
+
+      - name: Add wsl2 host block to Orin ~/.ssh/config (idempotent)
+        env:
+          WSL2_LAN_IP: ${{ inputs.wsl2_lan_ip }}
+        run: |
+          touch ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          grep -q '^Host wsl2' ~/.ssh/config 2>/dev/null && exit 0
+          cat >> ~/.ssh/config <<EOF
+
+Host wsl2
+    HostName ${WSL2_LAN_IP}
+    User aaron
+    Port 2222
+    IdentityFile /home/aaron/.ssh/id_ed25519
+    IdentitiesOnly yes
+EOF
+
+  # -----------------------------------------------------------------------
+  # Summary
+  # -----------------------------------------------------------------------
+
+  summary:
+    needs: [windows-setup, dgx-setup, agx-setup]
+    if: always()
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Summary
+        run: |
+          {
+            echo "## WSL2 Post-Provision"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Distro | \`${{ inputs.distro_name }}\` |"
+            echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
+            echo "| WSL2 LAN IP | \`${{ inputs.wsl2_lan_ip }}\` |"
+            echo ""
+            echo "### Configured"
+            echo "| Step | Status |"
+            echo "|---|---|"
+            echo "| \`.wslconfig\` + firewall + Windows SSH config | ${{ needs.windows-setup.result }} |"
+            echo "| DGX \`authorized_keys\` + \`~/.ssh/config\` | ${{ needs.dgx-setup.result }} |"
+            echo "| Orin \`authorized_keys\` + \`~/.ssh/config\` | ${{ needs.agx-setup.result }} |"
+            echo ""
+            echo "### Next step"
+            echo "Run **WSL2 Verify SSH Topology** to confirm all SSH paths work end-to-end."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -7,10 +7,21 @@ Provision and unprovision WSL2 distros from the configured template tarball via 
 | Workflow | Purpose |
 |---|---|
 | **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar` |
+| **WSL2 Post-Provision** (`post-provision-wsl2.yaml`) | Wire up the full SSH mesh: `.wslconfig`, firewall, key distribution, SSH configs on all machines |
+| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate every SSH path in the mesh (DGX↔WSL2, Orin↔WSL2, Windows↔WSL2, WSL2→all) |
 | **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregister a distro; optionally delete the folder at `C:\wsl\<name>` |
 
+Normal provisioning sequence:
+
 ```
-Actions → WSL2 Provision   → distro_name: dev
+Actions → WSL2 Provision          → distro_name: dev
+Actions → WSL2 Post-Provision     → distro_name: dev
+Actions → WSL2 Verify SSH Topology → distro_name: dev
+```
+
+Teardown:
+
+```
 Actions → WSL2 Unprovision → distro_name: dev  delete_files: false
 ```
 
