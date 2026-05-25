@@ -58,6 +58,8 @@ flowchart LR
 [![Ollama Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml)
 [![Ollama Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml)
 [![WSL2 Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml)
+[![WSL2 Post-Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/post-provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/post-provision-wsl2.yaml)
+[![WSL2 Verify SSH Topology](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml)
 [![WSL2 Unprovision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml)
 
 ## Platform Overview
@@ -159,6 +161,9 @@ Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dash
 | `DGX_HOST` | hostname or IP of the DGX Spark | SSH target for Ollama Update workflow |
 | `DGX_HOST_USER` | SSH user on the DGX host | SSH login for Ollama Update workflow |
 | `DGX_HOST_SSH_KEY` | Private SSH key (Ed25519 or RSA) | Key used to SSH into the DGX host from the runner |
+| `WSL2_HOST` | hostname or IP of the MSI Windows laptop | SSH target for WSL2 workflows |
+| `WSL2_HOST_USER` | Windows SSH user | SSH login for WSL2 workflows |
+| `WSL2_HOST_SSH_KEY` | Private SSH key | Key used to SSH into Windows from runners; matching public key in `C:\ProgramData\ssh\administrators_authorized_keys` |
 
 ### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
 
@@ -812,11 +817,26 @@ Actions → NIM Undeploy → Run workflow
 
 ## WSL2 Environments (Windows laptop)
 
-WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template.
+WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template. See [docs/ssh-runbook.md](docs/ssh-runbook.md) for the full SSH mesh topology.
+
+**Normal provisioning sequence:**
+```
+Actions → WSL2 Provision          → distro_name: dev
+Actions → WSL2 Post-Provision     → distro_name: dev
+Actions → WSL2 Verify SSH Topology → distro_name: dev
+```
+
+**Required secrets** (repo-level):
+
+| Secret | Purpose |
+|---|---|
+| `WSL2_HOST` | Hostname or IP of the MSI Windows laptop |
+| `WSL2_HOST_USER` | Windows SSH user |
+| `WSL2_HOST_SSH_KEY` | Private SSH key — matching public key must be in `C:\ProgramData\ssh\administrators_authorized_keys` on Windows |
 
 ### [WSL2 Provision](.github/workflows/provision-wsl2.yaml)
 
-Imports a new distro from the template. Requires `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY` secrets.
+Imports a new distro from the configured template tarball on the Windows host.
 
 | Input | Default | Description |
 |---|---|---|
@@ -825,6 +845,46 @@ Imports a new distro from the template. Requires `WSL2_HOST`, `WSL2_HOST_USER`, 
 
 ```
 Actions → WSL2 Provision → distro_name: dev → Run workflow
+```
+
+### [WSL2 Post-Provision](.github/workflows/post-provision-wsl2.yaml)
+
+Wires up the full SSH mesh between WSL2, DGX, Orin, and MSI Windows. Automates all steps in [wsl2/post-bootstrap.md](wsl2/post-bootstrap.md):
+
+- Writes `.wslconfig` (mirrored networking) + `wsl --shutdown` if content changed
+- Adds Windows Firewall rule for port 2222 (idempotent)
+- Distributes all public keys between every pair of machines
+- Writes `wsl2` SSH host blocks into `~/.ssh/config` on DGX, Orin, and Windows
+
+| Input | Default | Description |
+|---|---|---|
+| `distro_name` | `dev` | WSL2 distro to configure |
+| `wsl2_lan_ip` | `192.168.1.201` | WSL2 LAN IP for SSH configs |
+| `runner` | `dgx` | Runner for Windows SSH steps |
+
+```
+Actions → WSL2 Post-Provision → distro_name: dev → Run workflow
+```
+
+### [WSL2 Verify SSH Topology](.github/workflows/verify-ssh-topology.yaml)
+
+Validates every SSH path in the mesh and checks `~/.ssh/config` host blocks and `authorized_keys` on each machine. Reports ✅/❌ per path in the workflow summary.
+
+| Path tested | |
+|---|---|
+| DGX → `ssh wsl2 hostname` | ✅/❌ |
+| Orin → `ssh wsl2 hostname` | ✅/❌ |
+| Windows → `ssh wsl2 hostname` | ✅/❌ |
+| WSL2 → `ssh spark/orin/msi hostname` | ✅/❌ |
+
+| Input | Default | Description |
+|---|---|---|
+| `distro_name` | `dev` | Expected WSL2 hostname |
+| `wsl2_lan_ip` | `192.168.1.201` | WSL2 LAN IP |
+| `runner` | `dgx` | Runner for Windows SSH steps |
+
+```
+Actions → WSL2 Verify SSH Topology → distro_name: dev → Run workflow
 ```
 
 ### [WSL2 Unprovision](.github/workflows/unprovision-wsl2.yaml)

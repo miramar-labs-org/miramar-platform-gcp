@@ -37,6 +37,11 @@ dgx/               # DGX Spark host config and local tooling
   ollama/          # Ollama deploy/undeploy scripts and model catalog
   systemd/         # Systemd user service unit files + install/uninstall scripts
 wsl2/              # WSL2 host config and bootstrap scripts
+  bootstrap.sh     # One-time distro setup (run before template export)
+  post-provision.ps1 # Windows-side SSH mesh setup (run by WSL2 Post-Provision workflow)
+  post-bootstrap.md  # Manual fallback steps (automated via GHA workflows)
+docs/              # Architecture and runbooks
+  ssh-runbook.md   # Full SSH mesh topology and troubleshooting
 .github/workflows/ # CI/CD workflows
 ```
 
@@ -58,6 +63,8 @@ wsl2/              # WSL2 host config and bootstrap scripts
 | `dgx/ollama/deploy_ollama.sh` | Run on DGX host via SSH to pull an Ollama model and load it into GPU memory. Fails if a NIM or another Ollama model is already using the 128 GB pool. Called by the **Ollama Deploy** workflow. |
 | `dgx/ollama/undeploy_ollama.sh` | Run on DGX host via SSH to unload an Ollama model from GPU memory. Auto-detects the loaded model if no arg given. Called by the **Ollama Undeploy** workflow. |
 | `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the four DGX systemd user services (minikube, dashboard proxy, JupyterLab, MLflow port-forward). |
+| `wsl2/bootstrap.sh` | One-time setup for a fresh WSL2 distro — installs dev tools, Docker, Kubernetes tooling, pyenv, Miniforge, Go, Java, and configures SSH (sshd on port 2222, ed25519 key, mDNS, `~/.ssh/config` for lab hosts). Run inside the distro before exporting the template. |
+| `wsl2/post-provision.ps1` | PowerShell script run on the Windows host by the **WSL2 Post-Provision** workflow. Handles `.wslconfig`, firewall rule, WSL2 pubkey → `administrators_authorized_keys`, runner pubkey injection into WSL2 `authorized_keys`, and Windows SSH client config. |
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
 
@@ -124,6 +131,10 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Ollama Deploy | `deploy-ollama.yaml` | SSH to DGX host and pull + load an Ollama model into GPU memory. Fails with an explicit error if a NIM or another Ollama model is already using the 128 GB pool. Input: `model` (default: `llama3.3:70b-instruct-q4_K_M`) |
 | Ollama Undeploy | `undeploy-ollama.yaml` | SSH to DGX host and unload the active Ollama model from GPU memory. Auto-detects loaded model if `model` input is blank. Input: `model` (optional), `delete_model` (bool, default false) |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses secrets `DGX_HOST`, `DGX_HOST_USER`, `DGX_HOST_SSH_KEY`. |
+| WSL2 Provision | `provision-wsl2.yaml` | Import a new WSL2 distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar` on the Windows host. |
+| WSL2 Post-Provision | `post-provision-wsl2.yaml` | Wire up the full SSH mesh (`.wslconfig`, firewall, key distribution, SSH configs) between WSL2, DGX, Orin, and MSI. Runs `wsl2/post-provision.ps1` on Windows via SSH then fans out to `dgx`/`agx` runners. |
+| WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Validate every SSH path in the lab mesh; checks `~/.ssh/config` host blocks and `authorized_keys` on each machine; reports ✅/❌ per path. |
+| WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister a WSL2 distro; optionally delete `C:\wsl\<name>` from disk. |
 
 Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
 
