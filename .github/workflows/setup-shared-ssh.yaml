@@ -37,7 +37,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Initialise ~/shared/ssh/ and create symlinks on DGX host
         run: |
@@ -46,6 +46,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
+            -o StrictHostKeyChecking=accept-new \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" bash -s << 'EOF'
           set -euo pipefail
 
@@ -152,7 +153,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Install cifs-utils + create mountpoint on Orin (via DGX host)
         run: |
@@ -161,6 +162,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
+            -o StrictHostKeyChecking=accept-new \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
               orin.local 'sudo apt-get install -y --no-install-recommends cifs-utils && mkdir -p ~/shared'"
@@ -176,6 +178,7 @@ jobs:
               -o IdentitiesOnly=yes \
               -o PreferredAuthentications=publickey \
               -o PasswordAuthentication=no \
+            -o StrictHostKeyChecking=accept-new \
               "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
               "ssh -o BatchMode=yes -o IdentitiesOnly=yes orin.local \
                 'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'"
@@ -188,6 +191,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
+            -o StrictHostKeyChecking=accept-new \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes orin.local bash -s" << 'EOF'
           set -euo pipefail
@@ -213,6 +217,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
+            -o StrictHostKeyChecking=accept-new \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes orin.local bash -s" << 'EOF'
           set -euo pipefail

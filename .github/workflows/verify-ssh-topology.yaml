@@ -128,7 +128,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > ~/.ssh/wsl2_host
           chmod 600 ~/.ssh/wsl2_host
-          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Check wsl2-<distro> host block in Windows SSH config
         env:
@@ -184,7 +184,7 @@ jobs:
           install -m 700 -d ~/.ssh
           # Use the runner's own key — it was injected into WSL2 by post-provision.
           # WSL2 shares the Windows host's IP (mirrored networking), so WSL2_HOST:<port> reaches sshd.
-          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Check SSH config inside WSL2
         run: |

@@ -32,7 +32,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
           chmod 600 ~/.ssh/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Unload model
         shell: bash
