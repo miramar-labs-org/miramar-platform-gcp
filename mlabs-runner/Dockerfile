@@ -33,6 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         libsndfile1 \
         sox \
+        libnss-mdns \
+    && sed -i 's/^\(hosts:.*\)dns\s*$/\1mdns4_minimal [NOTFOUND=return] dns/' /etc/nsswitch.conf \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Docker CLI (socket is mounted from the host at runtime)
