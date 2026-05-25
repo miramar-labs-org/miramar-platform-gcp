@@ -819,11 +819,13 @@ Actions → NIM Undeploy → Run workflow
 
 WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template. See [docs/ssh-runbook.md](docs/ssh-runbook.md) for the full SSH mesh topology.
 
+**Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `ml`) and its own sshd port (2222 for the first, increment by 1 for each additional). All SSH configs use the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-ml`) so instances never conflict.
+
 **Normal provisioning sequence:**
 ```
-Actions → WSL2 Provision          → distro_name: dev
-Actions → WSL2 Post-Provision     → distro_name: dev
-Actions → WSL2 Verify SSH Topology → distro_name: dev
+Actions → WSL2 Provision           → distro_name: dev
+Actions → WSL2 Post-Provision      → distro_name: dev  ssh_port: 2222
+Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 ```
 
 **Required secrets** (repo-level):
@@ -852,18 +854,21 @@ Actions → WSL2 Provision → distro_name: dev → Run workflow
 Wires up the full SSH mesh between WSL2, DGX, Orin, and MSI Windows. Automates all steps in [wsl2/post-bootstrap.md](wsl2/post-bootstrap.md):
 
 - Writes `.wslconfig` (mirrored networking) + `wsl --shutdown` if content changed
-- Adds Windows Firewall rule for port 2222 (idempotent)
+- Adds Windows Firewall rule for the distro's sshd port (idempotent, named `WSL2 SSH <port> Inbound`)
+- Writes the correct sshd port into the distro (`/etc/ssh/sshd_config.d/wsl2-port.conf`)
 - Distributes all public keys between every pair of machines
-- Writes `wsl2` SSH host blocks into `~/.ssh/config` on DGX, Orin, and Windows
+- Writes `wsl2-<distro>` SSH host blocks into `~/.ssh/config` on DGX, Orin, and Windows
+
+SSH alias is `wsl2-<distro_name>`. On Windows it resolves to `localhost:<port>`; on DGX/Orin it resolves to `$WSL2_HOST:<port>` via mirrored networking.
 
 | Input | Default | Description |
 |---|---|---|
 | `distro_name` | `dev` | WSL2 distro to configure |
-| `wsl2_lan_ip` | `192.168.1.201` | WSL2 LAN IP for SSH configs |
+| `ssh_port` | `2222` | sshd port for this distro — increment for each additional instance |
 | `runner` | `dgx` | Runner for Windows SSH steps |
 
 ```
-Actions → WSL2 Post-Provision → distro_name: dev → Run workflow
+Actions → WSL2 Post-Provision → distro_name: dev  ssh_port: 2222 → Run workflow
 ```
 
 ### [WSL2 Verify SSH Topology](.github/workflows/verify-ssh-topology.yaml)
@@ -872,18 +877,19 @@ Validates every SSH path in the mesh and checks `~/.ssh/config` host blocks and 
 
 | Path tested | |
 |---|---|
-| DGX → `ssh wsl2 hostname` | ✅/❌ |
-| Orin → `ssh wsl2 hostname` | ✅/❌ |
-| Windows → `ssh wsl2 hostname` | ✅/❌ |
+| DGX → `ssh wsl2-<distro> hostname` | ✅/❌ |
+| Orin → `ssh wsl2-<distro> hostname` | ✅/❌ |
+| Windows → `ssh wsl2-<distro> hostname` | ✅/❌ |
 | WSL2 → `ssh spark/orin/msi hostname` | ✅/❌ |
 
 | Input | Default | Description |
 |---|---|---|
-| `distro_name` | `dev` | Expected WSL2 hostname |
+| `distro_name` | `dev` | Expected WSL2 hostname (used to build the `wsl2-<distro>` alias) |
+| `ssh_port` | `2222` | sshd port for this distro |
 | `runner` | `dgx` | Runner for Windows SSH steps |
 
 ```
-Actions → WSL2 Verify SSH Topology → distro_name: dev → Run workflow
+Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222 → Run workflow
 ```
 
 ### [WSL2 Unprovision](.github/workflows/unprovision-wsl2.yaml)
