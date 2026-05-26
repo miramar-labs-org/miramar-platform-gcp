@@ -27,9 +27,7 @@ Write-Host 'Pre-flight: clearing stale CIFS fstab entries...'
 $_pref = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 & wsl.exe -d $Name -u root -- bash -c "sed -i '\|$DgxHost/shared|d' /etc/fstab 2>/dev/null; true" 2>$null
-& wsl.exe --terminate $Name 2>$null
 $ErrorActionPreference = $_pref
-Start-Sleep -Seconds 2
 Write-Host 'Pre-flight: done'
 
 # Run a multi-line bash script inside a distro without CRLF injection.
@@ -170,7 +168,17 @@ if (-not $SmbPassword) {
     "sed -i '\|$DgxHost/shared|d' /etc/fstab; printf '%s\n' '$fstabEntry' >> /etc/fstab"
   Write-Host 'fstab entry updated (nofail)'
 
-  Step "Mount ~/shared in distro '$Name' (waiting for avahi/systemd to settle)"
+  Step "Wait for avahi-daemon in distro '$Name'"
+  & wsl.exe -d $Name -u root -- bash -c @"
+for i in `$(seq 1 12); do
+  systemctl is-active avahi-daemon >/dev/null 2>&1 && echo 'avahi-daemon active' && exit 0
+  echo "  waiting for avahi-daemon... (`$i/12)"
+  sleep 5
+done
+echo 'WARN: avahi-daemon did not start within 60s -- mount may fail'
+"@
+
+  Step "Mount ~/shared in distro '$Name'"
   $mounted = $false
   for ($i = 1; $i -le 6; $i++) {
     $mc = & wsl.exe -d $Name -u root -- bash -c `
@@ -182,7 +190,7 @@ if (-not $SmbPassword) {
   if ($mounted) {
     Write-Host '~/shared mounted'
   } else {
-    Warn '~/shared mount failed after 6 attempts -- shared SSH config will not be updated'
+    throw '~/shared mount failed after 6 attempts -- cannot write to shared SSH config'
   }
 
   Step "Create ~/.ssh symlinks -> ~/shared/ssh/"
