@@ -13,6 +13,29 @@ $ErrorActionPreference = 'Stop'
 function Step([string]$m) { Write-Host "`n==> $m" -ForegroundColor Green }
 function Warn([string]$m) { Write-Host "WARN: $m" -ForegroundColor Yellow }
 
+# Run a multi-line bash script inside a distro without CRLF injection.
+# PowerShell's | pipe adds \r\n on Windows even after stripping \r from the string,
+# breaking bash keyword parsing (e.g. 'then\r' is not the keyword 'then').
+# Fix: write the script as LF-only bytes to a Windows temp file, convert to a WSL
+# path via wslpath, and pass the path to bash. File read bypasses the pipe entirely.
+# Extra positional args after $Script are forwarded to the script as $1, $2, ...
+function Invoke-WslBash {
+  param(
+    [string]$WslDistro,
+    [string]$WslUser,
+    [string]$Script
+  )
+  $tmp = [System.IO.Path]::GetTempFileName()
+  try {
+    [System.IO.File]::WriteAllBytes($tmp, [System.Text.Encoding]::UTF8.GetBytes($Script -replace "`r", ""))
+    $wslTmp = (& wsl.exe -d $WslDistro -- wslpath -u ($tmp -replace '\\', '/')).Trim()
+    & wsl.exe -d $WslDistro -u $WslUser -- bash $wslTmp @args
+    if ($LASTEXITCODE -ne 0) { throw "Bash script failed (exit $LASTEXITCODE)" }
+  } finally {
+    Remove-Item $tmp -ErrorAction SilentlyContinue
+  }
+}
+
 # -----------------------------------------------------------------------
 # Step 1: .wslconfig -- mirrored networking
 # -----------------------------------------------------------------------
@@ -82,8 +105,8 @@ Write-Host "sshd configured on port $Port"
 
 # -----------------------------------------------------------------------
 # Step 3: Ensure SSH key exists, then read WSL2 public key
-# Pipe script via stdin (bash -s) -- multiline strings via bash -c are
-# truncated by WSL argument passing.
+# Uses Invoke-WslBash (temp file) -- PowerShell's pipe adds \r\n on Windows
+# even after stripping \r, breaking bash keyword parsing.
 # -----------------------------------------------------------------------
 Step "Ensure SSH key exists in distro '$Name'"
 $keyScript = @'
@@ -98,8 +121,7 @@ else
   echo "SSH key already exists"
 fi
 '@
-# Strip \r (PowerShell here-strings use \r\n; bash tokenises 'then\r' as unknown)
-($keyScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s
+Invoke-WslBash $Name $User $keyScript
 $wsl2PubKey = (& wsl.exe -d $Name -u $User -- cat "/home/$User/.ssh/id_ed25519.pub" 2>$null)
 if (-not $wsl2PubKey) {
   throw "Could not read WSL2 public key from distro '$Name' as user '$User'"
@@ -147,11 +169,12 @@ if (-not $SmbPassword) {
     bash -c 'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
   Write-Host '.smbcredentials written'
 
-  Step "Add CIFS fstab entry (//$DgxHost/shared)"
+  Step "Add/update CIFS fstab entry (//$DgxHost/shared)"
   $fstabEntry = "//$DgxHost/shared /home/$User/shared cifs credentials=/home/$User/.smbcredentials,uid=1000,gid=1000,file_mode=0600,dir_mode=0700,_netdev,nofail 0 0"
+  # Always replace any existing entry so nofail and current options are guaranteed.
   & wsl.exe -d $Name -u root -- bash -c `
-    "grep -qF '$DgxHost/shared' /etc/fstab 2>/dev/null || printf '%s\n' '$fstabEntry' >> /etc/fstab"
-  Write-Host 'fstab entry present'
+    "sed -i '\|$DgxHost/shared|d' /etc/fstab; printf '%s\n' '$fstabEntry' >> /etc/fstab"
+  Write-Host 'fstab entry updated (nofail)'
 
   Step "Mount ~/shared in distro '$Name' (waiting for avahi/systemd to settle)"
   $mounted = $false
@@ -191,7 +214,7 @@ for f in config known_hosts authorized_keys; do
   fi
 done
 '@
-  ($symlinkScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s
+  Invoke-WslBash $Name $User $symlinkScript
   Write-Host 'SSH symlinks configured'
 }
 
@@ -233,7 +256,7 @@ else
   echo "WSL2 pubkey added to shared authorized_keys"
 fi
 '@
-($addKeyScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s -- "$wsl2PubKey"
+Invoke-WslBash $Name $User $addKeyScript $wsl2PubKey
 
 # -----------------------------------------------------------------------
 # Step 7: Add wsl2-<Name> host block to ~/shared/ssh/config via WSL2.
@@ -260,7 +283,7 @@ else
   echo "$ALIAS added to shared config"
 fi
 '@
-($configScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s -- "$hostAlias" "$MsiHostName" "$User" "$Port"
+Invoke-WslBash $Name $User $configScript $hostAlias $MsiHostName $User "$Port"
 Write-Host "$hostAlias host block configured"
 
 # -----------------------------------------------------------------------
