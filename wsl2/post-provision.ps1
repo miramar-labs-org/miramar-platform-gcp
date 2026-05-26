@@ -14,10 +14,11 @@ function Step([string]$m) { Write-Host "`n==> $m" -ForegroundColor Green }
 function Warn([string]$m) { Write-Host "WARN: $m" -ForegroundColor Yellow }
 
 # Run a multi-line bash script inside a distro without CRLF injection.
-# PowerShell's | pipe adds \r\n on Windows even after stripping \r from the string,
-# breaking bash keyword parsing (e.g. 'then\r' is not the keyword 'then').
-# Fix: write the script as LF-only bytes to a Windows temp file, convert to a WSL
-# path via wslpath, and pass the path to bash. File read bypasses the pipe entirely.
+# PowerShell's | pipe adds \r\n on Windows even after stripping \r, breaking bash
+# keyword parsing ('then\r' != 'then'). Using a Windows temp file path has its own
+# wslpath/spaces issues. Solution: base64-encode the script in PowerShell and pass
+# the encoded string as a single argument; bash decodes and pipes to bash -s
+# entirely within Linux -- no PowerShell pipe, no path conversion, no CRLF.
 # Extra positional args after $Script are forwarded to the script as $1, $2, ...
 function Invoke-WslBash {
   param(
@@ -25,16 +26,14 @@ function Invoke-WslBash {
     [string]$WslUser,
     [string]$Script
   )
-  $tmp = [System.IO.Path]::GetTempFileName()
-  try {
-    $scriptClean = $Script -replace "`r", ""
-    [System.IO.File]::WriteAllBytes($tmp, [System.Text.Encoding]::UTF8.GetBytes($scriptClean))
-    $wslTmp = (& wsl.exe -d $WslDistro -- wslpath -u ($tmp -replace '\\', '/')).Trim()
-    & wsl.exe -d $WslDistro -u $WslUser -- bash $wslTmp @args
-    if ($LASTEXITCODE -ne 0) { throw "Bash script failed (exit $LASTEXITCODE)" }
-  } finally {
-    Remove-Item $tmp -ErrorAction SilentlyContinue
-  }
+  $scriptClean = $Script -replace "`r", ""
+  $scriptBytes = [System.Text.Encoding]::UTF8.GetBytes($scriptClean)
+  $b64 = [Convert]::ToBase64String($scriptBytes)
+  $shellArgs = if ($args.Count -gt 0) {
+    ' -- ' + (($args | ForEach-Object { "'$_'" }) -join ' ')
+  } else { '' }
+  & wsl.exe -d $WslDistro -u $WslUser -- bash -c "echo '$b64' | base64 -d | bash -s$shellArgs"
+  if ($LASTEXITCODE -ne 0) { throw "Bash script failed (exit $LASTEXITCODE)" }
 }
 
 # -----------------------------------------------------------------------
