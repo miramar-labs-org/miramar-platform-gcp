@@ -202,63 +202,74 @@ foreach ($keyFile in @("$env:USERPROFILE\dgx-key.pub", "$env:USERPROFILE\agx-key
 }
 
 # -----------------------------------------------------------------------
-# Step 6: Add WSL2 pubkey to ~/shared/ssh/authorized_keys via Windows path.
-# This makes WSL2's own key available to DGX and Orin via the shared store.
+# Step 6: Add WSL2 pubkey to ~/shared/ssh/authorized_keys via WSL2.
+# The CIFS mount lives inside WSL2 -- write via WSL2 path, not Windows path.
 # -----------------------------------------------------------------------
-Step 'Add WSL2 pubkey to shared authorized_keys (Windows path)'
-$sharedAuthKeys = "$env:USERPROFILE\shared\ssh\authorized_keys"
-if (Test-Path $sharedAuthKeys) {
-  $sharedAuth = Get-Content $sharedAuthKeys -Raw -ErrorAction SilentlyContinue
-  if (-not $sharedAuth) { $sharedAuth = '' }
-  if ($sharedAuth.Contains($wsl2PubKey)) {
-    Write-Host 'WSL2 pubkey already in shared authorized_keys'
-  } else {
-    Add-Content $sharedAuthKeys "`n$wsl2PubKey"
-    Write-Host 'WSL2 pubkey added to shared authorized_keys'
-  }
-} else {
-  Warn "Shared authorized_keys not found at $sharedAuthKeys -- run setup-shared-ssh first"
-}
+Step 'Add WSL2 pubkey to shared authorized_keys'
+$addKeyScript = @'
+set -euo pipefail
+target="$HOME/shared/ssh/authorized_keys"
+if [[ ! -f "$target" ]]; then
+  echo "WARN: $target not found -- run setup-shared-ssh first"
+  exit 0
+fi
+KEY="$1"
+if grep -qF "$KEY" "$target" 2>/dev/null; then
+  echo "WSL2 pubkey already in shared authorized_keys"
+else
+  printf '\n%s\n' "$KEY" >> "$target"
+  echo "WSL2 pubkey added to shared authorized_keys"
+fi
+'@
+$addKeyScript | & wsl.exe -d $Name -u $User -- bash -s -- "$wsl2PubKey"
 
 # -----------------------------------------------------------------------
-# Step 7: Add wsl2-<Name> host block to ~/shared/ssh/config via Windows path.
-# All machines (DGX, Orin, WSL2) pick this up automatically via symlinks.
+# Step 7: Add wsl2-<Name> host block to ~/shared/ssh/config via WSL2.
+# HostName = Windows host mDNS name so DGX/Orin can reach WSL2 over LAN.
+# All machines pick this up automatically via ~/.ssh symlinks -> shared store.
 # -----------------------------------------------------------------------
 $hostAlias = "wsl2-$Name"
-Step "Shared SSH config: $hostAlias host block"
-$sharedCfgPath = "$env:USERPROFILE\shared\ssh\config"
-if (Test-Path $sharedCfgPath) {
-  $sharedCfg = Get-Content $sharedCfgPath -Raw -ErrorAction SilentlyContinue
-  if (-not $sharedCfg) { $sharedCfg = '' }
-  if ($sharedCfg -like "*Host $hostAlias*") {
-    Write-Host "$hostAlias host block already present in shared config"
-  } else {
-    # Windows uses HostName of the Windows host (WSL2 is reachable via mirrored networking)
-    # Linux machines (DGX, Orin) also use this same HostName via the shared config
-    $wsl2Block = "`nHost $hostAlias`n    HostName localhost`n    User $User`n    Port $Port`n    IdentityFile ~/.ssh/id_ed25519`n    IdentitiesOnly yes"
-    Add-Content $sharedCfgPath $wsl2Block
-    Write-Host "$hostAlias host block added to shared config"
-  }
-} else {
-  Warn "Shared config not found at $sharedCfgPath -- run setup-shared-ssh first"
-}
+$MsiHostName = ($env:COMPUTERNAME).ToLower() + ".local"
+Step "Shared SSH config: $hostAlias (HostName $MsiHostName)"
+
+$configScript = @'
+set -euo pipefail
+ALIAS="$1"; HOSTNAME="$2"; USER="$3"; PORT="$4"
+target="$HOME/shared/ssh/config"
+if [[ ! -f "$target" ]]; then
+  echo "WARN: $target not found -- run setup-shared-ssh first"
+  exit 0
+fi
+if grep -q "^Host $ALIAS" "$target" 2>/dev/null; then
+  echo "$ALIAS already present in shared config"
+else
+  printf '\nHost %s\n    HostName %s\n    User %s\n    Port %s\n    IdentityFile ~/.ssh/id_ed25519\n    IdentitiesOnly yes\n' \
+    "$ALIAS" "$HOSTNAME" "$USER" "$PORT" >> "$target"
+  echo "$ALIAS added to shared config"
+fi
+'@
+$configScript | & wsl.exe -d $Name -u $User -- bash -s -- "$hostAlias" "$MsiHostName" "$User" "$Port"
+Write-Host "$hostAlias host block configured"
 
 # -----------------------------------------------------------------------
-# Step 7b: Windows ~/.ssh/config -> hardlink to shared config (one-time).
-# After this, Windows SSH picks up all host blocks from the shared store.
+# Step 7b: Add wsl2-<Name> host block to Windows %USERPROFILE%\.ssh\config.
+# Written directly -- CIFS share is inside WSL2, not accessible via Windows path.
 # -----------------------------------------------------------------------
-Step 'Windows ~/.ssh/config hardlink -> shared config'
+Step "Windows SSH config: $hostAlias host block"
 $winSshDir  = Join-Path $env:USERPROFILE '.ssh'
 $winCfgPath = Join-Path $winSshDir 'config'
 New-Item -ItemType Directory -Force -Path $winSshDir | Out-Null
+$winCfg = ''
 if (Test-Path $winCfgPath) {
-  Write-Host "~/.ssh/config already exists -- skipping hardlink"
-  Write-Host "  To replace: del `"$winCfgPath`" && mklink /H `"$winCfgPath`" `"$sharedCfgPath`""
-} elseif (Test-Path $sharedCfgPath) {
-  & cmd /c "mklink /H `"$winCfgPath`" `"$sharedCfgPath`"" | Out-Null
-  Write-Host "Hardlinked $winCfgPath -> $sharedCfgPath"
+  $winCfg = Get-Content $winCfgPath -Raw -ErrorAction SilentlyContinue
+}
+if (-not $winCfg) { $winCfg = '' }
+if ($winCfg -like "*Host $hostAlias*") {
+  Write-Host "$hostAlias already in Windows SSH config"
 } else {
-  Warn "Shared config not found -- Windows hardlink skipped"
+  $wsl2Block = "`nHost $hostAlias`n    HostName $MsiHostName`n    User $User`n    Port $Port`n    IdentityFile ~/.ssh/id_ed25519`n    IdentitiesOnly yes"
+  Add-Content $winCfgPath $wsl2Block
+  Write-Host "$hostAlias added to Windows SSH config"
 }
 
 # -----------------------------------------------------------------------

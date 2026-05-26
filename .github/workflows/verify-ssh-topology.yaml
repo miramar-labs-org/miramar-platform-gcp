@@ -38,6 +38,7 @@ jobs:
 
   # -----------------------------------------------------------------------
   # DGX: config check + ssh to wsl2-<distro>
+  # launch-runner.sh mounts ~/shared/ssh as ~/.ssh and id_ed25519 into it.
   # -----------------------------------------------------------------------
 
   verify-dgx:
@@ -62,9 +63,10 @@ jobs:
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
             "wsl2-${DISTRO_NAME}" hostname)
-          echo "DGX → wsl2-${DISTRO_NAME} hostname: $HOSTNAME"
+          echo "DGX -> wsl2-${DISTRO_NAME} hostname: $HOSTNAME"
           if [[ "$HOSTNAME" != "$DISTRO_NAME" ]]; then
             echo "WARN: expected hostname '$DISTRO_NAME', got '$HOSTNAME'"
           else
@@ -77,6 +79,7 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Orin: config check + ssh to wsl2-<distro>
+  # launch-runner.sh mounts ~/shared/ssh as ~/.ssh and id_ed25519 into it.
   # -----------------------------------------------------------------------
 
   verify-agx:
@@ -101,9 +104,10 @@ jobs:
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
             "wsl2-${DISTRO_NAME}" hostname)
-          echo "Orin → wsl2-${DISTRO_NAME} hostname: $HOSTNAME"
+          echo "Orin -> wsl2-${DISTRO_NAME} hostname: $HOSTNAME"
           if [[ "$HOSTNAME" != "$DISTRO_NAME" ]]; then
             echo "WARN: expected hostname '$DISTRO_NAME', got '$HOSTNAME'"
           else
@@ -179,19 +183,15 @@ jobs:
     outputs:
       result: ${{ steps.report.outputs.result }}
     steps:
-      - name: Set up SSH known hosts for WSL2
-        run: |
-          install -m 700 -d ~/.ssh
-          # Use the runner's own key — it was injected into WSL2 by post-provision.
-          # WSL2 shares the Windows host's IP (mirrored networking), so WSL2_HOST:<port> reaches sshd.
-          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
+      # No key setup needed -- launch-runner.sh mounts the host id_ed25519 as
+      # ~/.ssh/id_ed25519. That key is in WSL2's shared authorized_keys.
       - name: Check SSH config inside WSL2
         run: |
           for host in spark orin msi github.com; do
             PRESENT=$(ssh \
               -o BatchMode=yes \
               -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
               -o ConnectTimeout=15 \
               -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
               "grep -q \"^Host.*\\b${host}\\b\" ~/.ssh/config && echo PASS || echo MISSING")
@@ -204,10 +204,11 @@ jobs:
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
             -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 spark hostname")
-          echo "WSL2 → spark hostname: $HOSTNAME"
+          echo "WSL2 -> spark hostname: $HOSTNAME"
           echo "PASS"
 
       - name: SSH from WSL2 to Orin
@@ -215,10 +216,11 @@ jobs:
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
             -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 orin hostname")
-          echo "WSL2 → orin hostname: $HOSTNAME"
+          echo "WSL2 -> orin hostname: $HOSTNAME"
           echo "PASS"
 
       - name: SSH from WSL2 to MSI Windows
@@ -226,10 +228,11 @@ jobs:
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
             -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 msi hostname")
-          echo "WSL2 → msi hostname: $HOSTNAME"
+          echo "WSL2 -> msi hostname: $HOSTNAME"
           echo "PASS"
 
       - id: report

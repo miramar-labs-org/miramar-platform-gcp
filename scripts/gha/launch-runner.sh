@@ -213,6 +213,20 @@ fi
 [[ -S /run/avahi-daemon/socket ]] && \
     DOCKER_VOLS+=(-v /run/avahi-daemon/socket:/run/avahi-daemon/socket)
 
+# Mount the shared SSH store as the runner's ~/.ssh so any workflow can SSH
+# to lab machines using config aliases and the host's identity directly.
+# ~/shared/ssh holds config, known_hosts, authorized_keys (canonical shared store).
+# id_ed25519 is the host private key and lives outside the shared dir; bind-mount
+# it as a child so it overlays the shared dir mount at that path.
+# Skipped if setup-shared-ssh has not been run yet on this host.
+if [[ -d "${HOME}/shared/ssh" && -f "${HOME}/.ssh/id_ed25519" ]]; then
+    DOCKER_VOLS+=(
+        -v "${HOME}/shared/ssh:/home/runner/.ssh"
+        -v "${HOME}/.ssh/id_ed25519:/home/runner/.ssh/id_ed25519:ro"
+        -v "${HOME}/.ssh/id_ed25519.pub:/home/runner/.ssh/id_ed25519.pub:ro"
+    )
+fi
+
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     "${DOCKER_VOLS[@]}" \
