@@ -98,7 +98,8 @@ else
   echo "SSH key already exists"
 fi
 '@
-$keyScript | & wsl.exe -d $Name -u $User -- bash -s
+# Strip \r (PowerShell here-strings use \r\n; bash tokenises 'then\r' as unknown)
+($keyScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s
 $wsl2PubKey = (& wsl.exe -d $Name -u $User -- cat "/home/$User/.ssh/id_ed25519.pub" 2>$null)
 if (-not $wsl2PubKey) {
   throw "Could not read WSL2 public key from distro '$Name' as user '$User'"
@@ -147,7 +148,7 @@ if (-not $SmbPassword) {
   Write-Host '.smbcredentials written'
 
   Step "Add CIFS fstab entry (//$DgxHost/shared)"
-  $fstabEntry = "//$DgxHost/shared /home/$User/shared cifs credentials=/home/$User/.smbcredentials,uid=1000,gid=1000,file_mode=0600,dir_mode=0700,_netdev 0 0"
+  $fstabEntry = "//$DgxHost/shared /home/$User/shared cifs credentials=/home/$User/.smbcredentials,uid=1000,gid=1000,file_mode=0600,dir_mode=0700,_netdev,nofail 0 0"
   & wsl.exe -d $Name -u root -- bash -c `
     "grep -qF '$DgxHost/shared' /etc/fstab 2>/dev/null || printf '%s\n' '$fstabEntry' >> /etc/fstab"
   Write-Host 'fstab entry present'
@@ -179,7 +180,7 @@ for f in config known_hosts authorized_keys; do
   fi
 done
 '@
-  $symlinkScript | & wsl.exe -d $Name -u $User -- bash -s
+  ($symlinkScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s
   Write-Host 'SSH symlinks configured'
 }
 
@@ -221,7 +222,7 @@ else
   echo "WSL2 pubkey added to shared authorized_keys"
 fi
 '@
-$addKeyScript | & wsl.exe -d $Name -u $User -- bash -s -- "$wsl2PubKey"
+($addKeyScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s -- "$wsl2PubKey"
 
 # -----------------------------------------------------------------------
 # Step 7: Add wsl2-<Name> host block to ~/shared/ssh/config via WSL2.
@@ -248,7 +249,7 @@ else
   echo "$ALIAS added to shared config"
 fi
 '@
-$configScript | & wsl.exe -d $Name -u $User -- bash -s -- "$hostAlias" "$MsiHostName" "$User" "$Port"
+($configScript -replace "`r", "") | & wsl.exe -d $Name -u $User -- bash -s -- "$hostAlias" "$MsiHostName" "$User" "$Port"
 Write-Host "$hostAlias host block configured"
 
 # -----------------------------------------------------------------------
