@@ -1,16 +1,20 @@
 name: WSL2 Provision
 
-# Wires a WSL2 distro into the lab SSH mesh — same pattern as Orin:
-#   1. Write ~/.smbcredentials (from secret — not baked into template)
-#   2. Mount //DGX/shared at ~/shared/ via CIFS
-#   3. Symlink ~/.ssh/ → ~/shared/ssh/ (all machines share Spark's identity)
-#   4. Add wsl2-<name> host block to shared SSH config
+# Full lifecycle: import distro from template, wire into the lab SSH mesh.
 #
-# Assumes the distro is already running and sshd is up on ssh_port.
+#   1. SSH to Windows host → wsl --import (idempotent)
+#   2. Wait for sshd inside the distro to be reachable
+#   3. Write ~/.smbcredentials inside distro
+#   4. Mount //DGX/shared at ~/shared/ via CIFS
+#   5. Symlink ~/.ssh/ → ~/shared/ssh/ (all machines share Spark's identity)
+#   6. Add wsl2-<name> host block to shared SSH config
 #
 # Prerequisites:
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
-#   - Secrets: WSL2_HOST, DGX_HOST_SSH_KEY, DGX_SMB_PASSWORD
+#   - .wslconfig (mirrored networking) set on Windows (see wsl2/post-bootstrap.md)
+#   - Firewall rule for ssh_port open on Windows (see wsl2/post-bootstrap.md)
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY,
+#              DGX_HOST_SSH_KEY, DGX_SMB_PASSWORD
 #   - Vars:    DGX_HOST, DGX_HOST_USER
 
 on:
@@ -41,9 +45,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up SSH key for WSL2 distro
+      # ── Step 1: import distro from template tarball ──────────────────────
+      - name: Import WSL2 distro from template
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
         run: |
           install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_win_host
+          chmod 600 /tmp/wsl2_win_host
+          ssh-keyscan -H "$WSL2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          # Feed a PowerShell script via stdin (Windows OpenSSH default shell is PowerShell).
+          # GHA evaluates ${{ }} expressions before bash runs, so distro_name / ssh_port
+          # are literal values by the time the heredoc is processed.
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" << 'PSEOF'
+          $distro = '${{ inputs.distro_name }}'
+          $existing = (wsl --list --quiet 2>$null) -replace "`0","" -split "`n" |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ -ieq $distro }
+          if ($existing) {
+            Write-Host "Distro $distro already exists — skipping import"
+          } else {
+            New-Item -ItemType Directory -Force -Path "C:\wsl\$distro" | Out-Null
+            wsl --import $distro "C:\wsl\$distro" `
+              'C:\wsl-templates\ubuntu-22.04-configured-template.tar' --version 2
+            Write-Host "Imported $distro"
+          }
+          PSEOF
+
+      # ── Step 2: wait for sshd inside the distro ──────────────────────────
+      - name: Wait for sshd in distro
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+        run: |
+          echo "Waiting for sshd on $WSL2_HOST:${{ inputs.ssh_port }}..."
+          for i in $(seq 1 30); do
+            if ssh-keyscan -p "${{ inputs.ssh_port }}" "$WSL2_HOST" >/dev/null 2>&1; then
+              echo "sshd up (attempt $i)"
+              break
+            fi
+            echo "  waiting... ($i/30)"
+            sleep 5
+            if [[ $i -eq 30 ]]; then
+              echo "ERROR: sshd not reachable after 150s" >&2
+              exit 1
+            fi
+          done
+
+      # ── Steps 3-5: wire SSH mesh ──────────────────────────────────────────
+      - name: Set up SSH key for WSL2 distro
+        run: |
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/wsl2_host
           chmod 600 /tmp/wsl2_host
           ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" \
