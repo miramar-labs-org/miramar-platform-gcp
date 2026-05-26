@@ -2,22 +2,25 @@ name: WSL2 Post-Provision
 
 # Per-distro SSH mesh setup. Run after WSL2 Provision.
 #
-# Windows side (post-provision.ps1):
+# PowerShell does Windows config only:
 #   1. .wslconfig (mirrored networking) + wsl --shutdown if changed
 #   2. Firewall rule for sshd port
 #   3. sshd port config inside distro
-#   4. Write .smbcredentials + /etc/wsl2-distro-name inside distro
-#   5. Install setup-shared-ssh.sh + enable wsl2-ssh-setup.service
-#   6. Run setup-shared-ssh.sh (initial sync via smbclient, no CIFS mount)
+#   4. Write .smbcredentials (Samba password, kept out of process args)
+#   5. Write /etc/wsl2-distro-name (so the service knows its SSH alias)
+#   6. Start wsl2-ssh-setup.service + wait for completion
 #
-# setup-shared-ssh.sh (runs inside the distro):
-#   - Downloads config / known_hosts / authorized_keys from DGX shared store
-#   - Adds own pubkey → uploads authorized_keys back
-#   - Adds wsl2-<name> host block → uploads config back
-#   - On every subsequent cold start: wsl2-ssh-setup.service re-runs it
+# The distro does the SSH work itself via wsl2-ssh-setup.service
+# (installed by bootstrap.sh, runs setup-shared-ssh.sh on every cold start):
+#   - smbclient get: config / known_hosts / authorized_keys from DGX
+#   - Appends own pubkey → smbclient put authorized_keys back
+#   - Adds wsl2-<name> host block → smbclient put config back
+#
+# Requires a distro built from a template exported after bootstrap.sh
+# added smbclient + wsl2-ssh-setup.service (run bootstrap.sh, re-export).
 #
 # Prerequisites:
-#   - WSL2 distro provisioned (run WSL2 Provision first)
+#   - WSL2 distro provisioned from current template (run WSL2 Provision first)
 #   - Setup Shared SSH Store run at least once (initialises DGX ~/shared/ssh/)
 #   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_SMB_PASSWORD
 #   - Vars:    DGX_HOST
@@ -59,7 +62,7 @@ jobs:
           chmod 600 ~/.ssh/wsl2_host
           ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Copy scripts to Windows host
+      - name: Copy post-provision.ps1 to Windows host
         run: |
           scp -i ~/.ssh/wsl2_host \
             -o BatchMode=yes \
@@ -67,7 +70,6 @@ jobs:
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             wsl2/post-provision.ps1 \
-            wsl2/setup-shared-ssh.sh \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}:"
 
       - name: Run post-provision.ps1 on Windows host
