@@ -57,8 +57,7 @@ jobs:
           ssh-keyscan -H "$WSL2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
           # Feed a PowerShell script via stdin (Windows OpenSSH default shell is PowerShell).
-          # GHA evaluates ${{ }} expressions before bash runs, so distro_name / ssh_port
-          # are literal values by the time the heredoc is processed.
+          # GHA expression substitution runs before bash, so inputs are literal values here.
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
