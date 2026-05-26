@@ -119,62 +119,7 @@ jobs:
         run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
 
   # -----------------------------------------------------------------------
-  # Windows: config check + ssh to wsl2-<distro>
-  # -----------------------------------------------------------------------
-
-  verify-windows:
-    runs-on: ${{ inputs.runner }}
-    outputs:
-      result: ${{ steps.report.outputs.result }}
-    steps:
-      - name: Set up SSH key for Windows host
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > ~/.ssh/wsl2_host
-          chmod 600 ~/.ssh/wsl2_host
-          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Check wsl2-<distro> host block in Windows SSH config
-        env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
-        run: |
-          RESULT=$(ssh -i ~/.ssh/wsl2_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o PreferredAuthentications=publickey \
-            -o PasswordAuthentication=no \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "powershell -Command \"if (Select-String -Path (Join-Path \$env:USERPROFILE '.ssh\\config') -Pattern 'Host wsl2-${DISTRO_NAME}' -Quiet -ErrorAction SilentlyContinue) { 'PASS' } else { 'FAIL' }\"" \
-            | tr -d '\r')
-          echo "Windows SSH config wsl2-${DISTRO_NAME} block: $RESULT"
-          [[ "$RESULT" == "PASS" ]] || exit 1
-
-      - name: SSH from Windows to WSL2
-        env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
-        run: |
-          HOSTNAME=$(ssh -i ~/.ssh/wsl2_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o PreferredAuthentications=publickey \
-            -o PasswordAuthentication=no \
-            -o ServerAliveInterval=15 \
-            -o ServerAliveCountMax=4 \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 wsl2-${DISTRO_NAME} hostname")
-          echo "Windows → wsl2-${DISTRO_NAME} hostname: $HOSTNAME"
-          if [[ "$HOSTNAME" != "$DISTRO_NAME" ]]; then
-            echo "WARN: expected hostname '$DISTRO_NAME', got '$HOSTNAME'"
-          else
-            echo "PASS: hostname matches"
-          fi
-
-      - id: report
-        if: always()
-        run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
-
-  # -----------------------------------------------------------------------
-  # WSL2: config check + ssh to spark, orin, msi
+  # WSL2: config check + ssh to spark, orin
   # Runs on the DGX/AGX runner, which tunnels into WSL2 over the distro port
   # -----------------------------------------------------------------------
 
@@ -188,7 +133,7 @@ jobs:
       # ~/.ssh/id_ed25519. That key is in WSL2's shared authorized_keys.
       - name: Check SSH config inside WSL2
         run: |
-          for host in spark orin msi github.com; do
+          for host in spark orin github.com; do
             PRESENT=$(ssh \
               -o BatchMode=yes \
               -o IdentitiesOnly=yes \
@@ -224,18 +169,6 @@ jobs:
           echo "WSL2 -> orin hostname: $HOSTNAME"
           echo "PASS"
 
-      - name: SSH from WSL2 to MSI Windows
-        run: |
-          HOSTNAME=$(ssh \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 msi hostname")
-          echo "WSL2 -> msi hostname: $HOSTNAME"
-          echo "PASS"
-
       - id: report
         if: always()
         run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
@@ -245,7 +178,7 @@ jobs:
   # -----------------------------------------------------------------------
 
   summary:
-    needs: [verify-dgx, verify-agx, verify-windows, verify-wsl2]
+    needs: [verify-dgx, verify-agx, verify-wsl2]
     if: always()
     runs-on: ${{ inputs.runner }}
     steps:
@@ -253,7 +186,6 @@ jobs:
         run: |
           dgx="${{ needs.verify-dgx.result }}"
           agx="${{ needs.verify-agx.result }}"
-          win="${{ needs.verify-windows.result }}"
           wsl="${{ needs.verify-wsl2.result }}"
 
           pass() { [[ "$1" == "success" ]] && echo "✅" || echo "❌ ($1)"; }
@@ -265,13 +197,11 @@ jobs:
             echo "| Distro | \`${{ inputs.distro_name }}\` |"
             echo "| SSH alias | \`wsl2-${{ inputs.distro_name }}\` |"
             echo "| Port | \`${{ inputs.ssh_port }}\` |"
-            echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
             echo ""
             echo "### Results"
             echo "| Path | Result |"
             echo "|---|---|"
             echo "| DGX → \`ssh wsl2-${{ inputs.distro_name }} hostname\` | $(pass $dgx) |"
             echo "| Orin → \`ssh wsl2-${{ inputs.distro_name }} hostname\` | $(pass $agx) |"
-            echo "| Windows → \`ssh wsl2-${{ inputs.distro_name }} hostname\` | $(pass $win) |"
-            echo "| WSL2 → \`ssh spark/orin/msi hostname\` | $(pass $wsl) |"
+            echo "| WSL2 → \`ssh spark/orin hostname\` | $(pass $wsl) |"
           } >> "$GITHUB_STEP_SUMMARY"

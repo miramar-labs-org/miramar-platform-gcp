@@ -130,31 +130,6 @@ $wsl2PubKey = $wsl2PubKey.Trim()
 Write-Host "WSL2 public key: $wsl2PubKey"
 
 # -----------------------------------------------------------------------
-# Step 3b: Add WSL2 pubkey to MSI administrators_authorized_keys
-# -----------------------------------------------------------------------
-Step 'Add WSL2 pubkey to administrators_authorized_keys'
-$authKeysPath = 'C:\ProgramData\ssh\administrators_authorized_keys'
-if (-not (Test-Path $authKeysPath)) {
-  New-Item -ItemType File -Path $authKeysPath -Force | Out-Null
-}
-$authKeysContent = Get-Content $authKeysPath -Raw -ErrorAction SilentlyContinue
-if (-not $authKeysContent) { $authKeysContent = '' }
-
-if ($authKeysContent.Contains($wsl2PubKey)) {
-  Write-Host 'WSL2 pubkey already present'
-} else {
-  Add-Content $authKeysPath "`n$wsl2PubKey"
-  Write-Host 'WSL2 pubkey added'
-}
-
-# Fix permissions required by Windows OpenSSH
-& icacls $authKeysPath /inheritance:r          | Out-Null
-& icacls $authKeysPath /grant 'Administrators:F' | Out-Null
-& icacls $authKeysPath /grant 'SYSTEM:F'         | Out-Null
-Restart-Service sshd
-Write-Host 'sshd restarted'
-
-# -----------------------------------------------------------------------
 # Step 4: Mount ~/shared (CIFS -> DGX ~/shared) inside the distro
 # Requires DGX Samba share to be running and setup-shared-ssh to have
 # been run at least once to initialise ~/shared/ssh/ on DGX.
@@ -285,27 +260,6 @@ fi
 '@
 Invoke-WslBash $Name $User $configScript $hostAlias $MsiHostName $User "$Port"
 Write-Host "$hostAlias host block configured"
-
-# -----------------------------------------------------------------------
-# Step 7b: Add wsl2-<Name> host block to Windows %USERPROFILE%\.ssh\config.
-# Written directly -- CIFS share is inside WSL2, not accessible via Windows path.
-# -----------------------------------------------------------------------
-Step "Windows SSH config: $hostAlias host block"
-$winSshDir  = Join-Path $env:USERPROFILE '.ssh'
-$winCfgPath = Join-Path $winSshDir 'config'
-New-Item -ItemType Directory -Force -Path $winSshDir | Out-Null
-$winCfg = ''
-if (Test-Path $winCfgPath) {
-  $winCfg = Get-Content $winCfgPath -Raw -ErrorAction SilentlyContinue
-}
-if (-not $winCfg) { $winCfg = '' }
-if ($winCfg -like "*Host $hostAlias*") {
-  Write-Host "$hostAlias already in Windows SSH config"
-} else {
-  $wsl2Block = "`nHost $hostAlias`n    HostName $MsiHostName`n    User $User`n    Port $Port`n    IdentityFile ~/.ssh/id_ed25519`n    IdentitiesOnly yes"
-  Add-Content $winCfgPath $wsl2Block
-  Write-Host "$hostAlias added to Windows SSH config"
-}
 
 # -----------------------------------------------------------------------
 # Output -- single tagged line captured by GHA

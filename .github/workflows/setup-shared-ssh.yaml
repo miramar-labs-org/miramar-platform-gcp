@@ -56,12 +56,6 @@ jobs:
           # --- config ---
           if [[ ! -f ~/shared/ssh/config ]]; then
             {
-              echo "Host msi"
-              echo "    HostName msi.local"
-              echo "    User aaron"
-              echo "    IdentityFile ~/.ssh/id_ed25519"
-              echo "    IdentitiesOnly yes"
-              echo ""
               echo "Host orin"
               echo "    HostName orin.local"
               echo "    User aaron"
