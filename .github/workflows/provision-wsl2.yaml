@@ -56,47 +56,17 @@ jobs:
           chmod 600 /tmp/wsl2_win_host
           ssh-keyscan -H "$WSL2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          # Write the PowerShell script to a local temp file, then pipe it to
-          # stdin of remote PowerShell. The default SSH shell on Windows is cmd.exe;
-          # we invoke powershell explicitly. Single-quoted heredoc keeps bash from
-          # expanding PS variables; GHA has already substituted distro_name/ssh_port.
-          cat > /tmp/import_distro.ps1 << 'PSEOF'
-$distro = '${{ inputs.distro_name }}'
-$port   = ${{ inputs.ssh_port }}
-
-$existing = (wsl --list --quiet 2>$null) -replace "`0","" -split "`n" |
-  ForEach-Object { $_.Trim() } | Where-Object { $_ -ieq $distro }
-if ($existing) {
-  Write-Host "Distro $distro already exists - skipping import"
-} else {
-  New-Item -ItemType Directory -Force -Path "C:\wsl\$distro" | Out-Null
-  wsl --import $distro "C:\wsl\$distro" 'C:\wsl-templates\ubuntu-22.04-configured-template.tar' --version 2
-  Write-Host "Imported $distro"
-}
-
-Write-Host "Booting $distro (starting systemd)..."
-wsl -d $distro -- bash -c 'echo distro up'
-Write-Host "Distro booted"
-
-$ruleName = "WSL2 SSH $port Inbound"
-if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
-  try {
-    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow | Out-Null
-    Write-Host "Firewall rule created: $ruleName"
-  } catch {
-    Write-Host "WARN: could not create firewall rule (may need admin): $_"
-  }
-} else {
-  Write-Host "Firewall rule already exists: $ruleName"
-}
-PSEOF
-
+          # The default SSH shell on Windows is cmd.exe.
+          # cmd.exe's & chains commands; if import fails (distro exists), wsl -d still runs.
+          # GHA has already substituted distro_name before bash sees this.
+          # \\ in bash double-quoted string → \ (Windows path separator).
+          DISTRO='${{ inputs.distro_name }}'
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -NonInteractive -" < /tmp/import_distro.ps1
+            "mkdir C:\\wsl\\$DISTRO 2>nul & wsl --import $DISTRO C:\\wsl\\$DISTRO C:\\wsl-templates\\ubuntu-22.04-configured-template.tar --version 2 & wsl -d $DISTRO -- bash -c \"echo distro up\""
           echo "Import step complete"
 
       # ── Step 2: wait for sshd inside the distro ──────────────────────────
