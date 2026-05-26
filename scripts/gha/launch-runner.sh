@@ -205,6 +205,14 @@ if [[ "${DEFAULT_LABELS}" == *"dgx"* ]]; then
     )
 fi
 
+# Mount the host avahi socket so the container's libnss-mdns (nss-mdns ≥0.15)
+# can delegate .local resolution to the host avahi daemon. This gives all three
+# runners (DGX, AGX, WSL2-Ubuntu) identical .local name resolution — the host
+# avahi has full LAN visibility regardless of which machine the container is on.
+# Skipped silently if avahi is not running (falls back to in-container multicast).
+[[ -S /run/avahi-daemon/socket ]] && \
+    DOCKER_VOLS+=(-v /run/avahi-daemon/socket:/run/avahi-daemon/socket)
+
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     "${DOCKER_VOLS[@]}" \
