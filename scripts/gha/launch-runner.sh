@@ -205,19 +205,6 @@ if [[ "${DEFAULT_LABELS}" == *"dgx"* ]]; then
     )
 fi
 
-# Resolve .local mDNS names on the host and inject them into the container
-# via a bind-mounted /etc/hosts. --add-host is unreliable with --network=host
-# on older Docker versions; a mounted file works universally.
-HOSTS_FILE=/tmp/mlabs-runner-hosts
-cp /etc/hosts "$HOSTS_FILE"
-for _host in spark-79b7.local orin.local msi.local; do
-    _ip=$(getent hosts "$_host" 2>/dev/null | awk '{print $1}' | grep -v ':' | head -1)
-    if [[ -n "$_ip" ]] && ! grep -qF "$_host" "$HOSTS_FILE" 2>/dev/null; then
-        printf '%s\t%s\n' "$_ip" "$_host" >> "$HOSTS_FILE"
-    fi
-done
-DOCKER_VOLS+=(-v "$HOSTS_FILE:/etc/hosts:ro")
-
 docker run --rm ${DETACH_FLAG} \
     "${DOCKER_ENV[@]}" \
     "${DOCKER_VOLS[@]}" \
