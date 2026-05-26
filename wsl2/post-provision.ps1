@@ -19,7 +19,8 @@ function Warn([string]$m) { Write-Host "WARN: $m" -ForegroundColor Yellow }
 # "Processing /etc/fstab with mount -a failed." to stderr on every cold
 # start. Under ErrorActionPreference=Stop that NativeCommandError is
 # deferred to the NEXT statement in the caller scope, silently killing the
-# script at an unrelated line. Remove it now; Step 4 re-adds it with nofail.
+# script at an unrelated line. Remove it now; setup-shared-ssh.sh re-adds
+# it with nofail.
 # Use ErrorActionPreference=Continue here -- the distro may not be running
 # yet, and starting it will itself trigger the fstab message we're fixing.
 # -----------------------------------------------------------------------
@@ -108,23 +109,24 @@ if ($rule) {
 }
 
 # -----------------------------------------------------------------------
-# Step 2b: Set sshd port inside the distro and restart sshd
+# Step 2b: Set sshd port inside the distro and restart sshd.
+# Uses Invoke-WslBash (single-quoted here-string) -- the double-quoted @"..."@
+# form passes \r\n line endings to bash via wsl.exe, breaking keyword parsing.
 # -----------------------------------------------------------------------
 Step "Configure sshd port $Port in distro '$Name'"
-# Install openssh-server if missing (fresh distro), write port config, restart.
-# Use 'service' (works with and without systemd) and suppress non-fatal errors.
-& wsl.exe -d $Name -u root -- bash -c @"
+$sshdScript = @'
 apt-get install -y --no-install-recommends openssh-server 2>&1 | tail -3
 mkdir -p /etc/ssh/sshd_config.d
-printf 'Port %d\n' $Port > /etc/ssh/sshd_config.d/wsl2-port.conf
+printf 'Port %s\n' "$1" > /etc/ssh/sshd_config.d/wsl2-port.conf
 service ssh restart || service sshd restart || true
-"@
+'@
+Invoke-WslBash $Name root $sshdScript "$Port"
 Write-Host "sshd configured on port $Port"
 
 # -----------------------------------------------------------------------
-# Step 3: Ensure SSH key exists, then read WSL2 public key
-# Uses Invoke-WslBash (temp file) -- PowerShell's pipe adds \r\n on Windows
-# even after stripping \r, breaking bash keyword parsing.
+# Step 3: Ensure SSH key exists, then read WSL2 public key.
+# Uses Invoke-WslBash -- PowerShell's pipe adds \r\n on Windows,
+# breaking bash keyword parsing.
 # -----------------------------------------------------------------------
 Step "Ensure SSH key exists in distro '$Name'"
 $keyScript = @'
@@ -148,147 +150,49 @@ $wsl2PubKey = $wsl2PubKey.Trim()
 Write-Host "WSL2 public key: $wsl2PubKey"
 
 # -----------------------------------------------------------------------
-# Step 4: Mount ~/shared (CIFS -> DGX ~/shared) inside the distro
-# Requires DGX Samba share to be running and setup-shared-ssh to have
-# been run at least once to initialise ~/shared/ssh/ on DGX.
+# Step 4: In-distro SSH mesh bootstrap.
+# All Linux work (avahi wait, CIFS mount, ~/.ssh symlinks, pubkey injection,
+# host block) is handled by setup-shared-ssh.sh running inside the distro.
+# PowerShell only delivers secrets/keys and calls the script.
 # -----------------------------------------------------------------------
 if (-not $SmbPassword) {
-  Warn 'SmbPassword not provided -- skipping CIFS mount and symlink setup'
-  Warn 'Run with -SmbPassword to enable shared SSH config'
+  Warn 'SmbPassword not provided -- skipping shared SSH setup'
+  Warn 'Run with -SmbPassword to wire the distro into the SSH mesh'
 } else {
+
   Step "Write .smbcredentials in distro '$Name'"
-  # Pipe via stdin to avoid password appearing in process args
+  # Pipe via stdin to avoid password appearing in process args.
   "username=$User`npassword=$SmbPassword" | & wsl.exe -d $Name -u $User -- `
     bash -c 'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
   Write-Host '.smbcredentials written'
 
-  Step "Add/update CIFS fstab entry (//$DgxHost/shared)"
-  $fstabEntry = "//$DgxHost/shared /home/$User/shared cifs credentials=/home/$User/.smbcredentials,uid=1000,gid=1000,file_mode=0600,dir_mode=0700,_netdev,nofail 0 0"
-  # Always replace any existing entry so nofail and current options are guaranteed.
-  & wsl.exe -d $Name -u root -- bash -c `
-    "sed -i '\|$DgxHost/shared|d' /etc/fstab; printf '%s\n' '$fstabEntry' >> /etc/fstab"
-  Write-Host 'fstab entry updated (nofail)'
-
-  Step "Wait for avahi-daemon in distro '$Name'"
-  $avahiWaitScript = @'
-for i in $(seq 1 12); do
-  systemctl is-active avahi-daemon >/dev/null 2>&1 && echo 'avahi-daemon active' && exit 0
-  echo "  waiting for avahi-daemon... ($i/12)"
-  sleep 5
-done
-echo 'WARN: avahi-daemon did not start within 60s -- mount may fail'
-'@
-  Invoke-WslBash $Name root $avahiWaitScript
-
-  Step "Mount ~/shared in distro '$Name'"
-  $mounted = $false
-  for ($i = 1; $i -le 6; $i++) {
-    $mc = & wsl.exe -d $Name -u root -- bash -c `
-      "mountpoint -q /home/$User/shared && echo MOUNTED || (mount /home/$User/shared 2>&1 && echo MOUNTED || echo FAILED)"
-    if ($mc -match 'MOUNTED') { $mounted = $true; break }
-    Write-Host "  attempt $i/6 failed -- retrying in 5s..."
-    Start-Sleep -Seconds 5
-  }
-  if ($mounted) {
-    Write-Host '~/shared mounted'
-  } else {
-    throw '~/shared mount failed after 6 attempts -- cannot write to shared SSH config'
+  # Deliver runner pubkeys to /tmp/ inside the distro so setup-shared-ssh.sh
+  # can inject them into the shared authorized_keys.
+  foreach ($pair in @(
+    @{ File = "$env:USERPROFILE\dgx-key.pub"; Dest = '/tmp/dgx-key.pub' },
+    @{ File = "$env:USERPROFILE\agx-key.pub"; Dest = '/tmp/agx-key.pub' }
+  )) {
+    if (Test-Path $pair.File) {
+      $pubKey = (Get-Content $pair.File -Raw).Trim()
+      $writeScript = 'printf ''%s\n'' "$1" > ' + $pair.Dest
+      Invoke-WslBash $Name root $writeScript $pubKey
+      Write-Host "Written $($pair.Dest) in distro"
+    } else {
+      Warn "Key file not found: $($pair.File) -- skipping"
+    }
   }
 
-  Step "Create ~/.ssh symlinks -> ~/shared/ssh/"
-  $symlinkScript = @'
-set -euo pipefail
-for f in config known_hosts authorized_keys; do
-  target="$HOME/shared/ssh/$f"
-  link="$HOME/.ssh/$f"
-  if [[ ! -e "$target" ]]; then
-    echo "WARN: $target not found -- run setup-shared-ssh first; skipping $f"
-    continue
-  fi
-  if [[ -L "$link" ]]; then
-    echo "$f already a symlink -- skipping"
-  elif [[ -f "$link" ]]; then
-    mv "$link" "${link}.bak"
-    echo "Backed up ${link} -> ${link}.bak"
-    ln -sf "$target" "$link"
-    echo "Symlinked $link"
-  else
-    ln -sf "$target" "$link"
-    echo "Symlinked $link"
-  fi
-done
-'@
-  Invoke-WslBash $Name $User $symlinkScript
-  Write-Host 'SSH symlinks configured'
+  # Run setup-shared-ssh.sh inside the distro.
+  # The script was SCP'd to %USERPROFILE% by the GHA workflow alongside this script.
+  $setupScript = "$env:USERPROFILE\setup-shared-ssh.sh"
+  if (-not (Test-Path $setupScript)) {
+    throw "setup-shared-ssh.sh not found at $setupScript -- was it SCP'd by the workflow?"
+  }
+  $setupSh = Get-Content $setupScript -Raw
+  Step "Run setup-shared-ssh.sh in distro '$Name'"
+  Invoke-WslBash $Name root $setupSh $DgxHost $User $Name "$Port"
+  Write-Host 'setup-shared-ssh.sh complete'
 }
-
-# -----------------------------------------------------------------------
-# Step 5: Inject DGX and Orin pubkeys into WSL2/shared authorized_keys.
-# After symlinking, ~/.ssh/authorized_keys -> ~/shared/ssh/authorized_keys
-# so this write is automatically shared with all machines.
-# GHA places dgx-key.pub and agx-key.pub in %USERPROFILE% via SCP.
-# -----------------------------------------------------------------------
-Step 'Inject runner pubkeys into shared authorized_keys'
-foreach ($keyFile in @("$env:USERPROFILE\dgx-key.pub", "$env:USERPROFILE\agx-key.pub")) {
-  if (-not (Test-Path $keyFile)) {
-    Warn "Key file not found: $keyFile -- skipping"
-    continue
-  }
-  $key = (Get-Content $keyFile -Raw).Trim()
-  Write-Host "Injecting: $keyFile"
-  $key | & wsl.exe -d $Name -u $User -- bash -c `
-    'read K; grep -qF "$K" ~/.ssh/authorized_keys 2>/dev/null || printf "%s\n" "$K" >> ~/.ssh/authorized_keys'
-}
-
-# -----------------------------------------------------------------------
-# Step 6: Add WSL2 pubkey to ~/shared/ssh/authorized_keys via WSL2.
-# The CIFS mount lives inside WSL2 -- write via WSL2 path, not Windows path.
-# -----------------------------------------------------------------------
-Step 'Add WSL2 pubkey to shared authorized_keys'
-$addKeyScript = @'
-set -euo pipefail
-target="$HOME/shared/ssh/authorized_keys"
-if [[ ! -f "$target" ]]; then
-  echo "WARN: $target not found -- run setup-shared-ssh first"
-  exit 0
-fi
-KEY="$1"
-if grep -qF "$KEY" "$target" 2>/dev/null; then
-  echo "WSL2 pubkey already in shared authorized_keys"
-else
-  printf '\n%s\n' "$KEY" >> "$target"
-  echo "WSL2 pubkey added to shared authorized_keys"
-fi
-'@
-Invoke-WslBash $Name $User $addKeyScript $wsl2PubKey
-
-# -----------------------------------------------------------------------
-# Step 7: Add wsl2-<Name> host block to ~/shared/ssh/config via WSL2.
-# HostName = Windows host mDNS name so DGX/Orin can reach WSL2 over LAN.
-# All machines pick this up automatically via ~/.ssh symlinks -> shared store.
-# -----------------------------------------------------------------------
-$hostAlias = "wsl2-$Name"
-$MsiHostName = ($env:COMPUTERNAME).ToLower() + ".local"
-Step "Shared SSH config: $hostAlias (HostName $MsiHostName)"
-
-$configScript = @'
-set -euo pipefail
-ALIAS="$1"; HOSTNAME="$2"; USER="$3"; PORT="$4"
-target="$HOME/shared/ssh/config"
-if [[ ! -f "$target" ]]; then
-  echo "WARN: $target not found -- run setup-shared-ssh first"
-  exit 0
-fi
-if grep -q "^Host $ALIAS" "$target" 2>/dev/null; then
-  echo "$ALIAS already present in shared config"
-else
-  printf '\nHost %s\n    HostName %s\n    User %s\n    Port %s\n    IdentityFile ~/.ssh/id_ed25519\n    IdentitiesOnly yes\n' \
-    "$ALIAS" "$HOSTNAME" "$USER" "$PORT" >> "$target"
-  echo "$ALIAS added to shared config"
-fi
-'@
-Invoke-WslBash $Name $User $configScript $hostAlias $MsiHostName $User "$Port"
-Write-Host "$hostAlias host block configured"
 
 # -----------------------------------------------------------------------
 # Output -- single tagged line captured by GHA

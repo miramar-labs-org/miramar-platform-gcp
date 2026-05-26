@@ -1,0 +1,15 @@
+# Reference service unit — installed by bootstrap.sh with <USER> substituted.
+# Not used directly; bootstrap.sh writes the actual unit via tee with ${USER} expanded.
+[Unit]
+Description=Mount DGX shared SSH store
+After=avahi-daemon.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# <USER> is replaced with the real username by bootstrap.sh at install time.
+ExecStart=/usr/local/bin/setup-shared-ssh.sh spark-79b7.local <USER>
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

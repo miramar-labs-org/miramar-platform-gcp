@@ -115,6 +115,25 @@ sudo sed -i \
 sudo systemctl restart avahi-daemon || true
 sudo systemctl restart systemd-resolved 2>/dev/null || true
 
+log "Install setup-shared-ssh.sh + boot service (auto-mounts DGX ~/shared on every start)"
+sudo install -m 755 "$(dirname "$0")/setup-shared-ssh.sh" /usr/local/bin/setup-shared-ssh.sh
+sudo tee /etc/systemd/system/wsl2-mount-shared.service >/dev/null <<EOF
+[Unit]
+Description=Mount DGX shared SSH store
+After=avahi-daemon.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/setup-shared-ssh.sh spark-79b7.local ${USER}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable wsl2-mount-shared.service
+log "wsl2-mount-shared.service installed and enabled"
+
 log "Write ~/.ssh/config (lab hosts, skipped if file already exists)"
 SSH_CFG="$HOME/.ssh/config"
 if [[ ! -s "$SSH_CFG" ]]; then
