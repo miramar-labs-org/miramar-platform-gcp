@@ -27,6 +27,7 @@ Write-Host 'Pre-flight: clearing stale CIFS fstab entries...'
 $_pref = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 & wsl.exe -d $Name -u root -- bash -c "sed -i '\|$DgxHost/shared|d' /etc/fstab 2>/dev/null; true" 2>$null
+& wsl.exe --terminate $Name 2>$null
 $ErrorActionPreference = $_pref
 Write-Host 'Pre-flight: done'
 
