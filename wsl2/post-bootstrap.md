@@ -31,7 +31,7 @@ new distros can authenticate without any secret delivery at provision time.
 
 3. **Export the distro** from PowerShell:
    ```powershell
-   wsl --export <name> C:\wsl-templates\ubuntu-24.04-configured-template.tar
+   wsl --export <name> C:\wsl-templates\ubuntu-22.04-configured-template.tar
    ```
 
 4. **Run Setup Shared SSH Store** workflow — pre-authorizes the template key on DGX

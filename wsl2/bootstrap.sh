@@ -461,7 +461,7 @@ cat "$HOME/.ssh/id_ed25519_smb.pub" 2>/dev/null || true
 echo ""
 echo "IMPORTANT — one-time template steps (do these before provisioning any distros):"
 echo "  1. Copy the SMB bootstrap key above; commit it to wsl2/id_ed25519_smb.pub in the repo"
-echo "  2. Export this distro: wsl --export <name> C:\\wsl-templates\\ubuntu-24.04-configured-template.tar"
+echo "  2. Export this distro: wsl --export <name> C:\\wsl-templates\\ubuntu-22.04-configured-template.tar"
 echo "  3. Run the Setup Shared SSH Store workflow (pre-authorises template key on DGX, wires Orin via smbclient)"
 echo ""
 echo "Per-distro steps (no DGX_SMB_PASSWORD needed — credentials are baked into the template):"

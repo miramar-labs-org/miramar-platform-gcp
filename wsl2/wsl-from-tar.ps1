@@ -16,7 +16,7 @@ $RootDir   = 'C:\wsl'
 $DistroDir = Join-Path $RootDir $Name
 
 # Your template tar
-$TarPath = 'C:\wsl-templates\ubuntu-24.04-configured-template.tar'
+$TarPath = 'C:\wsl-templates\ubuntu-22.04-configured-template.tar'
 
 Step 'Preflight'
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {

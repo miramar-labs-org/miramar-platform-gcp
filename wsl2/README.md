@@ -6,7 +6,7 @@ Provision and unprovision WSL2 distros from the configured template tarball via 
 
 | Workflow | Purpose |
 |---|---|
-| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-24.04-configured-template.tar` |
+| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar` |
 | **WSL2 Post-Provision** (`post-provision-wsl2.yaml`) | Wire up the SSH mesh: `.wslconfig`, firewall, sshd port, write distro name, start `wsl2-ssh-setup.service` (smbclient syncs SSH files — no `DGX_SMB_PASSWORD` needed; creds baked in template) |
 | **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate every SSH path in the mesh (DGX↔WSL2, Orin↔WSL2, Windows↔WSL2, WSL2→all) |
 | **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregister a distro; optionally delete the folder at `C:\wsl\<name>` |
@@ -69,7 +69,7 @@ Add the public key to `C:\Users\<user>\.ssh\authorized_keys`.
 
         wsl --update
 
-        wsl --install -d Ubuntu-24.04
+        wsl --install -d Ubuntu-22.04
 
 ## GPU (only if you want NVIDIA containers)
 
@@ -115,13 +115,13 @@ Copy `bootstrap.sh` into distro $HOME, then:
     wsl --list --verbose
     mkdir C:\wsl-templates -Force
     
-    wsl --export Ubuntu-24.04 C:\wsl-templates\ubuntu-24.04-base-template.tar
+    wsl --export Ubuntu-22.04 C:\wsl-templates\ubuntu-22.04-base-template.tar
 
 ## Import fresh copy from snapshot:
 
-    mkdir C:\wsl\Ubuntu2404-Base -Force
-    wsl --import Ubuntu2404-Base C:\wsl\Ubuntu2404-Base C:\wsl-templates\ubuntu-24.04-base-template.tar --version 2
-    wsl -d Ubuntu2404-Base --cd ~
+    mkdir C:\wsl\Ubuntu2204-Base -Force
+    wsl --import Ubuntu2204-Base C:\wsl\Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-base-template.tar --version 2
+    wsl -d Ubuntu2204-Base --cd ~
 
 Run bootstrap.sh (set DGX_SMB_PASSWORD first — it bakes .smbcredentials + id_ed25519_smb into the distro):
 
@@ -130,7 +130,7 @@ Run bootstrap.sh (set DGX_SMB_PASSWORD first — it bakes .smbcredentials + id_e
 Configure p10k, then restart:
 
     wsl --shutdown
-    wsl -d Ubuntu2404-Base --cd ~
+    wsl -d Ubuntu2204-Base --cd ~
 
 Commit the SMB bootstrap key to the repo (copy from the bootstrap.sh output):
 
@@ -140,17 +140,17 @@ Commit the SMB bootstrap key to the repo (copy from the bootstrap.sh output):
 Distro is now configured. Snapshot this 'configured' instance:
 
     wsl --shutdown
-    wsl --export Ubuntu2404-Base C:\wsl-templates\ubuntu-24.04-configured-template.tar
+    wsl --export Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-configured-template.tar
 
 Run Setup Shared SSH Store workflow (pre-authorizes template key on DGX, wires Orin).
 
 Cleanup:
 
-    wsl --unregister Ubuntu-24.04
-    wsl --unregister Ubuntu2404-Base
+    wsl --unregister Ubuntu-22.04
+    wsl --unregister Ubuntu2204-Base
 
 Finally, bring up a fresh configured instance via the WSL2 Provision workflow, or manually:
 
-    wsl --import Ubuntu2404-Dev1 C:\wsl\Ubuntu2404-Dev1 C:\wsl-templates\ubuntu-24.04-configured-template.tar --version 2
-    wsl -d Ubuntu2404-Dev1 --cd ~
+    wsl --import Ubuntu2204-Dev1 C:\wsl\Ubuntu2204-Dev1 C:\wsl-templates\ubuntu-22.04-configured-template.tar --version 2
+    wsl -d Ubuntu2204-Dev1 --cd ~
     

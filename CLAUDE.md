@@ -9,9 +9,9 @@ Infrastructure and CI/CD tooling for the Miramar platform on GCP. It provisions 
 ## Platform topology
 
 **Physical machines (self-hosted GHA runners):**
-- **Windows laptop / WSL2** — Ubuntu 24.04, x86_64 (amd64), AMD CPU, NVIDIA RTX 4060 (sm_89). Runner label: `wsl2`.
-- **NVIDIA DGX Spark 128GB** — DGX OS (Ubuntu), aarch64 (arm64), 20-core Arm CPU (10× Cortex-X925 + 10× Cortex-A725), GB10 Superchip Blackwell GPU (6144 CUDA cores, 5th-gen Tensor Cores). Runner label: `dgx`.
-- **NVIDIA Jetson AGX Orin 64GB** — Ubuntu JetPack 6.x, aarch64 (arm64), 12-core Cortex-A78AE, Ampere GPU 2048 CUDA cores (sm_87), CUDA 12.6. Runner label: `agx`.
+- **Windows laptop / WSL2** — Ubuntu 22.04, x86_64 (amd64), AMD CPU, NVIDIA RTX 4060 (sm_89). Runner label: `wsl2`.
+- **NVIDIA DGX Spark 128GB** — DGX OS (Ubuntu 24.04), aarch64 (arm64), 20-core Arm CPU (10× Cortex-X925 + 10× Cortex-A725), GB10 Superchip Blackwell GPU (6144 CUDA cores, 5th-gen Tensor Cores). Runner label: `dgx`.
+- **NVIDIA Jetson AGX Orin 64GB** — Ubuntu 22.04 (JetPack 6.x), aarch64 (arm64), 12-core Cortex-A78AE, Ampere GPU 2048 CUDA cores (sm_87), CUDA 12.6. Runner label: `agx`.
 
 **GCP:**
 - `miramar-platform` — single project hosting GKE Standard cluster (`miramar-shared-gke`), Artifact Registry (`apps`), WIF pool/provider, and deploy service accounts.
@@ -134,7 +134,7 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Ollama Undeploy | `undeploy-ollama.yaml` | SSH to DGX host and unload the active Ollama model from GPU memory. Auto-detects loaded model if `model` input is blank. Input: `model` (optional), `delete_model` (bool, default false) |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses vars `DGX_HOST`, `DGX_HOST_USER` and secret `DGX_HOST_SSH_KEY`. |
 | Setup Shared SSH Store | `setup-shared-ssh.yaml` | **One-time setup** (re-run after each template rebuild). Initialises `~/shared/ssh/` on DGX, creates `~/.ssh` symlinks on DGX, pre-authorizes `wsl2/id_ed25519_smb.pub` (template SMB key) on DGX, wires Orin via `orin-ssh-setup.service` (smbclient — no CIFS). Requires vars `DGX_HOST`, `DGX_HOST_USER` and secrets `DGX_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
-| WSL2 Provision | `provision-wsl2.yaml` | Import a new WSL2 distro from `C:\wsl-templates\ubuntu-24.04-configured-template.tar` on the Windows host. |
+| WSL2 Provision | `provision-wsl2.yaml` | Import a new WSL2 distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar` on the Windows host. |
 | WSL2 Post-Provision | `post-provision-wsl2.yaml` | Per-distro SSH mesh setup: `.wslconfig`, firewall, sshd port, writes `/etc/wsl2-distro-name`, triggers `wsl2-ssh-setup.service` (smbclient syncs SSH files, adds pubkey, adds `wsl2-<name>` host block). **No `DGX_SMB_PASSWORD` needed** — credentials baked into template by `bootstrap.sh`. Secrets: `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY`. |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Validate every SSH path in the lab mesh using `wsl2-<distro_name>` alias; checks `~/.ssh/config` host blocks on each machine; reports ✅/❌ per path. Inputs: `distro_name`, `ssh_port`. |
 | WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister a WSL2 distro; optionally delete `C:\wsl\<name>` from disk. |

@@ -71,9 +71,9 @@ On-premises machines acting as self-hosted GitHub Actions runners and general co
 
 | Machine | OS | Arch | CPU | GPU | VRAM | CUDA | Runner label |
 |---|---|---|---|---|---|---|---|
-| Windows laptop | Ubuntu 24.04 (WSL2) | x86_64 / amd64 | AMD | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6 | 12.6 | `wsl2` |
-| NVIDIA DGX Spark 128GB | DGX OS (Ubuntu) | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen) | 128 GB unified | 12.6 | `dgx` |
-| NVIDIA Jetson AGX Orin 64GB | Ubuntu (JetPack 6.x) | aarch64 / arm64 | 12-core Cortex-A78AE | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87) | 64 GB unified | 12.6 | `agx` |
+| Windows laptop | Ubuntu 22.04 (WSL2) | x86_64 / amd64 | AMD | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6 | 12.6 | `wsl2` |
+| NVIDIA DGX Spark 128GB | DGX OS (Ubuntu 24.04) | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen) | 128 GB unified | 12.6 | `dgx` |
+| NVIDIA Jetson AGX Orin 64GB | Ubuntu 22.04 (JetPack 6.x) | aarch64 / arm64 | 12-core Cortex-A78AE | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87) | 64 GB unified | 12.6 | `agx` |
 
 All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`. GPU access works the same way on both arm64 machines via the NVIDIA container runtime.
 
@@ -822,14 +822,14 @@ Actions → NIM Undeploy → Run workflow
 
 ## WSL2 Environments (Windows laptop)
 
-WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-24.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template. See [docs/ssh-runbook.md](docs/ssh-runbook.md) for the full SSH mesh topology.
+WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template. See [docs/ssh-runbook.md](docs/ssh-runbook.md) for the full SSH mesh topology.
 
 **Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `ml`) and its own sshd port (2222 for the first, increment by 1 for each additional). All SSH configs use the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-ml`) so instances never conflict.
 
 **One-time template setup** (per template build — run `bootstrap.sh`, export tarball, commit `wsl2/id_ed25519_smb.pub`, then run Setup Shared SSH Store):
 ```
 wsl2/bootstrap.sh       → bakes id_ed25519_smb + .smbcredentials into the distro
-wsl --export ...        → export to C:\wsl-templates\ubuntu-24.04-configured-template.tar
+wsl --export ...        → export to C:\wsl-templates\ubuntu-22.04-configured-template.tar
 git add wsl2/id_ed25519_smb.pub && git push
 Actions → Setup Shared SSH Store
 ```
