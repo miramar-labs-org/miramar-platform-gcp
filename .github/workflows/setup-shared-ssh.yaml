@@ -189,7 +189,10 @@ jobs:
           echo "CIFS cleanup done"
 
       - name: Install smbclient on Orin
-        run: sudo apt-get install -y --no-install-recommends smbclient
+        run: |
+          sudo add-apt-repository -y universe
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends smbclient
 
       - name: Write .smbcredentials on Orin
         env:
