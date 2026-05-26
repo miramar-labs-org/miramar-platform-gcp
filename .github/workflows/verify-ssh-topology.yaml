@@ -144,7 +144,8 @@ jobs:
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "powershell -Command \"if (Select-String -Path (Join-Path \$env:USERPROFILE '.ssh\\config') -Pattern 'Host wsl2-${DISTRO_NAME}' -Quiet -ErrorAction SilentlyContinue) { 'PASS' } else { 'FAIL' }\"")
+            "powershell -Command \"if (Select-String -Path (Join-Path \$env:USERPROFILE '.ssh\\config') -Pattern 'Host wsl2-${DISTRO_NAME}' -Quiet -ErrorAction SilentlyContinue) { 'PASS' } else { 'FAIL' }\"" \
+            | tr -d '\r')
           echo "Windows SSH config wsl2-${DISTRO_NAME} block: $RESULT"
           [[ "$RESULT" == "PASS" ]] || exit 1
 

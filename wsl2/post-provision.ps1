@@ -153,9 +153,20 @@ if (-not $SmbPassword) {
     "grep -qF '$DgxHost/shared' /etc/fstab 2>/dev/null || printf '%s\n' '$fstabEntry' >> /etc/fstab"
   Write-Host 'fstab entry present'
 
-  Step "Mount ~/shared in distro '$Name'"
-  & wsl.exe -d $Name -u root -- bash -c "mountpoint -q /home/$User/shared || mount /home/$User/shared"
-  Write-Host '~/shared mounted'
+  Step "Mount ~/shared in distro '$Name' (waiting for avahi/systemd to settle)"
+  $mounted = $false
+  for ($i = 1; $i -le 6; $i++) {
+    $mc = & wsl.exe -d $Name -u root -- bash -c `
+      "mountpoint -q /home/$User/shared && echo MOUNTED || (mount /home/$User/shared 2>&1 && echo MOUNTED || echo FAILED)"
+    if ($mc -match 'MOUNTED') { $mounted = $true; break }
+    Write-Host "  attempt $i/6 failed -- retrying in 5s..."
+    Start-Sleep -Seconds 5
+  }
+  if ($mounted) {
+    Write-Host '~/shared mounted'
+  } else {
+    Warn '~/shared mount failed after 6 attempts -- shared SSH config will not be updated'
+  }
 
   Step "Create ~/.ssh symlinks -> ~/shared/ssh/"
   $symlinkScript = @'
