@@ -70,13 +70,24 @@ if ($rule) {
 # Step 2b: Set sshd port inside the distro and restart sshd
 # -----------------------------------------------------------------------
 Step "Configure sshd port $Port in distro '$Name'"
-& wsl.exe -d $Name -u root -- bash -c "printf 'Port %d\n' $Port > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh"
+& wsl.exe -d $Name -u root -- bash -c "mkdir -p /etc/ssh/sshd_config.d && printf 'Port %d\n' $Port > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh"
 Write-Host "sshd configured on port $Port"
 
 # -----------------------------------------------------------------------
-# Step 3: Start distro and read WSL2 public key
+# Step 3: Ensure SSH key exists, then read WSL2 public key
 # -----------------------------------------------------------------------
-Step "Start distro '$Name' and read WSL2 public key"
+Step "Ensure SSH key exists in distro '$Name'"
+& wsl.exe -d $Name -u $User -- bash -c @'
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+if [[ ! -f ~/.ssh/id_ed25519 ]]; then
+  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "${USER}@wsl2" -N ""
+  chmod 600 ~/.ssh/id_ed25519
+  chmod 644 ~/.ssh/id_ed25519.pub
+  echo "SSH key generated"
+else
+  echo "SSH key already exists"
+fi
+'@
 $wsl2PubKey = (& wsl.exe -d $Name -u $User -- cat "/home/$User/.ssh/id_ed25519.pub" 2>$null)
 if (-not $wsl2PubKey) {
   throw "Could not read WSL2 public key from distro '$Name' as user '$User'"
