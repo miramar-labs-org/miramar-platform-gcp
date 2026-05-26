@@ -11,12 +11,9 @@ die() { printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2; exit 1; }
 log "Wait for apt lock (unattended-upgrades may be running)"
 sudo systemctl stop unattended-upgrades 2>/dev/null || true
 sudo systemctl disable unattended-upgrades 2>/dev/null || true
-# Belt-and-suspenders: wait up to 120s for any residual lock holder to exit
-for _i in $(seq 1 24); do
-  sudo flock --exclusive --timeout 5 /var/lib/dpkg/lock-frontend true 2>/dev/null && break
-  printf "  waiting for dpkg lock (%ds)...\n" "$((_i * 5))"
+while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+  echo "waiting for apt lock..."; sleep 5
 done
-unset _i
 
 log "Baseline apt update"
 sudo apt-get update
