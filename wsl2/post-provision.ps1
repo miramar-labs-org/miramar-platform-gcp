@@ -70,14 +70,24 @@ if ($rule) {
 # Step 2b: Set sshd port inside the distro and restart sshd
 # -----------------------------------------------------------------------
 Step "Configure sshd port $Port in distro '$Name'"
-& wsl.exe -d $Name -u root -- bash -c "mkdir -p /etc/ssh/sshd_config.d && printf 'Port %d\n' $Port > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh"
+# Install openssh-server if missing (fresh distro), write port config, restart.
+# Use 'service' (works with and without systemd) and suppress non-fatal errors.
+& wsl.exe -d $Name -u root -- bash -c @"
+apt-get install -y --no-install-recommends openssh-server 2>&1 | tail -3
+mkdir -p /etc/ssh/sshd_config.d
+printf 'Port %d\n' $Port > /etc/ssh/sshd_config.d/wsl2-port.conf
+service ssh restart || service sshd restart || true
+"@
 Write-Host "sshd configured on port $Port"
 
 # -----------------------------------------------------------------------
 # Step 3: Ensure SSH key exists, then read WSL2 public key
+# Pipe script via stdin (bash -s) -- multiline strings via bash -c are
+# truncated by WSL argument passing.
 # -----------------------------------------------------------------------
 Step "Ensure SSH key exists in distro '$Name'"
-& wsl.exe -d $Name -u $User -- bash -c @'
+$keyScript = @'
+set -euo pipefail
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 if [[ ! -f ~/.ssh/id_ed25519 ]]; then
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "${USER}@wsl2" -N ""
@@ -88,6 +98,7 @@ else
   echo "SSH key already exists"
 fi
 '@
+$keyScript | & wsl.exe -d $Name -u $User -- bash -s
 $wsl2PubKey = (& wsl.exe -d $Name -u $User -- cat "/home/$User/.ssh/id_ed25519.pub" 2>$null)
 if (-not $wsl2PubKey) {
   throw "Could not read WSL2 public key from distro '$Name' as user '$User'"

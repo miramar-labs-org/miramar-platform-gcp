@@ -267,7 +267,10 @@ esac
 GOVER="$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n 1 | tr -d '\r\n')"
 _gotmp="$(mktemp)"
 curl -fsSL -o "$_gotmp" "https://go.dev/dl/${GOVER}.linux-${GOARCH}.tar.gz"
-_gosha="$(curl -fsSL "https://go.dev/dl/${GOVER}.linux-${GOARCH}.tar.gz.sha256")"
+# Extract just the hex hash (the .sha256 URL may return a full checksum line
+# with a filename field; awk picks the first token and strips trailing whitespace).
+_gosha="$(curl -fsSL "https://go.dev/dl/${GOVER}.linux-${GOARCH}.tar.gz.sha256" | awk '{print $1}')"
+[[ "${#_gosha}" -eq 64 ]] || die "Go checksum fetch returned unexpected output: ${_gosha:0:80}"
 echo "${_gosha}  ${_gotmp}" | sha256sum --check || die "Go checksum mismatch"
 sudo rm -rf /usr/local/go
 sudo tar -C /usr/local -xzf "$_gotmp"
