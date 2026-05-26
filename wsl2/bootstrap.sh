@@ -254,9 +254,6 @@ if [ -f /etc/profile.d/miniforge.sh ]; then
 fi
 EOF
 
-log "Install Java (OpenJDK 17)"
-sudo apt-get install -y --no-install-recommends openjdk-17-jdk
-
 log "Install Go"
 case "$ARCH" in
   amd64) GOARCH="amd64" ;;
