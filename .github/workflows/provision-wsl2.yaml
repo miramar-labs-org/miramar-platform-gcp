@@ -1,16 +1,29 @@
 name: WSL2 Provision
 
-# Creates a new WSL2 distro on the Windows laptop from the configured template tarball.
-# Prerequisites: OpenSSH Server enabled on Windows; template tar at C:\wsl-templates\ubuntu-22.04-configured-template.tar
-# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
+# Wires a WSL2 distro into the lab SSH mesh — same pattern as Orin:
+#   1. Write ~/.smbcredentials (from secret — not baked into template)
+#   2. Mount //DGX/shared at ~/shared/ via CIFS
+#   3. Symlink ~/.ssh/ → ~/shared/ssh/ (all machines share Spark's identity)
+#   4. Add wsl2-<name> host block to shared SSH config
+#
+# Assumes the distro is already running and sshd is up on ssh_port.
+#
+# Prerequisites:
+#   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
+#   - Secrets: WSL2_HOST, DGX_HOST_SSH_KEY, DGX_SMB_PASSWORD
+#   - Vars:    DGX_HOST, DGX_HOST_USER
 
 on:
   workflow_dispatch:
     inputs:
       distro_name:
-        description: "Name for the new WSL2 distro"
+        description: "WSL2 distro name"
         required: true
         default: dev
+      ssh_port:
+        description: "sshd port inside the distro"
+        required: false
+        default: "2222"
       runner:
         description: "Runner to SSH from"
         required: false
@@ -19,73 +32,55 @@ on:
         options:
           - dgx
           - agx
-          - wsl2
 
 jobs:
   provision:
     runs-on: ${{ inputs.runner || 'dgx' }}
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up SSH key
-        shell: bash
+      - name: Set up SSH key for WSL2 distro
         run: |
-          set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_host
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/wsl2_host
           chmod 600 /tmp/wsl2_host
-          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: List existing WSL distros
-        shell: bash
+      - name: Write .smbcredentials on distro
+        env:
+          DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+        run: |
+          printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \
+            ssh -i /tmp/wsl2_host \
+              -p "${{ inputs.ssh_port }}" \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "$DGX_HOST_USER@$WSL2_HOST" \
+              'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
+          echo "Written .smbcredentials"
+
+      - name: Mount DGX shared store and symlink SSH files
+        env:
+          DGX_HOST: ${{ vars.DGX_HOST }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
         run: |
           ssh -i /tmp/wsl2_host \
+            -p "${{ inputs.ssh_port }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o PreferredAuthentications=publickey \
-            -o PasswordAuthentication=no \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=10 \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "wsl.exe --list --verbose" || true
-
-      - name: Copy provisioning script to Windows host
-        shell: bash
-        run: |
-          scp -i /tmp/wsl2_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o PreferredAuthentications=publickey \
-            -o PasswordAuthentication=no \
-            wsl2/wsl-from-tar.ps1 \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}:wsl-from-tar.ps1"
-
-      - name: Provision WSL2 distro
-        shell: bash
-        run: |
-          ssh -i /tmp/wsl2_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o PreferredAuthentications=publickey \
-            -o PasswordAuthentication=no \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=10 \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "powershell -ExecutionPolicy Bypass -File \"%USERPROFILE%\\wsl-from-tar.ps1\" -Name \"${{ inputs.distro_name || 'test' }}\""
-
-      - name: List WSL distros after provision
-        if: always()
-        shell: bash
-        run: |
-          ssh -i /tmp/wsl2_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o PreferredAuthentications=publickey \
-            -o PasswordAuthentication=no \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "wsl.exe --list --verbose" || true
+            -o StrictHostKeyChecking=accept-new \
+            "$DGX_HOST_USER@$WSL2_HOST" \
+            bash -s "$DGX_HOST" "$DGX_HOST_USER" "${{ inputs.distro_name }}" "${{ inputs.ssh_port }}" << 'EOF'
+          set -euo pipefail
+          sudo /usr/local/bin/setup-shared-ssh.sh "$1" "$2" "$3" "$4"
+          EOF
 
       - name: Summary
         if: always()
@@ -95,11 +90,14 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Distro | \`${{ inputs.distro_name }}\` |"
+            echo "| SSH alias | \`wsl2-${{ inputs.distro_name }}\` |"
+            echo "| Port | \`${{ inputs.ssh_port }}\` |"
             echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
-            echo "| Template | \`C:\\wsl-templates\\ubuntu-22.04-configured-template.tar\` |"
-            echo "| Install path | \`C:\\wsl\\${{ inputs.distro_name }}\` |"
-            echo ""
-            echo "### Next steps"
-            echo "1. Start the distro on MSI Windows: \`wsl -d ${{ inputs.distro_name }}\`"
-            echo "2. Complete key distribution: see \`wsl2/post-bootstrap.md\` steps 4–7"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    needs: provision
+    uses: ./.github/workflows/verify-ssh-topology.yaml
+    with:
+      distro_name: ${{ inputs.distro_name }}
+      ssh_port: ${{ inputs.ssh_port }}

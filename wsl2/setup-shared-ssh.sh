@@ -1,14 +1,12 @@
 #!/bin/bash
-# setup-shared-ssh.sh — join the lab SSH mesh from inside the WSL2 distro.
+# setup-shared-ssh.sh — join the lab SSH mesh from inside a WSL2 distro.
 #
 # Usage (run as root):
 #   setup-shared-ssh.sh <DGX_HOST> <USER> [DISTRO_NAME] [SSH_PORT]
 #
-# Uses smbclient to sync SSH files with the DGX shared store.
-# No CIFS mount, no fstab, no kernel modules.
-#
-# Called by post-provision.ps1 via Invoke-WslBash on first provision,
-# and by wsl2-ssh-setup.service on every subsequent cold start.
+# Mounts //DGX_HOST/shared at ~/shared/ via CIFS, then symlinks all
+# ~/.ssh/ files (config, known_hosts, authorized_keys, id_ed25519,
+# id_ed25519.pub) to ~/shared/ssh/. All machines share Spark's SSH identity.
 # Idempotent: safe to run multiple times.
 
 set -euo pipefail
@@ -21,6 +19,9 @@ SSH_PORT="${4:-2222}"
 USER_HOME=$(getent passwd "$MOUNT_USER" | cut -d: -f6)
 CREDS="$USER_HOME/.smbcredentials"
 SSH_DIR="$USER_HOME/.ssh"
+SHARED_DIR="$USER_HOME/shared"
+UID_NUM=$(id -u "$MOUNT_USER")
+GID_NUM=$(id -g "$MOUNT_USER")
 
 log()  { echo "==> $*"; }
 warn() { echo "WARN: $*"; }
@@ -32,16 +33,16 @@ if [[ ! -f "$CREDS" ]]; then
   exit 1
 fi
 
-if ! command -v smbclient >/dev/null 2>&1; then
-  log "Installing smbclient..."
-  apt-get install -y --no-install-recommends smbclient
+if ! command -v mount.cifs >/dev/null 2>&1; then
+  log "Installing cifs-utils..."
+  apt-get install -y --no-install-recommends cifs-utils
 fi
 
 mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
 chown "$MOUNT_USER:$MOUNT_USER" "$SSH_DIR"
 
-# ─── 2. Wait for DGX to be reachable (mDNS needs avahi) ─────────────────────
+# ─── 2. Wait for DGX to be reachable ─────────────────────────────────────────
 
 log "Waiting for $DGX_HOST..."
 for i in $(seq 1 18); do
@@ -57,44 +58,51 @@ for i in $(seq 1 18); do
   fi
 done
 
-# ─── 3. smbclient helper ─────────────────────────────────────────────────────
+# ─── 3. CIFS mount ───────────────────────────────────────────────────────────
 
-smb() {
-  smbclient "//$DGX_HOST/shared" -A "$CREDS" "$@"
-}
+mkdir -p "$SHARED_DIR"
+chown "$MOUNT_USER:$MOUNT_USER" "$SHARED_DIR"
 
-# ─── 4. Download SSH files from shared store ─────────────────────────────────
-
-log "Downloading SSH files from DGX shared store..."
-for f in config known_hosts authorized_keys; do
-  TMP=$(mktemp)
-  if smb -c "get ssh/$f $TMP" >/dev/null 2>&1; then
-    install -m 600 -o "$MOUNT_USER" -g "$MOUNT_USER" "$TMP" "$SSH_DIR/$f"
-    echo "  $f: downloaded"
-  else
-    warn "$f not found in DGX shared store — run Setup Shared SSH Store workflow first"
-  fi
-  rm -f "$TMP"
-done
-
-# ─── 5. Add own pubkey to authorized_keys (upload if changed) ────────────────
-
-WSL2_PUB="$SSH_DIR/id_ed25519.pub"
-if [[ -f "$WSL2_PUB" ]]; then
-  KEY=$(cat "$WSL2_PUB")
-  AK="$SSH_DIR/authorized_keys"
-  if grep -qF "$KEY" "$AK" 2>/dev/null; then
-    log "Own pubkey already in authorized_keys"
-  else
-    printf '\n%s\n' "$KEY" >> "$AK"
-    smb -c "put $AK ssh/authorized_keys" >/dev/null
-    log "Own pubkey added and authorized_keys uploaded"
-  fi
-else
-  warn "No ~/.ssh/id_ed25519.pub found for $MOUNT_USER"
+if ! grep -qF "//$DGX_HOST/shared" /etc/fstab 2>/dev/null; then
+  echo "//$DGX_HOST/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
+    >> /etc/fstab
+  log "Added CIFS fstab entry"
 fi
 
-# ─── 6. Add wsl2-<DISTRO_NAME> host block to config (upload if changed) ──────
+if mountpoint -q "$SHARED_DIR" 2>/dev/null; then
+  log "$SHARED_DIR already mounted"
+else
+  mount "$SHARED_DIR"
+  log "Mounted $SHARED_DIR"
+fi
+
+# ─── 4. Symlink ~/.ssh/ → ~/shared/ssh/ ──────────────────────────────────────
+
+log "Symlinking ~/.ssh/ → $SHARED_DIR/ssh/..."
+for f in config known_hosts authorized_keys id_ed25519 id_ed25519.pub; do
+  target="$SHARED_DIR/ssh/$f"
+  link="$SSH_DIR/$f"
+  if [[ ! -e "$target" ]]; then
+    warn "$target not found in shared store — skipping $f"
+    continue
+  fi
+  if [[ -L "$link" ]]; then
+    log "$f: already a symlink — skipping"
+  elif [[ -f "$link" ]]; then
+    mv "$link" "${link}.bak"
+    log "$f: backed up → ${link}.bak"
+    ln -sf "$target" "$link"
+    log "$f: symlinked"
+  else
+    ln -sf "$target" "$link"
+    log "$f: symlinked"
+  fi
+done
+chown -h "$MOUNT_USER:$MOUNT_USER" \
+  "$SSH_DIR/config" "$SSH_DIR/known_hosts" "$SSH_DIR/authorized_keys" \
+  "$SSH_DIR/id_ed25519" "$SSH_DIR/id_ed25519.pub" 2>/dev/null || true
+
+# ─── 5. Add wsl2-<DISTRO_NAME> host block to shared config ───────────────────
 
 if [[ -n "$DISTRO_NAME" ]]; then
   ALIAS="wsl2-${DISTRO_NAME}"
@@ -102,13 +110,12 @@ if [[ -n "$DISTRO_NAME" ]]; then
   WIN_HOST=$(cmd.exe /c hostname 2>/dev/null | tr -d '\r\n' | tr '[:upper:]' '[:lower:]')
   WIN_HOSTNAME="${WIN_HOST:-localhost}.local"
 
-  if [[ -f "$CONFIG" ]] && grep -q "^Host $ALIAS" "$CONFIG" 2>/dev/null; then
+  if grep -q "^Host $ALIAS" "$CONFIG" 2>/dev/null; then
     log "$ALIAS already in config"
   elif [[ -f "$CONFIG" ]]; then
     printf '\nHost %s\n    HostName %s\n    User %s\n    Port %s\n    IdentityFile ~/.ssh/id_ed25519\n    IdentitiesOnly yes\n' \
       "$ALIAS" "$WIN_HOSTNAME" "$MOUNT_USER" "$SSH_PORT" >> "$CONFIG"
-    smb -c "put $CONFIG ssh/config" >/dev/null
-    log "$ALIAS added to config (HostName $WIN_HOSTNAME) and uploaded"
+    log "$ALIAS added to config (HostName $WIN_HOSTNAME) — written directly to shared store via CIFS"
   fi
 fi
 

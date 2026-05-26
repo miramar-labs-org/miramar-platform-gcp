@@ -1,44 +1,40 @@
 name: WSL2 Verify SSH Topology
 
-# Validates the full SSH mesh described in docs/ssh-runbook.md:
+# Validates bi-directional passwordless SSH between Spark, Orin, and a WSL2 distro:
 #
 #   DGX  → ssh wsl2-<distro> hostname
 #   Orin → ssh wsl2-<distro> hostname
-#   MSI  → ssh wsl2-<distro> hostname   (via Windows OpenSSH → WSL2)
-#   WSL2 → ssh spark hostname
-#   WSL2 → ssh orin hostname
-#   WSL2 → ssh msi hostname
+#   WSL2 → ssh spark hostname   (nested via wsl2-<distro> alias)
+#   WSL2 → ssh orin hostname    (nested via wsl2-<distro> alias)
 #
-# Each job also checks that the expected Host blocks exist in ~/.ssh/config
-# and that authorized_keys contains the expected peer keys.
-#
-# All SSH calls use BatchMode=yes so any password prompt is a hard failure.
+# All SSH calls use BatchMode=yes — any password prompt is a hard failure.
+# No secrets needed: all machines share Spark's SSH identity via ~/shared/ssh/.
 
 on:
   workflow_dispatch:
     inputs:
       distro_name:
-        description: "WSL2 distro name (used to verify hostname)"
+        description: "WSL2 distro name"
         required: true
         default: dev
       ssh_port:
         description: "sshd port for this distro (2222 for first instance)"
         required: false
         default: "2222"
-      runner:
-        description: "Runner for Windows SSH steps"
+  workflow_call:
+    inputs:
+      distro_name:
+        required: true
+        type: string
+      ssh_port:
         required: false
-        default: dgx
-        type: choice
-        options:
-          - dgx
-          - agx
+        type: string
+        default: "2222"
 
 jobs:
 
   # -----------------------------------------------------------------------
-  # DGX: config check + ssh to wsl2-<distro>
-  # launch-runner.sh mounts ~/shared/ssh as ~/.ssh and id_ed25519 into it.
+  # DGX → WSL2
   # -----------------------------------------------------------------------
 
   verify-dgx:
@@ -46,7 +42,7 @@ jobs:
     outputs:
       result: ${{ steps.report.outputs.result }}
     steps:
-      - name: Check wsl2-<distro> host block in ~/.ssh/config
+      - name: Check wsl2-<distro> host block in DGX ~/.ssh/config
         env:
           DISTRO_NAME: ${{ inputs.distro_name }}
         run: |
@@ -54,7 +50,7 @@ jobs:
             echo "FAIL: 'Host wsl2-${DISTRO_NAME}' block missing from DGX ~/.ssh/config"
             exit 1
           fi
-          echo "PASS: wsl2-${DISTRO_NAME} host block present in DGX ~/.ssh/config"
+          echo "PASS: wsl2-${DISTRO_NAME} host block present"
 
       - name: SSH from DGX to WSL2
         env:
@@ -66,20 +62,16 @@ jobs:
             -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
             "wsl2-${DISTRO_NAME}" hostname)
-          echo "DGX -> wsl2-${DISTRO_NAME} hostname: $HOSTNAME"
-          if [[ "$HOSTNAME" != "$DISTRO_NAME" ]]; then
-            echo "WARN: expected hostname '$DISTRO_NAME', got '$HOSTNAME'"
-          else
-            echo "PASS: hostname matches"
-          fi
+          echo "DGX -> wsl2-${DISTRO_NAME}: $HOSTNAME"
+          [[ "$HOSTNAME" == "$DISTRO_NAME" ]] && echo "PASS: hostname matches" \
+            || echo "WARN: expected '$DISTRO_NAME', got '$HOSTNAME'"
 
       - id: report
         if: always()
         run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
 
   # -----------------------------------------------------------------------
-  # Orin: config check + ssh to wsl2-<distro>
-  # launch-runner.sh mounts ~/shared/ssh as ~/.ssh and id_ed25519 into it.
+  # Orin → WSL2
   # -----------------------------------------------------------------------
 
   verify-agx:
@@ -87,7 +79,7 @@ jobs:
     outputs:
       result: ${{ steps.report.outputs.result }}
     steps:
-      - name: Check wsl2-<distro> host block in ~/.ssh/config
+      - name: Check wsl2-<distro> host block in Orin ~/.ssh/config
         env:
           DISTRO_NAME: ${{ inputs.distro_name }}
         run: |
@@ -95,7 +87,7 @@ jobs:
             echo "FAIL: 'Host wsl2-${DISTRO_NAME}' block missing from Orin ~/.ssh/config"
             exit 1
           fi
-          echo "PASS: wsl2-${DISTRO_NAME} host block present in Orin ~/.ssh/config"
+          echo "PASS: wsl2-${DISTRO_NAME} host block present"
 
       - name: SSH from Orin to WSL2
         env:
@@ -107,66 +99,52 @@ jobs:
             -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
             "wsl2-${DISTRO_NAME}" hostname)
-          echo "Orin -> wsl2-${DISTRO_NAME} hostname: $HOSTNAME"
-          if [[ "$HOSTNAME" != "$DISTRO_NAME" ]]; then
-            echo "WARN: expected hostname '$DISTRO_NAME', got '$HOSTNAME'"
-          else
-            echo "PASS: hostname matches"
-          fi
+          echo "Orin -> wsl2-${DISTRO_NAME}: $HOSTNAME"
+          [[ "$HOSTNAME" == "$DISTRO_NAME" ]] && echo "PASS: hostname matches" \
+            || echo "WARN: expected '$DISTRO_NAME', got '$HOSTNAME'"
 
       - id: report
         if: always()
         run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
 
   # -----------------------------------------------------------------------
-  # WSL2: config check + ssh to spark, orin
-  # Runs on the DGX/AGX runner, which tunnels into WSL2 over the distro port
+  # WSL2 → DGX and WSL2 → Orin
+  # Uses the wsl2-<name> SSH alias (already in DGX ~/.ssh/config after provisioning)
+  # to SSH into the distro, then issues nested SSH commands outbound.
   # -----------------------------------------------------------------------
 
   verify-wsl2:
-    needs: [verify-dgx]   # dgx must reach wsl2 first so we know sshd is up
-    runs-on: ${{ inputs.runner }}
+    needs: [verify-dgx]
+    runs-on: dgx
     outputs:
       result: ${{ steps.report.outputs.result }}
     steps:
-      # No key setup needed -- launch-runner.sh mounts the host id_ed25519 as
-      # ~/.ssh/id_ed25519. That key is in WSL2's shared authorized_keys.
-      - name: Check SSH config inside WSL2
-        run: |
-          for host in spark orin github.com; do
-            PRESENT=$(ssh \
-              -o BatchMode=yes \
-              -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=accept-new \
-              -o ConnectTimeout=15 \
-              -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-              "grep -q \"^Host.*\\b${host}\\b\" ~/.ssh/config && echo PASS || echo MISSING")
-            echo "WSL2 ~/.ssh/config 'Host $host': $PRESENT"
-            [[ "$PRESENT" == "PASS" ]] || echo "WARN: Host $host block missing in WSL2 SSH config"
-          done
-
       - name: SSH from WSL2 to DGX (spark)
+        env:
+          DISTRO_NAME: ${{ inputs.distro_name }}
         run: |
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
-            -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 spark hostname")
-          echo "WSL2 -> spark hostname: $HOSTNAME"
+            "wsl2-${DISTRO_NAME}" \
+            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 spark hostname")
+          echo "WSL2 -> spark: $HOSTNAME"
           echo "PASS"
 
       - name: SSH from WSL2 to Orin
+        env:
+          DISTRO_NAME: ${{ inputs.distro_name }}
         run: |
           HOSTNAME=$(ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 \
-            -p "${{ inputs.ssh_port }}" "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
-            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 orin hostname")
-          echo "WSL2 -> orin hostname: $HOSTNAME"
+            "wsl2-${DISTRO_NAME}" \
+            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 orin hostname")
+          echo "WSL2 -> orin: $HOSTNAME"
           echo "PASS"
 
       - id: report
@@ -180,7 +158,7 @@ jobs:
   summary:
     needs: [verify-dgx, verify-agx, verify-wsl2]
     if: always()
-    runs-on: ${{ inputs.runner }}
+    runs-on: dgx
     steps:
       - name: Summary
         run: |
@@ -203,5 +181,6 @@ jobs:
             echo "|---|---|"
             echo "| DGX → \`ssh wsl2-${{ inputs.distro_name }} hostname\` | $(pass $dgx) |"
             echo "| Orin → \`ssh wsl2-${{ inputs.distro_name }} hostname\` | $(pass $agx) |"
-            echo "| WSL2 → \`ssh spark/orin hostname\` | $(pass $wsl) |"
+            echo "| WSL2 → \`ssh spark hostname\` | $(pass $wsl) |"
+            echo "| WSL2 → \`ssh orin hostname\` | $(pass $wsl) |"
           } >> "$GITHUB_STEP_SUMMARY"

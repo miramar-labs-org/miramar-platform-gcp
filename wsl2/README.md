@@ -6,16 +6,14 @@ Provision and unprovision WSL2 distros from the configured template tarball via 
 
 | Workflow | Purpose |
 |---|---|
-| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar` |
-| **WSL2 Post-Provision** (`post-provision-wsl2.yaml`) | Wire up the SSH mesh: `.wslconfig`, firewall, sshd port, write distro name, start `wsl2-ssh-setup.service` (smbclient syncs SSH files — no `DGX_SMB_PASSWORD` needed; creds baked in template) |
+| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar`, then SSH into the distro and call `setup-shared-ssh.sh` — mounts `//DGX/shared` via CIFS and symlinks `~/.ssh/` to `~/shared/ssh/` |
 | **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate every SSH path in the mesh (DGX↔WSL2, Orin↔WSL2, Windows↔WSL2, WSL2→all) |
 | **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregister a distro; optionally delete the folder at `C:\wsl\<name>` |
 
 Normal provisioning sequence:
 
 ```
-Actions → WSL2 Provision          → distro_name: dev
-Actions → WSL2 Post-Provision     → distro_name: dev
+Actions → WSL2 Provision           → distro_name: dev
 Actions → WSL2 Verify SSH Topology → distro_name: dev
 ```
 
@@ -25,7 +23,7 @@ Teardown:
 Actions → WSL2 Unprovision → distro_name: dev  delete_files: false
 ```
 
-Both workflows SSH into the Windows laptop from a self-hosted runner (`dgx`, `agx`, or `wsl2`).
+The provision workflow SSHes directly into the WSL2 distro (not the Windows host) using Spark's SSH key.
 
 ### Prerequisites
 
@@ -53,13 +51,17 @@ Add the public key to `C:\Users\<user>\.ssh\authorized_keys`.
 
 **4. Create the template tarball** (one-time, see [Build a configured template](#build-a-configured-template) below).
 
-**5. Set GitHub secrets** (repo or org level):
+**5. Set GitHub secrets and vars** (repo or org level):
 
-| Secret | Value |
+| Secret / Var | Value |
 |---|---|
-| `WSL2_HOST` | Windows hostname or IP (e.g. `msi-laptop.local`) |
-| `WSL2_HOST_USER` | Windows username |
-| `WSL2_HOST_SSH_KEY` | Private SSH key (PEM format) |
+| `WSL2_HOST` (secret) | Windows hostname or IP (e.g. `msi-laptop.local`) |
+| `DGX_HOST_SSH_KEY` (secret) | Spark's private key — seeded into the template's `authorized_keys` by `bootstrap.sh` |
+| `DGX_SMB_PASSWORD` (secret) | Samba password — written as `.smbcredentials` in the distro at provision time |
+| `DGX_HOST` (var) | DGX hostname (e.g. `spark-79b7.local`) |
+| `DGX_HOST_USER` (var) | DGX / Samba username |
+
+`WSL2_HOST_USER` and `WSL2_HOST_SSH_KEY` are still required by the **WSL2 Verify SSH Topology** and **WSL2 Unprovision** workflows.
 
 ---
 
@@ -84,11 +86,14 @@ wsl -d Ubuntu-Rebuild --cd ~
 ```bash
 curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/bootstrap.sh -o bootstrap.sh
 chmod +x bootstrap.sh
-DGX_SMB_PASSWORD=<samba-password> ./bootstrap.sh
+DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(cat ~/.ssh/id_ed25519.pub on Spark)" ./bootstrap.sh
 ```
 
-bootstrap.sh is idempotent — it skips anything already installed and adds what’s missing.
-At the end it prints two public keys. Copy the **SMB bootstrap key** (`id_ed25519_smb.pub`).
+`bootstrap.sh` is idempotent — skips anything already installed and adds what’s missing.
+`DGX_SMB_PASSWORD` bakes `.smbcredentials` into the template (no runtime delivery needed).
+`DGX_PUBKEY` seeds Spark’s pubkey into the template’s `authorized_keys` so the runner can SSH into fresh distros with `DGX_HOST_SSH_KEY`.
+
+At the end it prints the **SMB bootstrap key** (`id_ed25519_smb.pub`). Copy it.
 
 ### Step 3 — Export, overwriting the existing tarball (PowerShell)
 
@@ -117,8 +122,7 @@ subsequent per-distro provisioning is secret-free.
 ### Step 6 — Provision a distro to verify
 
 ```
-Actions → WSL2 Provision          → distro_name: test
-Actions → WSL2 Post-Provision     → distro_name: test
+Actions → WSL2 Provision           → distro_name: test
 Actions → WSL2 Verify SSH Topology → distro_name: test
 ```
 
@@ -180,10 +184,10 @@ Inside the distro, pull and run bootstrap.sh:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/bootstrap.sh -o bootstrap.sh
 chmod +x bootstrap.sh
-DGX_SMB_PASSWORD=<samba-password> ./bootstrap.sh
+DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(ssh spark cat ~/.ssh/id_ed25519.pub)" ./bootstrap.sh
 ```
 
-At the end it prints two public keys. Copy the **SMB bootstrap key** (`id_ed25519_smb.pub`).
+At the end it prints the **SMB bootstrap key** (`id_ed25519_smb.pub`). Copy it.
 
 Configure p10k, then:
 
@@ -222,8 +226,7 @@ subsequent per-distro provisioning is secret-free.
 ### Step 8 — Provision a distro to verify
 
 ```
-Actions → WSL2 Provision          → distro_name: test
-Actions → WSL2 Post-Provision     → distro_name: test
+Actions → WSL2 Provision           → distro_name: test
 Actions → WSL2 Verify SSH Topology → distro_name: test
 ```
 

@@ -66,7 +66,7 @@ sudo apt-get install -y --no-install-recommends \
   whois \
   iperf3 \
   iftop nethogs vnstat \
-  smbclient
+  cifs-utils
 
 log "Install neofetch"
 sudo apt-get install -y --no-install-recommends neofetch
@@ -110,9 +110,18 @@ log "Write ~/.smbcredentials (baked into template — no runtime delivery needed
 printf 'username=%s\npassword=%s\n' "$USER" "$DGX_SMB_PASSWORD" > "$HOME/.smbcredentials"
 chmod 600 "$HOME/.smbcredentials"
 
-log "Prepare ~/.ssh/authorized_keys"
+log "Prepare ~/.ssh/authorized_keys (seed with Spark runner pubkey)"
 touch "$HOME/.ssh/authorized_keys"
 chmod 600 "$HOME/.ssh/authorized_keys"
+if [[ -z "${DGX_PUBKEY:-}" ]]; then
+  read -rp "Spark id_ed25519.pub (run 'cat ~/.ssh/id_ed25519.pub' on Spark; blank to skip): " DGX_PUBKEY
+fi
+if [[ -n "${DGX_PUBKEY:-}" ]]; then
+  echo "$DGX_PUBKEY" >> "$HOME/.ssh/authorized_keys"
+  echo "Spark pubkey seeded into authorized_keys — DGX_HOST_SSH_KEY can SSH into fresh distros"
+else
+  echo "WARNING: no Spark pubkey provided — runner will not be able to SSH into fresh distros"
+fi
 chown -R "${USER}:${USER}" "$HOME/.ssh"
 
 log "Configure mDNS (.local resolution via avahi + libnss-mdns)"
@@ -124,24 +133,8 @@ sudo sed -i \
 sudo systemctl restart avahi-daemon || true
 sudo systemctl restart systemd-resolved 2>/dev/null || true
 
-log "Install setup-shared-ssh.sh + wsl2-ssh-setup.service (syncs SSH mesh on every cold start)"
+log "Install setup-shared-ssh.sh (CIFS mount + SSH mesh symlinks, run once during post-provision)"
 sudo install -m 755 "$(dirname "$0")/setup-shared-ssh.sh" /usr/local/bin/setup-shared-ssh.sh
-sudo tee /etc/systemd/system/wsl2-ssh-setup.service >/dev/null <<EOF
-[Unit]
-Description=Sync SSH mesh files from DGX shared store (smbclient)
-After=avahi-daemon.service network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/setup-shared-ssh.sh spark-79b7.local ${USER}
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-sudo systemctl enable wsl2-ssh-setup.service
-log "wsl2-ssh-setup.service installed and enabled"
 
 log "Write ~/.ssh/config (lab hosts, skipped if file already exists)"
 SSH_CFG="$HOME/.ssh/config"
@@ -450,19 +443,17 @@ echo "Note: Docker may not fully start until after you run wsl --shutdown (syste
 echo "Note: If docker group membership was added, you may need to restart WSL for it to apply."
 echo "Powerlevel10k installed. Run 'p10k configure' once after opening zsh."
 echo ""
-echo "SSH public key (id_ed25519 — copy this to DGX, Orin, and MSI Windows administrators_authorized_keys):"
-cat "$HOME/.ssh/id_ed25519.pub" 2>/dev/null || true
-echo ""
 echo "SMB bootstrap key (id_ed25519_smb — commit this to wsl2/id_ed25519_smb.pub in the repo):"
 cat "$HOME/.ssh/id_ed25519_smb.pub" 2>/dev/null || true
 echo ""
 echo "IMPORTANT — one-time template steps (do these before provisioning any distros):"
 echo "  1. Copy the SMB bootstrap key above; commit it to wsl2/id_ed25519_smb.pub in the repo"
 echo "  2. Export this distro: wsl --export <name> C:\\wsl-templates\\ubuntu-22.04-configured-template.tar"
-echo "  3. Run the Setup Shared SSH Store workflow (pre-authorises template key on DGX, wires Orin via smbclient)"
+echo "  3. Run the Setup Shared SSH Store workflow (pre-authorises template key on DGX, wires Orin via CIFS)"
 echo ""
-echo "Per-distro steps (no DGX_SMB_PASSWORD needed — credentials are baked into the template):"
-echo "  4. Run WSL2 Provision workflow"
-echo "  5. Run WSL2 Post-Provision workflow (distro name + port only)"
-echo "  6. Run WSL2 Verify SSH Topology workflow"
+echo "Per-distro steps (credentials are baked into the template — no runtime secret delivery):"
+echo "  4. Run WSL2 Provision workflow (distro_name + ssh_port)"
+echo "     Provision SSHes into the distro, writes .smbcredentials, mounts //DGX/shared via CIFS,"
+echo "     and symlinks ~/.ssh/ to ~/shared/ssh/ — all distros share Spark's SSH identity."
+echo "  5. Run WSL2 Verify SSH Topology workflow"
 echo "See wsl2/post-bootstrap.md for manual fallback steps."

@@ -1,7 +1,7 @@
 # WSL2 Post-Bootstrap: SSH Mesh Setup
 
-> **These steps are automated.** After running **WSL2 Provision**, run
-> **WSL2 Post-Provision** (`.github/workflows/post-provision-wsl2.yaml`), then
+> **These steps are automated.** After running **WSL2 Provision**
+> (`.github/workflows/provision-wsl2.yaml`), run
 > **WSL2 Verify SSH Topology** (`.github/workflows/verify-ssh-topology.yaml`) to
 > confirm everything works.
 >
@@ -11,22 +11,25 @@
 
 ## One-time template steps (run once after bootstrap.sh, before provisioning distros)
 
-`bootstrap.sh` bakes the Samba credentials and a template SMB keypair into the distro
-before it is exported. These steps wire the template key into the shared SSH store so
-new distros can authenticate without any secret delivery at provision time.
+`bootstrap.sh` bakes Samba credentials and Spark's pubkey into the distro before it is
+exported. These steps wire the template key into the shared SSH store so new distros can
+authenticate without any secret delivery at provision time.
 
-1. **Run `bootstrap.sh`** inside the distro with `DGX_SMB_PASSWORD` set (or enter it
-   when prompted). It generates `~/.ssh/id_ed25519_smb` and `~/.smbcredentials`.
+1. **Run `bootstrap.sh`** inside the distro with env vars set:
+   ```bash
+   DGX_SMB_PASSWORD=<samba-password> \
+   DGX_PUBKEY="$(ssh spark cat ~/.ssh/id_ed25519.pub)" \
+   ./bootstrap.sh
+   ```
+   This bakes `.smbcredentials` (so no runtime password delivery) and seeds Spark's pubkey
+   into `authorized_keys` (so `DGX_HOST_SSH_KEY` can SSH into fresh distros).
 
 2. **Commit the template public key** to the repo:
    ```bash
-   # Inside the WSL2 distro after bootstrap.sh:
-   cat ~/.ssh/id_ed25519_smb.pub
-   # Copy the output, then on the host:
-   # git checkout -b feat/new-template
-   # echo '<paste>' > wsl2/id_ed25519_smb.pub
-   # git add wsl2/id_ed25519_smb.pub && git commit -m "feat: update template SMB key"
-   # git push
+   # bootstrap.sh prints id_ed25519_smb.pub at the end. Copy it, then:
+   echo '<paste>' > wsl2/id_ed25519_smb.pub
+   git add wsl2/id_ed25519_smb.pub && git commit -m "feat: update template SMB key"
+   git push
    ```
 
 3. **Export the distro** from PowerShell:
@@ -34,10 +37,12 @@ new distros can authenticate without any secret delivery at provision time.
    wsl --export <name> C:\wsl-templates\ubuntu-22.04-configured-template.tar
    ```
 
-4. **Run Setup Shared SSH Store** workflow — pre-authorizes the template key on DGX
-   and wires Orin via `orin-ssh-setup.service`.
+4. **Run Setup Shared SSH Store** workflow — initialises `~/shared/ssh/` on DGX, creates
+   `~/.ssh` symlinks on DGX, pre-authorizes the template SMB key on DGX, and wires Orin
+   (CIFS mount of `//DGX/shared` + symlinks `~/.ssh/ → ~/shared/ssh/`).
 
-After these four steps, `DGX_SMB_PASSWORD` is no longer needed at provision time.
+After these four steps, all subsequent provisioning is handled by the **WSL2 Provision**
+workflow — no manual secret delivery required.
 
 ---
 
@@ -50,7 +55,7 @@ different machine to push keys.
 Each WSL2 distro gets its own **named SSH alias** (`wsl2-<distro_name>`, e.g.
 `wsl2-dev`, `wsl2-ml`) and its own **sshd port** (2222 for the first instance;
 increment by 1 for each additional). Pass `ssh_port` when running
-**WSL2 Post-Provision** and **WSL2 Verify SSH Topology**.
+**WSL2 Provision** and **WSL2 Verify SSH Topology**.
 
 ---
 
@@ -107,14 +112,16 @@ Get-NetFirewallRule -DisplayName "WSL2 SSH 2222 Inbound"
 
 ## Step 3 — Add WSL2 public key to MSI Windows (admin authorized keys)
 
-`bootstrap.sh` prints the WSL2 public key at the end. Copy it, then on **MSI Windows**
-open **Administrator PowerShell** and edit:
+Since all distros share Spark's SSH identity, the key that needs to be added to Windows
+is `id_ed25519.pub` from the shared store (`~/shared/ssh/id_ed25519.pub`).
+
+On **MSI Windows** open **Administrator PowerShell** and edit:
 
 ```powershell
 notepad C:\ProgramData\ssh\administrators_authorized_keys
 ```
 
-Paste the WSL2 public key as one complete line, save.
+Paste Spark's public key as one complete line, save.
 
 Fix permissions (required by Windows OpenSSH):
 
@@ -125,50 +132,30 @@ icacls C:\ProgramData\ssh\administrators_authorized_keys /grant "SYSTEM:F"
 Restart-Service sshd
 ```
 
-Test from WSL2:
-
-```bash
-ssh msi hostname
-```
-
-> **Non-admin Windows users** use `C:\Users\aaron\.ssh\authorized_keys` instead.
-
 ---
 
-## Steps 4–7 — Automated by WSL2 Post-Provision
+## Steps 4–5 — Automated by WSL2 Provision
 
-> **These steps are fully automated by the WSL2 Post-Provision workflow.** Run it instead.
-> **No `DGX_SMB_PASSWORD` is required at provision time** — the Samba credentials are
-> baked into the template by `bootstrap.sh`.
+> **These steps are fully automated by the WSL2 Provision workflow.**
+> **Secrets needed:** `WSL2_HOST`, `DGX_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`
+> **Vars needed:** `DGX_HOST`, `DGX_HOST_USER`
 
-The workflow handles:
-- **Step 4** (WSL2 pubkey → DGX + Orin): `wsl2-ssh-setup.service` (pre-installed by
-  `bootstrap.sh`) runs `setup-shared-ssh.sh` via smbclient. It downloads SSH files from
-  DGX, appends the distro's pubkey to `authorized_keys`, and uploads it back.
-- **Step 5** (DGX + Orin pubkeys → WSL2): The shared `authorized_keys` downloaded in
-  step 4 already contains all machine pubkeys (seeded when Setup Shared SSH Store ran).
-- **Step 6** (SSH client config on DGX + Orin): The `wsl2-<name>` host block is written
-  to the shared `~/shared/ssh/config`, which all machines pick up automatically via their
-  smbclient sync on next start.
-- **Step 7** (SSH client config on Windows): `%USERPROFILE%\.ssh\config` is hardlinked
-  to `C:\Users\aaron\shared\ssh\config` by `post-provision.ps1`.
+The workflow:
+- **Step 4** (write `.smbcredentials`): SSHes into the distro using `DGX_HOST_SSH_KEY`
+  and writes `.smbcredentials` via stdin (password never in args).
+- **Step 5** (CIFS mount + SSH symlinks): calls `setup-shared-ssh.sh` as root inside the
+  distro. The script mounts `//DGX/shared` at `~/shared/` via CIFS, then symlinks all
+  `~/.ssh/` files (`config`, `known_hosts`, `authorized_keys`, `id_ed25519`,
+  `id_ed25519.pub`) to `~/shared/ssh/`. Also writes the `wsl2-<name>` host block directly
+  to the shared `config` (write goes straight to DGX via CIFS).
 
-**Manual fallback** (if the workflow fails and you need to wire a machine by hand):
+All distros share Spark's SSH identity — there is no per-distro keypair.
+
+**Manual fallback** (if the workflow fails):
 
 ```bash
-# From the machine that needs access to WSL2, add its pubkey to shared authorized_keys:
-cat ~/.ssh/id_ed25519.pub >> ~/shared/ssh/authorized_keys
-
-# Add wsl2-<name> host block to shared config:
-cat >> ~/shared/ssh/config << 'EOF'
-
-Host wsl2-<name>
-    HostName <WSL2_HOST>
-    User aaron
-    Port <PORT>
-    IdentityFile ~/.ssh/id_ed25519
-    IdentitiesOnly yes
-EOF
+# On the distro (as root):
+/usr/local/bin/setup-shared-ssh.sh spark-79b7.local <user> <distro_name> <port>
 ```
 
 ---
@@ -177,12 +164,10 @@ EOF
 
 | From | Command | Expected |
 |------|---------|----------|
-| WSL2 | `ssh msi hostname` | MSI Windows hostname |
 | WSL2 | `ssh orin hostname` | `orin` |
 | WSL2 | `ssh spark hostname` | `spark-79b7` (or DGX hostname) |
 | DGX | `ssh wsl2-dev hostname` | `dev` |
 | Orin | `ssh wsl2-dev hostname` | `dev` |
-| MSI Windows | `ssh wsl2-dev hostname` | `dev` |
 
 BatchMode test (confirms no password fallback):
 

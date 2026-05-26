@@ -1,11 +1,11 @@
 # SSH Runbook: DGX, Orin, MSI, and WSL2
 
-> **Most of this is automated.** The shared SSH store (`~/shared/ssh/` on DGX, accessed via smbclient on Orin and each WSL2 distro) holds the canonical `config`, `known_hosts`, and `authorized_keys` for all machines. GHA workflows manage it:
+> **Most of this is automated.** Spark's `~/shared/ssh/` is the canonical SSH store. All machines mount it via CIFS and symlink `~/.ssh/` to it — sharing Spark's SSH identity. GHA workflows manage it:
 >
 > | Workflow | What it does |
 > |---|---|
-> | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on DGX, create symlinks on DGX, pre-authorize template SMB key, wire Orin via `orin-ssh-setup.service` (smbclient). SSHes to Orin via `localhost:22` from agx runner (container uses `--network=host`). Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
-> | **WSL2 Post-Provision** | Per-distro: write distro name + start `wsl2-ssh-setup.service` (smbclient syncs SSH files, adds pubkey, adds `wsl2-<name>` host block). Credentials are baked into the template — no secret delivery at provision time. |
+> | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on Spark (including `id_ed25519` + `id_ed25519.pub`), create `~/.ssh/` symlinks on Spark, pre-authorize template SMB key. Wires Orin: CIFS-mounts Spark's share at `~/shared/`, symlinks all `~/.ssh/` files → `~/shared/ssh/` (Orin uses Spark's identity — no local keypair). SSHes to Orin via `localhost:22` from agx runner. Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
+> | **WSL2 Provision** | Per-distro: SSH directly into the distro on `ssh_port` using `DGX_HOST_SSH_KEY`, write `.smbcredentials`, CIFS-mount Spark's share at `~/shared/`, symlink all `~/.ssh/` files → `~/shared/ssh/`, add `wsl2-<name>` host block to shared config. Distro uses Spark's identity — no per-distro keypair. Secrets: `WSL2_HOST`, `DGX_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
 > | **WSL2 Verify SSH Topology** | Validate all SSH paths end-to-end |
 >
 > **Orin one-time prerequisites** (run on Orin host as `aaron` before first Setup Shared SSH Store run):
@@ -15,7 +15,7 @@
 > cp ~/.ssh/config.bak ~/.ssh/config 2>/dev/null || true
 > cp ~/.ssh/known_hosts.bak ~/.ssh/known_hosts 2>/dev/null || true
 > chmod 600 ~/.ssh/authorized_keys ~/.ssh/config ~/.ssh/known_hosts 2>/dev/null || true
-> # Self-authorize Orin's own key for ORIN_HOST_SSH_KEY → localhost SSH:
+> # Self-authorize Orin's own key so ORIN_HOST_SSH_KEY can SSH to localhost:
 > grep -qF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys \
 >   || cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
 > # Add Orin's private key as ORIN_HOST_SSH_KEY GitHub secret:
@@ -1042,4 +1042,4 @@ WSL2 -> ssh spark       -> DGX / Spark
 
 All SSH paths use `id_ed25519` keys. SSH config, `known_hosts`, and `authorized_keys` are
 managed centrally in `~/shared/ssh/` on DGX. DGX symlinks `~/.ssh/` to the shared store.
-Orin and each WSL2 distro sync from it via `smbclient` (no CIFS kernel mount required).
+Orin and each WSL2 distro CIFS-mount Spark's `~/shared/` and symlink `~/.ssh/` to `~/shared/ssh/`, sharing Spark's SSH identity.

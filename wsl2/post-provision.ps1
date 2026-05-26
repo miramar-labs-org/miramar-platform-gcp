@@ -2,9 +2,10 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$Name,
 
-  [string]$User    = $env:USERNAME,
-  [int]$Port       = 2222,
-  [string]$DgxHost = 'spark-79b7.local'
+  [string]$User           = $env:USERNAME,
+  [int]$Port              = 2222,
+  [string]$DgxHost        = 'spark-79b7.local',
+  [string]$DgxSmbPassword = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -86,56 +87,27 @@ service ssh restart || service sshd restart || true
 Invoke-WslBash $Name root $sshdScript "$Port"
 
 # -----------------------------------------------------------------------
-# Step 4: Ensure SSH key exists; read pubkey
-# -----------------------------------------------------------------------
-Step "SSH key in distro '$Name'"
-$keyScript = @'
-set -euo pipefail
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-if [[ ! -f ~/.ssh/id_ed25519 ]]; then
-  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "${USER}@wsl2" -N ""
-  chmod 600 ~/.ssh/id_ed25519 && chmod 644 ~/.ssh/id_ed25519.pub
-  echo "SSH key generated"
-else
-  echo "SSH key already exists"
-fi
-'@
-Invoke-WslBash $Name $User $keyScript
-$wsl2PubKey = (& wsl.exe -d $Name -u $User -- cat "/home/$User/.ssh/id_ed25519.pub" 2>$null)
-if (-not $wsl2PubKey) { throw "Could not read pubkey from distro '$Name'" }
-$wsl2PubKey = $wsl2PubKey.Trim()
-Write-Host "Pubkey: $wsl2PubKey"
-
-# -----------------------------------------------------------------------
-# Step 5: Write distro name + trigger first-launch SSH mesh join.
-# The template has wsl2-ssh-setup.service pre-installed (bootstrap.sh),
-# and ~/.smbcredentials is baked into the template — no runtime secret
-# delivery needed. PowerShell only tells the distro its own name so the
-# service can build the correct SSH host alias.
+# Step 4: Write distro name + mount DGX shared store + symlink ~/.ssh/
+# setup-shared-ssh.sh (installed by bootstrap.sh) mounts //DGX/shared
+# via CIFS and symlinks ~/.ssh/ to ~/shared/ssh/ — all distros share
+# Spark's SSH identity. ~/.smbcredentials is baked into the template.
 # -----------------------------------------------------------------------
 Step "Write /etc/wsl2-distro-name in distro '$Name'"
 & wsl.exe -d $Name -u root -- bash -c "echo '$Name' > /etc/wsl2-distro-name"
 Write-Host "/etc/wsl2-distro-name = $Name"
 
-# Trigger the service and wait for it to complete (up to 2 minutes).
-# The service was enabled by bootstrap.sh; on cold start it runs
-# setup-shared-ssh.sh which syncs SSH files from DGX via smbclient.
-Step "Trigger wsl2-ssh-setup.service in distro '$Name'"
-$svcScript = @'
+Step "Mount DGX shared store and join SSH mesh in distro '$Name'"
+$setupScript = @"
 set -euo pipefail
-systemctl start wsl2-ssh-setup.service
-for i in $(seq 1 24); do
-  STATUS=$(systemctl is-active wsl2-ssh-setup 2>/dev/null || echo unknown)
-  echo "  wsl2-ssh-setup: $STATUS ($i/24)"
-  [[ "$STATUS" == "active" ]] && exit 0
-  [[ "$STATUS" == "failed" ]] && { journalctl -u wsl2-ssh-setup --no-pager -n 20; exit 1; }
-  sleep 5
-done
-echo "WARN: service did not complete within 120s"
-journalctl -u wsl2-ssh-setup --no-pager -n 20
-'@
-Invoke-WslBash $Name root $svcScript
+/usr/local/bin/setup-shared-ssh.sh $DgxHost $User $Name $Port
+"@
+Invoke-WslBash $Name root $setupScript
 Write-Host 'SSH mesh join complete'
+
+$wsl2PubKey = (& wsl.exe -d $Name -u $User -- cat "/home/$User/.ssh/id_ed25519.pub" 2>`$null)
+if (-not $wsl2PubKey) { throw "Could not read pubkey from distro '$Name' after SSH mesh join" }
+$wsl2PubKey = $wsl2PubKey.Trim()
+Write-Host "Pubkey: $wsl2PubKey"
 
 # -----------------------------------------------------------------------
 # Output -- single tagged line captured by GHA

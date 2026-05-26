@@ -120,8 +120,32 @@ jobs:
             printf '\n%s\n' "$DGX_PUB" >> ~/shared/ssh/authorized_keys
           echo "DGX pubkey present"
 
+          # --- private key ---
+          if [[ ! -f ~/shared/ssh/id_ed25519 ]]; then
+            if [[ -f ~/.ssh/id_ed25519 && ! -L ~/.ssh/id_ed25519 ]]; then
+              cp ~/.ssh/id_ed25519 ~/shared/ssh/id_ed25519
+              chmod 600 ~/shared/ssh/id_ed25519
+              echo "Seeded ~/shared/ssh/id_ed25519"
+            else
+              echo "WARNING: ~/.ssh/id_ed25519 not found or already a symlink" >&2
+            fi
+          else
+            echo "~/shared/ssh/id_ed25519 already exists — skipping"
+          fi
+
+          # --- public key ---
+          if [[ ! -f ~/shared/ssh/id_ed25519.pub ]]; then
+            if [[ -f ~/.ssh/id_ed25519.pub && ! -L ~/.ssh/id_ed25519.pub ]]; then
+              cp ~/.ssh/id_ed25519.pub ~/shared/ssh/id_ed25519.pub
+              chmod 644 ~/shared/ssh/id_ed25519.pub
+              echo "Seeded ~/shared/ssh/id_ed25519.pub"
+            fi
+          else
+            echo "~/shared/ssh/id_ed25519.pub already exists — skipping"
+          fi
+
           # --- symlinks (back up any existing regular files) ---
-          for f in config known_hosts authorized_keys; do
+          for f in config known_hosts authorized_keys id_ed25519 id_ed25519.pub; do
             target="$HOME/shared/ssh/$f"
             link="$HOME/.ssh/$f"
             if [[ -L "$link" ]]; then
@@ -159,10 +183,12 @@ jobs:
               echo 'Template SMB key pre-authorized on DGX'"
 
   # -----------------------------------------------------------------------
-  # Phase 2: Orin host — smbclient service
-  # agx runner runs inside Docker; host-level ops (systemctl, /usr/local/bin,
-  # ~/.smbcredentials) require SSH to localhost:22 (the Orin HOST sshd).
+  # Phase 2: Orin host — CIFS mount + symlinks
+  # agx runner runs inside Docker; host-level ops (fstab, mount, ~/.smbcredentials)
+  # require SSH to localhost:22 (the Orin HOST sshd).
   # Container uses --network=host so localhost:22 IS the Orin host.
+  # Mounts //DGX/shared at ~/shared/ and symlinks ~/.ssh/ → ~/shared/ssh/.
+  # Orin uses Spark's SSH identity — no local keypair.
   # Requires secret: ORIN_HOST_SSH_KEY (same pattern as DGX_HOST_SSH_KEY).
   # -----------------------------------------------------------------------
 
@@ -178,19 +204,11 @@ jobs:
           printf '%s\n' "${{ secrets.ORIN_HOST_SSH_KEY }}" > /tmp/orin_host
           chmod 600 /tmp/orin_host
 
-      - name: Copy setup-shared-ssh.sh to Orin host
-        run: |
-          scp -i /tmp/orin_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            wsl2/setup-shared-ssh.sh \
-            "${{ vars.DGX_HOST_USER }}@localhost:/tmp/setup-shared-ssh.sh"
-
-      - name: Write .smbcredentials, install smbclient, sync SSH files
+      - name: Write .smbcredentials, mount DGX shared store, symlink SSH files
         env:
           DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          DGX_HOST: ${{ vars.DGX_HOST }}
         run: |
           # Write .smbcredentials via stdin (password never in args)
           printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \
@@ -206,27 +224,29 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
-            "$DGX_HOST_USER@localhost" bash -s << 'EOF'
+            "$DGX_HOST_USER@localhost" bash -s "$DGX_HOST" << 'EOF'
           set -euo pipefail
+          DGX_HOST_REMOTE="$1"
 
-          # Remove stale CIFS symlinks
-          for f in config known_hosts authorized_keys; do
-            if [[ -L ~/.ssh/$f ]]; then
-              rm -f ~/.ssh/$f
-              echo "Removed stale symlink ~/.ssh/$f"
-            fi
+          # Remove any stale SSH symlinks
+          for f in config known_hosts authorized_keys id_ed25519 id_ed25519.pub; do
+            [[ -L ~/.ssh/$f ]] && rm -f ~/.ssh/$f && echo "Removed stale symlink ~/.ssh/$f" || true
           done
-          # Remove CIFS fstab entry
-          if grep -q 'spark-79b7.local/shared' /etc/fstab 2>/dev/null; then
-            sudo sed -i '\|spark-79b7.local/shared|d' /etc/fstab
-            echo "Removed CIFS fstab entry"
+
+          # Remove stale CIFS fstab entry
+          if grep -qF "$DGX_HOST_REMOTE/shared" /etc/fstab 2>/dev/null; then
+            grep -vF "$DGX_HOST_REMOTE/shared" /etc/fstab | sudo tee /tmp/fstab.new >/dev/null
+            sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
+            echo "Removed stale CIFS fstab entry"
           fi
+
           # Unmount if still mounted
           if mountpoint -q ~/shared 2>/dev/null; then
             sudo umount ~/shared || true
             echo "Unmounted ~/shared"
           fi
-          # Remove service if previously installed
+
+          # Remove legacy service
           if [[ -f /etc/systemd/system/orin-ssh-setup.service ]]; then
             sudo systemctl disable --now orin-ssh-setup.service 2>/dev/null || true
             sudo rm /etc/systemd/system/orin-ssh-setup.service
@@ -234,15 +254,41 @@ jobs:
             echo "Removed legacy orin-ssh-setup.service"
           fi
 
-          # Install smbclient (enable universe repo — not present on JetPack by default)
+          # Remove local keypair (Spark's identity used via shared mount)
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
+
+          # Install cifs-utils (enable universe repo — not present on JetPack by default)
           echo "deb http://ports.ubuntu.com/ubuntu-ports $(lsb_release -sc) universe" \
             | sudo tee /etc/apt/sources.list.d/universe.list
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends smbclient
-          echo "smbclient ready"
+          sudo apt-get install -y --no-install-recommends cifs-utils
+          echo "cifs-utils ready"
 
-          # One-shot sync: pull SSH files from DGX shared store
-          sudo bash /tmp/setup-shared-ssh.sh spark-79b7.local aaron "" 22
+          # Create mount point + fstab entry
+          mkdir -p ~/shared
+          UID_NUM=$(id -u)
+          GID_NUM=$(id -g)
+          FSTAB_LINE="//$DGX_HOST_REMOTE/shared $HOME/shared cifs credentials=$HOME/.smbcredentials,uid=$UID_NUM,gid=$GID_NUM,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0"
+          echo "$FSTAB_LINE" | sudo tee -a /etc/fstab
+          echo "Added CIFS fstab entry"
+
+          # Mount
+          sudo mount ~/shared
+          echo "Mounted ~/shared"
+
+          # Symlink all SSH files → shared store
+          for f in config known_hosts authorized_keys id_ed25519 id_ed25519.pub; do
+            target="$HOME/shared/ssh/$f"
+            link="$HOME/.ssh/$f"
+            if [[ ! -e "$target" ]]; then
+              echo "WARNING: $target not found in shared store — skipping $f" >&2
+              continue
+            fi
+            [[ -f "$link" && ! -L "$link" ]] && mv "$link" "${link}.bak" && echo "$f: backed up" || true
+            ln -sf "$target" "$link"
+            echo "$f: symlinked → $target"
+          done
+
           echo "Orin SSH setup complete"
           EOF
 
