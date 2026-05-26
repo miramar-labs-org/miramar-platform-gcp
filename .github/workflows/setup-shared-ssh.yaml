@@ -14,9 +14,9 @@ name: Setup Shared SSH Store
 #
 # Phase 2 (setup-orin): runs directly on agx runner (agx runner IS Orin — no SSH hop)
 #   - Remove any stale CIFS leftovers (fstab entry, symlinks, umount)
+#   - Remove legacy orin-ssh-setup.service if present
 #   - Install smbclient + write .smbcredentials
-#   - Install setup-shared-ssh.sh + orin-ssh-setup.service
-#   - Enable + start service (syncs SSH files from DGX via smbclient)
+#   - One-shot sync: pull SSH files from DGX shared store via smbclient
 #
 # Prerequisites:
 #   - DGX ~/shared Samba share configured and running
@@ -187,7 +187,7 @@ jobs:
             wsl2/setup-shared-ssh.sh \
             "${{ vars.DGX_HOST_USER }}@localhost:/tmp/setup-shared-ssh.sh"
 
-      - name: Remove CIFS leftovers + install smbclient + install script + service
+      - name: Write .smbcredentials, install smbclient, sync SSH files
         env:
           DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
@@ -226,6 +226,13 @@ jobs:
             sudo umount ~/shared || true
             echo "Unmounted ~/shared"
           fi
+          # Remove service if previously installed
+          if [[ -f /etc/systemd/system/orin-ssh-setup.service ]]; then
+            sudo systemctl disable --now orin-ssh-setup.service 2>/dev/null || true
+            sudo rm /etc/systemd/system/orin-ssh-setup.service
+            sudo systemctl daemon-reload
+            echo "Removed legacy orin-ssh-setup.service"
+          fi
 
           # Install smbclient (enable universe repo — not present on JetPack by default)
           echo "deb http://ports.ubuntu.com/ubuntu-ports $(lsb_release -sc) universe" \
@@ -234,39 +241,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends smbclient
           echo "smbclient ready"
 
-          # Install setup-shared-ssh.sh
-          sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh
-          echo "setup-shared-ssh.sh installed"
-
-          # Install orin-ssh-setup.service
-          sudo tee /etc/systemd/system/orin-ssh-setup.service > /dev/null << 'UNIT'
-          [Unit]
-          Description=Sync SSH mesh files from DGX shared store (smbclient)
-          After=network-online.target avahi-daemon.service
-          Wants=network-online.target
-
-          [Service]
-          Type=oneshot
-          User=aaron
-          ExecStart=/usr/local/bin/setup-shared-ssh.sh spark-79b7.local aaron "" 22
-          RemainAfterExit=yes
-
-          [Install]
-          WantedBy=multi-user.target
-          UNIT
-
-          sudo systemctl daemon-reload
-          sudo systemctl enable orin-ssh-setup.service
-          sudo systemctl reset-failed orin-ssh-setup.service 2>/dev/null || true
-          sudo systemctl start orin-ssh-setup.service
-
-          for i in $(seq 1 24); do
-            STATUS=$(systemctl is-active orin-ssh-setup 2>/dev/null || echo unknown)
-            echo "  orin-ssh-setup: $STATUS ($i/24)"
-            [[ "$STATUS" == "active" ]] && break
-            [[ "$STATUS" == "failed" ]] && { journalctl -u orin-ssh-setup --no-pager -n 30; exit 1; }
-            sleep 5
-          done
+          # One-shot sync: pull SSH files from DGX shared store
+          sudo bash /tmp/setup-shared-ssh.sh spark-79b7.local aaron "" 22
           echo "Orin SSH setup complete"
           EOF
 
@@ -290,7 +266,7 @@ jobs:
             echo "| Machine | Status |"
             echo "|---|---|"
             echo "| DGX host — init \`~/shared/ssh/\` + symlinks + template key pre-auth | $(pass $dgx) |"
-            echo "| Orin host — smbclient + \`orin-ssh-setup.service\` (via DGX) | $(pass $orin) |"
+            echo "| Orin host — smbclient + one-shot SSH file sync | $(pass $orin) |"
             echo ""
             echo "### Shared store"
             echo "\`\`\`"

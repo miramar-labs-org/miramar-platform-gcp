@@ -60,8 +60,7 @@ done
 # ─── 3. smbclient helper ─────────────────────────────────────────────────────
 
 smb() {
-  # -N = no interactive password prompt (creds come from -A file)
-  smbclient "//$DGX_HOST/shared" -A "$CREDS" -N "$@"
+  smbclient "//$DGX_HOST/shared" -A "$CREDS" "$@"
 }
 
 # ─── 4. Download SSH files from shared store ─────────────────────────────────
