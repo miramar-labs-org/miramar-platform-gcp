@@ -138,8 +138,10 @@ if (-not $SmbPassword) {
 
   Step "Write .smbcredentials in distro '$Name'"
   # Pipe via stdin to keep password out of process args.
+  # tr -d '\r' strips the CRLF that PowerShell's | pipe adds on Windows,
+  # which would corrupt the username/password that smbclient reads.
   "username=$User`npassword=$SmbPassword" | & wsl.exe -d $Name -u $User -- `
-    bash -c 'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
+    bash -c 'tr -d "\r" > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
   Write-Host '.smbcredentials written'
 
   Step "Write /etc/wsl2-distro-name in distro '$Name'"

@@ -32,6 +32,11 @@ if [[ ! -f "$CREDS" ]]; then
   exit 1
 fi
 
+if ! command -v smbclient >/dev/null 2>&1; then
+  log "Installing smbclient..."
+  apt-get install -y --no-install-recommends smbclient
+fi
+
 mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
 chown "$MOUNT_USER:$MOUNT_USER" "$SSH_DIR"
