@@ -27,7 +27,8 @@ function Invoke-WslBash {
   )
   $tmp = [System.IO.Path]::GetTempFileName()
   try {
-    [System.IO.File]::WriteAllBytes($tmp, [System.Text.Encoding]::UTF8.GetBytes($Script -replace "`r", ""))
+    $scriptClean = $Script -replace "`r", ""
+    [System.IO.File]::WriteAllBytes($tmp, [System.Text.Encoding]::UTF8.GetBytes($scriptClean))
     $wslTmp = (& wsl.exe -d $WslDistro -- wslpath -u ($tmp -replace '\\', '/')).Trim()
     & wsl.exe -d $WslDistro -u $WslUser -- bash $wslTmp @args
     if ($LASTEXITCODE -ne 0) { throw "Bash script failed (exit $LASTEXITCODE)" }
