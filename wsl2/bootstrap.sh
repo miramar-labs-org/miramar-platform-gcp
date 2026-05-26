@@ -261,13 +261,17 @@ case "$ARCH" in
   *) die "Unsupported arch for Go: $ARCH" ;;
 esac
 
-GOVER="$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n 1 | tr -d '\r\n')"
+# Use the Go downloads JSON API -- single call gives both version and SHA256.
+# The .sha256 URL endpoint does not exist on go.dev and returns an HTML page.
+_go_json="$(curl -fsSL 'https://go.dev/dl/?mode=json')"
+GOVER="$(printf '%s' "$_go_json" | python3 -c 'import sys,json; print(json.load(sys.stdin)[0]["version"])')"
+GOFILE="${GOVER}.linux-${GOARCH}.tar.gz"
+_gosha="$(printf '%s' "$_go_json" | python3 -c \
+  "import sys,json; d=json.load(sys.stdin)[0]['files']; \
+   f=next(x for x in d if x['filename']=='${GOFILE}'); print(f['sha256'])")"
+[[ "${#_gosha}" -eq 64 ]] || die "Go checksum fetch failed: ${_gosha:0:80}"
 _gotmp="$(mktemp)"
-curl -fsSL -o "$_gotmp" "https://go.dev/dl/${GOVER}.linux-${GOARCH}.tar.gz"
-# Extract just the hex hash (the .sha256 URL may return a full checksum line
-# with a filename field; awk picks the first token and strips trailing whitespace).
-_gosha="$(curl -fsSL "https://go.dev/dl/${GOVER}.linux-${GOARCH}.tar.gz.sha256" | awk '{print $1}')"
-[[ "${#_gosha}" -eq 64 ]] || die "Go checksum fetch returned unexpected output: ${_gosha:0:80}"
+curl -fsSL -o "$_gotmp" "https://go.dev/dl/${GOFILE}"
 echo "${_gosha}  ${_gotmp}" | sha256sum --check || die "Go checksum mismatch"
 sudo rm -rf /usr/local/go
 sudo tar -C /usr/local -xzf "$_gotmp"
