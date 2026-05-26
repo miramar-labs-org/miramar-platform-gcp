@@ -71,6 +71,7 @@ jobs:
 
       # ── Step 2: wait for sshd inside the distro ──────────────────────────
       - name: Wait for sshd in distro
+
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
         run: |
@@ -88,7 +89,30 @@ jobs:
             fi
           done
 
-      # ── Steps 3-5: wire SSH mesh ──────────────────────────────────────────
+      # ── Step 3: authorize DGX key in distro ──────────────────────────────
+      # Templates exported before bootstrap.sh gained DGX_PUBKEY seeding won't
+      # have Spark's key in authorized_keys. Derive the public key from the private
+      # key and inject it via Windows SSH (pipe through wsl -d ... -- bash).
+      - name: Authorize DGX SSH key in distro
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
+          chmod 600 /tmp/dgx_priv
+          DGX_PUBKEY=$(ssh-keygen -y -f /tmp/dgx_priv)
+          rm -f /tmp/dgx_priv
+          DISTRO='${{ inputs.distro_name }}'
+          printf '%s\n' "$DGX_PUBKEY" | \
+            ssh -i /tmp/wsl2_win_host \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "$WSL2_HOST_USER@$WSL2_HOST" \
+              "wsl -d $DISTRO -- bash -c \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\""
+          echo "DGX pubkey authorized in distro"
+
+      # ── Steps 4-6: wire SSH mesh ──────────────────────────────────────────
       - name: Set up SSH key for WSL2 distro
         run: |
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/wsl2_host
