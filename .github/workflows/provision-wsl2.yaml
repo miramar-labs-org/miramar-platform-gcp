@@ -142,16 +142,21 @@ jobs:
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
         run: |
+          # Always push the repo's copy so template vintage doesn't matter
+          scp -i /tmp/wsl2_host \
+            -P "${{ inputs.ssh_port }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            wsl2/setup-shared-ssh.sh \
+            "$DGX_HOST_USER@$WSL2_HOST:/tmp/setup-shared-ssh.sh"
           ssh -i /tmp/wsl2_host \
             -p "${{ inputs.ssh_port }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$DGX_HOST_USER@$WSL2_HOST" \
-            bash -s "$DGX_HOST" "$DGX_HOST_USER" "${{ inputs.distro_name }}" "${{ inputs.ssh_port }}" << 'EOF'
-          set -euo pipefail
-          sudo /usr/local/bin/setup-shared-ssh.sh "$1" "$2" "$3" "$4"
-          EOF
+            "sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && sudo /usr/local/bin/setup-shared-ssh.sh '$DGX_HOST' '$DGX_HOST_USER' '${{ inputs.distro_name }}' '${{ inputs.ssh_port }}'"
 
       - name: Summary
         if: always()
