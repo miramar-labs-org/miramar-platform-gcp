@@ -407,7 +407,7 @@ echo "  docker version"
 echo "  kubectl version --client"
 echo "  minikube version"
 echo "  go version"
-echo "  java -version"
+
 echo "  ss -tlnp | grep 2222          # verify sshd is on port 2222"
 echo "Note: Docker may not fully start until after you run wsl --shutdown (systemd)."
 echo "Note: If docker group membership was added, you may need to restart WSL for it to apply."
