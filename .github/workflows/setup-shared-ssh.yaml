@@ -159,8 +159,11 @@ jobs:
               echo 'Template SMB key pre-authorized on DGX'"
 
   # -----------------------------------------------------------------------
-  # Phase 2: Orin host — smbclient service (runs directly on agx runner)
-  # No SSH hop needed — the agx runner IS Orin.
+  # Phase 2: Orin host — smbclient service
+  # agx runner runs inside Docker; host-level ops (systemctl, /usr/local/bin,
+  # ~/.smbcredentials) require SSH to localhost:22 (the Orin HOST sshd).
+  # Container uses --network=host so localhost:22 IS the Orin host.
+  # Requires secret: ORIN_HOST_SSH_KEY (same pattern as DGX_HOST_SSH_KEY).
   # -----------------------------------------------------------------------
 
   setup-orin:
@@ -169,51 +172,73 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Remove CIFS leftovers on Orin
+      - name: Set up SSH key for Orin host
         run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.ORIN_HOST_SSH_KEY }}" > ~/.ssh/orin_host
+          chmod 600 ~/.ssh/orin_host
+
+      - name: Copy setup-shared-ssh.sh to Orin host
+        run: |
+          scp -i ~/.ssh/orin_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            wsl2/setup-shared-ssh.sh \
+            "${{ vars.DGX_HOST_USER }}@localhost:/tmp/setup-shared-ssh.sh"
+
+      - name: Remove CIFS leftovers + install smbclient + install script + service
+        env:
+          DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+        run: |
+          # Write .smbcredentials via stdin (password never in args)
+          printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \
+            ssh -i ~/.ssh/orin_host \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "$DGX_HOST_USER@localhost" \
+              'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
+          echo "Written .smbcredentials"
+
+          ssh -i ~/.ssh/orin_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$DGX_HOST_USER@localhost" bash -s << 'EOF'
           set -euo pipefail
+
+          # Remove stale CIFS symlinks
           for f in config known_hosts authorized_keys; do
             if [[ -L ~/.ssh/$f ]]; then
               rm -f ~/.ssh/$f
               echo "Removed stale symlink ~/.ssh/$f"
             fi
           done
+          # Remove CIFS fstab entry
           if grep -q 'spark-79b7.local/shared' /etc/fstab 2>/dev/null; then
             sudo sed -i '\|spark-79b7.local/shared|d' /etc/fstab
             echo "Removed CIFS fstab entry"
           fi
+          # Unmount if still mounted
           if mountpoint -q ~/shared 2>/dev/null; then
             sudo umount ~/shared || true
             echo "Unmounted ~/shared"
           fi
-          echo "CIFS cleanup done"
 
-      - name: Install smbclient on Orin
-        run: |
-          # Enable universe repo (JetPack doesn't have add-apt-repository)
+          # Install smbclient (enable universe repo — not present on JetPack by default)
           echo "deb http://ports.ubuntu.com/ubuntu-ports $(lsb_release -sc) universe" \
             | sudo tee /etc/apt/sources.list.d/universe.list
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends smbclient
+          echo "smbclient ready"
 
-      - name: Write .smbcredentials on Orin
-        env:
-          DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
-          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-        run: |
-          printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" \
-            > ~/.smbcredentials
-          chmod 600 ~/.smbcredentials
-          echo "Written .smbcredentials on Orin"
+          # Install setup-shared-ssh.sh
+          sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh
+          echo "setup-shared-ssh.sh installed"
 
-      - name: Install setup-shared-ssh.sh on Orin
-        run: |
-          sudo install -m 755 wsl2/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh
-          echo "setup-shared-ssh.sh installed on Orin"
-
-      - name: Install + enable + start orin-ssh-setup.service
-        run: |
-          set -euo pipefail
+          # Install orin-ssh-setup.service
           sudo tee /etc/systemd/system/orin-ssh-setup.service > /dev/null << 'UNIT'
           [Unit]
           Description=Sync SSH mesh files from DGX shared store (smbclient)
@@ -242,7 +267,8 @@ jobs:
             [[ "$STATUS" == "failed" ]] && { journalctl -u orin-ssh-setup --no-pager -n 30; exit 1; }
             sleep 5
           done
-          echo "Orin SSH setup service complete"
+          echo "Orin SSH setup complete"
+          EOF
 
   # -----------------------------------------------------------------------
   # Summary
