@@ -74,6 +74,15 @@ sudo apt-get install -y --no-install-recommends \
 log "Install neofetch"
 sudo apt-get install -y --no-install-recommends neofetch
 
+log "Write /etc/wsl.conf (systemd + default user)"
+sudo tee /etc/wsl.conf >/dev/null <<EOF
+[boot]
+systemd = true
+
+[user]
+default = ${USER}
+EOF
+
 log "Configure SSH server: port 2222 for WSL2"
 sudo mkdir -p /etc/ssh/sshd_config.d
 echo 'Port 2222' | sudo tee /etc/ssh/sshd_config.d/wsl2-port.conf >/dev/null
