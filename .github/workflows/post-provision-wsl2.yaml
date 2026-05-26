@@ -1,20 +1,26 @@
 name: WSL2 Post-Provision
 
-# Automates all manual steps from wsl2/post-bootstrap.md:
-#   1. Write .wslconfig (mirrored networking) + wsl --shutdown
-#   2. Windows Firewall rule for the distro's sshd port
-#   3. WSL2 pubkey → MSI administrators_authorized_keys
-#   4. Mount ~/shared (CIFS → DGX ~/shared) + create ~/.ssh symlinks
-#   5. DGX and Orin pubkeys → shared authorized_keys (via WSL2 symlink)
-#   6. WSL2 pubkey → shared authorized_keys (via Windows path)
-#   7. wsl2-<name> host block → shared SSH config (all machines pick it up)
-#   8. Windows ~/.ssh/config hardlink → shared config
+# Per-distro SSH mesh setup. Run after WSL2 Provision.
+#
+# Windows side (post-provision.ps1):
+#   1. .wslconfig (mirrored networking) + wsl --shutdown if changed
+#   2. Firewall rule for sshd port
+#   3. sshd port config inside distro
+#   4. Write .smbcredentials + /etc/wsl2-distro-name inside distro
+#   5. Install setup-shared-ssh.sh + enable wsl2-ssh-setup.service
+#   6. Run setup-shared-ssh.sh (initial sync via smbclient, no CIFS mount)
+#
+# setup-shared-ssh.sh (runs inside the distro):
+#   - Downloads config / known_hosts / authorized_keys from DGX shared store
+#   - Adds own pubkey → uploads authorized_keys back
+#   - Adds wsl2-<name> host block → uploads config back
+#   - On every subsequent cold start: wsl2-ssh-setup.service re-runs it
 #
 # Prerequisites:
-#   - WSL2 distro already provisioned (run WSL2 Provision first)
-#   - setup-shared-ssh workflow already run (initialises DGX ~/shared/ssh/)
-#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY,
-#              DGX_HOST, DGX_HOST_USER, DGX_SMB_PASSWORD
+#   - WSL2 distro provisioned (run WSL2 Provision first)
+#   - Setup Shared SSH Store run at least once (initialises DGX ~/shared/ssh/)
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_SMB_PASSWORD
+#   - Vars:    DGX_HOST
 
 on:
   workflow_dispatch:
@@ -24,11 +30,11 @@ on:
         required: true
         default: dev
       ssh_port:
-        description: "sshd port for this distro (2222 for first instance, increment for each additional)"
+        description: "sshd port (2222 for first distro, increment for each additional)"
         required: false
         default: "2222"
       runner:
-        description: "Runner for Windows SSH steps"
+        description: "Runner to use for the Windows SSH steps"
         required: false
         default: dgx
         type: choice
@@ -38,34 +44,7 @@ on:
 
 jobs:
 
-  # -----------------------------------------------------------------------
-  # Phase 1: collect public keys from each runner (parallel)
-  # -----------------------------------------------------------------------
-
-  collect-keys-dgx:
-    runs-on: dgx
-    outputs:
-      pubkey: ${{ steps.pubkey.outputs.value }}
-    steps:
-      - id: pubkey
-        name: Read DGX public key
-        run: echo "value=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
-
-  collect-keys-agx:
-    runs-on: agx
-    outputs:
-      pubkey: ${{ steps.pubkey.outputs.value }}
-    steps:
-      - id: pubkey
-        name: Read Orin public key
-        run: echo "value=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
-
-  # -----------------------------------------------------------------------
-  # Phase 2: Windows-side setup (all SSH mesh wiring via post-provision.ps1)
-  # -----------------------------------------------------------------------
-
   windows-setup:
-    needs: [collect-keys-dgx, collect-keys-agx]
     runs-on: ${{ inputs.runner }}
     outputs:
       wsl2_pubkey: ${{ steps.run-script.outputs.wsl2_pubkey }}
@@ -80,15 +59,7 @@ jobs:
           chmod 600 ~/.ssh/wsl2_host
           ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Write runner pubkey files for transfer
-        env:
-          DGX_PUBKEY: ${{ needs.collect-keys-dgx.outputs.pubkey }}
-          AGX_PUBKEY: ${{ needs.collect-keys-agx.outputs.pubkey }}
-        run: |
-          printf '%s\n' "$DGX_PUBKEY" > /tmp/dgx-key.pub
-          printf '%s\n' "$AGX_PUBKEY" > /tmp/agx-key.pub
-
-      - name: Copy script and key files to Windows host
+      - name: Copy scripts to Windows host
         run: |
           scp -i ~/.ssh/wsl2_host \
             -o BatchMode=yes \
@@ -97,17 +68,13 @@ jobs:
             -o PasswordAuthentication=no \
             wsl2/post-provision.ps1 \
             wsl2/setup-shared-ssh.sh \
-            /tmp/dgx-key.pub \
-            /tmp/agx-key.pub \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}:"
 
       - name: Run post-provision.ps1 on Windows host
         id: run-script
         run: |
           set -euo pipefail
-          # Capture output to file AND stream in real-time via tee.
-          # Use || true so a non-zero PS exit doesn't kill bash before we
-          # check for WSL2_PUBKEY -- the error is surfaced below.
+          # tee streams output in real-time; || true ensures we always check for WSL2_PUBKEY.
           PS_OUT=$(mktemp)
           ssh -i ~/.ssh/wsl2_host \
             -o BatchMode=yes \
@@ -131,10 +98,6 @@ jobs:
           fi
           echo "wsl2_pubkey=${WSL2_PUBKEY}" >> "$GITHUB_OUTPUT"
 
-  # -----------------------------------------------------------------------
-  # Summary
-  # -----------------------------------------------------------------------
-
   summary:
     needs: windows-setup
     if: always()
@@ -151,10 +114,10 @@ jobs:
             echo "| Port | \`${{ inputs.ssh_port }}\` |"
             echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
             echo ""
-            echo "### Configured"
+            echo "### Result"
             echo "| Step | Status |"
             echo "|---|---|"
-            echo "| \`.wslconfig\` + firewall + sshd port + CIFS mount + symlinks + SSH mesh | ${{ needs.windows-setup.result }} |"
+            echo "| .wslconfig + firewall + sshd + smbclient SSH mesh sync | ${{ needs.windows-setup.result }} |"
             echo ""
             echo "### Next step"
             echo "Run **WSL2 Verify SSH Topology** to confirm all SSH paths work end-to-end."

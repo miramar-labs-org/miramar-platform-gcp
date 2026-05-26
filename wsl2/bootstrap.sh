@@ -69,7 +69,7 @@ sudo apt-get install -y --no-install-recommends \
   whois \
   iperf3 \
   iftop nethogs vnstat \
-  cifs-utils
+  smbclient
 
 log "Install neofetch"
 sudo apt-get install -y --no-install-recommends neofetch
@@ -103,9 +103,6 @@ touch "$HOME/.ssh/authorized_keys"
 chmod 600 "$HOME/.ssh/authorized_keys"
 chown -R "${USER}:${USER}" "$HOME/.ssh"
 
-log "Create ~/shared mountpoint (DGX CIFS share — mounted by post-provision)"
-mkdir -p "$HOME/shared"
-
 log "Configure mDNS (.local resolution via avahi + libnss-mdns)"
 sudo systemctl enable avahi-daemon
 sudo systemctl start avahi-daemon || true
@@ -115,11 +112,11 @@ sudo sed -i \
 sudo systemctl restart avahi-daemon || true
 sudo systemctl restart systemd-resolved 2>/dev/null || true
 
-log "Install setup-shared-ssh.sh + boot service (auto-mounts DGX ~/shared on every start)"
+log "Install setup-shared-ssh.sh + wsl2-ssh-setup.service (syncs SSH mesh on every cold start)"
 sudo install -m 755 "$(dirname "$0")/setup-shared-ssh.sh" /usr/local/bin/setup-shared-ssh.sh
-sudo tee /etc/systemd/system/wsl2-mount-shared.service >/dev/null <<EOF
+sudo tee /etc/systemd/system/wsl2-ssh-setup.service >/dev/null <<EOF
 [Unit]
-Description=Mount DGX shared SSH store
+Description=Sync SSH mesh files from DGX shared store (smbclient)
 After=avahi-daemon.service network-online.target
 Wants=network-online.target
 
@@ -131,8 +128,8 @@ RemainAfterExit=yes
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo systemctl enable wsl2-mount-shared.service
-log "wsl2-mount-shared.service installed and enabled"
+sudo systemctl enable wsl2-ssh-setup.service
+log "wsl2-ssh-setup.service installed and enabled"
 
 log "Write ~/.ssh/config (lab hosts, skipped if file already exists)"
 SSH_CFG="$HOME/.ssh/config"

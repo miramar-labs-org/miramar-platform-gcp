@@ -14,17 +14,11 @@ function Step([string]$m) { Write-Host "`n==> $m" -ForegroundColor Green }
 function Warn([string]$m) { Write-Host "WARN: $m" -ForegroundColor Yellow }
 
 # -----------------------------------------------------------------------
-# Pre-flight: purge any stale CIFS fstab entry from a previous run.
-# A CIFS entry without 'nofail' causes WSL2 to write
-# "Processing /etc/fstab with mount -a failed." to stderr on every cold
-# start. Under ErrorActionPreference=Stop that NativeCommandError is
-# deferred to the NEXT statement in the caller scope, silently killing the
-# script at an unrelated line. Remove it now; setup-shared-ssh.sh re-adds
-# it with nofail.
-# Use ErrorActionPreference=Continue here -- the distro may not be running
-# yet, and starting it will itself trigger the fstab message we're fixing.
+# Pre-flight: purge stale CIFS fstab entries (legacy cleanup).
+# Use EAP=Continue — distro may not be running and starting it emits
+# fstab warnings that are deferred NativeCommandErrors under EAP=Stop.
 # -----------------------------------------------------------------------
-Write-Host 'Pre-flight: clearing stale CIFS fstab entries...'
+Write-Host 'Pre-flight: clearing stale fstab entries...'
 $_pref = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 & wsl.exe -d $Name -u root -- bash -c "sed -i '\|$DgxHost/shared|d' /etc/fstab 2>/dev/null; true" 2>$null
@@ -33,12 +27,8 @@ $ErrorActionPreference = $_pref
 Write-Host 'Pre-flight: done'
 
 # Run a multi-line bash script inside a distro without CRLF injection.
-# PowerShell's | pipe adds \r\n on Windows even after stripping \r, breaking bash
-# keyword parsing ('then\r' != 'then'). Using a Windows temp file path has its own
-# wslpath/spaces issues. Solution: base64-encode the script in PowerShell and pass
-# the encoded string as a single argument; bash decodes and pipes to bash -s
-# entirely within Linux -- no PowerShell pipe, no path conversion, no CRLF.
-# Extra positional args after $Script are forwarded to the script as $1, $2, ...
+# base64-encodes the script; bash decodes and pipes to bash -s inside Linux.
+# Extra positional args are forwarded as $1, $2, ...
 function Invoke-WslBash {
   param(
     [string]$WslDistro,
@@ -56,7 +46,7 @@ function Invoke-WslBash {
 }
 
 # -----------------------------------------------------------------------
-# Step 1: .wslconfig -- mirrored networking
+# Step 1: .wslconfig (mirrored networking)
 # -----------------------------------------------------------------------
 Step '.wslconfig (mirrored networking)'
 $wslcfgPath = Join-Path $env:USERPROFILE '.wslconfig'
@@ -75,28 +65,25 @@ if (Test-Path $wslcfgPath) {
     $needsShutdown = $true
     Write-Host 'Updated .wslconfig'
   } else {
-    Write-Host '.wslconfig already correct -- no shutdown needed'
+    Write-Host '.wslconfig already correct'
   }
 } else {
   Set-Content $wslcfgPath $wslcfgWant -Encoding UTF8
   $needsShutdown = $true
   Write-Host 'Created .wslconfig'
 }
-
 if ($needsShutdown) {
-  Write-Host 'Running wsl --shutdown to apply new .wslconfig...'
+  Write-Host 'Running wsl --shutdown to apply .wslconfig...'
   & wsl.exe --shutdown
   Start-Sleep -Seconds 3
-  Write-Host 'Shutdown complete'
 }
 
 # -----------------------------------------------------------------------
-# Step 2: Windows Firewall -- allow distro's sshd port inbound
+# Step 2: Windows Firewall rule for sshd port
 # -----------------------------------------------------------------------
 $fwRuleName = "WSL2 SSH $Port Inbound"
 Step "Firewall rule: $fwRuleName"
-$rule = Get-NetFirewallRule -DisplayName $fwRuleName -ErrorAction SilentlyContinue
-if ($rule) {
+if (Get-NetFirewallRule -DisplayName $fwRuleName -ErrorAction SilentlyContinue) {
   Write-Host 'Rule already exists'
 } else {
   New-NetFirewallRule `
@@ -105,15 +92,14 @@ if ($rule) {
     -Protocol    TCP `
     -LocalPort   $Port `
     -Action      Allow | Out-Null
-  Write-Host "Firewall rule created: $fwRuleName"
+  Write-Host "Firewall rule created"
 }
 
 # -----------------------------------------------------------------------
-# Step 2b: Set sshd port inside the distro and restart sshd.
-# Uses Invoke-WslBash (single-quoted here-string) -- the double-quoted @"..."@
-# form passes \r\n line endings to bash via wsl.exe, breaking keyword parsing.
+# Step 3: sshd port inside the distro
+# Single-quoted here-string avoids CRLF injection via Invoke-WslBash.
 # -----------------------------------------------------------------------
-Step "Configure sshd port $Port in distro '$Name'"
+Step "sshd port $Port in distro '$Name'"
 $sshdScript = @'
 apt-get install -y --no-install-recommends openssh-server 2>&1 | tail -3
 mkdir -p /etc/ssh/sshd_config.d
@@ -121,21 +107,17 @@ printf 'Port %s\n' "$1" > /etc/ssh/sshd_config.d/wsl2-port.conf
 service ssh restart || service sshd restart || true
 '@
 Invoke-WslBash $Name root $sshdScript "$Port"
-Write-Host "sshd configured on port $Port"
 
 # -----------------------------------------------------------------------
-# Step 3: Ensure SSH key exists, then read WSL2 public key.
-# Uses Invoke-WslBash -- PowerShell's pipe adds \r\n on Windows,
-# breaking bash keyword parsing.
+# Step 4: SSH key (ensure exists) and read pubkey
 # -----------------------------------------------------------------------
-Step "Ensure SSH key exists in distro '$Name'"
+Step "SSH key in distro '$Name'"
 $keyScript = @'
 set -euo pipefail
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 if [[ ! -f ~/.ssh/id_ed25519 ]]; then
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "${USER}@wsl2" -N ""
-  chmod 600 ~/.ssh/id_ed25519
-  chmod 644 ~/.ssh/id_ed25519.pub
+  chmod 600 ~/.ssh/id_ed25519 && chmod 644 ~/.ssh/id_ed25519.pub
   echo "SSH key generated"
 else
   echo "SSH key already exists"
@@ -143,55 +125,73 @@ fi
 '@
 Invoke-WslBash $Name $User $keyScript
 $wsl2PubKey = (& wsl.exe -d $Name -u $User -- cat "/home/$User/.ssh/id_ed25519.pub" 2>$null)
-if (-not $wsl2PubKey) {
-  throw "Could not read WSL2 public key from distro '$Name' as user '$User'"
-}
+if (-not $wsl2PubKey) { throw "Could not read WSL2 pubkey from distro '$Name'" }
 $wsl2PubKey = $wsl2PubKey.Trim()
-Write-Host "WSL2 public key: $wsl2PubKey"
+Write-Host "WSL2 pubkey: $wsl2PubKey"
 
 # -----------------------------------------------------------------------
-# Step 4: In-distro SSH mesh bootstrap.
-# All Linux work (avahi wait, CIFS mount, ~/.ssh symlinks, pubkey injection,
-# host block) is handled by setup-shared-ssh.sh running inside the distro.
-# PowerShell only delivers secrets/keys and calls the script.
+# Step 5: SSH mesh bootstrap (smbclient-based, no CIFS mount)
 # -----------------------------------------------------------------------
 if (-not $SmbPassword) {
-  Warn 'SmbPassword not provided -- skipping shared SSH setup'
-  Warn 'Run with -SmbPassword to wire the distro into the SSH mesh'
+  Warn 'SmbPassword not provided -- skipping SSH mesh setup'
 } else {
 
   Step "Write .smbcredentials in distro '$Name'"
-  # Pipe via stdin to avoid password appearing in process args.
+  # Pipe via stdin to keep password out of process args.
   "username=$User`npassword=$SmbPassword" | & wsl.exe -d $Name -u $User -- `
     bash -c 'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
   Write-Host '.smbcredentials written'
 
-  # Deliver runner pubkeys to /tmp/ inside the distro so setup-shared-ssh.sh
-  # can inject them into the shared authorized_keys.
-  foreach ($pair in @(
-    @{ File = "$env:USERPROFILE\dgx-key.pub"; Dest = '/tmp/dgx-key.pub' },
-    @{ File = "$env:USERPROFILE\agx-key.pub"; Dest = '/tmp/agx-key.pub' }
-  )) {
-    if (Test-Path $pair.File) {
-      $pubKey = (Get-Content $pair.File -Raw).Trim()
-      $writeScript = 'printf ''%s\n'' "$1" > ' + $pair.Dest
-      Invoke-WslBash $Name root $writeScript $pubKey
-      Write-Host "Written $($pair.Dest) in distro"
-    } else {
-      Warn "Key file not found: $($pair.File) -- skipping"
-    }
-  }
+  Step "Write /etc/wsl2-distro-name in distro '$Name'"
+  & wsl.exe -d $Name -u root -- bash -c "echo '$Name' > /etc/wsl2-distro-name"
+  Write-Host "/etc/wsl2-distro-name = $Name"
 
-  # Run setup-shared-ssh.sh inside the distro.
-  # The script was SCP'd to %USERPROFILE% by the GHA workflow alongside this script.
+  # setup-shared-ssh.sh was SCP'd to %USERPROFILE% by the workflow.
   $setupScript = "$env:USERPROFILE\setup-shared-ssh.sh"
   if (-not (Test-Path $setupScript)) {
-    throw "setup-shared-ssh.sh not found at $setupScript -- was it SCP'd by the workflow?"
+    throw "setup-shared-ssh.sh not found at $setupScript"
   }
   $setupSh = Get-Content $setupScript -Raw
+
+  # Install to /usr/local/bin/ so the systemd service can use it on future boots.
+  Step "Install setup-shared-ssh.sh in distro '$Name'"
+  $installScript = @'
+set -euo pipefail
+echo "$1" | base64 -d > /usr/local/bin/setup-shared-ssh.sh
+chmod 755 /usr/local/bin/setup-shared-ssh.sh
+echo "installed"
+'@
+  $scriptB64 = [Convert]::ToBase64String(
+    [System.Text.Encoding]::UTF8.GetBytes(($setupSh -replace "`r", ""))
+  )
+  Invoke-WslBash $Name root $installScript $scriptB64
+
+  # Enable the systemd service for future cold starts.
+  $svcScript = @'
+set -euo pipefail
+USER_ARG="$1"
+tee /etc/systemd/system/wsl2-ssh-setup.service >/dev/null <<EOF
+[Unit]
+Description=Sync SSH mesh files from DGX shared store (smbclient)
+After=avahi-daemon.service network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/setup-shared-ssh.sh spark-79b7.local ${USER_ARG}
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable wsl2-ssh-setup.service
+echo "wsl2-ssh-setup.service enabled"
+'@
+  Invoke-WslBash $Name root $svcScript $User
+
+  # Run setup-shared-ssh.sh now to do the initial sync.
   Step "Run setup-shared-ssh.sh in distro '$Name'"
   Invoke-WslBash $Name root $setupSh $DgxHost $User $Name "$Port"
-  Write-Host 'setup-shared-ssh.sh complete'
+  Write-Host 'SSH mesh setup complete'
 }
 
 # -----------------------------------------------------------------------

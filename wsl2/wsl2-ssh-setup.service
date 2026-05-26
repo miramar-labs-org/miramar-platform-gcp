@@ -1,7 +1,6 @@
-# Reference service unit — installed by bootstrap.sh with <USER> substituted.
-# Not used directly; bootstrap.sh writes the actual unit via tee with ${USER} expanded.
+# Reference unit — bootstrap.sh writes the actual unit via tee with ${USER} expanded.
 [Unit]
-Description=Mount DGX shared SSH store
+Description=Sync SSH mesh files from DGX shared store (smbclient)
 After=avahi-daemon.service network-online.target
 Wants=network-online.target
 
