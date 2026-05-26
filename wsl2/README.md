@@ -175,24 +175,57 @@ Create `/etc/wsl.conf`:
     wsl --import Ubuntu2204-Base C:\wsl\Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-base-template.tar --version 2
     wsl -d Ubuntu2204-Base --cd ~
 
-Inside the distro:
+Inside the distro, pull and run bootstrap.sh:
 
-    DGX_SMB_PASSWORD=<samba-password> ./bootstrap.sh
+```bash
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/bootstrap.sh -o bootstrap.sh
+chmod +x bootstrap.sh
+DGX_SMB_PASSWORD=<samba-password> ./bootstrap.sh
+```
+
+At the end it prints two public keys. Copy the **SMB bootstrap key** (`id_ed25519_smb.pub`).
 
 Configure p10k, then:
 
-    wsl --shutdown
+```powershell
+wsl --shutdown
+```
 
-### Export the configured template (PowerShell)
+### Step 4 — Export the configured template (PowerShell)
 
-    wsl --export Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-configured-template.tar
+```powershell
+wsl --export Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-configured-template.tar
+```
 
-### Cleanup (PowerShell)
+### Step 5 — Cleanup (PowerShell)
 
-    wsl --unregister Ubuntu-22.04
-    wsl --unregister Ubuntu2204-Base
+```powershell
+wsl --unregister Ubuntu-22.04
+wsl --unregister Ubuntu2204-Base
+```
 
-Then follow Steps 4–6 from [Rebuild](#rebuild-the-configured-template) above (commit SMB key, run Setup Shared SSH Store, provision a test distro).
+### Step 6 — Commit the SMB public key to the repo (DGX or any dev machine)
+
+```bash
+echo '<paste id_ed25519_smb.pub here>' > wsl2/id_ed25519_smb.pub
+git add wsl2/id_ed25519_smb.pub
+git commit -m "feat: add template SMB bootstrap public key"
+git push
+```
+
+### Step 7 — Run Setup Shared SSH Store workflow
+
+Pre-authorizes the template SMB key on DGX and wires Orin via `orin-ssh-setup.service`.
+Requires `DGX_SMB_PASSWORD` secret. This is the **last time** that secret is needed — all
+subsequent per-distro provisioning is secret-free.
+
+### Step 8 — Provision a distro to verify
+
+```
+Actions → WSL2 Provision          → distro_name: test
+Actions → WSL2 Post-Provision     → distro_name: test
+Actions → WSL2 Verify SSH Topology → distro_name: test
+```
 
 ---
 
