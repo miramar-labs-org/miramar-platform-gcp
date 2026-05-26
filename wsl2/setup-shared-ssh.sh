@@ -64,7 +64,7 @@ mkdir -p "$SHARED_DIR"
 chown "$MOUNT_USER:$MOUNT_USER" "$SHARED_DIR"
 
 if ! grep -qF "//$DGX_HOST/shared" /etc/fstab 2>/dev/null; then
-  echo "//$DGX_HOST/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
+  echo "//$DGX_HOST/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0" \
     >> /etc/fstab
   log "Added CIFS fstab entry"
 fi
@@ -72,7 +72,8 @@ fi
 if mountpoint -q "$SHARED_DIR" 2>/dev/null; then
   log "$SHARED_DIR already mounted"
 else
-  mount "$SHARED_DIR"
+  mount -t cifs "//$DGX_HOST/shared" "$SHARED_DIR" \
+    -o "credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,file_mode=0600,dir_mode=0700"
   log "Mounted $SHARED_DIR"
 fi
 
