@@ -169,14 +169,15 @@ if (-not $SmbPassword) {
   Write-Host 'fstab entry updated (nofail)'
 
   Step "Wait for avahi-daemon in distro '$Name'"
-  & wsl.exe -d $Name -u root -- bash -c @"
-for i in `$(seq 1 12); do
+  $avahiWaitScript = @'
+for i in $(seq 1 12); do
   systemctl is-active avahi-daemon >/dev/null 2>&1 && echo 'avahi-daemon active' && exit 0
-  echo "  waiting for avahi-daemon... (`$i/12)"
+  echo "  waiting for avahi-daemon... ($i/12)"
   sleep 5
 done
 echo 'WARN: avahi-daemon did not start within 60s -- mount may fail'
-"@
+'@
+  Invoke-WslBash $Name root $avahiWaitScript
 
   Step "Mount ~/shared in distro '$Name'"
   $mounted = $false
