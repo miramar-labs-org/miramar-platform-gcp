@@ -70,13 +70,16 @@ else
   log "Mounting $SHARED..."
   MOUNTED=0
   for i in $(seq 1 6); do
-    OUT=$(mount "$SHARED" 2>&1); EC=$?
-    echo "  attempt $i/6: exit=$EC -- $OUT"
-    if [[ $EC -eq 0 ]]; then
+    # 'if' prevents set -e from exiting on mount failure; OUT captures stderr.
+    if OUT=$(mount "$SHARED" 2>&1); then
       MOUNTED=1
+      echo "  attempt $i/6: success"
       break
+    else
+      EC=$?
+      echo "  attempt $i/6: exit=$EC -- $OUT"
+      sleep 5
     fi
-    sleep 5
   done
   if [[ $MOUNTED -eq 0 ]]; then
     echo "ERROR: $SHARED mount failed after 6 attempts" >&2
