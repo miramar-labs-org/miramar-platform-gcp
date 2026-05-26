@@ -14,7 +14,7 @@ function Step([string]$m) { Write-Host "`n==> $m" -ForegroundColor Green }
 function Warn([string]$m) { Write-Host "WARN: $m" -ForegroundColor Yellow }
 
 # -----------------------------------------------------------------------
-# Step 1: .wslconfig — mirrored networking
+# Step 1: .wslconfig -- mirrored networking
 # -----------------------------------------------------------------------
 Step '.wslconfig (mirrored networking)'
 $wslcfgPath = Join-Path $env:USERPROFILE '.wslconfig'
@@ -33,7 +33,7 @@ if (Test-Path $wslcfgPath) {
     $needsShutdown = $true
     Write-Host 'Updated .wslconfig'
   } else {
-    Write-Host '.wslconfig already correct — no shutdown needed'
+    Write-Host '.wslconfig already correct -- no shutdown needed'
   }
 } else {
   Set-Content $wslcfgPath $wslcfgWant -Encoding UTF8
@@ -49,7 +49,7 @@ if ($needsShutdown) {
 }
 
 # -----------------------------------------------------------------------
-# Step 2: Windows Firewall — allow distro's sshd port inbound
+# Step 2: Windows Firewall -- allow distro's sshd port inbound
 # -----------------------------------------------------------------------
 $fwRuleName = "WSL2 SSH $Port Inbound"
 Step "Firewall rule: $fwRuleName"
@@ -110,12 +110,12 @@ Restart-Service sshd
 Write-Host 'sshd restarted'
 
 # -----------------------------------------------------------------------
-# Step 4: Mount ~/shared (CIFS → DGX ~/shared) inside the distro
+# Step 4: Mount ~/shared (CIFS -> DGX ~/shared) inside the distro
 # Requires DGX Samba share to be running and setup-shared-ssh to have
 # been run at least once to initialise ~/shared/ssh/ on DGX.
 # -----------------------------------------------------------------------
 if (-not $SmbPassword) {
-  Warn 'SmbPassword not provided — skipping CIFS mount and symlink setup'
+  Warn 'SmbPassword not provided -- skipping CIFS mount and symlink setup'
   Warn 'Run with -SmbPassword to enable shared SSH config'
 } else {
   Step "Write .smbcredentials in distro '$Name'"
@@ -134,21 +134,21 @@ if (-not $SmbPassword) {
   & wsl.exe -d $Name -u root -- bash -c "mountpoint -q /home/$User/shared || mount /home/$User/shared"
   Write-Host '~/shared mounted'
 
-  Step "Create ~/.ssh symlinks → ~/shared/ssh/"
+  Step "Create ~/.ssh symlinks -> ~/shared/ssh/"
   $symlinkScript = @'
 set -euo pipefail
 for f in config known_hosts authorized_keys; do
   target="$HOME/shared/ssh/$f"
   link="$HOME/.ssh/$f"
   if [[ ! -e "$target" ]]; then
-    echo "WARN: $target not found — run setup-shared-ssh first; skipping $f"
+    echo "WARN: $target not found -- run setup-shared-ssh first; skipping $f"
     continue
   fi
   if [[ -L "$link" ]]; then
-    echo "$f already a symlink — skipping"
+    echo "$f already a symlink -- skipping"
   elif [[ -f "$link" ]]; then
     mv "$link" "${link}.bak"
-    echo "Backed up ${link} → ${link}.bak"
+    echo "Backed up ${link} -> ${link}.bak"
     ln -sf "$target" "$link"
     echo "Symlinked $link"
   else
@@ -163,14 +163,14 @@ done
 
 # -----------------------------------------------------------------------
 # Step 5: Inject DGX and Orin pubkeys into WSL2/shared authorized_keys.
-# After symlinking, ~/.ssh/authorized_keys → ~/shared/ssh/authorized_keys
+# After symlinking, ~/.ssh/authorized_keys -> ~/shared/ssh/authorized_keys
 # so this write is automatically shared with all machines.
 # GHA places dgx-key.pub and agx-key.pub in %USERPROFILE% via SCP.
 # -----------------------------------------------------------------------
 Step 'Inject runner pubkeys into shared authorized_keys'
 foreach ($keyFile in @("$env:USERPROFILE\dgx-key.pub", "$env:USERPROFILE\agx-key.pub")) {
   if (-not (Test-Path $keyFile)) {
-    Warn "Key file not found: $keyFile — skipping"
+    Warn "Key file not found: $keyFile -- skipping"
     continue
   }
   $key = (Get-Content $keyFile -Raw).Trim()
@@ -195,7 +195,7 @@ if (Test-Path $sharedAuthKeys) {
     Write-Host 'WSL2 pubkey added to shared authorized_keys'
   }
 } else {
-  Warn "Shared authorized_keys not found at $sharedAuthKeys — run setup-shared-ssh first"
+  Warn "Shared authorized_keys not found at $sharedAuthKeys -- run setup-shared-ssh first"
 }
 
 # -----------------------------------------------------------------------
@@ -218,29 +218,29 @@ if (Test-Path $sharedCfgPath) {
     Write-Host "$hostAlias host block added to shared config"
   }
 } else {
-  Warn "Shared config not found at $sharedCfgPath — run setup-shared-ssh first"
+  Warn "Shared config not found at $sharedCfgPath -- run setup-shared-ssh first"
 }
 
 # -----------------------------------------------------------------------
-# Step 7b: Windows ~/.ssh/config → hardlink to shared config (one-time).
+# Step 7b: Windows ~/.ssh/config -> hardlink to shared config (one-time).
 # After this, Windows SSH picks up all host blocks from the shared store.
 # -----------------------------------------------------------------------
-Step 'Windows ~/.ssh/config hardlink → shared config'
+Step 'Windows ~/.ssh/config hardlink -> shared config'
 $winSshDir  = Join-Path $env:USERPROFILE '.ssh'
 $winCfgPath = Join-Path $winSshDir 'config'
 New-Item -ItemType Directory -Force -Path $winSshDir | Out-Null
 if (Test-Path $winCfgPath) {
-  Write-Host "~/.ssh/config already exists — skipping hardlink"
+  Write-Host "~/.ssh/config already exists -- skipping hardlink"
   Write-Host "  To replace: del `"$winCfgPath`" && mklink /H `"$winCfgPath`" `"$sharedCfgPath`""
 } elseif (Test-Path $sharedCfgPath) {
   & cmd /c "mklink /H `"$winCfgPath`" `"$sharedCfgPath`"" | Out-Null
-  Write-Host "Hardlinked $winCfgPath → $sharedCfgPath"
+  Write-Host "Hardlinked $winCfgPath -> $sharedCfgPath"
 } else {
-  Warn "Shared config not found — Windows hardlink skipped"
+  Warn "Shared config not found -- Windows hardlink skipped"
 }
 
 # -----------------------------------------------------------------------
-# Output — single tagged line captured by GHA
+# Output -- single tagged line captured by GHA
 # -----------------------------------------------------------------------
 Write-Host ''
 Write-Host "WSL2_PUBKEY=$wsl2PubKey"
