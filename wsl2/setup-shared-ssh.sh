@@ -15,6 +15,7 @@ DGX_HOST="${1:-spark-79b7.local}"
 MOUNT_USER="${2:-${SUDO_USER:-$USER}}"
 DISTRO_NAME="${3:-$(cat /etc/wsl2-distro-name 2>/dev/null || true)}"
 SSH_PORT="${4:-2222}"
+WIN_HOSTNAME="${5:-}"  # Windows host for SSH config HostName (e.g. msi.local or IP)
 
 USER_HOME=$(getent passwd "$MOUNT_USER" | cut -d: -f6)
 CREDS="$USER_HOME/.smbcredentials"
@@ -108,8 +109,10 @@ chown -h "$MOUNT_USER:$MOUNT_USER" \
 if [[ -n "$DISTRO_NAME" ]]; then
   ALIAS="wsl2-${DISTRO_NAME}"
   CONFIG="$SSH_DIR/config"
-  WIN_HOST=$(cmd.exe /c hostname 2>/dev/null | tr -d '\r\n' | tr '[:upper:]' '[:lower:]')
-  WIN_HOSTNAME="${WIN_HOST:-localhost}.local"
+  if [[ -z "$WIN_HOSTNAME" ]]; then
+    WIN_HOST=$(/mnt/c/Windows/System32/cmd.exe /c hostname 2>/dev/null | tr -d '\r\n' | tr '[:upper:]' '[:lower:]' || true)
+    WIN_HOSTNAME="${WIN_HOST:-localhost}.local"
+  fi
 
   if grep -q "^Host $ALIAS" "$CONFIG" 2>/dev/null; then
     log "$ALIAS already in config"

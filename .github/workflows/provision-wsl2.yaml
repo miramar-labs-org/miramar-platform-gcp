@@ -156,7 +156,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$DGX_HOST_USER@$WSL2_HOST" \
-            "sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && sudo /usr/local/bin/setup-shared-ssh.sh '$DGX_HOST' '$DGX_HOST_USER' '${{ inputs.distro_name }}' '${{ inputs.ssh_port }}'"
+            "sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && sudo /usr/local/bin/setup-shared-ssh.sh '$DGX_HOST' '$DGX_HOST_USER' '${{ inputs.distro_name }}' '${{ inputs.ssh_port }}' '$WSL2_HOST'"
 
       - name: Summary
         if: always()
