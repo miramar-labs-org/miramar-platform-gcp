@@ -4,9 +4,23 @@
 >
 > | Workflow | What it does |
 > |---|---|
-> | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on DGX, create symlinks on DGX, pre-authorize template SMB key, wire Orin via smbclient service |
+> | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on DGX, create symlinks on DGX, pre-authorize template SMB key, wire Orin via `orin-ssh-setup.service` (smbclient). SSHes to Orin via `localhost:22` from agx runner (container uses `--network=host`). Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
 > | **WSL2 Post-Provision** | Per-distro: write distro name + start `wsl2-ssh-setup.service` (smbclient syncs SSH files, adds pubkey, adds `wsl2-<name>` host block). Credentials are baked into the template — no secret delivery at provision time. |
 > | **WSL2 Verify SSH Topology** | Validate all SSH paths end-to-end |
+>
+> **Orin one-time prerequisites** (run on Orin host as `aaron` before first Setup Shared SSH Store run):
+> ```bash
+> # Restore SSH files if only .bak files exist (left by old CIFS setup):
+> cp ~/.ssh/authorized_keys.bak ~/.ssh/authorized_keys 2>/dev/null || touch ~/.ssh/authorized_keys
+> cp ~/.ssh/config.bak ~/.ssh/config 2>/dev/null || true
+> cp ~/.ssh/known_hosts.bak ~/.ssh/known_hosts 2>/dev/null || true
+> chmod 600 ~/.ssh/authorized_keys ~/.ssh/config ~/.ssh/known_hosts 2>/dev/null || true
+> # Self-authorize Orin's own key for ORIN_HOST_SSH_KEY → localhost SSH:
+> grep -qF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys \
+>   || cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+> # Add Orin's private key as ORIN_HOST_SSH_KEY GitHub secret:
+> cat ~/.ssh/id_ed25519
+> ```
 >
 > The manual steps below are kept as a **reference and troubleshooting fallback** only.
 

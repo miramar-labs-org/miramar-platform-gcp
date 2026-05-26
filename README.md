@@ -155,6 +155,7 @@ Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dash
 | `HF_TOKEN` | Hugging Face API token | Injected into workflow steps via `${{ secrets.HF_TOKEN }}` — no longer set on individual machines |
 | `NVIDIA_API_KEY` | NVIDIA NGC API key | Required by NeMo Microservices and NIM workflows |
 | `DGX_HOST_SSH_KEY` | Private SSH key (Ed25519) | Key used to SSH into the DGX host from runners; matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
+| `ORIN_HOST_SSH_KEY` | Private SSH key (Ed25519) | Key used to SSH into the Orin host from the agx runner container (via `localhost:22` — container uses `--network=host`); matching public key must be in `~/.ssh/authorized_keys` for `aaron` on Orin. Use Orin's own `~/.ssh/id_ed25519` and self-authorize it. |
 | `DGX_SMB_PASSWORD` | Samba password for the DGX `aaron` user | Used by **Setup Shared SSH Store** (writes `.smbcredentials` on Orin — one-time admin op). **Not needed by WSL2 Post-Provision** — credentials are baked into the template by `bootstrap.sh`. |
 | `DGX_MINIKUBE_KUBECONFIG` | base64-encoded kubeconfig | Written by **Minikube Install**; used by minikube workflows to reach the DGX cluster |
 
@@ -854,6 +855,24 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 **Run once before provisioning any WSL2 distro** (and again after each template rebuild). Initialises `~/shared/ssh/` on DGX as the single source of truth for SSH config, pre-authorizes `wsl2/id_ed25519_smb.pub` (the template SMB bootstrap key) on DGX, and wires up Orin via `orin-ssh-setup.service` (smbclient — no CIFS kernel mount).
 
 After this runs, `~/.ssh/config`, `~/.ssh/known_hosts`, and `~/.ssh/authorized_keys` on DGX are symlinks into `~/shared/ssh/`. Orin and each WSL2 distro sync these files from DGX via `smbclient` on every cold start.
+
+**Prerequisites for Orin setup** (one-time, on the Orin host as `aaron`):
+```bash
+# If ~/.ssh/ only has .bak files (left by old CIFS-based setup), restore them first:
+cp ~/.ssh/authorized_keys.bak ~/.ssh/authorized_keys 2>/dev/null || touch ~/.ssh/authorized_keys
+cp ~/.ssh/config.bak ~/.ssh/config 2>/dev/null || true
+cp ~/.ssh/known_hosts.bak ~/.ssh/known_hosts 2>/dev/null || true
+chmod 600 ~/.ssh/authorized_keys ~/.ssh/config ~/.ssh/known_hosts 2>/dev/null || true
+
+# Self-authorize Orin's own key (needed for ORIN_HOST_SSH_KEY → localhost SSH):
+grep -qF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys \
+  || cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+
+# Then add Orin's private key as ORIN_HOST_SSH_KEY secret:
+cat ~/.ssh/id_ed25519
+```
+
+**Required secrets:** `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`
 
 ```
 Actions → Setup Shared SSH Store → Run workflow
