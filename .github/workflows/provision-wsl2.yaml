@@ -1,7 +1,7 @@
 name: WSL2 Provision
 
 # Creates a new WSL2 distro on the Windows laptop from the configured template tarball.
-# Prerequisites: OpenSSH Server enabled on Windows; template tar at C:\wsl-templates\ubuntu-22.04-configured-template.tar
+# Prerequisites: OpenSSH Server enabled on Windows; template tar at C:\wsl-templates\ubuntu-24.04-configured-template.tar
 # Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
 
 on:
