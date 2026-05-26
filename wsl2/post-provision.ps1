@@ -13,6 +13,25 @@ $ErrorActionPreference = 'Stop'
 function Step([string]$m) { Write-Host "`n==> $m" -ForegroundColor Green }
 function Warn([string]$m) { Write-Host "WARN: $m" -ForegroundColor Yellow }
 
+# -----------------------------------------------------------------------
+# Pre-flight: purge any stale CIFS fstab entry from a previous run.
+# A CIFS entry without 'nofail' causes WSL2 to write
+# "Processing /etc/fstab with mount -a failed." to stderr on every cold
+# start. Under ErrorActionPreference=Stop that NativeCommandError is
+# deferred to the NEXT statement in the caller scope, silently killing the
+# script at an unrelated line. Remove it now; Step 4 re-adds it with nofail.
+# Use ErrorActionPreference=Continue here -- the distro may not be running
+# yet, and starting it will itself trigger the fstab message we're fixing.
+# -----------------------------------------------------------------------
+Write-Host 'Pre-flight: clearing stale CIFS fstab entries...'
+$_pref = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& wsl.exe -d $Name -u root -- bash -c "sed -i '\|$DgxHost/shared|d' /etc/fstab 2>/dev/null; true" 2>$null
+& wsl.exe --terminate $Name 2>$null
+$ErrorActionPreference = $_pref
+Start-Sleep -Seconds 2
+Write-Host 'Pre-flight: done'
+
 # Run a multi-line bash script inside a distro without CRLF injection.
 # PowerShell's | pipe adds \r\n on Windows even after stripping \r, breaking bash
 # keyword parsing ('then\r' != 'then'). Using a Windows temp file path has its own
