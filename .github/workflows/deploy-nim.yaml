@@ -54,12 +54,12 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
-          chmod 600 ~/.ssh/dgx_host
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
+          chmod 600 /tmp/dgx_host
           ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
           # Ollama runs on the DGX host (not in this container), so SSH to check it
-          loaded=$(ssh -i ~/.ssh/dgx_host \
+          loaded=$(ssh -i /tmp/dgx_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \

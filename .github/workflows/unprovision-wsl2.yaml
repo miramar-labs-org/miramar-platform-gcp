@@ -39,14 +39,14 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > ~/.ssh/wsl2_host
-          chmod 600 ~/.ssh/wsl2_host
+          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_host
+          chmod 600 /tmp/wsl2_host
           ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: List existing WSL distros
         shell: bash
         run: |
-          ssh -i ~/.ssh/wsl2_host \
+          ssh -i /tmp/wsl2_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
@@ -57,7 +57,7 @@ jobs:
       - name: Unregister WSL2 distro
         shell: bash
         run: |
-          ssh -i ~/.ssh/wsl2_host \
+          ssh -i /tmp/wsl2_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
@@ -69,7 +69,7 @@ jobs:
         if: ${{ inputs.delete_files == 'true' }}
         shell: bash
         run: |
-          ssh -i ~/.ssh/wsl2_host \
+          ssh -i /tmp/wsl2_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
@@ -81,7 +81,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          ssh -i ~/.ssh/wsl2_host \
+          ssh -i /tmp/wsl2_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \

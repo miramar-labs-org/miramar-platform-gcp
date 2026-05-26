@@ -30,8 +30,8 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
-          chmod 600 ~/.ssh/dgx_host
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
+          chmod 600 /tmp/dgx_host
           ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Unload model
@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           # printf '%q' ensures empty model arg isn't dropped by SSH arg concatenation
           model=$(printf '%q' "${{ inputs.model }}")
-          ssh -i ~/.ssh/dgx_host \
+          ssh -i /tmp/dgx_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \

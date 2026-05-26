@@ -41,13 +41,13 @@ jobs:
       - name: Set up SSH key for DGX host
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > ~/.ssh/dgx_host
-          chmod 600 ~/.ssh/dgx_host
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
+          chmod 600 /tmp/dgx_host
           ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Initialise ~/shared/ssh/ and create symlinks on DGX host
         run: |
-          ssh -i ~/.ssh/dgx_host \
+          ssh -i /tmp/dgx_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
@@ -147,7 +147,7 @@ jobs:
             exit 0
           fi
           TEMPLATE_PUB=$(cat wsl2/id_ed25519_smb.pub)
-          ssh -i ~/.ssh/dgx_host \
+          ssh -i /tmp/dgx_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
@@ -175,12 +175,12 @@ jobs:
       - name: Set up SSH key for Orin host
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.ORIN_HOST_SSH_KEY }}" > ~/.ssh/orin_host
-          chmod 600 ~/.ssh/orin_host
+          printf '%s\n' "${{ secrets.ORIN_HOST_SSH_KEY }}" > /tmp/orin_host
+          chmod 600 /tmp/orin_host
 
       - name: Copy setup-shared-ssh.sh to Orin host
         run: |
-          scp -i ~/.ssh/orin_host \
+          scp -i /tmp/orin_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -194,7 +194,7 @@ jobs:
         run: |
           # Write .smbcredentials via stdin (password never in args)
           printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \
-            ssh -i ~/.ssh/orin_host \
+            ssh -i /tmp/orin_host \
               -o BatchMode=yes \
               -o IdentitiesOnly=yes \
               -o StrictHostKeyChecking=accept-new \
@@ -202,7 +202,7 @@ jobs:
               'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
           echo "Written .smbcredentials"
 
-          ssh -i ~/.ssh/orin_host \
+          ssh -i /tmp/orin_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \

@@ -59,13 +59,13 @@ jobs:
       - name: Set up SSH key for Windows host
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > ~/.ssh/wsl2_host
-          chmod 600 ~/.ssh/wsl2_host
+          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_host
+          chmod 600 /tmp/wsl2_host
           ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Copy post-provision.ps1 to Windows host
         run: |
-          scp -i ~/.ssh/wsl2_host \
+          scp -i /tmp/wsl2_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           # tee streams output in real-time; || true ensures we always check for WSL2_PUBKEY.
           PS_OUT=$(mktemp)
-          ssh -i ~/.ssh/wsl2_host \
+          ssh -i /tmp/wsl2_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
