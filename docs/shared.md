@@ -73,54 +73,52 @@ sudo ufw allow samba
 
 ---
 
-## Mounting in WSL2
+## Accessing the share from WSL2
 
-### 1. Install cifs-utils
+WSL2 distros use **smbclient** to access individual files from the DGX share — no CIFS kernel
+mount required. Credentials are stored in `~/.smbcredentials` (baked into the template by
+`bootstrap.sh`; the password is the DGX Samba password set with `smbpasswd`).
+
+### Install smbclient
+
+`smbclient` is pre-installed in the template by `bootstrap.sh`. To install manually:
+
+```sh
+sudo apt-get install -y --no-install-recommends smbclient
+```
+
+### Ad-hoc file access
+
+```sh
+# List share contents
+smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N -c "ls"
+
+# Download a file
+smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
+  -c "get path/to/file /local/destination"
+
+# Upload a file
+smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
+  -c "put /local/file remote/path/file"
+```
+
+### Optional: CIFS kernel mount (ad-hoc / manual only)
+
+A CIFS mount gives a familiar filesystem view but requires `cifs-utils` and sudo.
+It is **not set up automatically** by any workflow — use it for manual troubleshooting only.
 
 ```sh
 sudo apt-get install -y cifs-utils
+mkdir -p ~/shared
+sudo mount -t cifs //spark-79b7.local/shared ~/shared \
+  -o credentials=$HOME/.smbcredentials,uid=$(id -u),gid=$(id -g),vers=3.0
 ```
 
-### 2. Create the mount point
+Unmount when done:
 
 ```sh
-mkdir -p /home/aaron/shared
+sudo umount ~/shared
 ```
-
-### 3. Test the mount
-
-```sh
-sudo mount -t cifs //spark-79b7.local/shared /home/aaron/shared \
-  -o username=aaron,uid=$(id -u),gid=$(id -g),vers=3.0
-```
-
-Enter the Samba password set with `smbpasswd` above when prompted.
-
-### 4. Store credentials
-
-```sh
-sudo bash -c 'cat > /etc/cifs-credentials-spark << EOF
-username=aaron
-password=YOUR_SAMBA_PASSWORD
-EOF'
-sudo chmod 600 /etc/cifs-credentials-spark
-```
-
-### 5. Add to /etc/fstab
-
-```
-//spark-79b7.local/shared  /home/aaron/shared  cifs  credentials=/etc/cifs-credentials-spark,uid=1000,gid=1000,vers=3.0,_netdev  0  0
-```
-
-### 6. Test the fstab entry
-
-```sh
-sudo umount /home/aaron/shared
-sudo mount /home/aaron/shared
-```
-
-WSL2 processes `/etc/fstab` on startup by default (`mountFsTab = true`),
-so the share mounts automatically after `wsl --shutdown` and relaunch.
 
 ---
 

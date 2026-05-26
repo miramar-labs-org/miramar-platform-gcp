@@ -98,6 +98,21 @@ fi
 chmod 600 "$HOME/.ssh/id_ed25519"
 chmod 644 "$HOME/.ssh/id_ed25519.pub"
 
+log "Generate id_ed25519_smb keypair (template-level Samba bootstrap key)"
+if [[ -z "${DGX_SMB_PASSWORD:-}" ]]; then
+  read -rsp "DGX Samba password (username=${USER}): " DGX_SMB_PASSWORD
+  echo
+fi
+if [[ ! -f "$HOME/.ssh/id_ed25519_smb" ]]; then
+  ssh-keygen -t ed25519 -f "$HOME/.ssh/id_ed25519_smb" -C "${USER}@wsl2-template-smb" -N ""
+fi
+chmod 600 "$HOME/.ssh/id_ed25519_smb"
+chmod 644 "$HOME/.ssh/id_ed25519_smb.pub"
+
+log "Write ~/.smbcredentials (baked into template — no runtime delivery needed)"
+printf 'username=%s\npassword=%s\n' "$USER" "$DGX_SMB_PASSWORD" > "$HOME/.smbcredentials"
+chmod 600 "$HOME/.smbcredentials"
+
 log "Prepare ~/.ssh/authorized_keys"
 touch "$HOME/.ssh/authorized_keys"
 chmod 600 "$HOME/.ssh/authorized_keys"
@@ -438,11 +453,19 @@ echo "Note: Docker may not fully start until after you run wsl --shutdown (syste
 echo "Note: If docker group membership was added, you may need to restart WSL for it to apply."
 echo "Powerlevel10k installed. Run 'p10k configure' once after opening zsh."
 echo ""
-echo "SSH public key (copy this to DGX, Orin, and MSI Windows):"
+echo "SSH public key (id_ed25519 — copy this to DGX, Orin, and MSI Windows administrators_authorized_keys):"
 cat "$HOME/.ssh/id_ed25519.pub" 2>/dev/null || true
 echo ""
-echo "Next steps:"
-echo "  1. Run setup-shared-ssh workflow (once — initialises DGX ~/shared/ssh/ and wires Orin)"
-echo "  2. Run WSL2 Post-Provision workflow (per distro — mounts ~/shared, creates symlinks, wires mesh)"
-echo "  3. Run WSL2 Verify SSH Topology workflow"
+echo "SMB bootstrap key (id_ed25519_smb — commit this to wsl2/id_ed25519_smb.pub in the repo):"
+cat "$HOME/.ssh/id_ed25519_smb.pub" 2>/dev/null || true
+echo ""
+echo "IMPORTANT — one-time template steps (do these before provisioning any distros):"
+echo "  1. Copy the SMB bootstrap key above; commit it to wsl2/id_ed25519_smb.pub in the repo"
+echo "  2. Export this distro: wsl --export <name> C:\\wsl-templates\\ubuntu-24.04-configured-template.tar"
+echo "  3. Run the Setup Shared SSH Store workflow (pre-authorises template key on DGX, wires Orin via smbclient)"
+echo ""
+echo "Per-distro steps (no DGX_SMB_PASSWORD needed — credentials are baked into the template):"
+echo "  4. Run WSL2 Provision workflow"
+echo "  5. Run WSL2 Post-Provision workflow (distro name + port only)"
+echo "  6. Run WSL2 Verify SSH Topology workflow"
 echo "See wsl2/post-bootstrap.md for manual fallback steps."

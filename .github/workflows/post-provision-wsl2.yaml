@@ -6,7 +6,7 @@ name: WSL2 Post-Provision
 #   1. .wslconfig (mirrored networking) + wsl --shutdown if changed
 #   2. Firewall rule for sshd port
 #   3. sshd port config inside distro
-#   4. Write .smbcredentials (Samba password, kept out of process args)
+#   4. SSH key check (template already has id_ed25519; just reads pubkey)
 #   5. Write /etc/wsl2-distro-name (so the service knows its SSH alias)
 #   6. Start wsl2-ssh-setup.service + wait for completion
 #
@@ -16,13 +16,14 @@ name: WSL2 Post-Provision
 #   - Appends own pubkey → smbclient put authorized_keys back
 #   - Adds wsl2-<name> host block → smbclient put config back
 #
-# Requires a distro built from a template exported after bootstrap.sh
-# added smbclient + wsl2-ssh-setup.service (run bootstrap.sh, re-export).
+# Requires a distro built from a template exported after bootstrap.sh baked
+# id_ed25519_smb + ~/.smbcredentials (run bootstrap.sh, export template,
+# commit wsl2/id_ed25519_smb.pub to the repo).
 #
 # Prerequisites:
 #   - WSL2 distro provisioned from current template (run WSL2 Provision first)
-#   - Setup Shared SSH Store run at least once (initialises DGX ~/shared/ssh/)
-#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_SMB_PASSWORD
+#   - Setup Shared SSH Store run at least once (initialises DGX ~/shared/ssh/ + Orin)
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
 #   - Vars:    DGX_HOST
 
 on:
@@ -90,8 +91,7 @@ jobs:
               -Name \"${{ inputs.distro_name }}\" \
               -User \"${{ secrets.WSL2_HOST_USER }}\" \
               -Port \"${{ inputs.ssh_port }}\" \
-              -DgxHost \"${{ vars.DGX_HOST }}\" \
-              -SmbPassword \"${{ secrets.DGX_SMB_PASSWORD }}\"" \
+              -DgxHost \"${{ vars.DGX_HOST }}\"" \
             | tee "$PS_OUT" || true
           WSL2_PUBKEY=$(grep '^WSL2_PUBKEY=' "$PS_OUT" | cut -d= -f2- || true)
           if [[ -z "$WSL2_PUBKEY" ]]; then
@@ -119,7 +119,7 @@ jobs:
             echo "### Result"
             echo "| Step | Status |"
             echo "|---|---|"
-            echo "| .wslconfig + firewall + sshd + smbclient SSH mesh sync | ${{ needs.windows-setup.result }} |"
+            echo "| .wslconfig + firewall + sshd + smbclient SSH mesh sync (creds baked in template) | ${{ needs.windows-setup.result }} |"
             echo ""
             echo "### Next step"
             echo "Run **WSL2 Verify SSH Topology** to confirm all SSH paths work end-to-end."

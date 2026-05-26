@@ -9,6 +9,38 @@
 
 ---
 
+## One-time template steps (run once after bootstrap.sh, before provisioning distros)
+
+`bootstrap.sh` bakes the Samba credentials and a template SMB keypair into the distro
+before it is exported. These steps wire the template key into the shared SSH store so
+new distros can authenticate without any secret delivery at provision time.
+
+1. **Run `bootstrap.sh`** inside the distro with `DGX_SMB_PASSWORD` set (or enter it
+   when prompted). It generates `~/.ssh/id_ed25519_smb` and `~/.smbcredentials`.
+
+2. **Commit the template public key** to the repo:
+   ```bash
+   # Inside the WSL2 distro after bootstrap.sh:
+   cat ~/.ssh/id_ed25519_smb.pub
+   # Copy the output, then on the host:
+   # git checkout -b feat/new-template
+   # echo '<paste>' > wsl2/id_ed25519_smb.pub
+   # git add wsl2/id_ed25519_smb.pub && git commit -m "feat: update template SMB key"
+   # git push
+   ```
+
+3. **Export the distro** from PowerShell:
+   ```powershell
+   wsl --export <name> C:\wsl-templates\ubuntu-24.04-configured-template.tar
+   ```
+
+4. **Run Setup Shared SSH Store** workflow — pre-authorizes the template key on DGX
+   and wires Orin via `orin-ssh-setup.service`.
+
+After these four steps, `DGX_SMB_PASSWORD` is no longer needed at provision time.
+
+---
+
 These steps cannot be scripted inside `bootstrap.sh` — they require either Windows
 Administrator access, a `wsl --shutdown` cycle that ends the session, or being on a
 different machine to push keys.
@@ -106,12 +138,20 @@ ssh msi hostname
 ## Steps 4–7 — Automated by WSL2 Post-Provision
 
 > **These steps are fully automated by the WSL2 Post-Provision workflow.** Run it instead.
+> **No `DGX_SMB_PASSWORD` is required at provision time** — the Samba credentials are
+> baked into the template by `bootstrap.sh`.
 
 The workflow handles:
-- **Step 4** (WSL2 pubkey → DGX + Orin): WSL2 pubkey is written to the shared `authorized_keys` via `~/shared/ssh/authorized_keys` (accessible to all machines via the CIFS mount).
-- **Step 5** (DGX + Orin pubkeys → WSL2): DGX and Orin runner pubkeys are injected into WSL2 `authorized_keys` directly.
-- **Step 6** (SSH client config on DGX + Orin): The `wsl2-<name>` host block is written to the shared `~/shared/ssh/config`, which all machines pick up automatically via their `~/.ssh/config` symlink.
-- **Step 7** (SSH client config on Windows): `%USERPROFILE%\.ssh\config` is hardlinked to `C:\Users\aaron\shared\ssh\config` by `post-provision.ps1`.
+- **Step 4** (WSL2 pubkey → DGX + Orin): `wsl2-ssh-setup.service` (pre-installed by
+  `bootstrap.sh`) runs `setup-shared-ssh.sh` via smbclient. It downloads SSH files from
+  DGX, appends the distro's pubkey to `authorized_keys`, and uploads it back.
+- **Step 5** (DGX + Orin pubkeys → WSL2): The shared `authorized_keys` downloaded in
+  step 4 already contains all machine pubkeys (seeded when Setup Shared SSH Store ran).
+- **Step 6** (SSH client config on DGX + Orin): The `wsl2-<name>` host block is written
+  to the shared `~/shared/ssh/config`, which all machines pick up automatically via their
+  smbclient sync on next start.
+- **Step 7** (SSH client config on Windows): `%USERPROFILE%\.ssh\config` is hardlinked
+  to `C:\Users\aaron\shared\ssh\config` by `post-provision.ps1`.
 
 **Manual fallback** (if the workflow fails and you need to wire a machine by hand):
 

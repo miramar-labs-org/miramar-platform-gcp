@@ -1,11 +1,11 @@
 # SSH Runbook: DGX, Orin, MSI, and WSL2
 
-> **Most of this is automated.** The shared SSH store (`~/shared/ssh/` on DGX, CIFS-mounted into Orin and each WSL2 distro) holds the canonical `config`, `known_hosts`, and `authorized_keys` for all machines. GHA workflows manage it:
+> **Most of this is automated.** The shared SSH store (`~/shared/ssh/` on DGX, accessed via smbclient on Orin and each WSL2 distro) holds the canonical `config`, `known_hosts`, and `authorized_keys` for all machines. GHA workflows manage it:
 >
 > | Workflow | What it does |
 > |---|---|
-> | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on DGX, create symlinks on DGX + Orin, wire Orin CIFS mount |
-> | **WSL2 Post-Provision** | Per-distro: CIFS mount + symlinks in WSL2, add WSL2 pubkey to shared store, write `wsl2-<name>` host block to shared config, hardlink Windows config |
+> | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on DGX, create symlinks on DGX, pre-authorize template SMB key, wire Orin via smbclient service |
+> | **WSL2 Post-Provision** | Per-distro: write distro name + start `wsl2-ssh-setup.service` (smbclient syncs SSH files, adds pubkey, adds `wsl2-<name>` host block). Credentials are baked into the template — no secret delivery at provision time. |
 > | **WSL2 Verify SSH Topology** | Validate all SSH paths end-to-end |
 >
 > The manual steps below are kept as a **reference and troubleshooting fallback** only.
@@ -1027,4 +1027,5 @@ WSL2 -> ssh spark       -> DGX / Spark
 ```
 
 All SSH paths use `id_ed25519` keys. SSH config, `known_hosts`, and `authorized_keys` are
-managed centrally in `~/shared/ssh/` on DGX and symlinked into `~/.ssh/` on all machines.
+managed centrally in `~/shared/ssh/` on DGX. DGX symlinks `~/.ssh/` to the shared store.
+Orin and each WSL2 distro sync from it via `smbclient` (no CIFS kernel mount required).

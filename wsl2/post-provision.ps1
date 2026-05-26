@@ -2,10 +2,9 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$Name,
 
-  [string]$User        = $env:USERNAME,
-  [int]$Port           = 2222,
-  [string]$DgxHost     = 'spark-79b7.local',
-  [string]$SmbPassword = ''
+  [string]$User    = $env:USERNAME,
+  [int]$Port       = 2222,
+  [string]$DgxHost = 'spark-79b7.local'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,19 +26,6 @@ function Invoke-WslBash {
   & wsl.exe -d $WslDistro -u $WslUser -- bash -c "echo '$b64' | base64 -d | bash -s$shellArgs"
   if ($LASTEXITCODE -ne 0) { throw "Bash script failed (exit $LASTEXITCODE)" }
 }
-
-# -----------------------------------------------------------------------
-# Pre-flight: clear any stale fstab entries from old CIFS-based approach.
-# Use EAP=Continue -- distro may not be running yet and starting it can
-# emit fstab warnings that become deferred NativeCommandErrors under Stop.
-# -----------------------------------------------------------------------
-Write-Host 'Pre-flight: clearing stale fstab entries...'
-$_pref = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-& wsl.exe -d $Name -u root -- bash -c "sed -i '\|$DgxHost/shared|d' /etc/fstab 2>/dev/null; true" 2>$null
-& wsl.exe --terminate $Name 2>$null
-$ErrorActionPreference = $_pref
-Write-Host 'Pre-flight: done'
 
 # -----------------------------------------------------------------------
 # Step 1: .wslconfig (mirrored networking)
@@ -121,31 +107,21 @@ $wsl2PubKey = $wsl2PubKey.Trim()
 Write-Host "Pubkey: $wsl2PubKey"
 
 # -----------------------------------------------------------------------
-# Step 5: Deliver credentials + trigger first-launch SSH mesh join.
-# The template has wsl2-ssh-setup.service pre-installed (bootstrap.sh).
-# PowerShell only delivers the two things only it knows: the Samba
-# password and the distro name. The service does the rest on its own.
+# Step 5: Write distro name + trigger first-launch SSH mesh join.
+# The template has wsl2-ssh-setup.service pre-installed (bootstrap.sh),
+# and ~/.smbcredentials is baked into the template — no runtime secret
+# delivery needed. PowerShell only tells the distro its own name so the
+# service can build the correct SSH host alias.
 # -----------------------------------------------------------------------
-if (-not $SmbPassword) {
-  Warn 'SmbPassword not provided -- skipping SSH mesh setup'
-} else {
+Step "Write /etc/wsl2-distro-name in distro '$Name'"
+& wsl.exe -d $Name -u root -- bash -c "echo '$Name' > /etc/wsl2-distro-name"
+Write-Host "/etc/wsl2-distro-name = $Name"
 
-  Step "Write .smbcredentials in distro '$Name'"
-  # Pipe via stdin -- keeps password out of process args.
-  # tr -d '\r' strips CRLF that PowerShell's | pipe adds on Windows.
-  "username=$User`npassword=$SmbPassword" | & wsl.exe -d $Name -u $User -- `
-    bash -c 'tr -d "\r" > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
-  Write-Host '.smbcredentials written'
-
-  Step "Write /etc/wsl2-distro-name in distro '$Name'"
-  & wsl.exe -d $Name -u root -- bash -c "echo '$Name' > /etc/wsl2-distro-name"
-  Write-Host "/etc/wsl2-distro-name = $Name"
-
-  # Trigger the service and wait for it to complete (up to 2 minutes).
-  # The service was enabled by bootstrap.sh; on cold start it runs
-  # setup-shared-ssh.sh which syncs SSH files from DGX via smbclient.
-  Step "Trigger wsl2-ssh-setup.service in distro '$Name'"
-  $svcScript = @'
+# Trigger the service and wait for it to complete (up to 2 minutes).
+# The service was enabled by bootstrap.sh; on cold start it runs
+# setup-shared-ssh.sh which syncs SSH files from DGX via smbclient.
+Step "Trigger wsl2-ssh-setup.service in distro '$Name'"
+$svcScript = @'
 set -euo pipefail
 systemctl start wsl2-ssh-setup.service
 for i in $(seq 1 24); do
@@ -158,9 +134,8 @@ done
 echo "WARN: service did not complete within 120s"
 journalctl -u wsl2-ssh-setup --no-pager -n 20
 '@
-  Invoke-WslBash $Name root $svcScript
-  Write-Host 'SSH mesh join complete'
-}
+Invoke-WslBash $Name root $svcScript
+Write-Host 'SSH mesh join complete'
 
 # -----------------------------------------------------------------------
 # Output -- single tagged line captured by GHA
