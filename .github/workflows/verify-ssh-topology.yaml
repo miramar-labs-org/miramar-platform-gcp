@@ -42,7 +42,7 @@ jobs:
             echo "spark → orin: $out"
             R[spark__orin]=pass
           else
-            echo "FAIL: spark → orin"
+            echo "FAIL: spark → orin: $out"
             R[spark__orin]=fail
           fi
 
@@ -53,7 +53,7 @@ jobs:
                 echo "spark → wsl2-$d: $out"
                 R["spark__wsl2-$d"]=pass
               else
-                echo "FAIL: spark → wsl2-$d"
+                echo "FAIL: spark → wsl2-$d: $out"
                 R["spark__wsl2-$d"]=fail
               fi
             done
@@ -92,7 +92,7 @@ jobs:
             echo "orin → spark: $out"
             R[orin__spark]=pass
           else
-            echo "FAIL: orin → spark"
+            echo "FAIL: orin → spark: $out"
             R[orin__spark]=fail
           fi
 
@@ -103,7 +103,7 @@ jobs:
                 echo "orin → wsl2-$d: $out"
                 R["orin__wsl2-$d"]=pass
               else
-                echo "FAIL: orin → wsl2-$d"
+                echo "FAIL: orin → wsl2-$d: $out"
                 R["orin__wsl2-$d"]=fail
               fi
             done
@@ -148,7 +148,7 @@ jobs:
                 echo "wsl2-$d → spark: $out"
                 R["wsl2-${d}__spark"]=pass
               else
-                echo "FAIL: wsl2-$d → spark"
+                echo "FAIL: wsl2-$d → spark: $out"
                 R["wsl2-${d}__spark"]=fail
               fi
 
@@ -157,7 +157,7 @@ jobs:
                 echo "wsl2-$d → orin: $out"
                 R["wsl2-${d}__orin"]=pass
               else
-                echo "FAIL: wsl2-$d → orin"
+                echo "FAIL: wsl2-$d → orin: $out"
                 R["wsl2-${d}__orin"]=fail
               fi
             done
@@ -171,7 +171,7 @@ jobs:
                     echo "wsl2-$src → wsl2-$dst: $out"
                     R["wsl2-${src}__wsl2-${dst}"]=pass
                   else
-                    echo "FAIL: wsl2-$src → wsl2-$dst"
+                    echo "FAIL: wsl2-$src → wsl2-$dst: $out"
                     R["wsl2-${src}__wsl2-${dst}"]=fail
                   fi
                 done
