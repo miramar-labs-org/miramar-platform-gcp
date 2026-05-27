@@ -120,8 +120,11 @@ CIFS_UID=$(id -u)
 CIFS_GID=$(id -g)
 grep -v " $HOME/shared " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
 # noauto prevents pre-systemd mount -a from hanging on mDNS resolution at boot.
+# No _netdev: see setup-shared-ssh.sh for the full rationale. Short version:
+# _netdev adds After=network-online.target to the automount unit which delays
+# systemd reaching 'running', causing WSL2 to use idle-session-tracking.
 # firstboot.sh (via setup-shared-ssh.sh) replaces this entry with the resolved IP.
-printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,_netdev,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0\n' \
+printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0\n' \
   "$HOME" "$HOME" "$CIFS_UID" "$CIFS_GID" >> /tmp/fstab.new
 sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 

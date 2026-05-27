@@ -75,11 +75,20 @@ chown "$MOUNT_USER:$MOUNT_USER" "$SHARED_DIR"
 
 # Filter by mount point (handles stale entries with either hostname or IP)
 grep -v " $SHARED_DIR " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
-# noauto: skip during pre-systemd mount -a; x-systemd.automount: mount on first access
-echo "//$DGX_IP/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,vers=3.0,_netdev,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
+# noauto: skip during pre-systemd mount -a; x-systemd.automount: mount on first access.
+# No _netdev: omitting _netdev prevents systemd-fstab-generator from adding
+# After=network-online.target to the automount unit. With _netdev, the automount
+# unit joins the remote-fs.target → multi-user.target dependency chain and waits
+# for network-online.target, which is slow in WSL2 mirrored-networking mode. That
+# delay prevents systemd from reaching 'running' state before WSL2's boot tracking
+# window expires, causing WSL2 to fall back to idle-session-tracking (killing the
+# distro when all sessions end). Without _netdev the automount unit loads
+# immediately (just a kernel inode) and the actual CIFS mount fires lazily when
+# the mountpoint is first accessed — by that time the network is already up.
+echo "//$DGX_IP/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,vers=3.0,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
   >> /tmp/fstab.new
 cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
-log "Written CIFS fstab entry (IP: $DGX_IP, noauto, x-systemd.automount)"
+log "Written CIFS fstab entry (IP: $DGX_IP, noauto, x-systemd.automount, no _netdev)"
 # Do NOT run systemctl daemon-reload here. On WSL2, daemon-reload causes
 # systemd to re-evaluate netplan/networkd, which briefly reconfigures the
 # network interface. That disrupts WSL's internal Plan 9 (p9io) connection
