@@ -267,19 +267,6 @@ jobs:
       # Diagnostic only. This does not keep the distro alive or wake it for
       # verify. It captures Windows/WSL state, Linux state while still running,
       # then waits without a WSL client to observe whether WSL stops the distro.
-      - name: Diagnostic A/B - disable snapd
-        env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-        run: |
-          DISTRO='${{ inputs.distro_name }}'
-          ssh -i /tmp/wsl2_win_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root -- bash -lc 'systemctl disable --now snapd.service snapd.socket snapd.seeded.service snapd.apparmor.service 2>/dev/null || true; systemctl status snapd.service snapd.socket snapd.seeded.service snapd.apparmor.service --no-pager || true'\""
-
       - name: Collect WSL shutdown root-cause diagnostics
         if: always()
         env:

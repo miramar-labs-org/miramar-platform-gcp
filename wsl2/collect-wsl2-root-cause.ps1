@@ -36,6 +36,8 @@ function Get-DistroState([string]$DistroName) {
   return 'unknown'
 }
 
+$ProbeId = [guid]::NewGuid().ToString()
+
 function Show-WindowsWslDiagnostics {
   Section 'Windows WSL version and status'
   Invoke-Step { & wsl.exe --version }
@@ -78,8 +80,16 @@ Show-WindowsWslDiagnostics
 
 if ($initialState -eq 'Running') {
   Section 'Linux diagnostics while distro is still running'
-  & wsl.exe -d $Name --user root --exec bash -lc @'
+  & wsl.exe -d $Name --user root --exec env WSL2_IDLE_PROBE_ID=$ProbeId bash -lc @'
 set +e
+
+PROBE_EPOCH=$(date +%s)
+printf '%s\n' "$WSL2_IDLE_PROBE_ID" >/var/tmp/wsl2-idle-probe-id
+printf '%s\n' "$PROBE_EPOCH" >/var/tmp/wsl2-idle-probe-epoch
+printf 'before-idle probe=%s epoch=%s\n' "$WSL2_IDLE_PROBE_ID" "$PROBE_EPOCH" | systemd-cat -t wsl2-idle-probe || true
+echo '--- idle probe marker ---'
+echo "probe_id=$WSL2_IDLE_PROBE_ID epoch=$PROBE_EPOCH"
+echo
 
 echo '--- /etc/wsl.conf ---'
 cat /etc/wsl.conf 2>/dev/null || true
@@ -140,8 +150,26 @@ if ($finalState -eq 'Running') {
   & wsl.exe -d $Name --user root --exec bash -lc "journalctl -b -n 300 --no-pager || true"
 } else {
   Section "Restarting '$Name' to collect post-stop Linux diagnostics"
-  & wsl.exe -d $Name --user root --exec bash -lc @'
+  & wsl.exe -d $Name --user root --exec env WSL2_IDLE_PROBE_ID=$ProbeId bash -lc @'
 set +e
+
+echo '--- idle probe marker after restart ---'
+cat /var/tmp/wsl2-idle-probe-id 2>/dev/null || true
+cat /var/tmp/wsl2-idle-probe-epoch 2>/dev/null || true
+echo
+
+echo '--- journal entries matching idle probe ---'
+journalctl --no-pager --grep "$WSL2_IDLE_PROBE_ID" 2>/dev/null || true
+echo
+
+echo '--- journal entries since idle probe ---'
+PROBE_EPOCH=$(cat /var/tmp/wsl2-idle-probe-epoch 2>/dev/null || true)
+if [ -n "$PROBE_EPOCH" ]; then
+  journalctl --no-pager --since "@$PROBE_EPOCH" -n 500 || true
+else
+  echo 'No idle probe epoch found.'
+fi
+echo
 
 echo '--- boot list after restart ---'
 journalctl --list-boots --no-pager || true
