@@ -83,6 +83,33 @@ jobs:
             "powershell -ExecutionPolicy Bypass -File wsl-from-tar.ps1 -Name $DISTRO"
           echo "Import step complete"
 
+      # ── Step 1b: restart distros stopped by wsl --shutdown during import ─
+      # wsl-from-tar.ps1 runs `wsl --shutdown` before importing the new distro,
+      # which stops ALL running distros globally. Wake them up so they are ready
+      # by the time the verify job runs (sshd comes up via systemd on restart).
+      - name: Wake up existing WSL2 distros
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          DISTROS: ${{ vars.WSL2_DISTROS }}
+        run: |
+          if [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]]; then
+            echo "No existing distros to restart — skipping"
+            exit 0
+          fi
+          echo "Restarting distros stopped by wsl --shutdown: $DISTROS"
+          for d in $DISTROS; do
+            echo "  Starting wsl2-$d..."
+            ssh -i /tmp/wsl2_win_host \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "$WSL2_HOST_USER@$WSL2_HOST" \
+              "wsl -d $d --exec true" \
+              && echo "  wsl2-$d started" \
+              || echo "  Warning: could not start $d (may already be stopped or missing)"
+          done
+
       # ── Step 2: write provision config + open Windows firewall ───────────
       # Uses wsl exec (not port-2222 SSH) — no mirrored-networking issues.
       - name: Write provision config and open firewall

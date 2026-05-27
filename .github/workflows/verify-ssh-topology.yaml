@@ -36,6 +36,7 @@ jobs:
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           declare -A R
+          any_fail=false
 
           # spark → orin
           if out=$($SSH orin hostname 2>&1); then
@@ -44,6 +45,7 @@ jobs:
           else
             echo "FAIL: spark → orin: $out"
             R[spark__orin]=fail
+            any_fail=true
           fi
 
           if [[ "$DISTROS" != "NONE" && -n "$DISTROS" ]]; then
@@ -55,6 +57,7 @@ jobs:
               else
                 echo "FAIL: spark → wsl2-$d: $out"
                 R["spark__wsl2-$d"]=fail
+                any_fail=true
               fi
             done
           fi
@@ -68,6 +71,7 @@ jobs:
           done
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
+          [[ "$any_fail" == "true" ]] && exit 1
 
   # ── From orin ────────────────────────────────────────────────────────────
   # orin → spark
@@ -86,6 +90,7 @@ jobs:
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           declare -A R
+          any_fail=false
 
           # orin → spark
           if out=$($SSH spark hostname 2>&1); then
@@ -94,6 +99,7 @@ jobs:
           else
             echo "FAIL: orin → spark: $out"
             R[orin__spark]=fail
+            any_fail=true
           fi
 
           if [[ "$DISTROS" != "NONE" && -n "$DISTROS" ]]; then
@@ -105,6 +111,7 @@ jobs:
               else
                 echo "FAIL: orin → wsl2-$d: $out"
                 R["orin__wsl2-$d"]=fail
+                any_fail=true
               fi
             done
           fi
@@ -117,6 +124,7 @@ jobs:
           done
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
+          [[ "$any_fail" == "true" ]] && exit 1
 
   # ── From each WSL2 distro ────────────────────────────────────────────────
   # wsl2-<name> → spark       (all distros, nested SSH)
@@ -138,6 +146,7 @@ jobs:
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           declare -A R
+          any_fail=false
 
           if [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]]; then
             echo "No active distros — skipping all wsl2 outbound tests"
@@ -150,6 +159,7 @@ jobs:
               else
                 echo "FAIL: wsl2-$d → spark: $out"
                 R["wsl2-${d}__spark"]=fail
+                any_fail=true
               fi
 
               # wsl2-<d> → orin   (nested SSH)
@@ -159,6 +169,7 @@ jobs:
               else
                 echo "FAIL: wsl2-$d → orin: $out"
                 R["wsl2-${d}__orin"]=fail
+                any_fail=true
               fi
             done
 
@@ -173,6 +184,7 @@ jobs:
                   else
                     echo "FAIL: wsl2-$src → wsl2-$dst: $out"
                     R["wsl2-${src}__wsl2-${dst}"]=fail
+                    any_fail=true
                   fi
                 done
               done
@@ -187,6 +199,7 @@ jobs:
           done
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
+          [[ "$any_fail" == "true" ]] && exit 1
 
   # ── Summary ──────────────────────────────────────────────────────────────
 
