@@ -100,7 +100,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "wsl -d $DISTRO --user root -- bash -c 'echo Port $PORT > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh && echo sshd restarted on port $PORT' && powershell -Command \"New-NetFirewallRule -DisplayName 'WSL2 SSH $DISTRO' -Direction Inbound -Protocol TCP -LocalPort $PORT -Action Allow -ErrorAction SilentlyContinue | Out-Null; Write-Host 'firewall rule OK'\""
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'echo Port $PORT > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh && echo done'; New-NetFirewallRule -DisplayName 'WSL2 SSH $DISTRO' -Direction Inbound -Protocol TCP -LocalPort $PORT -Action Allow -ErrorAction SilentlyContinue | Out-Null; Write-Host 'firewall OK'\""
           echo "Port and firewall step complete"
 
       # ── Step 2: wait for sshd inside the distro ──────────────────────────
