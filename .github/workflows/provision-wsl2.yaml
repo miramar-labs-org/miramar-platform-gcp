@@ -100,7 +100,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'printf distro_name=$DISTRO\nssh_port=$PORT\nmount_user=$DGX_HOST_USER\ndgx_host=$DGX_HOST\n > /etc/wsl2-provision.conf && echo config_written'\""
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'echo distro_name=$DISTRO > /etc/wsl2-provision.conf && echo ssh_port=$PORT >> /etc/wsl2-provision.conf && echo mount_user=$DGX_HOST_USER >> /etc/wsl2-provision.conf && echo dgx_host=$DGX_HOST >> /etc/wsl2-provision.conf && echo config_written'\""
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
