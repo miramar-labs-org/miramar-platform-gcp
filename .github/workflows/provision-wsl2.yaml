@@ -69,6 +69,24 @@ jobs:
             "mkdir C:\\wsl\\$DISTRO 2>nul & wsl --import $DISTRO C:\\wsl\\$DISTRO C:\\wsl-templates\\ubuntu-22.04-configured-template.tar --version 2 & wsl -d $DISTRO -- bash -c \"echo distro up\""
           echo "Import step complete"
 
+      # ── Step 1b: ensure systemd=true in distro ───────────────────────────
+      # Templates exported before wsl --shutdown won't have systemd active.
+      # Write wsl.conf with systemd=true, then terminate+restart so systemd
+      # becomes PID 1 — required to keep the distro alive between SSH sessions.
+      - name: Ensure systemd in distro
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "wsl -d $DISTRO -- bash -c \"printf '%s\n' '[boot]' 'systemd = true' '[user]' 'default = ${{ vars.DGX_HOST_USER }}' | sudo tee /etc/wsl.conf\" & wsl --terminate $DISTRO & wsl -d $DISTRO -- bash -c \"echo systemd boot\""
+          echo "wsl.conf written; distro restarted with systemd"
+
       # ── Step 2: wait for sshd inside the distro ──────────────────────────
       - name: Wait for sshd in distro
 
@@ -157,24 +175,6 @@ jobs:
             -o StrictHostKeyChecking=accept-new \
             "$DGX_HOST_USER@$WSL2_HOST" \
             "sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && sudo /usr/local/bin/setup-shared-ssh.sh '$DGX_HOST' '$DGX_HOST_USER' '${{ inputs.distro_name }}' '${{ inputs.ssh_port }}' '$WSL2_HOST'"
-
-      # ── Keep distro alive for verify ─────────────────────────────────────────
-      # Without systemd (template exported before wsl --shutdown), WSL2 shuts
-      # down the distro as soon as the last SSH session closes.  Start a
-      # background sleep so the distro stays up long enough for verify to run.
-      - name: Keep distro alive for verify
-        env:
-          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-        run: |
-          ssh -i /tmp/wsl2_host \
-            -p "${{ inputs.ssh_port }}" \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            "$DGX_HOST_USER@$WSL2_HOST" \
-            "nohup sleep 180 >/dev/null 2>&1 &"
-          echo "Background sleep started in distro (3 min window for verify)"
 
       - name: Summary
         if: always()
