@@ -300,7 +300,11 @@ if [[ ! -d /opt/miniforge3 ]]; then
   curl -fsSL -o "$_mftmp" "$_mf_asset"
   _mfsha="$(curl -fsSL "$_mf_sha_asset" | awk '{print $1}')"
   echo "${_mfsha}  ${_mftmp}" | sha256sum --check || die "Miniforge checksum mismatch"
-  sudo bash "$_mftmp" -b -p /opt/miniforge3
+  # The Miniforge installer checks $BASH_SOURCE to detect if it's being sourced.
+  # Running via 'bash tmpfile' can confuse this check. Run the file directly
+  # (via its #!/usr/bin/env bash shebang) to ensure $0 and $BASH_SOURCE agree.
+  chmod +x "$_mftmp"
+  sudo "$_mftmp" -b -p /opt/miniforge3
 fi
 
 sudo tee /etc/profile.d/miniforge.sh >/dev/null <<'EOF'
