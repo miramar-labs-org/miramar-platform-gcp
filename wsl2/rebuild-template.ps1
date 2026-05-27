@@ -41,8 +41,8 @@ wsl -d $BuildName --user root -- bash -c "printf 'username=$DistroUser\npassword
 Write-Host "==> Creating $SharedDir"
 wsl -d $BuildName --user root -- bash -c "mkdir -p '$SharedDir' && chown $DistroUser`:$DistroUser '$SharedDir' && echo done"
 
-Write-Host "==> Patching /etc/fstab"
-wsl -d $BuildName --user root -- bash -c "grep -qF 'spark-79b7.local/shared' /etc/fstab 2>/dev/null && echo 'already present' || { printf '$FstabLine\n' >> /etc/fstab && echo 'added'; }"
+Write-Host "==> Patching /etc/fstab (always replace to ensure correct paths/options)"
+wsl -d $BuildName --user root -- bash -c "sed -i '/spark-79b7.local\/shared/d' /etc/fstab; printf '$FstabLine\n' >> /etc/fstab && echo 'patched'"
 
 Write-Host "==> /etc/fstab:"
 wsl -d $BuildName --user root -- cat /etc/fstab
