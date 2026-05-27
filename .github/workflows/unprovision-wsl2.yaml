@@ -83,32 +83,35 @@ jobs:
         env:
           DGX_HOST: ${{ vars.DGX_HOST }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          DISTRO: ${{ inputs.distro_name }}
+          # Stored in env so the script stays inside the YAML block scalar —
+          # a bare heredoc (<<'PYEOF') at column 0 would terminate run: |.
+          PYCODE: |
+            import re, sys, os
+            distro = sys.argv[1]
+            path = os.path.expanduser('~/shared/ssh/config')
+            try:
+                with open(path) as f:
+                    text = f.read()
+            except FileNotFoundError:
+                print(f'Shared SSH config not found at {path} — nothing to remove')
+                sys.exit(0)
+            new = re.sub(r'\nHost wsl2-' + re.escape(distro) + r'\n(?:[ \t][^\n]*\n?)*', '\n', text)
+            with open(path, 'w') as f:
+                f.write(new)
+            if new != text:
+                print(f'Removed wsl2-{distro} block from shared SSH config')
+            else:
+                print(f'wsl2-{distro} block not found in shared SSH config (already clean)')
         shell: bash
         run: |
-          DISTRO='${{ inputs.distro_name }}'
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
           chmod 600 /tmp/dgx_priv
-          ssh -i /tmp/dgx_priv \
+          printf '%s' "$PYCODE" | ssh -i /tmp/dgx_priv \
             -o BatchMode=yes -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
-            "$DGX_HOST_USER@$DGX_HOST" "python3 - $DISTRO" << 'PYEOF'
-import re, sys, os
-distro = sys.argv[1]
-path = os.path.expanduser('~/shared/ssh/config')
-try:
-    with open(path) as f:
-        text = f.read()
-except FileNotFoundError:
-    print(f'Shared SSH config not found at {path} — nothing to remove')
-    sys.exit(0)
-new = re.sub(r'\nHost wsl2-' + re.escape(distro) + r'\n(?:[ \t][^\n]*\n?)*', '\n', text)
-with open(path, 'w') as f:
-    f.write(new)
-if new != text:
-    print(f'Removed wsl2-{distro} block from shared SSH config')
-else:
-    print(f'wsl2-{distro} block not found in shared SSH config (already clean)')
-PYEOF
+            "$DGX_HOST_USER@$DGX_HOST" \
+            "python3 - $DISTRO"
           rm -f /tmp/dgx_priv
 
       - name: List WSL distros after unprovision
