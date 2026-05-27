@@ -136,6 +136,26 @@ jobs:
           ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" \
             >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      # ── Step 5: set hostname = distro name, persist via wsl.conf, restart avahi ─
+      - name: Set hostname and enable mDNS
+        env:
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          ssh -i /tmp/wsl2_host \
+            -p "${{ inputs.ssh_port }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$DGX_HOST_USER@$WSL2_HOST" \
+            "sudo hostnamectl set-hostname '$DISTRO' && \
+             grep -q '^\[network\]' /etc/wsl.conf \
+               || printf '\n[network]\nhostname = %s\n' '$DISTRO' | sudo tee -a /etc/wsl.conf > /dev/null && \
+             sudo systemctl restart avahi-daemon 2>/dev/null || true && \
+             echo \"hostname: \$(hostname)\""
+          echo "Hostname step complete"
+
       - name: Write .smbcredentials on distro
         env:
           DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
