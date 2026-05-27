@@ -158,6 +158,24 @@ jobs:
             "$DGX_HOST_USER@$WSL2_HOST" \
             "sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && sudo /usr/local/bin/setup-shared-ssh.sh '$DGX_HOST' '$DGX_HOST_USER' '${{ inputs.distro_name }}' '${{ inputs.ssh_port }}' '$WSL2_HOST'"
 
+      # ── Keep distro alive for verify ─────────────────────────────────────────
+      # Without systemd (template exported before wsl --shutdown), WSL2 shuts
+      # down the distro as soon as the last SSH session closes.  Start a
+      # background sleep so the distro stays up long enough for verify to run.
+      - name: Keep distro alive for verify
+        env:
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+        run: |
+          ssh -i /tmp/wsl2_host \
+            -p "${{ inputs.ssh_port }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$DGX_HOST_USER@$WSL2_HOST" \
+            "nohup sleep 180 >/dev/null 2>&1 &"
+          echo "Background sleep started in distro (3 min window for verify)"
+
       - name: Summary
         if: always()
         run: |
