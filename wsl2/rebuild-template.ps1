@@ -28,37 +28,24 @@ New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 wsl --import $BuildName $BuildDir $TarPath --version 2 | Out-Null
 
 Step 'Patch fstab + .smbcredentials'
-# Run as root inside the distro; single-quotes in the heredoc are fine
-#  because we embed variables via PS string interpolation before passing to bash.
-$patch = @"
-set -euo pipefail
-USER_HOME=`$(getent passwd $DistroUser | cut -d: -f6)
-USER_UID=`$(id -u $DistroUser)
-USER_GID=`$(id -g $DistroUser)
+# Build all paths in PowerShell — bash variable lookup is unreliable when
+# the distro starts bare without systemd (NSS not initialised).
+$UserHome  = "/home/$DistroUser"
+$Creds     = "$UserHome/.smbcredentials"
+$SharedDir = "$UserHome/shared"
+$FstabLine = "//spark-79b7.local/shared $SharedDir cifs credentials=$Creds,uid=1000,gid=1000,vers=3.0,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0"
 
-echo "==> Writing .smbcredentials"
-printf 'username=%s\npassword=%s\n' '$DistroUser' '$SmbPassword' > "`$USER_HOME/.smbcredentials"
-chmod 600 "`$USER_HOME/.smbcredentials"
-chown ${DistroUser}:${DistroUser} "`$USER_HOME/.smbcredentials"
+Write-Host "==> Writing .smbcredentials at $Creds"
+wsl -d $BuildName --user root -- bash -c "printf 'username=$DistroUser\npassword=$SmbPassword\n' > '$Creds' && chmod 600 '$Creds' && chown $DistroUser`:$DistroUser '$Creds' && echo done"
 
-echo "==> Creating ~/shared mount point"
-mkdir -p "`$USER_HOME/shared"
-chown ${DistroUser}:${DistroUser} "`$USER_HOME/shared"
+Write-Host "==> Creating $SharedDir"
+wsl -d $BuildName --user root -- bash -c "mkdir -p '$SharedDir' && chown $DistroUser`:$DistroUser '$SharedDir' && echo done"
 
-echo "==> Patching /etc/fstab"
-if grep -qF 'spark-79b7.local/shared' /etc/fstab 2>/dev/null; then
-  echo "  already present — skipping"
-else
-  printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0\n' \
-    "`$USER_HOME" "`$USER_HOME" "`$USER_UID" "`$USER_GID" >> /etc/fstab
-  echo "  added"
-fi
+Write-Host "==> Patching /etc/fstab"
+wsl -d $BuildName --user root -- bash -c "grep -qF 'spark-79b7.local/shared' /etc/fstab 2>/dev/null && echo 'already present' || { printf '$FstabLine\n' >> /etc/fstab && echo 'added'; }"
 
-echo "==> /etc/fstab (cifs lines):"
-grep cifs /etc/fstab || echo "  (none)"
-"@
-
-wsl -d $BuildName --user root -- bash -c $patch
+Write-Host "==> /etc/fstab:"
+wsl -d $BuildName --user root -- cat /etc/fstab
 
 Step 'Shutdown distro'
 wsl --terminate $BuildName
