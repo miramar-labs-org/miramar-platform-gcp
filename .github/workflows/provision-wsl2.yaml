@@ -174,6 +174,9 @@ jobs:
       # ── Step 4: authorize DGX SSH key ────────────────────────────────────
       # Runs after firstboot so ~/.ssh/authorized_keys is already symlinked
       # to ~/shared/ssh/authorized_keys — key goes into the shared store.
+      # bootstrap.sh seeds the same key into the template, so this step is
+      # usually a no-op; sort -u deduplicates so re-runs don't accumulate
+      # duplicate entries in the shared authorized_keys file.
       - name: Authorize DGX SSH key in distro
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -190,8 +193,8 @@ jobs:
               -o IdentitiesOnly=yes \
               -o StrictHostKeyChecking=accept-new \
               "$WSL2_HOST_USER@$WSL2_HOST" \
-              "wsl -d $DISTRO -- bash -c \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\""
-          echo "DGX pubkey authorized in distro"
+              "wsl -d $DISTRO -- bash -c \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && sort -u -o ~/.ssh/authorized_keys ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\""
+          echo "DGX pubkey authorized in distro (idempotent)"
 
       # ── Step 5: verify sshd is reachable ─────────────────────────────────
       - name: Wait for sshd in distro
