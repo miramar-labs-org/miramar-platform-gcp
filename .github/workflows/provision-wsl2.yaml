@@ -105,7 +105,6 @@ jobs:
 
       # ── Step 2: wait for sshd inside the distro ──────────────────────────
       - name: Wait for sshd in distro
-
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
         run: |
@@ -121,6 +120,33 @@ jobs:
               echo "ERROR: sshd not reachable after 150s" >&2
               exit 1
             fi
+          done
+
+      # ── Step 2b: wait for systemd to finish booting ───────────────────────
+      # Ensures D-Bus, network, and CIFS mount are settled before any SSH
+      # commands run sudo or systemctl inside the distro.
+      - name: Wait for systemd ready
+        env:
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+        run: |
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/wsl2_host
+          chmod 600 /tmp/wsl2_host
+          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null || true
+          for i in $(seq 1 24); do
+            state=$(ssh -i /tmp/wsl2_host \
+              -p "${{ inputs.ssh_port }}" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=5 \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "$DGX_HOST_USER@$WSL2_HOST" \
+              'systemctl is-system-running 2>&1 || true' 2>/dev/null || echo ssh-failed)
+            echo "systemd: $state (attempt $i/24)"
+            [[ "$state" =~ ^(running|degraded)$ ]] && echo "systemd ready" && break
+            sleep 5
+            [[ $i -eq 24 ]] && echo "WARNING: systemd not fully ready after 120s, proceeding"
           done
 
       # ── Step 3: authorize DGX key in distro ──────────────────────────────
@@ -146,14 +172,7 @@ jobs:
               "wsl -d $DISTRO -- bash -c \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\""
           echo "DGX pubkey authorized in distro"
 
-      # ── Steps 4-6: wire SSH mesh ──────────────────────────────────────────
-      - name: Set up SSH key for WSL2 distro
-        run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/wsl2_host
-          chmod 600 /tmp/wsl2_host
-          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" \
-            >> ~/.ssh/known_hosts 2>/dev/null || true
-
+      # ── Steps 5-7: wire SSH mesh ─────────────────────────────────────────
       # ── Step 5: set hostname = distro name, persist via wsl.conf, restart avahi ─
       - name: Set hostname and enable mDNS
         env:

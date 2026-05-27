@@ -33,7 +33,7 @@ Step 'Patch fstab + .smbcredentials'
 $UserHome  = "/home/$DistroUser"
 $Creds     = "$UserHome/.smbcredentials"
 $SharedDir = "$UserHome/shared"
-$FstabLine = "//spark-79b7.local/shared $SharedDir cifs credentials=$Creds,uid=1000,gid=1000,vers=3.0,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0"
+$FstabLine = "//spark-79b7.local/shared $SharedDir cifs credentials=$Creds,uid=1000,gid=1000,vers=3.0,noauto,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0"
 
 Write-Host "==> Writing .smbcredentials at $Creds"
 wsl -d $BuildName --user root -- bash -c "printf 'username=$DistroUser\npassword=$SmbPassword\n' > '$Creds' && chmod 600 '$Creds' && chown $DistroUser`:$DistroUser '$Creds' && echo done"
