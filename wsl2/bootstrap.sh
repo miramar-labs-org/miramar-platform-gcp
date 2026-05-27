@@ -95,29 +95,22 @@ fi
 chmod 600 "$HOME/.ssh/id_ed25519"
 chmod 644 "$HOME/.ssh/id_ed25519.pub"
 
-log "Generate id_ed25519_smb keypair (template-level Samba bootstrap key)"
+log "Write ~/.smbcredentials (baked into template — no runtime delivery needed)"
 if [[ -z "${DGX_SMB_PASSWORD:-}" ]]; then
   read -rsp "DGX Samba password (username=${USER}): " DGX_SMB_PASSWORD
   echo
 fi
-if [[ ! -f "$HOME/.ssh/id_ed25519_smb" ]]; then
-  ssh-keygen -t ed25519 -f "$HOME/.ssh/id_ed25519_smb" -C "${USER}@wsl2-template-smb" -N ""
-fi
-chmod 600 "$HOME/.ssh/id_ed25519_smb"
-chmod 644 "$HOME/.ssh/id_ed25519_smb.pub"
-
-log "Write ~/.smbcredentials (baked into template — no runtime delivery needed)"
 printf 'username=%s\npassword=%s\n' "$USER" "$DGX_SMB_PASSWORD" > "$HOME/.smbcredentials"
 chmod 600 "$HOME/.smbcredentials"
 
-log "Write CIFS fstab entry (mounts //spark-79b7.local/shared at boot via systemd)"
+log "Write CIFS fstab entry"
 mkdir -p "$HOME/shared"
 CIFS_UID=$(id -u)
 CIFS_GID=$(id -g)
-if ! grep -qF "spark-79b7.local/shared" /etc/fstab 2>/dev/null; then
-  printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,noauto,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0\n' \
-    "$HOME" "$HOME" "$CIFS_UID" "$CIFS_GID" | sudo tee -a /etc/fstab > /dev/null
-fi
+grep -vF "spark-79b7.local/shared" /etc/fstab > /tmp/fstab.new 2>/dev/null || true
+printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0\n' \
+  "$HOME" "$HOME" "$CIFS_UID" "$CIFS_GID" >> /tmp/fstab.new
+sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 
 log "Prepare ~/.ssh/authorized_keys (seed with Spark runner pubkey)"
 touch "$HOME/.ssh/authorized_keys"
@@ -452,17 +445,12 @@ echo "Note: Docker may not fully start until after you run wsl --shutdown (syste
 echo "Note: If docker group membership was added, you may need to restart WSL for it to apply."
 echo "Powerlevel10k installed. Run 'p10k configure' once after opening zsh."
 echo ""
-echo "SMB bootstrap key (id_ed25519_smb — commit this to wsl2/id_ed25519_smb.pub in the repo):"
-cat "$HOME/.ssh/id_ed25519_smb.pub" 2>/dev/null || true
-echo ""
 echo "IMPORTANT — one-time template steps (do these before provisioning any distros):"
-echo "  1. Copy the SMB bootstrap key above; commit it to wsl2/id_ed25519_smb.pub in the repo"
-echo "  2. Export this distro: wsl --export <name> C:\\wsl-templates\\ubuntu-22.04-configured-template.tar"
-echo "  3. Run the Setup Shared SSH Store workflow (pre-authorises template key on DGX, wires Orin via CIFS)"
+echo "  1. Export this distro: wsl --export <name> C:\\wsl-templates\\ubuntu-22.04-configured-template.tar"
+echo "     Or run: .\\rebuild-template.ps1 -SmbPassword <password>  (if template already exists)"
+echo "  2. Run the Setup Shared SSH Store workflow (wires Orin via CIFS)"
 echo ""
 echo "Per-distro steps (credentials are baked into the template — no runtime secret delivery):"
-echo "  4. Run WSL2 Provision workflow (distro_name + ssh_port)"
-echo "     Provision SSHes into the distro, writes .smbcredentials, mounts //DGX/shared via CIFS,"
-echo "     and symlinks ~/.ssh/ to ~/shared/ssh/ — all distros share Spark's SSH identity."
-echo "  5. Run WSL2 Verify SSH Topology workflow"
+echo "  3. Run WSL2 Provision workflow (distro_name + ssh_port)"
+echo "  4. Run WSL2 Verify SSH Topology workflow"
 echo "See wsl2/post-bootstrap.md for manual fallback steps."

@@ -30,7 +30,7 @@ warn() { echo "WARN: $*"; }
 # ─── 1. Prerequisites ────────────────────────────────────────────────────────
 
 if [[ ! -f "$CREDS" ]]; then
-  echo "ERROR: $CREDS not found — post-provision must write it first" >&2
+  echo "ERROR: $CREDS not found — run rebuild-template.ps1 to bake credentials into the template" >&2
   exit 1
 fi
 
@@ -64,11 +64,12 @@ done
 mkdir -p "$SHARED_DIR"
 chown "$MOUNT_USER:$MOUNT_USER" "$SHARED_DIR"
 
-if ! grep -qF "//$DGX_HOST/shared" /etc/fstab 2>/dev/null; then
-  echo "//$DGX_HOST/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,vers=3.0,noauto,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0" \
-    >> /etc/fstab
-  log "Added CIFS fstab entry"
-fi
+grep -vF "//$DGX_HOST/shared" /etc/fstab > /tmp/fstab.new 2>/dev/null || true
+echo "//$DGX_HOST/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,vers=3.0,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
+  >> /tmp/fstab.new
+cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
+log "Written CIFS fstab entry (x-systemd.automount)"
+systemctl daemon-reload 2>/dev/null || true
 
 if mountpoint -q "$SHARED_DIR" 2>/dev/null; then
   log "$SHARED_DIR already mounted"

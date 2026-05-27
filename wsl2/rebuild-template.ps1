@@ -33,7 +33,7 @@ Step 'Patch fstab + .smbcredentials'
 $UserHome  = "/home/$DistroUser"
 $Creds     = "$UserHome/.smbcredentials"
 $SharedDir = "$UserHome/shared"
-$FstabLine = "//spark-79b7.local/shared $SharedDir cifs credentials=$Creds,uid=1000,gid=1000,vers=3.0,noauto,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0"
+$FstabLine = "//spark-79b7.local/shared $SharedDir cifs credentials=$Creds,uid=1000,gid=1000,vers=3.0,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0"
 
 Write-Host "==> Writing .smbcredentials at $Creds"
 wsl -d $BuildName --user root -- bash -c "printf 'username=$DistroUser\npassword=$SmbPassword\n' > '$Creds' && chmod 600 '$Creds' && chown $DistroUser`:$DistroUser '$Creds' && echo done"
@@ -46,6 +46,9 @@ wsl -d $BuildName --user root -- bash -c "sed -i '/spark-79b7.local\/shared/d' /
 
 Write-Host "==> /etc/fstab:"
 wsl -d $BuildName --user root -- cat /etc/fstab
+
+Step 'Remove stale id_ed25519_smb keypair'
+wsl -d $BuildName --user root -- bash -c "rm -f '/home/$DistroUser/.ssh/id_ed25519_smb' '/home/$DistroUser/.ssh/id_ed25519_smb.pub' && echo done"
 
 Step 'Shutdown distro'
 wsl --terminate $BuildName
