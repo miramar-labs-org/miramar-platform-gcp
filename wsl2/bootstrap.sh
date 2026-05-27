@@ -295,16 +295,14 @@ if [[ ! -d /opt/miniforge3 ]]; then
   [[ -n "$_mf_asset" && "$_mf_asset" != "null" ]] || die "Could not find Miniforge Linux $MF_ARCH installer in latest release"
   [[ -n "$_mf_sha_asset" && "$_mf_sha_asset" != "null" ]] || die "Could not find Miniforge Linux $MF_ARCH checksum in latest release"
 
-  _mftmp="$(mktemp)"
+  _mftmp="$(mktemp "${TMPDIR:-/tmp}/miniforge.XXXXXX.sh")"
   TMP_PATHS+=("$_mftmp")
   curl -fsSL -o "$_mftmp" "$_mf_asset"
   _mfsha="$(curl -fsSL "$_mf_sha_asset" | awk '{print $1}')"
   echo "${_mfsha}  ${_mftmp}" | sha256sum --check || die "Miniforge checksum mismatch"
-  # The Miniforge installer checks $BASH_SOURCE to detect if it's being sourced.
-  # Running via 'bash tmpfile' can confuse this check. Run the file directly
-  # (via its #!/usr/bin/env bash shebang) to ensure $0 and $BASH_SOURCE agree.
-  chmod +x "$_mftmp"
-  sudo "$_mftmp" -b -p /opt/miniforge3
+  # The Miniforge installer exits unless $0 ends in .sh, so keep that suffix on
+  # the temp file instead of using a bare mktemp path.
+  sudo bash "$_mftmp" -b -p /opt/miniforge3
 fi
 
 sudo tee /etc/profile.d/miniforge.sh >/dev/null <<'EOF'
