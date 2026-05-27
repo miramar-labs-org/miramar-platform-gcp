@@ -1,193 +1,300 @@
 name: WSL2 Verify SSH Topology
 
-# Validates passwordless SSH from every lab host to every other lab host.
-# For each machine, SSH in and try to reach all peers (excluding self):
+# Validates passwordless bi-directional SSH between all lab nodes:
+#   spark  ↔ orin                        (core pair)
+#   spark  ↔ wsl2-<name>                 (all active distros)
+#   orin   ↔ wsl2-<name>                 (all active distros)
+#   wsl2-<A> ↔ wsl2-<B>                  (all ordered pairs of active distros)
 #
-#   DGX  → ssh orin hostname
-#   DGX  → ssh wsl2-<name> hostname
-#   Orin → ssh spark hostname
-#   Orin → ssh wsl2-<name> hostname
-#   WSL2 → ssh spark hostname   (nested via wsl2-<name> alias)
-#   WSL2 → ssh orin hostname    (nested via wsl2-<name> alias)
+# Active distros are read from the WSL2_DISTROS repo variable (space-separated,
+# or the sentinel value 'NONE' when no distros are provisioned).
+#
+# WSL2 outbound paths use nested SSH through the DGX runner — the runner SSHes
+# into the distro, which then SSHes onward to the target.
 #
 # All SSH calls use BatchMode=yes — any password prompt is a hard failure.
-# No secrets needed: all machines share Spark's SSH identity via ~/shared/ssh/.
 
 on:
   workflow_dispatch:
-    inputs:
-      distro_name:
-        description: "WSL2 distro name"
-        required: true
-        default: dev
-      ssh_port:
-        description: "sshd port for this distro (2222 for first instance)"
-        required: false
-        default: "2222"
   workflow_call:
     inputs:
+      # Kept for backward compatibility with provision-wsl2.yaml.
+      # Not used — active distros are always read from WSL2_DISTROS.
       distro_name:
-        required: true
+        required: false
         type: string
+        default: ""
       ssh_port:
         required: false
         type: string
-        default: "2222"
+        default: ""
 
 jobs:
 
-  # -----------------------------------------------------------------------
-  # DGX → all others (orin, wsl2-<name>)
-  # -----------------------------------------------------------------------
+  # ── DGX outbound ────────────────────────────────────────────────────────
+  # spark → orin
+  # spark → wsl2-<name>   (all distros)
+  # wsl2-<name> → spark   (nested SSH)
+  # wsl2-<name> → orin    (nested SSH)
 
-  verify-dgx:
+  dgx-tests:
     runs-on: dgx
     outputs:
-      result: ${{ steps.report.outputs.result }}
+      results: ${{ steps.run.outputs.results }}
     steps:
-      - name: DGX → orin
-        run: |
-          HOSTNAME=$(ssh \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            orin hostname)
-          echo "DGX → orin: $HOSTNAME"
-          echo "PASS"
-
-      - name: DGX → wsl2-${{ inputs.distro_name }}
+      - id: run
+        shell: bash
         env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
+          DISTROS: ${{ vars.WSL2_DISTROS }}
         run: |
-          HOSTNAME=$(ssh \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            "wsl2-${DISTRO_NAME}" hostname)
-          echo "DGX → wsl2-${DISTRO_NAME}: $HOSTNAME"
-          [[ "$HOSTNAME" == "$DISTRO_NAME" ]] && echo "PASS: hostname matches" \
-            || echo "WARN: expected '$DISTRO_NAME', got '$HOSTNAME'"
+          SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          declare -A R
 
-      - id: report
-        if: always()
-        run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
+          # spark → orin
+          if out=$($SSH orin hostname 2>&1); then
+            echo "spark → orin: $out"
+            R[spark__orin]=pass
+          else
+            echo "FAIL: spark → orin"
+            R[spark__orin]=fail
+          fi
 
-  # -----------------------------------------------------------------------
-  # Orin → all others (spark/dgx, wsl2-<name>)
-  # -----------------------------------------------------------------------
+          if [[ "$DISTROS" != "NONE" && -n "$DISTROS" ]]; then
+            for d in $DISTROS; do
+              # spark → wsl2-<d>
+              if out=$($SSH "wsl2-$d" hostname 2>&1); then
+                echo "spark → wsl2-$d: $out"
+                R["spark__wsl2-$d"]=pass
+              else
+                echo "FAIL: spark → wsl2-$d"
+                R["spark__wsl2-$d"]=fail
+              fi
 
-  verify-agx:
+              # wsl2-<d> → spark  (nested SSH)
+              if out=$($SSH "wsl2-$d" "$SSH spark hostname" 2>&1); then
+                echo "wsl2-$d → spark: $out"
+                R["wsl2-${d}__spark"]=pass
+              else
+                echo "FAIL: wsl2-$d → spark"
+                R["wsl2-${d}__spark"]=fail
+              fi
+
+              # wsl2-<d> → orin   (nested SSH)
+              if out=$($SSH "wsl2-$d" "$SSH orin hostname" 2>&1); then
+                echo "wsl2-$d → orin: $out"
+                R["wsl2-${d}__orin"]=pass
+              else
+                echo "FAIL: wsl2-$d → orin"
+                R["wsl2-${d}__orin"]=fail
+              fi
+            done
+          fi
+
+          # Serialize results to JSON
+          json='{'
+          sep=""
+          for k in "${!R[@]}"; do
+            json+="${sep}$(printf '"%s":"%s"' "$k" "${R[$k]}")"
+            sep=','
+          done
+          json+='}'
+          echo "results=$json" >> "$GITHUB_OUTPUT"
+
+  # ── Orin outbound ────────────────────────────────────────────────────────
+  # orin → spark
+  # orin → wsl2-<name>    (all distros)
+  # Runs in parallel with dgx-tests (different runner).
+
+  agx-tests:
     runs-on: agx
     outputs:
-      result: ${{ steps.report.outputs.result }}
+      results: ${{ steps.run.outputs.results }}
     steps:
-      - name: Orin → spark
-        run: |
-          HOSTNAME=$(ssh \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            spark hostname)
-          echo "Orin → spark: $HOSTNAME"
-          echo "PASS"
-
-      - name: Orin → wsl2-${{ inputs.distro_name }}
+      - id: run
+        shell: bash
         env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
+          DISTROS: ${{ vars.WSL2_DISTROS }}
         run: |
-          HOSTNAME=$(ssh \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            "wsl2-${DISTRO_NAME}" hostname)
-          echo "Orin → wsl2-${DISTRO_NAME}: $HOSTNAME"
-          [[ "$HOSTNAME" == "$DISTRO_NAME" ]] && echo "PASS: hostname matches" \
-            || echo "WARN: expected '$DISTRO_NAME', got '$HOSTNAME'"
+          SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          declare -A R
 
-      - id: report
-        if: always()
-        run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
+          # orin → spark
+          if out=$($SSH spark hostname 2>&1); then
+            echo "orin → spark: $out"
+            R[orin__spark]=pass
+          else
+            echo "FAIL: orin → spark"
+            R[orin__spark]=fail
+          fi
 
-  # -----------------------------------------------------------------------
-  # WSL2 → all others (spark/dgx, orin)
-  # Runs on DGX; uses wsl2-<name> alias to SSH into the distro, then
-  # issues nested SSH outbound to each peer.
-  # -----------------------------------------------------------------------
+          if [[ "$DISTROS" != "NONE" && -n "$DISTROS" ]]; then
+            for d in $DISTROS; do
+              # orin → wsl2-<d>
+              if out=$($SSH "wsl2-$d" hostname 2>&1); then
+                echo "orin → wsl2-$d: $out"
+                R["orin__wsl2-$d"]=pass
+              else
+                echo "FAIL: orin → wsl2-$d"
+                R["orin__wsl2-$d"]=fail
+              fi
+            done
+          fi
 
-  verify-wsl2:
-    needs: [verify-dgx]
+          json='{'
+          sep=""
+          for k in "${!R[@]}"; do
+            json+="${sep}$(printf '"%s":"%s"' "$k" "${R[$k]}")"
+            sep=','
+          done
+          json+='}'
+          echo "results=$json" >> "$GITHUB_OUTPUT"
+
+  # ── WSL2 ↔ WSL2 ─────────────────────────────────────────────────────────
+  # wsl2-<A> → wsl2-<B>   (all ordered pairs, both directions, nested SSH)
+  # Skipped when fewer than 2 active distros.
+  # Runs on DGX after dgx-tests (same runner — must sequence).
+
+  wsl2-tests:
+    needs: [dgx-tests]
+    if: always()
     runs-on: dgx
     outputs:
-      result: ${{ steps.report.outputs.result }}
+      results: ${{ steps.run.outputs.results }}
     steps:
-      - name: WSL2 → spark
+      - id: run
+        shell: bash
         env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
+          DISTROS: ${{ vars.WSL2_DISTROS }}
         run: |
-          HOSTNAME=$(ssh \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            "wsl2-${DISTRO_NAME}" \
-            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 spark hostname")
-          echo "WSL2 → spark: $HOSTNAME"
-          echo "PASS"
+          SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          declare -A R
 
-      - name: WSL2 → orin
-        env:
-          DISTRO_NAME: ${{ inputs.distro_name }}
-        run: |
-          HOSTNAME=$(ssh \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            "wsl2-${DISTRO_NAME}" \
-            "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 orin hostname")
-          echo "WSL2 → orin: $HOSTNAME"
-          echo "PASS"
+          if [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]]; then
+            echo "No active distros — skipping wsl2↔wsl2 tests"
+          else
+            read -ra DARR <<< "$DISTROS"
+            if [[ ${#DARR[@]} -lt 2 ]]; then
+              echo "Only one distro (${DARR[0]}) — no wsl2↔wsl2 pairs to test"
+            else
+              for src in "${DARR[@]}"; do
+                for dst in "${DARR[@]}"; do
+                  [[ "$src" == "$dst" ]] && continue
+                  if out=$($SSH "wsl2-$src" "$SSH wsl2-$dst hostname" 2>&1); then
+                    echo "wsl2-$src → wsl2-$dst: $out"
+                    R["wsl2-${src}__wsl2-${dst}"]=pass
+                  else
+                    echo "FAIL: wsl2-$src → wsl2-$dst"
+                    R["wsl2-${src}__wsl2-${dst}"]=fail
+                  fi
+                done
+              done
+            fi
+          fi
 
-      - id: report
-        if: always()
-        run: echo "result=${{ job.status }}" >> "$GITHUB_OUTPUT"
+          json='{'
+          sep=""
+          for k in "${!R[@]}"; do
+            json+="${sep}$(printf '"%s":"%s"' "$k" "${R[$k]}")"
+            sep=','
+          done
+          json+='}'
+          echo "results=$json" >> "$GITHUB_OUTPUT"
 
-  # -----------------------------------------------------------------------
-  # Summary
-  # -----------------------------------------------------------------------
+  # ── Summary ──────────────────────────────────────────────────────────────
 
   summary:
-    needs: [verify-dgx, verify-agx, verify-wsl2]
+    needs: [dgx-tests, agx-tests, wsl2-tests]
     if: always()
     runs-on: dgx
     steps:
-      - name: Summary
+      - name: Render summary
+        env:
+          DISTROS: ${{ vars.WSL2_DISTROS }}
+          DGX: ${{ needs.dgx-tests.outputs.results }}
+          AGX: ${{ needs.agx-tests.outputs.results }}
+          WSL2: ${{ needs.wsl2-tests.outputs.results }}
+        shell: bash
         run: |
-          dgx="${{ needs.verify-dgx.result }}"
-          agx="${{ needs.verify-agx.result }}"
-          wsl="${{ needs.verify-wsl2.result }}"
-
-          pass() { [[ "$1" == "success" ]] && echo "✅" || echo "❌ ($1)"; }
+          icon() {
+            local blob="$1" key="$2"
+            if [[ -z "$blob" ]]; then printf '⚠️'; return; fi
+            local val
+            val=$(printf '%s' "$blob" | jq -r --arg k "$key" '.[$k] // "—"')
+            case "$val" in
+              pass) printf '✅' ;;
+              fail) printf '❌' ;;
+              *)    printf '—'  ;;
+            esac
+          }
 
           {
-            echo "## WSL2 SSH Topology Verification"
-            echo "| | |"
-            echo "|---|---|"
-            echo "| Distro | \`${{ inputs.distro_name }}\` |"
-            echo "| SSH alias | \`wsl2-${{ inputs.distro_name }}\` |"
-            echo "| Port | \`${{ inputs.ssh_port }}\` |"
+            echo "## SSH Topology Verification"
             echo ""
-            echo "### Results"
-            echo "| Path | Result |"
+            echo "### Core"
+            echo "| Direction | Result |"
             echo "|---|---|"
-            echo "| DGX → \`ssh orin hostname\` | $(pass $dgx) |"
-            echo "| DGX → \`ssh wsl2-${{ inputs.distro_name }} hostname\` | $(pass $dgx) |"
-            echo "| Orin → \`ssh spark hostname\` | $(pass $agx) |"
-            echo "| Orin → \`ssh wsl2-${{ inputs.distro_name }} hostname\` | $(pass $agx) |"
-            echo "| WSL2 → \`ssh spark hostname\` | $(pass $wsl) |"
-            echo "| WSL2 → \`ssh orin hostname\` | $(pass $wsl) |"
+            echo "| spark → orin | $(icon "$DGX" spark__orin) |"
+            echo "| orin → spark | $(icon "$AGX" orin__spark) |"
+
+            if [[ "$DISTROS" != "NONE" && -n "$DISTROS" ]]; then
+              for d in $DISTROS; do
+                echo ""
+                echo "### wsl2-$d"
+                echo "| Direction | Result |"
+                echo "|---|---|"
+                echo "| spark → wsl2-$d    | $(icon "$DGX" "spark__wsl2-$d") |"
+                echo "| orin → wsl2-$d     | $(icon "$AGX" "orin__wsl2-$d") |"
+                echo "| wsl2-$d → spark    | $(icon "$DGX" "wsl2-${d}__spark") |"
+                echo "| wsl2-$d → orin     | $(icon "$DGX" "wsl2-${d}__orin") |"
+              done
+
+              read -ra DARR <<< "$DISTROS"
+              if [[ ${#DARR[@]} -ge 2 ]]; then
+                echo ""
+                echo "### wsl2 ↔ wsl2"
+                echo "| Direction | Result |"
+                echo "|---|---|"
+                for src in "${DARR[@]}"; do
+                  for dst in "${DARR[@]}"; do
+                    [[ "$src" == "$dst" ]] && continue
+                    echo "| wsl2-$src → wsl2-$dst | $(icon "$WSL2" "wsl2-${src}__wsl2-${dst}") |"
+                  done
+                done
+              fi
+            else
+              echo ""
+              echo "_No active WSL2 distros \`(WSL2_DISTROS = NONE)\`_"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if any path failed
+        if: always()
+        env:
+          DGX_JOB: ${{ needs.dgx-tests.result }}
+          AGX_JOB: ${{ needs.agx-tests.result }}
+          WSL2_JOB: ${{ needs.wsl2-tests.result }}
+          DGX: ${{ needs.dgx-tests.outputs.results }}
+          AGX: ${{ needs.agx-tests.outputs.results }}
+          WSL2: ${{ needs.wsl2-tests.outputs.results }}
+        shell: bash
+        run: |
+          failed=false
+
+          # Job-level failures (step errored before SSH tests could run)
+          for r in "$DGX_JOB" "$AGX_JOB" "$WSL2_JOB"; do
+            [[ "$r" == "failure" ]] && failed=true
+          done
+
+          # SSH-level failures within each job's result blob
+          for blob in "$DGX" "$AGX" "$WSL2"; do
+            [[ -z "$blob" ]] && continue
+            if printf '%s' "$blob" | jq -e '[to_entries[] | select(.value == "fail")] | length > 0' > /dev/null; then
+              failed=true
+            fi
+          done
+
+          if $failed; then
+            echo "One or more SSH paths failed." >&2
+            exit 1
+          fi
+          echo "All SSH paths passed."
