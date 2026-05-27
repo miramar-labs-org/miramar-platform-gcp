@@ -6,6 +6,14 @@ export DEBIAN_FRONTEND=noninteractive
 log() { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
 die() { printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2; exit 1; }
 
+TMP_PATHS=()
+cleanup_tmp_paths() {
+  if [[ ${#TMP_PATHS[@]} -gt 0 ]]; then
+    rm -rf -- "${TMP_PATHS[@]}"
+  fi
+}
+trap cleanup_tmp_paths EXIT
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REQUIRED_COMPANIONS=(
   mount-dgx-shared.sh
@@ -174,8 +182,10 @@ EOF
 fi
 
 log "Set zsh as default shell for current user"
-if [[ "${SHELL:-}" != "$(command -v zsh)" ]]; then
-  sudo chsh -s "$(command -v zsh)" "$USER" || true
+ZSH_BIN="$(command -v zsh)"
+CURRENT_SHELL="$(getent passwd "$USER" | cut -d: -f7)"
+if [[ "$CURRENT_SHELL" != "$ZSH_BIN" ]]; then
+  sudo chsh -s "$ZSH_BIN" "$USER" || true
 fi
 
 log "Install Oh My Zsh (unattended)"
@@ -184,9 +194,9 @@ if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
   # file rather than piping directly so the script can be inspected if needed.
   # HTTPS is the only integrity guarantee available here.
   _omztmp="$(mktemp)"
+  TMP_PATHS+=("$_omztmp")
   curl -fsSL -o "$_omztmp" https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
   RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh "$_omztmp"
-  rm -f "$_omztmp"
 fi
 # Idempotent: only append if not already present
 if ! grep -q 'export ZSH=' "$HOME/.zshrc" 2>/dev/null; then
@@ -271,15 +281,26 @@ if [[ ! -d /opt/miniforge3 ]]; then
     *) die "Unsupported arch for Miniforge: $ARCHM" ;;
   esac
 
+  _mf_json="$(curl -fsSL https://api.github.com/repos/conda-forge/miniforge/releases/latest)"
+  _mf_asset="$(printf '%s' "$_mf_json" | jq -r --arg arch "$MF_ARCH" '
+    .assets[]
+    | select(.name | test("^Miniforge3-.*-Linux-" + $arch + "[.]sh$"))
+    | .browser_download_url
+  ' | head -n 1)"
+  _mf_sha_asset="$(printf '%s' "$_mf_json" | jq -r --arg arch "$MF_ARCH" '
+    .assets[]
+    | select(.name | test("^Miniforge3-.*-Linux-" + $arch + "[.]sh[.]sha256$"))
+    | .browser_download_url
+  ' | head -n 1)"
+  [[ -n "$_mf_asset" && "$_mf_asset" != "null" ]] || die "Could not find Miniforge Linux $MF_ARCH installer in latest release"
+  [[ -n "$_mf_sha_asset" && "$_mf_sha_asset" != "null" ]] || die "Could not find Miniforge Linux $MF_ARCH checksum in latest release"
+
   _mftmp="$(mktemp)"
-  curl -fsSL -o "$_mftmp" \
-    "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${MF_ARCH}.sh"
-  _mfsha="$(curl -fsSL \
-    "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${MF_ARCH}.sh.sha256" \
-    | awk '{print $1}')"
+  TMP_PATHS+=("$_mftmp")
+  curl -fsSL -o "$_mftmp" "$_mf_asset"
+  _mfsha="$(curl -fsSL "$_mf_sha_asset" | awk '{print $1}')"
   echo "${_mfsha}  ${_mftmp}" | sha256sum --check || die "Miniforge checksum mismatch"
   sudo bash "$_mftmp" -b -p /opt/miniforge3
-  rm -f "$_mftmp"
 fi
 
 sudo tee /etc/profile.d/miniforge.sh >/dev/null <<'EOF'
@@ -310,12 +331,16 @@ _gosha="$(printf '%s' "$_go_json" | python3 -c \
   "import sys,json; d=json.load(sys.stdin)[0]['files']; \
    f=next(x for x in d if x['filename']=='${GOFILE}'); print(f['sha256'])")"
 [[ "${#_gosha}" -eq 64 ]] || die "Go checksum fetch failed: ${_gosha:0:80}"
-_gotmp="$(mktemp)"
-curl -fsSL -o "$_gotmp" "https://go.dev/dl/${GOFILE}"
-echo "${_gosha}  ${_gotmp}" | sha256sum --check || die "Go checksum mismatch"
-sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf "$_gotmp"
-rm -f "$_gotmp"
+if [[ -x /usr/local/go/bin/go ]] && [[ "$(/usr/local/go/bin/go version | awk '{print $3}')" == "$GOVER" ]]; then
+  log "Go already installed ($GOVER); skipping"
+else
+  _gotmp="$(mktemp)"
+  TMP_PATHS+=("$_gotmp")
+  curl -fsSL -o "$_gotmp" "https://go.dev/dl/${GOFILE}"
+  echo "${_gosha}  ${_gotmp}" | sha256sum --check || die "Go checksum mismatch"
+  sudo rm -rf /usr/local/go
+  sudo tar -C /usr/local -xzf "$_gotmp"
+fi
 
 sudo tee /etc/profile.d/go.sh >/dev/null <<'EOF'
 export PATH="$PATH:/usr/local/go/bin"
@@ -359,11 +384,11 @@ esac
 
 KVER="$(curl -fsSL https://dl.k8s.io/release/stable.txt | head -n 1 | tr -d '\r\n')"
 _ktmp="$(mktemp)"
+TMP_PATHS+=("$_ktmp")
 curl -fsSLo "$_ktmp" "https://dl.k8s.io/release/${KVER}/bin/linux/${KARCH}/kubectl"
 _ksha="$(curl -fsSL "https://dl.k8s.io/release/${KVER}/bin/linux/${KARCH}/kubectl.sha256")"
 echo "${_ksha}  ${_ktmp}" | sha256sum --check || die "kubectl checksum mismatch"
 sudo install -o root -g root -m 0755 "$_ktmp" /usr/local/bin/kubectl
-rm -f "$_ktmp"
 
 log "Install minikube"
 ARCHM="$(uname -m)"
@@ -374,6 +399,7 @@ case "$ARCHM" in
 esac
 
 _mktmp="$(mktemp)"
+TMP_PATHS+=("$_mktmp")
 curl -fsSL -o "$_mktmp" \
   "https://github.com/kubernetes/minikube/releases/latest/download/${MK_BIN}"
 _mksha="$(curl -fsSL \
@@ -381,7 +407,6 @@ _mksha="$(curl -fsSL \
   | awk '{print $1}')"
 echo "${_mksha}  ${_mktmp}" | sha256sum --check || die "minikube checksum mismatch"
 sudo install "$_mktmp" /usr/local/bin/minikube
-rm -f "$_mktmp"
 
 log "Install Helm"
 case "$ARCH" in
@@ -395,6 +420,7 @@ HELM_VER="$(curl -fsSL https://api.github.com/repos/helm/helm/releases/latest | 
 _install_helm() {
   local tmpdir
   tmpdir="$(mktemp -d)"
+  TMP_PATHS+=("$tmpdir")
   curl -fsSL -o "$tmpdir/helm.tgz" \
     "https://get.helm.sh/helm-${HELM_VER}-linux-${HARCH}.tar.gz"
   _helmsha="$(curl -fsSL \
@@ -403,7 +429,6 @@ _install_helm() {
   echo "${_helmsha}  $tmpdir/helm.tgz" | sha256sum --check || die "Helm checksum mismatch"
   tar -C "$tmpdir" -xzf "$tmpdir/helm.tgz"
   sudo install -o root -g root -m 0755 "$tmpdir/linux-${HARCH}/helm" /usr/local/bin/helm
-  rm -rf "$tmpdir"
 }
 
 if command -v helm >/dev/null 2>&1; then
