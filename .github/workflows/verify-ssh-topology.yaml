@@ -20,11 +20,9 @@ on:
 
 jobs:
 
-  # ── DGX outbound ────────────────────────────────────────────────────────
+  # ── From spark ──────────────────────────────────────────────────────────
   # spark → orin
   # spark → wsl2-<name>   (all distros)
-  # wsl2-<name> → spark   (nested SSH)
-  # wsl2-<name> → orin    (nested SSH)
 
   dgx-tests:
     runs-on: dgx
@@ -58,24 +56,6 @@ jobs:
                 echo "FAIL: spark → wsl2-$d"
                 R["spark__wsl2-$d"]=fail
               fi
-
-              # wsl2-<d> → spark  (nested SSH)
-              if out=$($SSH "wsl2-$d" "$SSH spark hostname" 2>&1); then
-                echo "wsl2-$d → spark: $out"
-                R["wsl2-${d}__spark"]=pass
-              else
-                echo "FAIL: wsl2-$d → spark"
-                R["wsl2-${d}__spark"]=fail
-              fi
-
-              # wsl2-<d> → orin   (nested SSH)
-              if out=$($SSH "wsl2-$d" "$SSH orin hostname" 2>&1); then
-                echo "wsl2-$d → orin: $out"
-                R["wsl2-${d}__orin"]=pass
-              else
-                echo "FAIL: wsl2-$d → orin"
-                R["wsl2-${d}__orin"]=fail
-              fi
             done
           fi
 
@@ -89,7 +69,7 @@ jobs:
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
 
-  # ── Orin outbound ────────────────────────────────────────────────────────
+  # ── From orin ────────────────────────────────────────────────────────────
   # orin → spark
   # orin → wsl2-<name>    (all distros)
   # Runs in parallel with dgx-tests (different runner).
@@ -138,9 +118,10 @@ jobs:
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
 
-  # ── WSL2 ↔ WSL2 ─────────────────────────────────────────────────────────
-  # wsl2-<A> → wsl2-<B>   (all ordered pairs, both directions, nested SSH)
-  # Skipped when fewer than 2 active distros.
+  # ── From each WSL2 distro ────────────────────────────────────────────────
+  # wsl2-<name> → spark       (all distros, nested SSH)
+  # wsl2-<name> → orin        (all distros, nested SSH)
+  # wsl2-<A>    → wsl2-<B>    (all ordered pairs, nested SSH)
   # Runs on DGX after dgx-tests (same runner — must sequence).
 
   wsl2-tests:
@@ -159,12 +140,30 @@ jobs:
           declare -A R
 
           if [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]]; then
-            echo "No active distros — skipping wsl2↔wsl2 tests"
+            echo "No active distros — skipping all wsl2 outbound tests"
           else
+            for d in $DISTROS; do
+              # wsl2-<d> → spark  (nested SSH)
+              if out=$($SSH "wsl2-$d" "$SSH spark hostname" 2>&1); then
+                echo "wsl2-$d → spark: $out"
+                R["wsl2-${d}__spark"]=pass
+              else
+                echo "FAIL: wsl2-$d → spark"
+                R["wsl2-${d}__spark"]=fail
+              fi
+
+              # wsl2-<d> → orin   (nested SSH)
+              if out=$($SSH "wsl2-$d" "$SSH orin hostname" 2>&1); then
+                echo "wsl2-$d → orin: $out"
+                R["wsl2-${d}__orin"]=pass
+              else
+                echo "FAIL: wsl2-$d → orin"
+                R["wsl2-${d}__orin"]=fail
+              fi
+            done
+
             read -ra DARR <<< "$DISTROS"
-            if [[ ${#DARR[@]} -lt 2 ]]; then
-              echo "Only one distro (${DARR[0]}) — no wsl2↔wsl2 pairs to test"
-            else
+            if [[ ${#DARR[@]} -ge 2 ]]; then
               for src in "${DARR[@]}"; do
                 for dst in "${DARR[@]}"; do
                   [[ "$src" == "$dst" ]] && continue
@@ -233,8 +232,8 @@ jobs:
                 echo "|---|---|"
                 echo "| spark → wsl2-$d    | $(icon "$DGX" "spark__wsl2-$d") |"
                 echo "| orin → wsl2-$d     | $(icon "$AGX" "orin__wsl2-$d") |"
-                echo "| wsl2-$d → spark    | $(icon "$DGX" "wsl2-${d}__spark") |"
-                echo "| wsl2-$d → orin     | $(icon "$DGX" "wsl2-${d}__orin") |"
+                echo "| wsl2-$d → spark    | $(icon "$WSL2" "wsl2-${d}__spark") |"
+                echo "| wsl2-$d → orin     | $(icon "$WSL2" "wsl2-${d}__orin") |"
               done
 
               read -ra DARR <<< "$DISTROS"
