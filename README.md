@@ -182,6 +182,12 @@ Available to all repos via `${{ vars.* }}`. GCP vars are **synced from `gcp/terr
 | `DGX_HOST_USER` | `aaron` | set manually — SSH user on the DGX host |
 | `MLFLOW_TRACKING_URI` | `http://localhost:5000` | set manually — used by ML workflows |
 
+### Repo-level variables — [miramar-platform-gcp settings](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/variables/actions)
+
+| Variable | Initial value | Purpose |
+|---|---|---|
+| `WSL2_DISTROS` | `NONE` | Space-separated list of active WSL2 distro names. Updated automatically by **WSL2 Provision** (add) and **WSL2 Unprovision** (remove). Set to `NONE` when no distros are active. Create with value `NONE` before first provision run. |
+
 ---
 
 ## Required Environment Variables
@@ -191,7 +197,7 @@ Two GitHub classic PATs must be set as environment variables on each machine. Cr
 | Variable | Scope required | Purpose |
 |---|---|---|
 | `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull the `mlabs-runner` image from GHCR |
-| `GITHUB_ORG_ADMIN_PAT` | `admin:org` | Manage self-hosted runners (list, unregister, clean deregistration on shutdown) |
+| `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo` | Manage self-hosted runners; also used by WSL2 Provision/Unprovision workflows to update the `WSL2_DISTROS` repo variable |
 
 Add to `~/.bashrc` or `~/.zshrc` on each machine:
 
@@ -877,7 +883,7 @@ Actions → Setup Shared SSH Store → Run workflow
 
 ### [WSL2 Provision](.github/workflows/provision-wsl2.yaml)
 
-Full lifecycle: imports a new distro from the configured template tarball, then runs `firstboot.sh` inside the distro via Windows SSH → `wsl exec` (no direct port-2222 SSH — avoids WSL2 mirrored-networking issues). Sets hostname, opens Windows Firewall rule, restarts sshd on the configured port, mounts `//DGX/shared` via CIFS, symlinks `~/.ssh/ → ~/shared/ssh/`, and writes the `wsl2-<distro_name>` host block to the shared SSH config. Authorizes the DGX SSH key, then verifies sshd + systemd are up.
+Full lifecycle: imports a new distro from the configured template tarball, then runs `firstboot.sh` inside the distro via Windows SSH → `wsl exec` (no direct port-2222 SSH — avoids WSL2 mirrored-networking issues). Sets hostname, opens Windows Firewall rule, restarts sshd on the configured port, mounts `//DGX/shared` via CIFS, symlinks `~/.ssh/ → ~/shared/ssh/`, and writes the `wsl2-<distro_name>` host block to the shared SSH config. Authorizes the DGX SSH key, then verifies sshd + systemd are up. On success, adds the distro name to the `WSL2_DISTROS` repo variable.
 
 `.smbcredentials` and fstab are baked into the template by `rebuild-template.ps1` — **no `DGX_SMB_PASSWORD` needed at provision time**.
 
@@ -915,7 +921,7 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222 → Ru
 
 ### [WSL2 Unprovision](.github/workflows/unprovision-wsl2.yaml)
 
-Unregisters a distro. Optionally deletes `C:\wsl\<name>` from disk.
+Unregisters a distro. Optionally deletes `C:\wsl\<name>` from disk. Removes the distro name from the `WSL2_DISTROS` repo variable (sets to `NONE` if no distros remain).
 
 | Input | Default | Description |
 |---|---|---|

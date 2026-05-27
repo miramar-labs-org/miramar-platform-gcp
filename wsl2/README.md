@@ -103,6 +103,7 @@ See [Rebuild the configured template](#rebuild-the-configured-template) below.
 | `DGX_HOST_SSH_KEY` (secret) | Spark's private key — used to authorize DGX in the distro and verify SSH | provision, verify |
 | `DGX_HOST` (var) | DGX hostname (e.g. `spark-79b7.local`) | provision |
 | `DGX_HOST_USER` (var) | DGX / Samba username | provision |
+| `WSL2_DISTROS` (repo var) | `NONE` initially | Tracks active distro names — create once with value `NONE` before first provision run |
 
 `DGX_SMB_PASSWORD` is **not** required by the provision workflow — credentials are baked into
 the template by `rebuild-template.ps1`.

@@ -136,9 +136,9 @@ Org-level variables are synced from `terraform.tfvars` via `sync-github-tf-vars.
 | Ollama Undeploy | `undeploy-ollama.yaml` | SSH to DGX host and unload the active Ollama model from GPU memory. Auto-detects loaded model if `model` input is blank. Input: `model` (optional), `delete_model` (bool, default false) |
 | Ollama Update | `update-ollama.yaml` | SSH to DGX host and install/upgrade Ollama; runner choice: `dgx` or `wsl2`. Uses vars `DGX_HOST`, `DGX_HOST_USER` and secret `DGX_HOST_SSH_KEY`. |
 | Setup Shared SSH Store | `setup-shared-ssh.yaml` | **One-time setup.** Initialises `~/shared/ssh/` on DGX, creates `~/.ssh` symlinks on DGX, wires Orin (CIFS mount of `//DGX/shared` + symlinks `~/.ssh/ → ~/shared/ssh/`). Orin setup SSHes to `localhost:22` from the agx runner container (container uses `--network=host`). Requires vars `DGX_HOST`, `DGX_HOST_USER` and secrets `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
-| WSL2 Provision | `provision-wsl2.yaml` | Full lifecycle: import distro from template, open Windows firewall, run `firstboot.sh` inside the distro via `wsl exec` (sets hostname, sshd port, CIFS mount, SSH symlinks), authorize DGX key, verify sshd + systemd. All per-distro config is done via Windows SSH → PowerShell → `wsl -d NAME --user root` — no direct port-2222 SSH, avoiding WSL2 mirrored-networking issues. `.smbcredentials` and fstab are baked into the template by `rebuild-template.ps1`. Secrets: `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY`, `DGX_HOST_SSH_KEY`. Vars: `DGX_HOST`, `DGX_HOST_USER`. |
+| WSL2 Provision | `provision-wsl2.yaml` | Full lifecycle: import distro from template, open Windows firewall, run `firstboot.sh` inside the distro via `wsl exec` (sets hostname, sshd port, CIFS mount, SSH symlinks), authorize DGX key, verify sshd + systemd. On success, adds distro name to `WSL2_DISTROS` repo variable. All per-distro config is done via Windows SSH → PowerShell → `wsl -d NAME --user root` — no direct port-2222 SSH, avoiding WSL2 mirrored-networking issues. `.smbcredentials` and fstab are baked into the template by `rebuild-template.ps1`. Secrets: `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY`, `DGX_HOST_SSH_KEY`. Vars: `DGX_HOST`, `DGX_HOST_USER`. |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Validate every SSH path in the lab mesh using `wsl2-<distro_name>` alias; checks `~/.ssh/config` host blocks on each machine; reports ✅/❌ per path. Inputs: `distro_name`, `ssh_port`. |
-| WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister a WSL2 distro; optionally delete `C:\wsl\<name>` from disk. |
+| WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister a WSL2 distro; optionally delete `C:\wsl\<name>` from disk. Removes distro name from `WSL2_DISTROS` repo variable (sets to `NONE` if none remain). |
 
 Typical node-count sequence: run **GKE Expand** → deploy workload → run **GKE Restore**. Expand saves the full node pool JSON plus live node count to `gs://miramar-platform-cluster-state/gke/node-pool-<pool>.json`; Restore reads from it automatically — no manual count needed. `node_count_override` on Restore is available as a fallback.
 
@@ -177,7 +177,7 @@ Token is fetched automatically via `GITHUB_ORG_ADMIN_PAT`. Idempotent — re-run
 
 **Network:** containers run with `--network=host` so `.local` mDNS names (`spark-79b7.local`, `orin.local`, `msi.local`) resolve correctly. The image includes `libnss-mdns` with `mdns4_minimal` in `/etc/nsswitch.conf`.
 
-Local machine env vars required: `GITHUB_ORG_GHCR_PAT` (pull runner image), `GITHUB_ORG_ADMIN_PAT` (register/deregister runner). `HF_TOKEN` is a GitHub org secret — injected by workflows, not needed locally.
+Local machine env vars required: `GITHUB_ORG_GHCR_PAT` (pull runner image, needs `read:packages`), `GITHUB_ORG_ADMIN_PAT` (register/deregister runner + write repo variables, needs `admin:org` and `repo` scopes). `HF_TOKEN` is a GitHub org secret — injected by workflows, not needed locally.
 
 **Runner registration tokens** are obtained from GitHub UI or API and expire after 1 hour. The container deregisters cleanly on `SIGTERM`.
 
