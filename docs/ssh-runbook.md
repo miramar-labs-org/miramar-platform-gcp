@@ -6,7 +6,7 @@
 > |---|---|
 > | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on Spark (including `id_ed25519` + `id_ed25519.pub`), create `~/.ssh/` symlinks on Spark, pre-authorize template SMB key. Wires Orin: CIFS-mounts Spark's share at `~/shared/`, symlinks all `~/.ssh/` files → `~/shared/ssh/` (Orin uses Spark's identity — no local keypair). SSHes to Orin via `localhost:22` from agx runner. Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
 > | **WSL2 Provision** | Per-distro: SSHes to the Windows host and runs all config via `wsl -d NAME --user root` (wsl exec) — **no direct port-2222 SSH into the distro**. Writes `/etc/wsl2-provision.conf`, opens Windows Firewall, runs `firstboot.sh` (hostname, sshd port via systemd, CIFS mount, `~/.ssh/` symlinks, `wsl2-<name>` host block). `.smbcredentials` and fstab are baked into the template by `rebuild-template.ps1`. Secrets: `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY`, `DGX_HOST_SSH_KEY`. |
-> | **WSL2 Verify SSH Topology** | Validate all SSH paths end-to-end |
+> | **WSL2 Verify SSH Topology** | Validate bi-directional SSH across all lab nodes. Reads active distros from `WSL2_DISTROS` repo variable and tests spark↔orin, spark↔wsl2-`<name>`, orin↔wsl2-`<name>`, and wsl2-`<A>`↔wsl2-`<B>` for all pairs. Reports ✅/❌ per path. No inputs — triggered manually or called from WSL2 Provision. |
 >
 > **Orin one-time prerequisites** (run on Orin host as `aaron` before first Setup Shared SSH Store run):
 > ```bash
@@ -749,7 +749,7 @@ Editing requires Administrator privileges.
 
 # Part 18: Validation Matrix
 
-> **Automated:** run **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) — it tests all paths and reports ✅/❌. Manual steps below are for debugging.
+> **Automated:** run **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) — it reads all active distros from `WSL2_DISTROS` and tests every bi-directional path, reporting ✅/❌ per path. Manual steps below are for debugging.
 
 ## From DGX
 

@@ -7,14 +7,14 @@ Provision and unprovision WSL2 distros from the configured template tarball via 
 | Workflow | Purpose |
 |---|---|
 | **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar`, run `firstboot.sh` inside the distro via `wsl exec` (sets hostname, sshd port, CIFS mount, `~/.ssh/` symlinks), authorize DGX key, verify sshd + systemd |
-| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate every SSH path in the mesh (DGX→WSL2, Orin→WSL2, WSL2→all) using `wsl2-<distro_name>` alias |
+| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate bi-directional SSH across all lab nodes. Reads active distros from `WSL2_DISTROS` and tests spark↔orin, spark↔wsl2-`<name>`, orin↔wsl2-`<name>`, and wsl2-`<A>`↔wsl2-`<B>` for all pairs. No inputs required. |
 | **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregister a distro; optionally delete the folder at `C:\wsl\<name>` |
 
 Normal provisioning sequence:
 
 ```
 Actions → WSL2 Provision           → distro_name: dev
-Actions → WSL2 Verify SSH Topology → distro_name: dev
+Actions → WSL2 Verify SSH Topology   (no inputs — reads WSL2_DISTROS automatically)
 ```
 
 Teardown:
@@ -137,7 +137,7 @@ After rebuilding, verify the template works:
 
 ```
 Actions → WSL2 Provision           → distro_name: test
-Actions → WSL2 Verify SSH Topology → distro_name: test
+Actions → WSL2 Verify SSH Topology   (no inputs — reads WSL2_DISTROS automatically)
 ```
 
 ---
