@@ -171,6 +171,7 @@ jobs:
             wsl2/mount-dgx-shared.sh \
             wsl2/mount-dgx-shared.service \
             wsl2/mount-dgx-shared.timer \
+            wsl2/collect-wsl2-diagnostics.ps1 \
             "$WSL2_HOST_USER@$WSL2_HOST:"
           # Install inside the distro
           ssh -i /tmp/wsl2_win_host \
@@ -261,6 +262,24 @@ jobs:
               exit 1
             fi
           done
+
+      # ── Step 6b: diagnose WSL lifecycle after provision ─────────────────
+      # This deliberately waits without an active `wsl.exe -d <distro>` client.
+      # If the distro stops during that idle window, the output should show
+      # whether WSL is still idle-terminating it before the verify workflow.
+      - name: Collect WSL lifecycle diagnostics
+        if: always()
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -ExecutionPolicy Bypass -File collect-wsl2-diagnostics.ps1 -Name $DISTRO -IdleSeconds 45"
 
       - name: Register in WSL2_DISTROS
         id: register
