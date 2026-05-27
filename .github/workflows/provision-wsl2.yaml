@@ -171,6 +171,7 @@ jobs:
             wsl2/mount-dgx-shared.sh \
             wsl2/mount-dgx-shared.service \
             wsl2/mount-dgx-shared.timer \
+            wsl2/collect-wsl2-root-cause.ps1 \
             "$WSL2_HOST_USER@$WSL2_HOST:"
           # Install inside the distro
           ssh -i /tmp/wsl2_win_host \
@@ -261,6 +262,24 @@ jobs:
               exit 1
             fi
           done
+
+      # ── Step 6b: root-cause WSL lifecycle shutdowns ─────────────────────
+      # Diagnostic only. This does not keep the distro alive or wake it for
+      # verify. It captures Windows/WSL state, Linux state while still running,
+      # then waits without a WSL client to observe whether WSL stops the distro.
+      - name: Collect WSL shutdown root-cause diagnostics
+        if: always()
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -ExecutionPolicy Bypass -File collect-wsl2-root-cause.ps1 -Name $DISTRO -IdleSeconds 60"
 
       - name: Register in WSL2_DISTROS
         id: register
