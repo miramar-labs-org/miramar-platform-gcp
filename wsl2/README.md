@@ -203,7 +203,20 @@ Inside the distro, pull and run bootstrap.sh:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/bootstrap.sh -o bootstrap.sh
 chmod +x bootstrap.sh
-DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(ssh spark cat ~/.ssh/id_ed25519.pub)" ./bootstrap.sh
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/mount-dgx-shared.sh -o mount-dgx-shared.sh
+chmod +x mount-dgx-shared.sh
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/mount-dgx-shared.service -o mount-dgx-shared.service
+#chmod +x mount-dgx-shared.service
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/mount-dgx-shared.timer -o mount-dgx-shared.timer
+#chmod +x mount-dgx-shared.timer
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/setup-shared-ssh.sh -o setup-shared-ssh.sh
+chmod +x setup-shared-ssh.sh
+
+DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(ssh 192.168.1.200 cat ~/.ssh/id_ed25519.pub)" ./bootstrap.sh
 ```
 
 Configure p10k if desired, then:

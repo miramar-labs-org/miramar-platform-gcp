@@ -6,6 +6,18 @@ export DEBIAN_FRONTEND=noninteractive
 log() { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
 die() { printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2; exit 1; }
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+REQUIRED_COMPANIONS=(
+  mount-dgx-shared.sh
+  mount-dgx-shared.service
+  mount-dgx-shared.timer
+  setup-shared-ssh.sh
+)
+
+for companion in "${REQUIRED_COMPANIONS[@]}"; do
+  [[ -f "$SCRIPT_DIR/$companion" ]] || die "Missing $SCRIPT_DIR/$companion. Run bootstrap.sh from a full checkout/copy of the wsl2 directory, not as a standalone file."
+done
+
 # Fresh Ubuntu images run unattended-upgrades on first boot and hold the dpkg
 # lock for several minutes.  Wait for it to finish before touching apt.
 log "Wait for apt lock (unattended-upgrades may be running)"
@@ -87,20 +99,13 @@ mountFsTab = false
 default = ${USER}
 EOF
 
-log "Configure SSH server: port 2222 for WSL2"
-sudo mkdir -p /etc/ssh/sshd_config.d
-echo 'Port 2222' | sudo tee /etc/ssh/sshd_config.d/wsl2-port.conf >/dev/null
+log "Enable SSH server"
 sudo systemctl enable ssh
 sudo systemctl start ssh || true
 
-log "Generate ed25519 SSH key (idempotent)"
+log "Prepare SSH directory"
 mkdir -p "$HOME/.ssh"
 chmod 700 "$HOME/.ssh"
-if [[ ! -f "$HOME/.ssh/id_ed25519" ]]; then
-  ssh-keygen -t ed25519 -f "$HOME/.ssh/id_ed25519" -C "${USER}@wsl2" -N ""
-fi
-chmod 600 "$HOME/.ssh/id_ed25519"
-chmod 644 "$HOME/.ssh/id_ed25519.pub"
 
 log "Write ~/.smbcredentials (baked into template — no runtime delivery needed)"
 if [[ -z "${DGX_SMB_PASSWORD:-}" ]]; then
@@ -115,18 +120,6 @@ mkdir -p "$HOME/shared"
 grep -v " $HOME/shared " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
 sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 
-log "Prepare ~/.ssh/authorized_keys (seed with Spark runner pubkey)"
-touch "$HOME/.ssh/authorized_keys"
-chmod 600 "$HOME/.ssh/authorized_keys"
-if [[ -z "${DGX_PUBKEY:-}" ]]; then
-  read -rp "Spark id_ed25519.pub (run 'cat ~/.ssh/id_ed25519.pub' on Spark; blank to skip): " DGX_PUBKEY
-fi
-if [[ -n "${DGX_PUBKEY:-}" ]]; then
-  echo "$DGX_PUBKEY" >> "$HOME/.ssh/authorized_keys"
-  echo "Spark pubkey seeded into authorized_keys — DGX_HOST_SSH_KEY can SSH into fresh distros"
-else
-  echo "WARNING: no Spark pubkey provided — runner will not be able to SSH into fresh distros"
-fi
 chown -R "${USER}:${USER}" "$HOME/.ssh"
 
 log "Configure mDNS (.local resolution via avahi + libnss-mdns)"
@@ -139,15 +132,15 @@ sudo systemctl restart avahi-daemon || true
 sudo systemctl restart systemd-resolved 2>/dev/null || true
 
 log "Install shared-folder mount service and setup-shared-ssh.sh"
-sudo install -m 755 "$(dirname "$0")/mount-dgx-shared.sh" /usr/local/sbin/mount-dgx-shared.sh
-sudo install -m 644 "$(dirname "$0")/mount-dgx-shared.service" /etc/systemd/system/mount-dgx-shared.service
-sudo install -m 644 "$(dirname "$0")/mount-dgx-shared.timer" /etc/systemd/system/mount-dgx-shared.timer
+sudo install -m 755 "$SCRIPT_DIR/mount-dgx-shared.sh" /usr/local/sbin/mount-dgx-shared.sh
+sudo install -m 644 "$SCRIPT_DIR/mount-dgx-shared.service" /etc/systemd/system/mount-dgx-shared.service
+sudo install -m 644 "$SCRIPT_DIR/mount-dgx-shared.timer" /etc/systemd/system/mount-dgx-shared.timer
 sudo tee /etc/mount-dgx-shared.conf >/dev/null <<EOF
 DGX_MOUNT_USER=${USER}
 DGX_CIFS_HOST=
 EOF
 sudo systemctl enable /etc/systemd/system/mount-dgx-shared.timer || true
-sudo install -m 755 "$(dirname "$0")/setup-shared-ssh.sh" /usr/local/bin/setup-shared-ssh.sh
+sudo install -m 755 "$SCRIPT_DIR/setup-shared-ssh.sh" /usr/local/bin/setup-shared-ssh.sh
 
 log "Write ~/.ssh/config (lab hosts, skipped if file already exists)"
 SSH_CFG="$HOME/.ssh/config"
@@ -458,7 +451,7 @@ echo "  kubectl version --client"
 echo "  minikube version"
 echo "  go version"
 
-echo "  ss -tlnp | grep 2222          # verify sshd is on port 2222"
+echo "  systemctl status ssh          # verify sshd is enabled"
 echo "Note: Docker may not fully start until after you run wsl --shutdown (systemd)."
 echo "Note: If docker group membership was added, you may need to restart WSL for it to apply."
 echo "Powerlevel10k installed. Run 'p10k configure' once after opening zsh."

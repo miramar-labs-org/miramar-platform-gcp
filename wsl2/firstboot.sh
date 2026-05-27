@@ -75,10 +75,8 @@ log "Setting sshd port → $SSH_PORT"
 mkdir -p /etc/ssh/sshd_config.d
 printf 'Port %s\n' "$SSH_PORT" > /etc/ssh/sshd_config.d/wsl2-port.conf
 # Skip the restart when sshd is already listening on the target port.
-# The template is pre-configured for port 2222 by bootstrap.sh, so this
-# restart is a no-op for the common case. Avoiding unnecessary restarts
-# reduces the risk of disrupting WSL2's internal P9 connection in
-# mirrored-networking mode (same mechanism as daemon-reload).
+# Avoiding unnecessary restarts reduces the risk of disrupting WSL2's internal
+# P9 connection in mirrored-networking mode (same mechanism as daemon-reload).
 if ss -tlnp "sport = :$SSH_PORT" 2>/dev/null | grep -q LISTEN; then
   log "sshd already on port $SSH_PORT — skipping restart"
 else
