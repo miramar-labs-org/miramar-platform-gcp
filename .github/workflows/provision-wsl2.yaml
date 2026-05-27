@@ -45,6 +45,8 @@ jobs:
   provision:
     runs-on: ${{ inputs.runner || 'dgx' }}
     timeout-minutes: 15
+    outputs:
+      wsl2_distros: ${{ steps.register.outputs.wsl2_distros }}
     steps:
       - uses: actions/checkout@v4
 
@@ -239,6 +241,7 @@ jobs:
           done
 
       - name: Register in WSL2_DISTROS
+        id: register
         run: |
           DISTRO='${{ inputs.distro_name }}'
           REPO='${{ github.repository }}'
@@ -247,11 +250,13 @@ jobs:
           [[ "$CURRENT" == "NONE" ]] && CURRENT=""
           if echo " $CURRENT " | grep -qF " $DISTRO "; then
             echo "$DISTRO already in WSL2_DISTROS — skipping"
+            NEW="$CURRENT"
           else
             NEW=$(echo "$CURRENT $DISTRO" | xargs)
             gh variable set WSL2_DISTROS --body "$NEW" --repo "$REPO"
             echo "WSL2_DISTROS: $NEW"
           fi
+          echo "wsl2_distros=$NEW" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         if: always()
@@ -269,3 +274,5 @@ jobs:
   verify:
     needs: provision
     uses: ./.github/workflows/verify-ssh-topology.yaml
+    with:
+      distros: ${{ needs.provision.outputs.wsl2_distros }}
