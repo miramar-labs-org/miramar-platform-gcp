@@ -46,6 +46,8 @@ jobs:
       - uses: actions/checkout@v4
 
       # ── Step 1: import distro from template tarball ──────────────────────
+      # Uses wsl-from-tar.ps1 (PowerShell): unregisters any existing distro,
+      # runs wsl --shutdown, imports from template, then starts the distro.
       - name: Import WSL2 distro from template
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -56,36 +58,32 @@ jobs:
           chmod 600 /tmp/wsl2_win_host
           ssh-keyscan -H "$WSL2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          # The default SSH shell on Windows is cmd.exe.
-          # cmd.exe's & chains commands; if import fails (distro exists), wsl -d still runs.
-          # GHA has already substituted distro_name before bash sees this.
-          # \\ in bash double-quoted string → \ (Windows path separator).
           DISTRO='${{ inputs.distro_name }}'
-          ssh -i /tmp/wsl2_win_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            "$WSL2_HOST_USER@$WSL2_HOST" \
-            "mkdir C:\\wsl\\$DISTRO 2>nul & wsl --import $DISTRO C:\\wsl\\$DISTRO C:\\wsl-templates\\ubuntu-22.04-configured-template.tar --version 2 & wsl -d $DISTRO -- bash -c \"echo distro up\""
-          echo "Import step complete"
 
-      # ── Step 1b: ensure systemd=true in distro ───────────────────────────
-      # Templates exported before wsl --shutdown won't have systemd active.
-      # Write wsl.conf with systemd=true, then terminate+restart so systemd
-      # becomes PID 1 — required to keep the distro alive between SSH sessions.
-      - name: Ensure systemd in distro
-        env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-        run: |
-          DISTRO='${{ inputs.distro_name }}'
+          # Copy import script to Windows home directory
+          scp -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            wsl2/wsl-from-tar.ps1 \
+            "$WSL2_HOST_USER@$WSL2_HOST:wsl-from-tar.ps1"
+
+          # Unregister existing distro (script fails if already registered)
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "wsl -d $DISTRO -- bash -c \"printf '%s\n' '[boot]' 'systemd = true' '[user]' 'default = ${{ vars.DGX_HOST_USER }}' | sudo tee /etc/wsl.conf\" & wsl --terminate $DISTRO & wsl -d $DISTRO -- bash -c \"echo systemd boot\""
-          echo "wsl.conf written; distro restarted with systemd"
+            "wsl --unregister $DISTRO 2>nul & echo unregister done"
+
+          # Import and start via PowerShell script
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -ExecutionPolicy Bypass -File wsl-from-tar.ps1 -Name $DISTRO"
+          echo "Import step complete"
 
       # ── Step 2: wait for sshd inside the distro ──────────────────────────
       - name: Wait for sshd in distro

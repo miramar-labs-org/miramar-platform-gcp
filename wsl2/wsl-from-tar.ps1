@@ -54,5 +54,8 @@ Step 'Shutdown WSL (recommended before import)'
 Step "Import '$Name' from tarball as WSL2"
 & wsl.exe --import $Name $DistroDir $TarPath --version 2 | Out-Null
 
+Step "Start distro '$Name'"
+& wsl.exe -d $Name -- bash -c "echo distro up" | Out-Null
+
 Step 'Done'
-Write-Host "Launch: wsl -d $Name" -ForegroundColor Cyan
+Write-Host "Distro '$Name' is running." -ForegroundColor Cyan
