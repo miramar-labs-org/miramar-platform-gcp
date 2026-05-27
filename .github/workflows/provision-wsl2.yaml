@@ -2,17 +2,21 @@ name: WSL2 Provision
 
 # Full lifecycle: import distro from template, wire into the lab SSH mesh.
 #
+# All per-distro config (hostname, sshd port, CIFS mount, ~/.ssh/ symlinks)
+# is handled by firstboot.sh running INSIDE the distro via wsl exec —
+# no direct port-2222 SSH, so WSL2 mirrored-networking issues are avoided.
+#
 #   1. SSH to Windows host → wsl --import (idempotent)
-#   2. Wait for sshd inside the distro to be reachable
-#   3. Write ~/.smbcredentials inside distro
-#   4. Mount //DGX/shared at ~/shared/ via CIFS
-#   5. Symlink ~/.ssh/ → ~/shared/ssh/ (all machines share Spark's identity)
-#   6. Add wsl2-<name> host block to shared SSH config
+#   2. Write /etc/wsl2-provision.conf into distro (via wsl exec)
+#   3. Open Windows firewall for SSH port
+#   4. Run firstboot.sh inside distro (sets hostname, sshd port, CIFS, ~/.ssh/)
+#   5. Authorize DGX SSH key (writes to ~/shared/ssh/authorized_keys via symlink)
+#   6. Wait for sshd + systemd ready (verification)
 #
 # Prerequisites:
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
 #   - .wslconfig (mirrored networking) set on Windows (see wsl2/post-bootstrap.md)
-#   - Firewall rule for ssh_port open on Windows (see wsl2/post-bootstrap.md)
+#   - Template rebuilt with rebuild-template.ps1 (.smbcredentials + fstab baked in)
 #   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY,
 #              DGX_HOST_SSH_KEY, DGX_SMB_PASSWORD
 #   - Vars:    DGX_HOST, DGX_HOST_USER
@@ -46,8 +50,6 @@ jobs:
       - uses: actions/checkout@v4
 
       # ── Step 1: import distro from template tarball ──────────────────────
-      # Uses wsl-from-tar.ps1 (PowerShell): unregisters any existing distro,
-      # runs wsl --shutdown, imports from template, then starts the distro.
       - name: Import WSL2 distro from template
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -60,7 +62,6 @@ jobs:
 
           DISTRO='${{ inputs.distro_name }}'
 
-          # Copy import script to Windows home directory
           scp -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
@@ -68,7 +69,6 @@ jobs:
             wsl2/wsl-from-tar.ps1 \
             "$WSL2_HOST_USER@$WSL2_HOST:wsl-from-tar.ps1"
 
-          # Unregister existing distro (script fails if already registered)
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
@@ -76,7 +76,6 @@ jobs:
             "$WSL2_HOST_USER@$WSL2_HOST" \
             "wsl --unregister $DISTRO 2>nul & echo unregister done"
 
-          # Import and start via PowerShell script
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
@@ -85,25 +84,88 @@ jobs:
             "powershell -ExecutionPolicy Bypass -File wsl-from-tar.ps1 -Name $DISTRO"
           echo "Import step complete"
 
-      # ── Step 1b: set sshd port + open Windows firewall rule ──────────────
-      # Template always boots on port 2222; update to the requested port and
-      # open the matching inbound firewall rule before we wait for sshd.
-      - name: Set sshd port and open firewall
+      # ── Step 2: write provision config + open Windows firewall ───────────
+      # Uses wsl exec (not port-2222 SSH) — no mirrored-networking issues.
+      - name: Write provision config and open firewall
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
           WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          DGX_HOST: ${{ vars.DGX_HOST }}
         run: |
-          PORT='${{ inputs.ssh_port }}'
           DISTRO='${{ inputs.distro_name }}'
+          PORT='${{ inputs.ssh_port }}'
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'echo Port $PORT > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh && echo done'; New-NetFirewallRule -DisplayName 'WSL2 SSH $DISTRO' -Direction Inbound -Protocol TCP -LocalPort $PORT -Action Allow -ErrorAction SilentlyContinue | Out-Null; Write-Host 'firewall OK'\""
-          echo "Port and firewall step complete"
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'printf distro_name=$DISTRO\nssh_port=$PORT\nmount_user=$DGX_HOST_USER\ndgx_host=$DGX_HOST\n > /etc/wsl2-provision.conf && echo config_written'\""
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -Command \"New-NetFirewallRule -DisplayName 'WSL2 SSH $DISTRO' -Direction Inbound -Protocol TCP -LocalPort $PORT -Action Allow -ErrorAction SilentlyContinue | Out-Null; Write-Host 'firewall OK'\""
+          echo "Provision config and firewall step complete"
 
-      # ── Step 2: wait for sshd inside the distro ──────────────────────────
+      # ── Step 3: run firstboot inside distro ──────────────────────────────
+      # Pushes latest firstboot.sh + setup-shared-ssh.sh from repo,
+      # then runs firstboot.sh via wsl exec (synchronous, waits for CIFS).
+      - name: Run firstboot
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          # Push latest scripts to Windows home (accessible via /mnt/c/ in WSL)
+          scp -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            wsl2/firstboot.sh wsl2/setup-shared-ssh.sh \
+            "$WSL2_HOST_USER@$WSL2_HOST:"
+          # Install inside the distro
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'install -m 755 /mnt/c/Users/$WSL2_HOST_USER/firstboot.sh /usr/local/bin/firstboot.sh && install -m 755 /mnt/c/Users/$WSL2_HOST_USER/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && echo scripts_installed'\""
+          # Run firstboot synchronously (sets hostname, sshd port, CIFS, ~/.ssh/)
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=6 \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash /usr/local/bin/firstboot.sh\""
+          echo "Firstboot complete"
+
+      # ── Step 4: authorize DGX SSH key ────────────────────────────────────
+      # Runs after firstboot so ~/.ssh/authorized_keys is already symlinked
+      # to ~/shared/ssh/authorized_keys — key goes into the shared store.
+      - name: Authorize DGX SSH key in distro
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
+          chmod 600 /tmp/dgx_priv
+          DGX_PUBKEY=$(ssh-keygen -y -f /tmp/dgx_priv)
+          rm -f /tmp/dgx_priv
+          DISTRO='${{ inputs.distro_name }}'
+          printf '%s\n' "$DGX_PUBKEY" | \
+            ssh -i /tmp/wsl2_win_host \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "$WSL2_HOST_USER@$WSL2_HOST" \
+              "wsl -d $DISTRO -- bash -c \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\""
+          echo "DGX pubkey authorized in distro"
+
+      # ── Step 5: verify sshd is reachable ─────────────────────────────────
       - name: Wait for sshd in distro
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -122,9 +184,7 @@ jobs:
             fi
           done
 
-      # ── Step 2b: wait for systemd to finish booting ───────────────────────
-      # Ensures D-Bus, network, and CIFS mount are settled before any SSH
-      # commands run sudo or systemctl inside the distro.
+      # ── Step 6: verify systemd ready ─────────────────────────────────────
       - name: Wait for systemd ready
         env:
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
@@ -148,87 +208,6 @@ jobs:
             sleep 5
             [[ $i -eq 24 ]] && echo "WARNING: systemd not fully ready after 120s, proceeding"
           done
-
-      # ── Step 3: authorize DGX key in distro ──────────────────────────────
-      # Templates exported before bootstrap.sh gained DGX_PUBKEY seeding won't
-      # have Spark's key in authorized_keys. Derive the public key from the private
-      # key and inject it via Windows SSH (pipe through wsl -d ... -- bash).
-      - name: Authorize DGX SSH key in distro
-        env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-        run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
-          chmod 600 /tmp/dgx_priv
-          DGX_PUBKEY=$(ssh-keygen -y -f /tmp/dgx_priv)
-          rm -f /tmp/dgx_priv
-          DISTRO='${{ inputs.distro_name }}'
-          printf '%s\n' "$DGX_PUBKEY" | \
-            ssh -i /tmp/wsl2_win_host \
-              -o BatchMode=yes \
-              -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=accept-new \
-              "$WSL2_HOST_USER@$WSL2_HOST" \
-              "wsl -d $DISTRO -- bash -c \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\""
-          echo "DGX pubkey authorized in distro"
-
-      # ── Steps 5-7: wire SSH mesh ─────────────────────────────────────────
-      # ── Step 5: set hostname = distro name, persist via wsl.conf, restart avahi ─
-      - name: Set hostname and enable mDNS
-        env:
-          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-        run: |
-          DISTRO='${{ inputs.distro_name }}'
-          ssh -i /tmp/wsl2_host \
-            -p "${{ inputs.ssh_port }}" \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            "$DGX_HOST_USER@$WSL2_HOST" \
-            "printf '%s\n' '$DISTRO' | sudo tee /etc/hostname > /dev/null && sudo hostname '$DISTRO' && \
-             grep -q '^\[network\]' /etc/wsl.conf \
-               || printf '\n[network]\nhostname = %s\n' '$DISTRO' | sudo tee -a /etc/wsl.conf > /dev/null && \
-             echo \"hostname: \$(hostname)\""
-          echo "Hostname step complete"
-
-      - name: Write .smbcredentials on distro
-        env:
-          DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
-          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-        run: |
-          printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \
-            ssh -i /tmp/wsl2_host \
-              -p "${{ inputs.ssh_port }}" \
-              -o BatchMode=yes \
-              -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=accept-new \
-              "$DGX_HOST_USER@$WSL2_HOST" \
-              'cat > ~/.smbcredentials && chmod 600 ~/.smbcredentials'
-          echo "Written .smbcredentials"
-
-      - name: Mount DGX shared store and symlink SSH files
-        env:
-          DGX_HOST: ${{ vars.DGX_HOST }}
-          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-        run: |
-          # Always push the repo's copy so template vintage doesn't matter
-          scp -i /tmp/wsl2_host \
-            -P "${{ inputs.ssh_port }}" \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            wsl2/setup-shared-ssh.sh \
-            "$DGX_HOST_USER@$WSL2_HOST:/tmp/setup-shared-ssh.sh"
-          ssh -i /tmp/wsl2_host \
-            -p "${{ inputs.ssh_port }}" \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            "$DGX_HOST_USER@$WSL2_HOST" \
-            "sudo install -m 755 /tmp/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && sudo /usr/local/bin/setup-shared-ssh.sh '$DGX_HOST' '$DGX_HOST_USER' '${{ inputs.distro_name }}' '${{ inputs.ssh_port }}' '$WSL2_HOST'"
 
       - name: Summary
         if: always()
