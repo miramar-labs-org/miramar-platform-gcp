@@ -110,6 +110,15 @@ log "Write ~/.smbcredentials (baked into template — no runtime delivery needed
 printf 'username=%s\npassword=%s\n' "$USER" "$DGX_SMB_PASSWORD" > "$HOME/.smbcredentials"
 chmod 600 "$HOME/.smbcredentials"
 
+log "Write CIFS fstab entry (mounts //spark-79b7.local/shared at boot via systemd)"
+mkdir -p "$HOME/shared"
+CIFS_UID=$(id -u)
+CIFS_GID=$(id -g)
+if ! grep -qF "spark-79b7.local/shared" /etc/fstab 2>/dev/null; then
+  printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,_netdev,nofail,file_mode=0600,dir_mode=0700 0 0\n' \
+    "$HOME" "$HOME" "$CIFS_UID" "$CIFS_GID" | sudo tee -a /etc/fstab > /dev/null
+fi
+
 log "Prepare ~/.ssh/authorized_keys (seed with Spark runner pubkey)"
 touch "$HOME/.ssh/authorized_keys"
 chmod 600 "$HOME/.ssh/authorized_keys"
