@@ -112,8 +112,20 @@ jobs:
               || echo "  Warning: could not start $d (may already be stopped or missing)"
           done
 
-      # ── Step 2: write provision config + open Windows firewall ───────────
+      # ── Step 2: write provision config + patch wsl.conf + open firewall ────
       # Uses wsl exec (not port-2222 SSH) — no mirrored-networking issues.
+      #
+      # The first wsl exec starts the distro; WSL2's internal ConfigMountFsTab
+      # runs and tries the CIFS fstab entry despite noauto. mDNS resolution of
+      # spark-79b7.local takes ~9 s before failing, burning WSL2's 10-second
+      # WaitForBootProcess window. Systemd starts 1 second after WSL2 declared
+      # it missed — WSL2 then treats the distro as having no systemd and kills it
+      # when all sessions end (even with systemd = true in wsl.conf).
+      #
+      # Fix: patch wsl.conf with [automount] mountFsTab = false so the NEXT boot
+      # (firstboot) skips WSL2's fstab processing. systemd-fstab-generator still
+      # reads fstab and creates the automount unit (lazily, after avahi is up).
+      # We wsl --terminate after patching so firstboot boots cleanly.
       - name: Write provision config and open firewall
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -123,12 +135,23 @@ jobs:
         run: |
           DISTRO='${{ inputs.distro_name }}'
           PORT='${{ inputs.ssh_port }}'
+          # Write provision config AND patch wsl.conf in the same wsl exec.
+          # This is the distro's first boot — ConfigMountFsTab will delay it, but
+          # we add mountFsTab=false so the next boot (firstboot) is clean.
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'echo distro_name=$DISTRO > /etc/wsl2-provision.conf && echo ssh_port=$PORT >> /etc/wsl2-provision.conf && echo mount_user=$DGX_HOST_USER >> /etc/wsl2-provision.conf && echo dgx_host=$DGX_HOST >> /etc/wsl2-provision.conf && echo config_written'\""
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'echo distro_name=$DISTRO > /etc/wsl2-provision.conf && echo ssh_port=$PORT >> /etc/wsl2-provision.conf && echo mount_user=$DGX_HOST_USER >> /etc/wsl2-provision.conf && echo dgx_host=$DGX_HOST >> /etc/wsl2-provision.conf && grep -q mountFsTab /etc/wsl.conf 2>/dev/null || { echo && echo [automount] && echo mountFsTab = false; } >> /etc/wsl.conf && echo config_written'\""
+          # Terminate so firstboot runs on a fresh boot with mountFsTab=false
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "wsl --terminate $DISTRO"
+          echo "wsl.conf patched (mountFsTab=false); distro terminated for clean restart"
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \

@@ -76,6 +76,17 @@ sudo tee /etc/wsl.conf >/dev/null <<EOF
 [boot]
 systemd = true
 
+[automount]
+# Disable WSL2's pre-systemd fstab processing. WSL2's internal ConfigMountFsTab
+# ignores 'noauto' and tries every fstab entry at boot. The CIFS entry for the
+# shared folder causes an mDNS lookup of spark-79b7.local that takes ~9 seconds
+# to fail, pushing systemd startup past WSL2's 10-second WaitForBootProcess window.
+# WSL2 then marks the boot as failed and applies idle termination (killing the
+# distro when all sessions end) even though systemd = true. With mountFsTab = false,
+# systemd-fstab-generator handles /etc/fstab instead, correctly creating an
+# automount unit that mounts CIFS lazily after avahi is running.
+mountFsTab = false
+
 [user]
 default = ${USER}
 EOF
