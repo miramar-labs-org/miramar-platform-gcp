@@ -1,7 +1,9 @@
 name: WSL2 Unprovision
 
 # Unregisters a WSL2 distro on the Windows laptop (removes it from WSL; does not delete C:\wsl\<name> files).
-# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY
+# Also removes the wsl2-<name> Host block from the shared SSH config on DGX.
+# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
+# Vars required:    DGX_HOST, DGX_HOST_USER
 
 on:
   workflow_dispatch:
@@ -75,6 +77,39 @@ jobs:
             -o PasswordAuthentication=no \
             "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
             "if exist \"C:\\wsl\\${{ inputs.distro_name }}\" rd /s /q \"C:\\wsl\\${{ inputs.distro_name }}\"" || true
+
+      - name: Remove from shared SSH config
+        if: always()
+        env:
+          DGX_HOST: ${{ vars.DGX_HOST }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+        shell: bash
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
+          chmod 600 /tmp/dgx_priv
+          ssh -i /tmp/dgx_priv \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
+            "$DGX_HOST_USER@$DGX_HOST" "python3 - $DISTRO" << 'PYEOF'
+import re, sys, os
+distro = sys.argv[1]
+path = os.path.expanduser('~/shared/ssh/config')
+try:
+    with open(path) as f:
+        text = f.read()
+except FileNotFoundError:
+    print(f'Shared SSH config not found at {path} — nothing to remove')
+    sys.exit(0)
+new = re.sub(r'\nHost wsl2-' + re.escape(distro) + r'\n(?:[ \t][^\n]*\n?)*', '\n', text)
+with open(path, 'w') as f:
+    f.write(new)
+if new != text:
+    print(f'Removed wsl2-{distro} block from shared SSH config')
+else:
+    print(f'wsl2-{distro} block not found in shared SSH config (already clean)')
+PYEOF
+          rm -f /tmp/dgx_priv
 
       - name: List WSL distros after unprovision
         if: always()
