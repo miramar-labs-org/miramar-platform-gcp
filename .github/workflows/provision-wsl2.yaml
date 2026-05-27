@@ -267,7 +267,7 @@ jobs:
       # Diagnostic only. This does not keep the distro alive or wake it for
       # verify. It captures Windows/WSL state, Linux state while still running,
       # then waits without a WSL client to observe whether WSL stops the distro.
-      - name: Diagnostic A/B - unmount Windows Plan9 drives
+      - name: Suppress Ubuntu Pro bridge diagnostic noise
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
           WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
@@ -278,7 +278,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root -- bash -lc 'systemctl disable --now wsl-pro.service 2>/dev/null || true; cd /; findmnt /mnt/c || true; umount -R /mnt/c 2>/dev/null || true; findmnt /mnt/c || true'\""
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -lc 'systemctl disable --now wsl-pro.service 2>/dev/null || true; systemctl status wsl-pro.service --no-pager || true'\""
 
       - name: Collect WSL shutdown root-cause diagnostics
         if: always()
@@ -292,7 +292,13 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -ExecutionPolicy Bypass -File collect-wsl2-root-cause.ps1 -Name $DISTRO -IdleSeconds 60"
+            "powershell -ExecutionPolicy Bypass -File collect-wsl2-root-cause.ps1 -Name $DISTRO -IdleSeconds 60 -IdleMode no-client"
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -ExecutionPolicy Bypass -File collect-wsl2-root-cause.ps1 -Name $DISTRO -IdleSeconds 60 -IdleMode attached-client"
 
       - name: Register in WSL2_DISTROS
         id: register

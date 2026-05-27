@@ -3,7 +3,10 @@ param(
   [ValidateNotNullOrEmpty()]
   [string]$Name,
 
-  [int]$IdleSeconds = 60
+  [int]$IdleSeconds = 60,
+
+  [ValidateSet('no-client', 'attached-client')]
+  [string]$IdleMode = 'no-client'
 )
 
 $ErrorActionPreference = 'Continue'
@@ -37,6 +40,18 @@ function Get-DistroState([string]$DistroName) {
 }
 
 $ProbeId = [guid]::NewGuid().ToString()
+$AttachedClient = $null
+
+if ($IdleMode -eq 'attached-client') {
+  Section "Starting attached WSL client for '$Name'"
+  $attachedSeconds = $IdleSeconds + 30
+  $AttachedClient = Start-Process -FilePath 'wsl.exe' `
+    -ArgumentList @('-d', $Name, '--exec', 'sleep', "$attachedSeconds") `
+    -PassThru `
+    -WindowStyle Hidden
+  Start-Sleep -Seconds 3
+  Write-Host "Attached WSL client pid: $($AttachedClient.Id)"
+}
 
 function Show-WindowsWslDiagnostics {
   Section 'Windows WSL version and status'
@@ -72,6 +87,7 @@ function Show-WindowsWslDiagnostics {
 }
 
 Section 'WSL distro state before Linux diagnostics'
+Write-Host "Idle mode: $IdleMode"
 Show-WslList
 $initialState = Get-DistroState -DistroName $Name
 Write-Host "Observed initial state for '$Name': $initialState"
@@ -134,8 +150,22 @@ journalctl -b -n 300 --no-pager || true
   Section "Skipping Linux diagnostics because '$Name' is not running before idle window"
 }
 
-Section "Waiting $IdleSeconds seconds without a WSL client process"
+if ($IdleMode -eq 'attached-client') {
+  Section "Waiting $IdleSeconds seconds with an attached WSL client process"
+} else {
+  Section "Waiting $IdleSeconds seconds without a WSL client process"
+}
 Start-Sleep -Seconds $IdleSeconds
+
+if ($AttachedClient) {
+  Section 'Attached WSL client status after idle window'
+  try {
+    $AttachedClient.Refresh()
+    Write-Host "Attached WSL client has exited: $($AttachedClient.HasExited)"
+  } catch {
+    Write-Host "ERROR: $($_.Exception.Message)"
+  }
+}
 
 Section 'WSL distro state after idle window'
 Show-WslList
@@ -145,9 +175,35 @@ Write-Host "Observed final state for '$Name': $finalState"
 Section 'Windows WSL diagnostics after idle window'
 Show-WindowsWslDiagnostics
 
+if ($AttachedClient) {
+  Section 'Stopping attached WSL client'
+  if (-not $AttachedClient.HasExited) {
+    Stop-Process -Id $AttachedClient.Id -Force -ErrorAction SilentlyContinue
+  }
+}
+
 if ($finalState -eq 'Running') {
   Section 'Linux journal tail after idle window'
-  & wsl.exe -d $Name --user root --exec bash -lc "journalctl -b -n 300 --no-pager || true"
+  & wsl.exe -d $Name --user root --exec env WSL2_IDLE_PROBE_ID=$ProbeId bash -lc @'
+set +e
+
+echo '--- idle probe marker after idle window ---'
+cat /var/tmp/wsl2-idle-probe-id 2>/dev/null || true
+cat /var/tmp/wsl2-idle-probe-epoch 2>/dev/null || true
+echo
+
+echo '--- journal entries matching idle probe ---'
+journalctl --no-pager --grep "$WSL2_IDLE_PROBE_ID" 2>/dev/null || true
+echo
+
+echo '--- journal entries since idle probe ---'
+PROBE_EPOCH=$(cat /var/tmp/wsl2-idle-probe-epoch 2>/dev/null || true)
+if [ -n "$PROBE_EPOCH" ]; then
+  journalctl --no-pager --since "@$PROBE_EPOCH" -n 500 || true
+else
+  echo 'No idle probe epoch found.'
+fi
+'@
 } else {
   Section "Restarting '$Name' to collect post-stop Linux diagnostics"
   & wsl.exe -d $Name --user root --exec env WSL2_IDLE_PROBE_ID=$ProbeId bash -lc @'
@@ -194,6 +250,12 @@ loginctl list-sessions --no-legend 2>/dev/null || true
 '@
 
   Section "Terminating '$Name' after post-stop diagnostics"
+  & wsl.exe --terminate $Name
+  Show-WslList
+}
+
+if ($finalState -eq 'Running') {
+  Section "Terminating '$Name' after running-state diagnostics"
   & wsl.exe --terminate $Name
   Show-WslList
 }
