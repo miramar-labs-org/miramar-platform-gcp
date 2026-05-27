@@ -5,7 +5,7 @@
 > | Workflow | What it does |
 > |---|---|
 > | **Setup Shared SSH Store** | One-time: init `~/shared/ssh/` on Spark (including `id_ed25519` + `id_ed25519.pub`), create `~/.ssh/` symlinks on Spark, pre-authorize template SMB key. Wires Orin: CIFS-mounts Spark's share at `~/shared/`, symlinks all `~/.ssh/` files → `~/shared/ssh/` (Orin uses Spark's identity — no local keypair). SSHes to Orin via `localhost:22` from agx runner. Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
-> | **WSL2 Provision** | Per-distro: SSH directly into the distro on `ssh_port` using `DGX_HOST_SSH_KEY`, write `.smbcredentials`, CIFS-mount Spark's share at `~/shared/`, symlink all `~/.ssh/` files → `~/shared/ssh/`, add `wsl2-<name>` host block to shared config. Distro uses Spark's identity — no per-distro keypair. Secrets: `WSL2_HOST`, `DGX_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
+> | **WSL2 Provision** | Per-distro: SSHes to the Windows host and runs all config via `wsl -d NAME --user root` (wsl exec) — **no direct port-2222 SSH into the distro**. Writes `/etc/wsl2-provision.conf`, opens Windows Firewall, runs `firstboot.sh` (hostname, sshd port via systemd, CIFS mount, `~/.ssh/` symlinks, `wsl2-<name>` host block). `.smbcredentials` and fstab are baked into the template by `rebuild-template.ps1`. Secrets: `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY`, `DGX_HOST_SSH_KEY`. |
 > | **WSL2 Verify SSH Topology** | Validate all SSH paths end-to-end |
 >
 > **Orin one-time prerequisites** (run on Orin host as `aaron` before first Setup Shared SSH Store run):
@@ -28,14 +28,18 @@
 
 This runbook documents the SSH and DNS setup for a local lab consisting of:
 
-| Machine | Hostname | DNS |
-|---|---|---|
-| DGX / Spark | `spark-79b7` | `spark-79b7.local` |
-| Jetson Orin | `orin` | `orin.local` |
-| MSI Windows laptop | `msi` | `msi.local` |
-| WSL2 on MSI | `wsl2` | `wsl2.local` *(unreliable on Windows — use IP `192.168.1.201` in SSH configs)* |
+| Machine | Hostname | DNS | SSH alias |
+|---|---|---|---|
+| DGX / Spark | `spark-79b7` | `spark-79b7.local` | `spark` / `dgx` |
+| Jetson Orin | `orin` | `orin.local` | `orin` |
+| MSI Windows laptop | `msi` | `msi.local` | `msi` (Windows shell, port 22) |
+| WSL2 distro on MSI | `<distro_name>` | — | `wsl2-<distro_name>` (sshd port 2222+) |
 
-The goal is seamless SSH between all machines using `id_ed25519` keys.
+Each WSL2 distro gets its own name and sshd port. The `wsl2-<name>` SSH alias is written
+into the shared `~/.ssh/config` by `setup-shared-ssh.sh` during provisioning and is
+immediately visible on all machines that share the store.
+
+All machines share Spark's `id_ed25519` identity — there are no per-machine keypairs.
 
 ---
 

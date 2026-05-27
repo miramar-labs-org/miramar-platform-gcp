@@ -75,19 +75,23 @@ sudo ufw allow samba
 
 ## Accessing the share from WSL2
 
-WSL2 distros use **smbclient** to access individual files from the DGX share — no CIFS kernel
-mount required. Credentials are stored in `~/.smbcredentials` (baked into the template by
-`bootstrap.sh`; the password is the DGX Samba password set with `smbpasswd`).
+WSL2 distros provisioned via **WSL2 Provision** have `~/shared/` **CIFS-mounted automatically**
+by `setup-shared-ssh.sh` during `firstboot.sh`. This is the same mount used for the SSH mesh
+(`~/.ssh/` → `~/shared/ssh/`). The fstab entry uses `noauto` to prevent boot-time mount
+failures; `firstboot.sh` mounts it explicitly at provision time.
 
-### Install smbclient
-
-`smbclient` is pre-installed in the template by `bootstrap.sh`. To install manually:
+After a distro restart, `~/shared/` is **not** automatically remounted (fstab `noauto`).
+To remount manually:
 
 ```sh
-sudo apt-get install -y --no-install-recommends smbclient
+sudo mount ~/shared
 ```
 
-### Ad-hoc file access
+Credentials are stored in `~/.smbcredentials` (baked into the template by `rebuild-template.ps1`).
+
+### Ad-hoc file access via smbclient
+
+For scripts that don't need a mounted filesystem, `smbclient` is available:
 
 ```sh
 # List share contents
@@ -102,10 +106,7 @@ smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
   -c "put /local/file remote/path/file"
 ```
 
-### Optional: CIFS kernel mount (ad-hoc / manual only)
-
-A CIFS mount gives a familiar filesystem view but requires `cifs-utils` and sudo.
-It is **not set up automatically** by any workflow — use it for manual troubleshooting only.
+### Manual CIFS mount (if not provisioned via workflow)
 
 ```sh
 sudo apt-get install -y cifs-utils

@@ -59,7 +59,6 @@ flowchart LR
 [![Ollama Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml)
 [![Setup Shared SSH Store](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/setup-shared-ssh.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/setup-shared-ssh.yaml)
 [![WSL2 Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml)
-[![WSL2 Post-Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/post-provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/post-provision-wsl2.yaml)
 [![WSL2 Verify SSH Topology](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml)
 [![WSL2 Unprovision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml)
 
@@ -156,7 +155,7 @@ Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dash
 | `NVIDIA_API_KEY` | NVIDIA NGC API key | Required by NeMo Microservices and NIM workflows |
 | `DGX_HOST_SSH_KEY` | Private SSH key (Ed25519) | Key used to SSH into the DGX host from runners; matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
 | `ORIN_HOST_SSH_KEY` | Private SSH key (Ed25519) | Key used to SSH into the Orin host from the agx runner container (via `localhost:22` — container uses `--network=host`); matching public key must be in `~/.ssh/authorized_keys` for `aaron` on Orin. Use Orin's own `~/.ssh/id_ed25519` and self-authorize it. |
-| `DGX_SMB_PASSWORD` | Samba password for the DGX `aaron` user | Used by **Setup Shared SSH Store** (writes `.smbcredentials` on Orin — one-time admin op). **Not needed by WSL2 Post-Provision** — credentials are baked into the template by `bootstrap.sh`. |
+| `DGX_SMB_PASSWORD` | Samba password for the DGX `aaron` user | Used by **Setup Shared SSH Store** (writes `.smbcredentials` on Orin — one-time admin op). **Not needed by WSL2 Provision** — credentials are baked into the template by `rebuild-template.ps1`. |
 | `DGX_MINIKUBE_KUBECONFIG` | base64-encoded kubeconfig | Written by **Minikube Install**; used by minikube workflows to reach the DGX cluster |
 
 ### Repo-level secrets — [miramar-platform-gcp settings](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions)
@@ -827,18 +826,17 @@ WSL2 distros are provisioned from a pre-built configured template tarball (`C:\w
 
 **Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `ml`) and its own sshd port (2222 for the first, increment by 1 for each additional). All SSH configs use the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-ml`) so instances never conflict.
 
-**One-time template setup** (per template build — run `bootstrap.sh`, export tarball, commit `wsl2/id_ed25519_smb.pub`, then run Setup Shared SSH Store):
+**One-time template setup** (per template build):
 ```
-wsl2/bootstrap.sh       → bakes id_ed25519_smb + .smbcredentials into the distro
-wsl --export ...        → export to C:\wsl-templates\ubuntu-22.04-configured-template.tar
+wsl2/bootstrap.sh (inside distro)  → bakes id_ed25519_smb + .smbcredentials
+wsl2/rebuild-template.ps1          → patches fstab + .smbcredentials, exports tarball
 git add wsl2/id_ed25519_smb.pub && git push
 Actions → Setup Shared SSH Store
 ```
 
-**Per-distro provisioning sequence** (no DGX_SMB_PASSWORD needed — credentials baked into template):
+**Per-distro provisioning sequence** (`DGX_SMB_PASSWORD` not needed — baked into template):
 ```
-Actions → WSL2 Provision           → distro_name: dev
-Actions → WSL2 Post-Provision      → distro_name: dev  ssh_port: 2222
+Actions → WSL2 Provision           → distro_name: dev  ssh_port: 2222
 Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 ```
 
@@ -852,9 +850,9 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 
 ### [Setup Shared SSH Store](.github/workflows/setup-shared-ssh.yaml)
 
-**Run once before provisioning any WSL2 distro** (and again after each template rebuild). Initialises `~/shared/ssh/` on DGX as the single source of truth for SSH config, pre-authorizes `wsl2/id_ed25519_smb.pub` (the template SMB bootstrap key) on DGX, and wires up Orin via `orin-ssh-setup.service` (smbclient — no CIFS kernel mount).
+**Run once before provisioning any WSL2 distro** (and again after each template rebuild). Initialises `~/shared/ssh/` on DGX as the single source of truth for SSH config, pre-authorizes `wsl2/id_ed25519_smb.pub` (the template SMB bootstrap key) on DGX, and wires up Orin (CIFS-mounts `//DGX/shared` at `~/shared/`, symlinks all `~/.ssh/` files → `~/shared/ssh/`).
 
-After this runs, `~/.ssh/config`, `~/.ssh/known_hosts`, and `~/.ssh/authorized_keys` on DGX are symlinks into `~/shared/ssh/`. Orin and each WSL2 distro sync these files from DGX via `smbclient` on every cold start.
+After this runs, `~/.ssh/config`, `~/.ssh/known_hosts`, and `~/.ssh/authorized_keys` on DGX are symlinks into `~/shared/ssh/`. Orin mounts the same share via CIFS and symlinks its `~/.ssh/` to the shared store — all machines share Spark's SSH identity.
 
 **Prerequisites for Orin setup** (one-time, on the Orin host as `aaron`):
 ```bash
@@ -880,55 +878,37 @@ Actions → Setup Shared SSH Store → Run workflow
 
 ### [WSL2 Provision](.github/workflows/provision-wsl2.yaml)
 
-Imports a new distro from the configured template tarball on the Windows host.
+Full lifecycle: imports a new distro from the configured template tarball, then runs `firstboot.sh` inside the distro via Windows SSH → `wsl exec` (no direct port-2222 SSH — avoids WSL2 mirrored-networking issues). Sets hostname, opens Windows Firewall rule, restarts sshd on the configured port, mounts `//DGX/shared` via CIFS, symlinks `~/.ssh/ → ~/shared/ssh/`, and writes the `wsl2-<distro_name>` host block to the shared SSH config. Authorizes the DGX SSH key, then verifies sshd + systemd are up.
+
+`.smbcredentials` and fstab are baked into the template by `rebuild-template.ps1` — **no `DGX_SMB_PASSWORD` needed at provision time**.
 
 | Input | Default | Description |
 |---|---|---|
-| `distro_name` | `dev` | Name for the new distro |
-| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`, `wsl2`) |
+| `distro_name` | `dev` | Name for the new distro (becomes its hostname and SSH alias suffix) |
+| `ssh_port` | `2222` | sshd port — increment for each additional instance |
+| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`) |
 
 ```
-Actions → WSL2 Provision → distro_name: dev → Run workflow
-```
-
-### [WSL2 Post-Provision](.github/workflows/post-provision-wsl2.yaml)
-
-Wires up the full SSH mesh between WSL2, DGX, Orin, and MSI Windows. Automates all steps in [wsl2/post-bootstrap.md](wsl2/post-bootstrap.md). **No `DGX_SMB_PASSWORD` required** — Samba credentials are baked into the template by `bootstrap.sh`.
-
-- Writes `.wslconfig` (mirrored networking) + `wsl --shutdown` if content changed
-- Adds Windows Firewall rule for the distro's sshd port (idempotent, named `WSL2 SSH <port> Inbound`)
-- Writes the correct sshd port into the distro (`/etc/ssh/sshd_config.d/wsl2-port.conf`)
-- Writes `/etc/wsl2-distro-name` so the service knows its SSH alias
-- Starts `wsl2-ssh-setup.service` — smbclient syncs SSH files from DGX, adds distro pubkey to shared `authorized_keys`, adds `wsl2-<name>` host block to shared config
-
-SSH alias is `wsl2-<distro_name>`. On Windows it resolves to `localhost:<port>`; on DGX/Orin it resolves to `$WSL2_HOST:<port>` via mirrored networking.
-
-| Input | Default | Description |
-|---|---|---|
-| `distro_name` | `dev` | WSL2 distro to configure |
-| `ssh_port` | `2222` | sshd port for this distro — increment for each additional instance |
-| `runner` | `dgx` | Runner for Windows SSH steps |
-
-```
-Actions → WSL2 Post-Provision → distro_name: dev  ssh_port: 2222 → Run workflow
+Actions → WSL2 Provision → distro_name: dev  ssh_port: 2222 → Run workflow
 ```
 
 ### [WSL2 Verify SSH Topology](.github/workflows/verify-ssh-topology.yaml)
 
-Validates every SSH path in the mesh and checks `~/.ssh/config` host blocks and `authorized_keys` on each machine. Reports ✅/❌ per path in the workflow summary.
+Validates every SSH path in the mesh. Reports ✅/❌ per path in the workflow summary.
 
-| Path tested | |
+| Path tested | Runner |
 |---|---|
-| DGX → `ssh wsl2-<distro> hostname` | ✅/❌ |
-| Orin → `ssh wsl2-<distro> hostname` | ✅/❌ |
-| Windows → `ssh wsl2-<distro> hostname` | ✅/❌ |
-| WSL2 → `ssh spark/orin/msi hostname` | ✅/❌ |
+| DGX → `ssh orin hostname` | `dgx` |
+| DGX → `ssh wsl2-<distro> hostname` | `dgx` |
+| Orin → `ssh spark hostname` | `agx` |
+| Orin → `ssh wsl2-<distro> hostname` | `agx` |
+| WSL2 → `ssh spark hostname` (nested via `wsl2-<distro>`) | `dgx` |
+| WSL2 → `ssh orin hostname` (nested via `wsl2-<distro>`) | `dgx` |
 
 | Input | Default | Description |
 |---|---|---|
-| `distro_name` | `dev` | Expected WSL2 hostname (used to build the `wsl2-<distro>` alias) |
+| `distro_name` | `dev` | WSL2 distro name (used to build the `wsl2-<distro>` alias) |
 | `ssh_port` | `2222` | sshd port for this distro |
-| `runner` | `dgx` | Runner for Windows SSH steps |
 
 ```
 Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222 → Run workflow

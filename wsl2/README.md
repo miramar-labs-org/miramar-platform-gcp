@@ -6,8 +6,8 @@ Provision and unprovision WSL2 distros from the configured template tarball via 
 
 | Workflow | Purpose |
 |---|---|
-| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar`, then SSH into the distro and call `setup-shared-ssh.sh` — mounts `//DGX/shared` via CIFS and symlinks `~/.ssh/` to `~/shared/ssh/` |
-| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate every SSH path in the mesh (DGX↔WSL2, Orin↔WSL2, Windows↔WSL2, WSL2→all) |
+| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar`, run `firstboot.sh` inside the distro via `wsl exec` (sets hostname, sshd port, CIFS mount, `~/.ssh/` symlinks), authorize DGX key, verify sshd + systemd |
+| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate every SSH path in the mesh (DGX→WSL2, Orin→WSL2, WSL2→all) using `wsl2-<distro_name>` alias |
 | **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregister a distro; optionally delete the folder at `C:\wsl\<name>` |
 
 Normal provisioning sequence:
@@ -23,7 +23,10 @@ Teardown:
 Actions → WSL2 Unprovision → distro_name: dev  delete_files: false
 ```
 
-The provision workflow SSHes directly into the WSL2 distro (not the Windows host) using Spark's SSH key.
+The provision workflow SSHes to the **Windows host** (not the distro directly) and runs all
+per-distro config via `wsl -d NAME --user root -- bash`. This avoids WSL2 mirrored-networking
+issues that cause TCP connection drops when restarting sshd or changing hostnames via direct
+port-2222 SSH.
 
 ### Prerequisites
 
@@ -45,23 +48,64 @@ New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" `
   -PropertyType String -Force
 ```
 
-**3. Authorize the SSH key**
+**3. Authorize the SSH key for the Windows user**
 
-Add the public key to `C:\Users\<user>\.ssh\authorized_keys`.
+Add Spark's public key (`~/shared/ssh/id_ed25519.pub` on the DGX) to
+`C:\ProgramData\ssh\administrators_authorized_keys` (for admin users) or
+`C:\Users\<user>\.ssh\authorized_keys`. All distros share Spark's SSH identity — no
+per-distro keypair. Fix permissions after editing (required by Windows OpenSSH):
 
-**4. Create the template tarball** (one-time, see [Build a configured template](#build-a-configured-template) below).
+```powershell
+icacls C:\ProgramData\ssh\administrators_authorized_keys /inheritance:r
+icacls C:\ProgramData\ssh\administrators_authorized_keys /grant "Administrators:F"
+icacls C:\ProgramData\ssh\administrators_authorized_keys /grant "SYSTEM:F"
+Restart-Service sshd
+```
 
-**5. Set GitHub secrets and vars** (repo or org level):
+See [ssh-win.md](ssh-win.md) for details.
 
-| Secret / Var | Value |
-|---|---|
-| `WSL2_HOST` (secret) | Windows hostname or IP (e.g. `msi-laptop.local`) |
-| `DGX_HOST_SSH_KEY` (secret) | Spark's private key — seeded into the template's `authorized_keys` by `bootstrap.sh` |
-| `DGX_SMB_PASSWORD` (secret) | Samba password — written as `.smbcredentials` in the distro at provision time |
-| `DGX_HOST` (var) | DGX hostname (e.g. `spark-79b7.local`) |
-| `DGX_HOST_USER` (var) | DGX / Samba username |
+**4. Enable mirrored networking** (`.wslconfig`)
 
-`WSL2_HOST_USER` and `WSL2_HOST_SSH_KEY` are still required by the **WSL2 Verify SSH Topology** and **WSL2 Unprovision** workflows.
+On Windows PowerShell (no elevation needed), create or edit `$env:USERPROFILE\.wslconfig`:
+
+```powershell
+notepad $env:USERPROFILE\.wslconfig
+```
+
+Contents:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true
+```
+
+> Do not include `localhostForwarding=true` — it has no effect in mirrored mode and causes a warning.
+
+Then restart WSL:
+
+```powershell
+wsl --shutdown
+wsl
+```
+
+**5. Build the template tarball** (one-time, or after `bootstrap.sh` changes).
+See [Rebuild the configured template](#rebuild-the-configured-template) below.
+
+**6. Set GitHub secrets and vars** (repo or org level):
+
+| Secret / Var | Value | Used by |
+|---|---|---|
+| `WSL2_HOST` (secret) | Windows hostname or IP (e.g. `msi.local`) | provision, verify, unprovision |
+| `WSL2_HOST_USER` (secret) | Windows SSH username | provision, verify, unprovision |
+| `WSL2_HOST_SSH_KEY` (secret) | Private key authorized on Windows | provision, verify, unprovision |
+| `DGX_HOST_SSH_KEY` (secret) | Spark's private key — used to authorize DGX in the distro and verify SSH | provision, verify |
+| `DGX_HOST` (var) | DGX hostname (e.g. `spark-79b7.local`) | provision |
+| `DGX_HOST_USER` (var) | DGX / Samba username | provision |
+
+`DGX_SMB_PASSWORD` is **not** required by the provision workflow — credentials are baked into
+the template by `rebuild-template.ps1`.
 
 ---
 
@@ -69,57 +113,26 @@ Add the public key to `C:\Users\<user>\.ssh\authorized_keys`.
 
 ## Rebuild the configured template
 
-Use this when `bootstrap.sh` has changed and you need to bake the updates
-(e.g. new SMB keypair, new tools) into the tarball. Starts from the existing
-`ubuntu-22.04-configured-template.tar` — no fresh install needed.
+Use this when `bootstrap.sh` has changed (new tools, rotated Samba password) and you need to
+bake the updates into the tarball. Starts from the **existing** tarball — no fresh install needed.
 
-### Step 1 — Import existing tarball as a working distro (PowerShell)
-
-```powershell
-mkdir C:\wsl\Ubuntu-Rebuild -Force
-wsl --import Ubuntu-Rebuild C:\wsl\Ubuntu-Rebuild C:\wsl-templates\ubuntu-22.04-configured-template.tar --version 2
-wsl -d Ubuntu-Rebuild --cd ~
-```
-
-### Step 2 — Pull latest bootstrap.sh and run it (inside the distro)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/bootstrap.sh -o bootstrap.sh
-chmod +x bootstrap.sh
-DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(cat ~/.ssh/id_ed25519.pub on Spark)" ./bootstrap.sh
-```
-
-`bootstrap.sh` is idempotent — skips anything already installed and adds what’s missing.
-`DGX_SMB_PASSWORD` bakes `.smbcredentials` into the template (no runtime delivery needed).
-`DGX_PUBKEY` seeds Spark’s pubkey into the template’s `authorized_keys` so the runner can SSH into fresh distros with `DGX_HOST_SSH_KEY`.
-
-At the end it prints the **SMB bootstrap key** (`id_ed25519_smb.pub`). Copy it.
-
-### Step 3 — Export, overwriting the existing tarball (PowerShell)
+On **Windows PowerShell** (no elevation required):
 
 ```powershell
-wsl --shutdown
-wsl --export Ubuntu-Rebuild C:\wsl-templates\ubuntu-22.04-configured-template.tar
-wsl --unregister Ubuntu-Rebuild
-rmdir C:\wsl\Ubuntu-Rebuild
+cd path\to\miramar-platform-gcp\wsl2
+.\rebuild-template.ps1 -SmbPassword <samba-password>
 ```
 
-### Step 4 — Commit the SMB public key to the repo (DGX or any dev machine)
+This script:
+1. Imports the current tarball as a temp distro (`template-build`)
+2. Writes `~/.smbcredentials` for the Samba share
+3. Patches `/etc/fstab` with the correct CIFS entry (always replaces, ensures `noauto`)
+4. Exports back to the same tar path (backs up old tar as `-prev.tar`)
+5. Cleans up the temp distro
 
-```bash
-echo ‘<paste id_ed25519_smb.pub here>’ > wsl2/id_ed25519_smb.pub
-git add wsl2/id_ed25519_smb.pub
-git commit -m "feat: update template SMB bootstrap public key"
-git push
-```
+Optional parameters: `-DistroUser` (default `aaron`), `-TarPath`, `-BuildName`, `-BuildDir`.
 
-### Step 5 — Run Setup Shared SSH Store workflow
-
-Pre-authorizes the template SMB key on DGX and wires Orin via `orin-ssh-setup.service`.
-Requires `DGX_SMB_PASSWORD` secret. This is the **last time** that secret is needed — all
-subsequent per-distro provisioning is secret-free.
-
-### Step 6 — Provision a distro to verify
+After rebuilding, verify the template works:
 
 ```
 Actions → WSL2 Provision           → distro_name: test
@@ -141,10 +154,9 @@ wsl --install -d Ubuntu-22.04
 
 ### GPU (only if you want NVIDIA containers)
 
-Install the latest NVIDIA Windows driver that supports WSL2 CUDA. NVIDIA’s WSL guide emphasizes: install the Windows driver only (don’t install a Linux display driver inside WSL).
+Install the latest NVIDIA Windows driver that supports WSL2 CUDA. NVIDIA's WSL guide
+emphasizes: install the Windows driver only (don't install a Linux display driver inside WSL).
 [NVIDIA Docs](https://docs.nvidia.com/cuda/wsl-user-guide/index.html)
-
-[v591.44](https://www.nvidia.com/en-us/drivers/details/258748/)
 
 After driver install, inside WSL you should eventually be able to run:
 
@@ -154,7 +166,7 @@ After driver install, inside WSL you should eventually be able to run:
 
     sudo visudo -f /etc/sudoers.d/aaron
 
-add:
+Add:
 
     aaron ALL=(ALL) NOPASSWD: ALL
 
@@ -187,53 +199,65 @@ chmod +x bootstrap.sh
 DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(ssh spark cat ~/.ssh/id_ed25519.pub)" ./bootstrap.sh
 ```
 
-At the end it prints the **SMB bootstrap key** (`id_ed25519_smb.pub`). Copy it.
-
-Configure p10k, then:
+Configure p10k if desired, then:
 
 ```powershell
 wsl --shutdown
 ```
 
-### Step 4 — Export the configured template (PowerShell)
+### Export the configured template (PowerShell)
 
 ```powershell
+mkdir C:\wsl-templates -Force
 wsl --export Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-configured-template.tar
-```
-
-### Step 5 — Cleanup (PowerShell)
-
-```powershell
-wsl --unregister Ubuntu-22.04
 wsl --unregister Ubuntu2204-Base
+wsl --unregister Ubuntu-22.04
 ```
 
-### Step 6 — Commit the SMB public key to the repo (DGX or any dev machine)
-
-```bash
-echo '<paste id_ed25519_smb.pub here>' > wsl2/id_ed25519_smb.pub
-git add wsl2/id_ed25519_smb.pub
-git commit -m "feat: add template SMB bootstrap public key"
-git push
-```
-
-### Step 7 — Run Setup Shared SSH Store workflow
-
-Pre-authorizes the template SMB key on DGX and wires Orin via `orin-ssh-setup.service`.
-Requires `DGX_SMB_PASSWORD` secret. This is the **last time** that secret is needed — all
-subsequent per-distro provisioning is secret-free.
-
-### Step 8 — Provision a distro to verify
+### Wire the shared SSH store
 
 ```
+Actions → Setup Shared SSH Store
 Actions → WSL2 Provision           → distro_name: test
 Actions → WSL2 Verify SSH Topology → distro_name: test
 ```
 
 ---
 
-### Bring up a distro manually (without GHA)
+## Bring up a distro manually (without GHA)
 
-    wsl --import Ubuntu2204-Dev1 C:\wsl\Ubuntu2204-Dev1 C:\wsl-templates\ubuntu-22.04-configured-template.tar --version 2
-    wsl -d Ubuntu2204-Dev1 --cd ~
-    
+```powershell
+wsl --import Ubuntu2204-Dev1 C:\wsl\Ubuntu2204-Dev1 C:\wsl-templates\ubuntu-22.04-configured-template.tar --version 2
+```
+
+Then run `firstboot.sh` manually (requires `/etc/wsl2-provision.conf` to exist first):
+
+```powershell
+# Write the provision config
+wsl -d Ubuntu2204-Dev1 --user root -- bash -c "echo distro_name=dev > /etc/wsl2-provision.conf && echo ssh_port=2222 >> /etc/wsl2-provision.conf && echo mount_user=aaron >> /etc/wsl2-provision.conf && echo dgx_host=spark-79b7.local >> /etc/wsl2-provision.conf"
+# Run firstboot
+wsl -d Ubuntu2204-Dev1 --user root -- bash /usr/local/bin/firstboot.sh
+```
+
+---
+
+## Validation
+
+After provisioning, verify all SSH paths:
+
+| From | Command | Expected |
+|------|---------|----------|
+| WSL2 | `ssh orin hostname` | `orin` |
+| WSL2 | `ssh spark hostname` | `spark-79b7` (or DGX hostname) |
+| DGX | `ssh wsl2-dev hostname` | `dev` |
+| Orin | `ssh wsl2-dev hostname` | `dev` |
+
+BatchMode test (confirms no password fallback):
+
+```bash
+ssh -o BatchMode=yes wsl2-dev hostname
+```
+
+Or run **WSL2 Verify SSH Topology** to check all paths automatically.
+
+Full topology details and troubleshooting: [docs/ssh-runbook.md](../docs/ssh-runbook.md)

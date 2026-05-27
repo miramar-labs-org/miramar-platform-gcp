@@ -17,8 +17,8 @@ name: WSL2 Provision
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
 #   - .wslconfig (mirrored networking) set on Windows (see wsl2/post-bootstrap.md)
 #   - Template rebuilt with rebuild-template.ps1 (.smbcredentials + fstab baked in)
-#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY,
-#              DGX_HOST_SSH_KEY, DGX_SMB_PASSWORD
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
+#     (DGX_SMB_PASSWORD is NOT needed — baked into template by rebuild-template.ps1)
 #   - Vars:    DGX_HOST, DGX_HOST_USER
 
 on:
