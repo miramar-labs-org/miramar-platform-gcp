@@ -2,7 +2,7 @@
 # setup-shared-ssh.sh — join the lab SSH mesh from inside a WSL2 distro.
 #
 # Usage (run as root):
-#   setup-shared-ssh.sh <DGX_HOST_IP> <USER> [DISTRO_NAME] [SSH_PORT]
+#   setup-shared-ssh.sh <DGX_HOST_IP> <USER> [DISTRO_NAME] [SSH_PORT] [WINDOWS_HOST]
 #
 # Configures the post-boot DGX CIFS mount service, mounts once immediately,
 # then symlinks SSH files (config, known_hosts, authorized_keys, id_ed25519,
@@ -150,15 +150,21 @@ if [[ -n "$DISTRO_NAME" ]]; then
   CONFIG="$SSH_DIR/config"
   if [[ -z "$WIN_HOSTNAME" ]]; then
     WIN_HOST=$(/mnt/c/Windows/System32/cmd.exe /c hostname 2>/dev/null | tr -d '\r\n' | tr '[:upper:]' '[:lower:]' || true)
-    WIN_HOSTNAME="${WIN_HOST:-localhost}.local"
+    if [[ -n "$WIN_HOST" ]]; then
+      WIN_HOSTNAME="$WIN_HOST.local"
+    else
+      warn "Windows host not provided and could not be detected; skipping $ALIAS SSH config block"
+    fi
   fi
 
-  if grep -q "^Host $ALIAS" "$CONFIG" 2>/dev/null; then
-    log "$ALIAS already in config"
-  elif [[ -f "$CONFIG" ]]; then
-    printf '\nHost %s\n    HostName %s\n    User %s\n    Port %s\n    IdentityFile %s/.ssh/id_ed25519\n    IdentitiesOnly yes\n' \
-      "$ALIAS" "$WIN_HOSTNAME" "$MOUNT_USER" "$SSH_PORT" "$USER_HOME" >> "$CONFIG"
-    log "$ALIAS added to config (HostName $WIN_HOSTNAME) — written directly to shared store via CIFS"
+  if [[ -n "$WIN_HOSTNAME" ]]; then
+    if grep -q "^Host $ALIAS" "$CONFIG" 2>/dev/null; then
+      log "$ALIAS already in config"
+    elif [[ -f "$CONFIG" ]]; then
+      printf '\nHost %s\n    HostName %s\n    User %s\n    Port %s\n    IdentityFile %s/.ssh/id_ed25519\n    IdentitiesOnly yes\n' \
+        "$ALIAS" "$WIN_HOSTNAME" "$MOUNT_USER" "$SSH_PORT" "$USER_HOME" >> "$CONFIG"
+      log "$ALIAS added to config (HostName $WIN_HOSTNAME) — written directly to shared store via CIFS"
+    fi
   fi
 fi
 

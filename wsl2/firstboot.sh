@@ -8,6 +8,7 @@
 #   ssh_port=2222
 #   mount_user=aaron
 #   dgx_host_ip=192.0.2.10
+#   wsl_host=msi.local
 
 set -euo pipefail
 
@@ -26,6 +27,7 @@ DISTRO_NAME="${distro_name:?distro_name required}"
 SSH_PORT="${ssh_port:-2222}"
 MOUNT_USER="${mount_user:-aaron}"
 DGX_HOST_IP="${dgx_host_ip:-}"
+WIN_HOSTNAME="${wsl_host:-}"
 
 log "Provisioning $DISTRO_NAME (port: $SSH_PORT, user: $MOUNT_USER)"
 if [[ -z "$DGX_HOST_IP" ]]; then
@@ -86,6 +88,6 @@ fi
 
 # 4. Post-boot CIFS mount service + SSH symlinks into /home/aaron/shared/ssh/
 log "Running setup-shared-ssh.sh"
-/usr/local/bin/setup-shared-ssh.sh "$DGX_HOST_IP" "$MOUNT_USER" "$DISTRO_NAME" "$SSH_PORT"
+/usr/local/bin/setup-shared-ssh.sh "$DGX_HOST_IP" "$MOUNT_USER" "$DISTRO_NAME" "$SSH_PORT" "$WIN_HOSTNAME"
 
 log "First-boot complete"

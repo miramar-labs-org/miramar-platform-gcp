@@ -135,7 +135,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'echo distro_name=$DISTRO > /etc/wsl2-provision.conf && echo ssh_port=$PORT >> /etc/wsl2-provision.conf && echo mount_user=$DGX_HOST_USER >> /etc/wsl2-provision.conf && echo dgx_host_ip=$DGX_HOST_IP >> /etc/wsl2-provision.conf && grep -q mountFsTab /etc/wsl.conf 2>/dev/null || { echo && echo [automount] && echo mountFsTab = false; } >> /etc/wsl.conf && echo config_written'\""
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'echo distro_name=$DISTRO > /etc/wsl2-provision.conf && echo ssh_port=$PORT >> /etc/wsl2-provision.conf && echo mount_user=$DGX_HOST_USER >> /etc/wsl2-provision.conf && echo dgx_host_ip=$DGX_HOST_IP >> /etc/wsl2-provision.conf && echo wsl_host=$WSL2_HOST >> /etc/wsl2-provision.conf && grep -q mountFsTab /etc/wsl.conf 2>/dev/null || { echo && echo [automount] && echo mountFsTab = false; } >> /etc/wsl.conf && echo config_written'\""
           # Terminate so firstboot runs on a fresh boot with mountFsTab=false
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
