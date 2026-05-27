@@ -232,7 +232,10 @@ jobs:
             echo "systemd: $state (attempt $i/24)"
             [[ "$state" =~ ^(running|degraded)$ ]] && echo "systemd ready" && break
             sleep 5
-            [[ $i -eq 24 ]] && echo "WARNING: systemd not fully ready after 120s, proceeding"
+            if [[ $i -eq 24 ]]; then
+              echo "ERROR: systemd not ready after 120s (last state: $state)" >&2
+              exit 1
+            fi
           done
 
       - name: Register in WSL2_DISTROS

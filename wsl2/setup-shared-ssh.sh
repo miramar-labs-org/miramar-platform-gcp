@@ -59,22 +59,33 @@ for i in $(seq 1 18); do
   fi
 done
 
+# Resolve hostname → IP while mDNS works (avahi may not be ready at next boot,
+# before systemd starts, causing mount -a to hang and kill the distro in 10s).
+DGX_IP=$(getent hosts "$DGX_HOST" 2>/dev/null | awk '{print $1; exit}')
+if [[ -z "$DGX_IP" ]]; then
+  warn "Could not resolve $DGX_HOST to IP — fstab will use hostname (mDNS required at boot)"
+  DGX_IP="$DGX_HOST"
+fi
+log "CIFS fstab will use: $DGX_IP"
+
 # ─── 3. CIFS mount ───────────────────────────────────────────────────────────
 
 mkdir -p "$SHARED_DIR"
 chown "$MOUNT_USER:$MOUNT_USER" "$SHARED_DIR"
 
-grep -vF "//$DGX_HOST/shared" /etc/fstab > /tmp/fstab.new 2>/dev/null || true
-echo "//$DGX_HOST/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,vers=3.0,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
+# Filter by mount point (handles stale entries with either hostname or IP)
+grep -v " $SHARED_DIR " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
+# noauto: skip during pre-systemd mount -a; x-systemd.automount: mount on first access
+echo "//$DGX_IP/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,vers=3.0,_netdev,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
   >> /tmp/fstab.new
 cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
-log "Written CIFS fstab entry (x-systemd.automount)"
+log "Written CIFS fstab entry (IP: $DGX_IP, noauto, x-systemd.automount)"
 systemctl daemon-reload 2>/dev/null || true
 
 if mountpoint -q "$SHARED_DIR" 2>/dev/null; then
   log "$SHARED_DIR already mounted"
 else
-  mount -t cifs "//$DGX_HOST/shared" "$SHARED_DIR" \
+  mount -t cifs "//$DGX_IP/shared" "$SHARED_DIR" \
     -o "credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,file_mode=0600,dir_mode=0700"
   log "Mounted $SHARED_DIR"
 fi

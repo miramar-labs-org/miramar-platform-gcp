@@ -107,8 +107,10 @@ log "Write CIFS fstab entry"
 mkdir -p "$HOME/shared"
 CIFS_UID=$(id -u)
 CIFS_GID=$(id -g)
-grep -vF "spark-79b7.local/shared" /etc/fstab > /tmp/fstab.new 2>/dev/null || true
-printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0\n' \
+grep -v " $HOME/shared " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
+# noauto prevents pre-systemd mount -a from hanging on mDNS resolution at boot.
+# firstboot.sh (via setup-shared-ssh.sh) replaces this entry with the resolved IP.
+printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,_netdev,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0\n' \
   "$HOME" "$HOME" "$CIFS_UID" "$CIFS_GID" >> /tmp/fstab.new
 sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 
