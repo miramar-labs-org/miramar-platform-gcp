@@ -139,5 +139,33 @@ if ($finalState -eq 'Running') {
   Section 'Linux journal tail after idle window'
   & wsl.exe -d $Name --user root --exec bash -lc "journalctl -b -n 300 --no-pager || true"
 } else {
-  Section "Not collecting post-idle Linux logs because '$Name' is not running"
+  Section "Restarting '$Name' to collect post-stop Linux diagnostics"
+  & wsl.exe -d $Name --user root --exec bash -lc @'
+set +e
+
+echo '--- boot list after restart ---'
+journalctl --list-boots --no-pager || true
+echo
+
+echo '--- previous boot journal after idle stop ---'
+journalctl -b -1 -n 300 --no-pager || true
+echo
+
+echo '--- current boot journal after restart ---'
+journalctl -b -n 200 --no-pager || true
+echo
+
+echo '--- failed units after restart ---'
+systemctl is-system-running 2>&1 || true
+systemctl --failed --no-pager || true
+echo
+
+echo '--- mount and session state after restart ---'
+findmnt / /mnt/c /home/aaron/shared 2>/dev/null || true
+loginctl list-sessions --no-legend 2>/dev/null || true
+'@
+
+  Section "Terminating '$Name' after post-stop diagnostics"
+  & wsl.exe --terminate $Name
+  Show-WslList
 }
