@@ -85,6 +85,24 @@ jobs:
             "powershell -ExecutionPolicy Bypass -File wsl-from-tar.ps1 -Name $DISTRO"
           echo "Import step complete"
 
+      # ── Step 1b: set sshd port + open Windows firewall rule ──────────────
+      # Template always boots on port 2222; update to the requested port and
+      # open the matching inbound firewall rule before we wait for sshd.
+      - name: Set sshd port and open firewall
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          PORT='${{ inputs.ssh_port }}'
+          DISTRO='${{ inputs.distro_name }}'
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "wsl -d $DISTRO --user root -- bash -c 'echo Port $PORT > /etc/ssh/sshd_config.d/wsl2-port.conf && systemctl restart ssh && echo sshd restarted on port $PORT' && powershell -Command \"New-NetFirewallRule -DisplayName 'WSL2 SSH $DISTRO' -Direction Inbound -Protocol TCP -LocalPort $PORT -Action Allow -ErrorAction SilentlyContinue | Out-Null; Write-Host 'firewall rule OK'\""
+          echo "Port and firewall step complete"
+
       # ── Step 2: wait for sshd inside the distro ──────────────────────────
       - name: Wait for sshd in distro
 
