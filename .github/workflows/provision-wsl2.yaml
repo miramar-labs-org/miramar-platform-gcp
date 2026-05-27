@@ -189,7 +189,6 @@ jobs:
             "printf '%s\n' '$DISTRO' | sudo tee /etc/hostname > /dev/null && sudo hostname '$DISTRO' && \
              grep -q '^\[network\]' /etc/wsl.conf \
                || printf '\n[network]\nhostname = %s\n' '$DISTRO' | sudo tee -a /etc/wsl.conf > /dev/null && \
-             sudo systemctl restart avahi-daemon 2>/dev/null || true && \
              echo \"hostname: \$(hostname)\""
           echo "Hostname step complete"
 
