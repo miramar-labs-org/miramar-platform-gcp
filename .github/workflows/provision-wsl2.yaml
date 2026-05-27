@@ -15,7 +15,7 @@ name: WSL2 Provision
 #
 # Prerequisites:
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
-#   - .wslconfig (mirrored networking) set on Windows (see wsl2/post-bootstrap.md)
+#   - .wslconfig (mirrored networking) set on Windows (see wsl2/README.md)
 #   - Template rebuilt with rebuild-template.ps1 (.smbcredentials + fstab baked in)
 #   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
 #     (DGX_SMB_PASSWORD is NOT needed — baked into template by rebuild-template.ps1)
@@ -45,6 +45,9 @@ jobs:
   provision:
     runs-on: ${{ inputs.runner || 'dgx' }}
     timeout-minutes: 15
+    permissions:
+      contents: read
+      variables: write
 
     steps:
       - uses: actions/checkout@v4
@@ -208,6 +211,21 @@ jobs:
             sleep 5
             [[ $i -eq 24 ]] && echo "WARNING: systemd not fully ready after 120s, proceeding"
           done
+
+      - name: Register in WSL2_DISTROS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          REPO='${{ github.repository }}'
+          CURRENT=$(gh api "repos/$REPO/actions/variables/WSL2_DISTROS" --jq '.value' 2>/dev/null || echo "")
+          if echo " $CURRENT " | grep -qF " $DISTRO "; then
+            echo "$DISTRO already in WSL2_DISTROS — skipping"
+          else
+            NEW=$(echo "$CURRENT $DISTRO" | xargs)
+            gh variable set WSL2_DISTROS --body "$NEW" --repo "$REPO"
+            echo "WSL2_DISTROS: $NEW"
+          fi
 
       - name: Summary
         if: always()
