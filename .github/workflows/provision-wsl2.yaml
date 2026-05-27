@@ -239,6 +239,3 @@ jobs:
   verify:
     needs: provision
     uses: ./.github/workflows/verify-ssh-topology.yaml
-    with:
-      distro_name: ${{ inputs.distro_name }}
-      ssh_port: ${{ inputs.ssh_port }}

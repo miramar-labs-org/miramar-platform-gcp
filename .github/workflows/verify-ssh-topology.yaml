@@ -17,17 +17,6 @@ name: WSL2 Verify SSH Topology
 on:
   workflow_dispatch:
   workflow_call:
-    inputs:
-      # Kept for backward compatibility with provision-wsl2.yaml.
-      # Not used — active distros are always read from WSL2_DISTROS.
-      distro_name:
-        required: false
-        type: string
-        default: ""
-      ssh_port:
-        required: false
-        type: string
-        default: ""
 
 jobs:
 
