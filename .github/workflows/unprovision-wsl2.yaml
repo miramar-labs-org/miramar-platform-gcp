@@ -32,9 +32,6 @@ jobs:
   unprovision:
     runs-on: ${{ inputs.runner || 'dgx' }}
     timeout-minutes: 10
-    permissions:
-      variables: write
-
     steps:
       - name: Set up SSH key
         shell: bash
@@ -93,11 +90,10 @@ jobs:
 
       - name: Deregister from WSL2_DISTROS
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           DISTRO='${{ inputs.distro_name }}'
           REPO='${{ github.repository }}'
+          export GH_TOKEN="$GITHUB_ORG_ADMIN_PAT"
           CURRENT=$(gh api "repos/$REPO/actions/variables/WSL2_DISTROS" --jq '.value' 2>/dev/null || echo "")
           [[ "$CURRENT" == "NONE" ]] && CURRENT=""
           NEW=$(echo "$CURRENT" | tr ' ' '\n' | grep -vxF "$DISTRO" | tr '\n' ' ' | xargs)

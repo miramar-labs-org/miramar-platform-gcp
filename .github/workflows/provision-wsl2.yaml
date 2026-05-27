@@ -45,10 +45,6 @@ jobs:
   provision:
     runs-on: ${{ inputs.runner || 'dgx' }}
     timeout-minutes: 15
-    permissions:
-      contents: read
-      variables: write
-
     steps:
       - uses: actions/checkout@v4
 
@@ -213,11 +209,10 @@ jobs:
           done
 
       - name: Register in WSL2_DISTROS
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           DISTRO='${{ inputs.distro_name }}'
           REPO='${{ github.repository }}'
+          export GH_TOKEN="$GITHUB_ORG_ADMIN_PAT"
           CURRENT=$(gh api "repos/$REPO/actions/variables/WSL2_DISTROS" --jq '.value' 2>/dev/null || echo "")
           [[ "$CURRENT" == "NONE" ]] && CURRENT=""
           if echo " $CURRENT " | grep -qF " $DISTRO "; then
