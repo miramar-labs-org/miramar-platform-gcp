@@ -262,25 +262,6 @@ jobs:
             fi
           done
 
-      # ── Step 6b: hold a bounded WSL session open for the verify workflow ─
-      # If WSL marked the boot as idle-session-tracked, the distro can stop as
-      # soon as the last `wsl.exe` command exits even though provision passed.
-      # Keep a Windows-side WSL session alive long enough for the downstream
-      # reusable verify workflow to SSH into the distro. The sleep is bounded so
-      # it self-cleans if the workflow is cancelled.
-      - name: Keep distro alive for verify
-        env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-        run: |
-          DISTRO='${{ inputs.distro_name }}'
-          ssh -i /tmp/wsl2_win_host \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -NoProfile -Command \"Start-Process -WindowStyle Hidden wsl.exe -ArgumentList '-d $DISTRO --exec sleep 1800'; Write-Host 'bounded keepalive started for $DISTRO'\""
-
       - name: Register in WSL2_DISTROS
         id: register
         run: |
