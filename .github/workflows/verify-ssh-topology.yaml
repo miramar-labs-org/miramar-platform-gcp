@@ -129,7 +129,9 @@ jobs:
           done
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
-          [[ "$any_fail" == "true" ]] && exit 1
+          if [[ "$any_fail" == "true" ]]; then
+            exit 1
+          fi
 
   # ── From orin ────────────────────────────────────────────────────────────
   # orin → spark
@@ -219,7 +221,9 @@ jobs:
           done
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
-          [[ "$any_fail" == "true" ]] && exit 1
+          if [[ "$any_fail" == "true" ]]; then
+            exit 1
+          fi
 
   # ── From each WSL2 distro ────────────────────────────────────────────────
   # wsl2-<name> → spark       (all distros, nested SSH)
@@ -331,7 +335,9 @@ jobs:
           done
           json+='}'
           echo "results=$json" >> "$GITHUB_OUTPUT"
-          [[ "$any_fail" == "true" ]] && exit 1
+          if [[ "$any_fail" == "true" ]]; then
+            exit 1
+          fi
 
   # ── Summary ──────────────────────────────────────────────────────────────
 
