@@ -10,6 +10,18 @@ Provision and unprovision WSL2 distros from the configured template tarball via 
 | **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate bi-directional SSH across all lab nodes. Reads active distros from `WSL2_DISTROS` and tests spark↔orin, spark↔wsl2-`<name>`, orin↔wsl2-`<name>`, and wsl2-`<A>`↔wsl2-`<B>` for all pairs. No inputs required.                         |
 | **WSL2 Unprovision** (`unprovision-wsl2.yaml`)            | Unregister a distro; optionally delete the folder at `C:\wsl\<name>`                                                                                                                                                                           |
 
+### WSL2 lifecycle model
+
+WSL2 distros are treated as on-demand environments, not always-on servers. Root-cause
+diagnostics showed that after provision, WSL powers down a distro when there is no
+Windows-side `wsl.exe` client attached, even if systemd services such as sshd and Docker
+are running. The shutdown is logged as `Operation canceled @p9io.cpp:258 (AcceptAsync)`
+followed by `systemd-logind: System is powering down`.
+
+The shared `wsl2-<name>` SSH alias therefore connects through the Windows host and runs
+`wsl.exe -d <name> --user root --exec /usr/sbin/sshd -i -e` for each SSH session. This
+creates a per-session WSL client attachment without a resident keepalive process.
+
 Normal provisioning sequence:
 
 ```

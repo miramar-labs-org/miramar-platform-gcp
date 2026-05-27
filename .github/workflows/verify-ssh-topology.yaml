@@ -9,8 +9,10 @@ name: WSL2 Verify SSH Topology
 # Active distros are read from the WSL2_DISTROS repo variable (space-separated,
 # or the sentinel value 'NONE' when no distros are provisioned).
 #
-# WSL2 outbound paths use nested SSH through the DGX runner — the runner SSHes
-# into the distro, which then SSHes onward to the target.
+# WSL2 aliases are on-demand. Each `wsl2-<name>` SSH session connects through
+# the Windows host and runs `wsl.exe -d <name> -- /usr/sbin/sshd -i`, so the
+# session itself supplies the WSL client lifetime. Verification should not rely
+# on WSL2 sshd remaining reachable after an idle no-client window.
 #
 # All SSH calls use BatchMode=yes — any password prompt is a hard failure.
 
