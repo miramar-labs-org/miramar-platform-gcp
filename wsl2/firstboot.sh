@@ -7,7 +7,7 @@
 #   distro_name=dev
 #   ssh_port=2222
 #   mount_user=aaron
-#   dgx_host=spark-79b7.local
+#   dgx_host=192.0.2.10
 
 set -euo pipefail
 
@@ -70,7 +70,7 @@ else
   systemctl restart ssh
 fi
 
-# 3. CIFS mount + symlink ~/.ssh/ → ~/shared/ssh/
+# 3. Post-boot CIFS mount service + SSH symlinks into /home/aaron/shared/ssh/
 log "Running setup-shared-ssh.sh"
 /usr/local/bin/setup-shared-ssh.sh "$DGX_HOST" "$MOUNT_USER" "$DISTRO_NAME" "$SSH_PORT"
 

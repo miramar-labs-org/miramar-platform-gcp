@@ -2,21 +2,22 @@ name: WSL2 Provision
 
 # Full lifecycle: import distro from template, wire into the lab SSH mesh.
 #
-# All per-distro config (hostname, sshd port, CIFS mount, ~/.ssh/ symlinks)
+# All per-distro config (hostname, sshd port, post-boot CIFS mount,
+# SSH symlinks)
 # is handled by firstboot.sh running INSIDE the distro via wsl exec —
 # no direct port-2222 SSH, so WSL2 mirrored-networking issues are avoided.
 #
 #   1. SSH to Windows host → wsl --import (idempotent)
 #   2. Write /etc/wsl2-provision.conf into distro (via wsl exec)
 #   3. Open Windows firewall for SSH port
-#   4. Run firstboot.sh inside distro (sets hostname, sshd port, CIFS, ~/.ssh/)
+#   4. Run firstboot.sh inside distro (sets hostname, sshd port, CIFS timer, SSH symlinks)
 #   5. Authorize DGX SSH key (writes to ~/shared/ssh/authorized_keys via symlink)
 #   6. Wait for sshd + systemd ready (verification)
 #
 # Prerequisites:
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
 #   - .wslconfig (mirrored networking) set on Windows (see wsl2/README.md)
-#   - Template rebuilt with rebuild-template.ps1 (.smbcredentials + fstab baked in)
+#   - Template rebuilt with rebuild-template.ps1 (.smbcredentials baked in; no CIFS fstab)
 #   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
 #     (DGX_SMB_PASSWORD is NOT needed — baked into template by rebuild-template.ps1)
 #   - Vars:    DGX_HOST, DGX_HOST_USER
@@ -115,17 +116,10 @@ jobs:
       # ── Step 2: write provision config + patch wsl.conf + open firewall ────
       # Uses wsl exec (not port-2222 SSH) — no mirrored-networking issues.
       #
-      # The first wsl exec starts the distro; WSL2's internal ConfigMountFsTab
-      # runs and tries the CIFS fstab entry despite noauto. mDNS resolution of
-      # spark-79b7.local takes ~9 s before failing, burning WSL2's 10-second
-      # WaitForBootProcess window. Systemd starts 1 second after WSL2 declared
-      # it missed — WSL2 then treats the distro as having no systemd and kills it
-      # when all sessions end (even with systemd = true in wsl.conf).
-      #
-      # Fix: patch wsl.conf with [automount] mountFsTab = false so the NEXT boot
-      # (firstboot) skips WSL2's fstab processing. systemd-fstab-generator still
-      # reads fstab and creates the automount unit (lazily, after avahi is up).
-      # We wsl --terminate after patching so firstboot boots cleanly.
+      # The first wsl exec starts the distro. Keep mountFsTab=false so WSL2's
+      # pre-systemd fstab handling never tries mDNS/CIFS during early boot. That
+      # path can disrupt WSL Plan 9/p9io and cause AcceptAsync canceled followed
+      # by distro powerdown. The DGX share is mounted later by a systemd timer.
       - name: Write provision config and open firewall
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -136,8 +130,6 @@ jobs:
           DISTRO='${{ inputs.distro_name }}'
           PORT='${{ inputs.ssh_port }}'
           # Write provision config AND patch wsl.conf in the same wsl exec.
-          # This is the distro's first boot — ConfigMountFsTab will delay it, but
-          # we add mountFsTab=false so the next boot (firstboot) is clean.
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
@@ -161,8 +153,8 @@ jobs:
           echo "Provision config and firewall step complete"
 
       # ── Step 3: run firstboot inside distro ──────────────────────────────
-      # Pushes latest firstboot.sh + setup-shared-ssh.sh from repo,
-      # then runs firstboot.sh via wsl exec (synchronous, waits for CIFS).
+      # Pushes latest firstboot.sh, setup-shared-ssh.sh, and mount timer files,
+      # then runs firstboot.sh via wsl exec.
       - name: Run firstboot
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -174,7 +166,11 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
-            wsl2/firstboot.sh wsl2/setup-shared-ssh.sh \
+            wsl2/firstboot.sh \
+            wsl2/setup-shared-ssh.sh \
+            wsl2/mount-dgx-shared.sh \
+            wsl2/mount-dgx-shared.service \
+            wsl2/mount-dgx-shared.timer \
             "$WSL2_HOST_USER@$WSL2_HOST:"
           # Install inside the distro
           ssh -i /tmp/wsl2_win_host \
@@ -182,8 +178,8 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'install -m 755 /mnt/c/Users/$WSL2_HOST_USER/firstboot.sh /usr/local/bin/firstboot.sh && install -m 755 /mnt/c/Users/$WSL2_HOST_USER/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && echo scripts_installed'\""
-          # Run firstboot synchronously (sets hostname, sshd port, CIFS, ~/.ssh/)
+            "powershell -Command \"wsl -d $DISTRO --user root -- bash -c 'install -m 755 /mnt/c/Users/$WSL2_HOST_USER/firstboot.sh /usr/local/bin/firstboot.sh && install -m 755 /mnt/c/Users/$WSL2_HOST_USER/setup-shared-ssh.sh /usr/local/bin/setup-shared-ssh.sh && install -m 755 /mnt/c/Users/$WSL2_HOST_USER/mount-dgx-shared.sh /usr/local/sbin/mount-dgx-shared.sh && install -m 644 /mnt/c/Users/$WSL2_HOST_USER/mount-dgx-shared.service /etc/systemd/system/mount-dgx-shared.service && install -m 644 /mnt/c/Users/$WSL2_HOST_USER/mount-dgx-shared.timer /etc/systemd/system/mount-dgx-shared.timer && echo scripts_installed'\""
+          # Run firstboot synchronously (sets hostname, sshd port, CIFS timer, SSH symlinks)
           ssh -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
@@ -195,8 +191,8 @@ jobs:
           echo "Firstboot complete"
 
       # ── Step 4: authorize DGX SSH key ────────────────────────────────────
-      # Runs after firstboot so ~/.ssh/authorized_keys is already symlinked
-      # to ~/shared/ssh/authorized_keys — key goes into the shared store.
+      # Runs after firstboot so authorized_keys is already symlinked to the
+      # shared store.
       # bootstrap.sh seeds the same key into the template, so this step is
       # usually a no-op; sort -u deduplicates so re-runs don't accumulate
       # duplicate entries in the shared authorized_keys file.

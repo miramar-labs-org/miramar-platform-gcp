@@ -77,14 +77,10 @@ sudo tee /etc/wsl.conf >/dev/null <<EOF
 systemd = true
 
 [automount]
-# Disable WSL2's pre-systemd fstab processing. WSL2's internal ConfigMountFsTab
-# ignores 'noauto' and tries every fstab entry at boot. The CIFS entry for the
-# shared folder causes an mDNS lookup of spark-79b7.local that takes ~9 seconds
-# to fail, pushing systemd startup past WSL2's 10-second WaitForBootProcess window.
-# WSL2 then marks the boot as failed and applies idle termination (killing the
-# distro when all sessions end) even though systemd = true. With mountFsTab = false,
-# systemd-fstab-generator handles /etc/fstab instead, correctly creating an
-# automount unit that mounts CIFS lazily after avahi is running.
+# Disable WSL2's pre-systemd fstab processing. Do not mount the DGX shared
+# folder from /etc/fstab: early mDNS/CIFS handling can delay boot or disrupt
+# WSL Plan 9/p9io, causing AcceptAsync canceled followed by distro powerdown.
+# A post-boot systemd oneshot + timer mounts the share after networking settles.
 mountFsTab = false
 
 [user]
@@ -114,18 +110,9 @@ fi
 printf 'username=%s\npassword=%s\n' "$USER" "$DGX_SMB_PASSWORD" > "$HOME/.smbcredentials"
 chmod 600 "$HOME/.smbcredentials"
 
-log "Write CIFS fstab entry"
+log "Prepare DGX shared mount point and remove legacy CIFS fstab entry"
 mkdir -p "$HOME/shared"
-CIFS_UID=$(id -u)
-CIFS_GID=$(id -g)
 grep -v " $HOME/shared " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
-# noauto prevents pre-systemd mount -a from hanging on mDNS resolution at boot.
-# No _netdev: see setup-shared-ssh.sh for the full rationale. Short version:
-# _netdev adds After=network-online.target to the automount unit which delays
-# systemd reaching 'running', causing WSL2 to use idle-session-tracking.
-# firstboot.sh (via setup-shared-ssh.sh) replaces this entry with the resolved IP.
-printf '//spark-79b7.local/shared %s/shared cifs credentials=%s/.smbcredentials,uid=%s,gid=%s,vers=3.0,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0\n' \
-  "$HOME" "$HOME" "$CIFS_UID" "$CIFS_GID" >> /tmp/fstab.new
 sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 
 log "Prepare ~/.ssh/authorized_keys (seed with Spark runner pubkey)"
@@ -151,7 +138,15 @@ sudo sed -i \
 sudo systemctl restart avahi-daemon || true
 sudo systemctl restart systemd-resolved 2>/dev/null || true
 
-log "Install setup-shared-ssh.sh (CIFS mount + SSH mesh symlinks, run once during post-provision)"
+log "Install shared-folder mount service and setup-shared-ssh.sh"
+sudo install -m 755 "$(dirname "$0")/mount-dgx-shared.sh" /usr/local/sbin/mount-dgx-shared.sh
+sudo install -m 644 "$(dirname "$0")/mount-dgx-shared.service" /etc/systemd/system/mount-dgx-shared.service
+sudo install -m 644 "$(dirname "$0")/mount-dgx-shared.timer" /etc/systemd/system/mount-dgx-shared.timer
+sudo tee /etc/mount-dgx-shared.conf >/dev/null <<EOF
+DGX_MOUNT_USER=${USER}
+DGX_CIFS_HOST=
+EOF
+sudo systemctl enable /etc/systemd/system/mount-dgx-shared.timer || true
 sudo install -m 755 "$(dirname "$0")/setup-shared-ssh.sh" /usr/local/bin/setup-shared-ssh.sh
 
 log "Write ~/.ssh/config (lab hosts, skipped if file already exists)"
@@ -201,8 +196,10 @@ if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
   rm -f "$_omztmp"
 fi
 # Idempotent: only append if not already present
-grep -q 'export ZSH=' "$HOME/.zshrc" 2>/dev/null \
-  || echo 'export ZSH="$HOME/.oh-my-zsh"' >> "$HOME/.zshrc"
+if ! grep -q 'export ZSH=' "$HOME/.zshrc" 2>/dev/null; then
+  # shellcheck disable=SC2016
+  printf '%s\n' 'export ZSH="$HOME/.oh-my-zsh"' >> "$HOME/.zshrc"
+fi
 grep -q '^plugins=' "$HOME/.zshrc" 2>/dev/null \
   || echo 'plugins=(git)' >> "$HOME/.zshrc"
 
@@ -218,8 +215,10 @@ if grep -q '^ZSH_THEME=' "$HOME/.zshrc" 2>/dev/null; then
 else
   echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >> "$HOME/.zshrc"
 fi
-grep -q 'source \$ZSH/oh-my-zsh.sh' "$HOME/.zshrc" 2>/dev/null \
-  || echo 'source $ZSH/oh-my-zsh.sh' >> "$HOME/.zshrc"
+if ! grep -q 'source [$]ZSH/oh-my-zsh[.]sh' "$HOME/.zshrc" 2>/dev/null; then
+  # shellcheck disable=SC2016
+  printf '%s\n' 'source $ZSH/oh-my-zsh.sh' >> "$HOME/.zshrc"
+fi
 
 # auto-run neofetch on zsh startup (optional)
 grep -q "command -v neofetch" ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'
@@ -336,7 +335,10 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
   | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-UBUNTU_CODENAME="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
+UBUNTU_CODENAME="$(
+  # shellcheck source=/dev/null
+  . /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}"
+)"
 sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
@@ -463,7 +465,7 @@ echo "Powerlevel10k installed. Run 'p10k configure' once after opening zsh."
 echo ""
 echo "IMPORTANT — one-time template steps (do these before provisioning any distros):"
 echo "  1. Export this distro: wsl --export <name> C:\\wsl-templates\\ubuntu-22.04-configured-template.tar"
-echo "     Or run: .\\rebuild-template.ps1 -SmbPassword <password>  (if template already exists)"
+printf '%s\n' "     Or run: .\\rebuild-template.ps1 -SmbPassword <password>  (if template already exists)"
 echo "  2. Run the Setup Shared SSH Store workflow (wires Orin via CIFS)"
 echo ""
 echo "Per-distro steps (credentials are baked into the template — no runtime secret delivery):"

@@ -4,11 +4,11 @@
 
 Provision and unprovision WSL2 distros from the configured template tarball via GitHub Actions.
 
-| Workflow | Purpose |
-|---|---|
-| **WSL2 Provision** (`provision-wsl2.yaml`) | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar`, run `firstboot.sh` inside the distro via `wsl exec` (sets hostname, sshd port, CIFS mount, `~/.ssh/` symlinks), authorize DGX key, verify sshd + systemd |
-| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate bi-directional SSH across all lab nodes. Reads active distros from `WSL2_DISTROS` and tests spark↔orin, spark↔wsl2-`<name>`, orin↔wsl2-`<name>`, and wsl2-`<A>`↔wsl2-`<B>` for all pairs. No inputs required. |
-| **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregister a distro; optionally delete the folder at `C:\wsl\<name>` |
+| Workflow                                                  | Purpose                                                                                                                                                                                                                                        |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **WSL2 Provision** (`provision-wsl2.yaml`)                | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar`, run `firstboot.sh` inside the distro via `wsl exec` (sets hostname, sshd port, post-boot CIFS timer, SSH symlinks), authorize DGX key, verify sshd + systemd |
+| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate bi-directional SSH across all lab nodes. Reads active distros from `WSL2_DISTROS` and tests spark↔orin, spark↔wsl2-`<name>`, orin↔wsl2-`<name>`, and wsl2-`<A>`↔wsl2-`<B>` for all pairs. No inputs required.                         |
+| **WSL2 Unprovision** (`unprovision-wsl2.yaml`)            | Unregister a distro; optionally delete the folder at `C:\wsl\<name>`                                                                                                                                                                           |
 
 Normal provisioning sequence:
 
@@ -50,7 +50,7 @@ New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" `
 
 **3. Authorize the SSH key for the Windows user**
 
-Add Spark's public key (`~/shared/ssh/id_ed25519.pub` on the DGX) to
+Add Spark's public key (`/home/aaron/shared/ssh/id_ed25519.pub` on the DGX) to
 `C:\ProgramData\ssh\administrators_authorized_keys` (for admin users) or
 `C:\Users\<user>\.ssh\authorized_keys`. All distros share Spark's SSH identity — no
 per-distro keypair. Fix permissions after editing (required by Windows OpenSSH):
@@ -95,15 +95,15 @@ See [Rebuild the configured template](#rebuild-the-configured-template) below.
 
 **6. Set GitHub secrets and vars** (repo or org level):
 
-| Secret / Var | Value | Used by |
-|---|---|---|
-| `WSL2_HOST` (secret) | Windows hostname or IP (e.g. `msi.local`) | provision, verify, unprovision |
-| `WSL2_HOST_USER` (secret) | Windows SSH username | provision, verify, unprovision |
-| `WSL2_HOST_SSH_KEY` (secret) | Private key authorized on Windows | provision, verify, unprovision |
-| `DGX_HOST_SSH_KEY` (secret) | Spark's private key — used to authorize DGX in the distro and verify SSH | provision, verify |
-| `DGX_HOST` (var) | DGX hostname (e.g. `spark-79b7.local`) | provision |
-| `DGX_HOST_USER` (var) | DGX / Samba username | provision |
-| `WSL2_DISTROS` (repo var) | `NONE` initially | Tracks active distro names — create once with value `NONE` before first provision run |
+| Secret / Var                 | Value                                                                          | Used by                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `WSL2_HOST` (secret)         | Windows hostname or IP (e.g. `msi.local`)                                      | provision, verify, unprovision                                                        |
+| `WSL2_HOST_USER` (secret)    | Windows SSH username                                                           | provision, verify, unprovision                                                        |
+| `WSL2_HOST_SSH_KEY` (secret) | Private key authorized on Windows                                              | provision, verify, unprovision                                                        |
+| `DGX_HOST_SSH_KEY` (secret)  | Spark's private key — used to authorize DGX in the distro and verify SSH       | provision, verify                                                                     |
+| `DGX_HOST` (var)             | DGX static IP or `/etc/hosts`-resolved hostname for CIFS (avoid mDNS `.local`) | provision                                                                             |
+| `DGX_HOST_USER` (var)        | DGX / Samba username                                                           | provision                                                                             |
+| `WSL2_DISTROS` (repo var)    | `NONE` initially                                                               | Tracks active distro names — create once with value `NONE` before first provision run |
 
 `DGX_SMB_PASSWORD` is **not** required by the provision workflow — credentials are baked into
 the template by `rebuild-template.ps1`.
@@ -125,11 +125,17 @@ cd path\to\miramar-platform-gcp\wsl2
 ```
 
 This script:
+
 1. Imports the current tarball as a temp distro (`template-build`)
-2. Writes `~/.smbcredentials` for the Samba share
-3. Patches `/etc/fstab` with the correct CIFS entry (always replaces, ensures `noauto`)
+2. Writes `/home/aaron/.smbcredentials` for the Samba share
+3. Removes legacy shared-folder CIFS entries from `/etc/fstab` and keeps `mountFsTab = false`
 4. Exports back to the same tar path (backs up old tar as `-prev.tar`)
 5. Cleans up the temp distro
+
+Do not mount the DGX shared folder from `/etc/fstab` inside WSL2. WSL pre-systemd
+fstab handling plus mDNS/CIFS can delay boot or disrupt Plan 9/p9io, causing
+`AcceptAsync` cancellation followed by distro powerdown. The distro uses
+`mount-dgx-shared.service` and `mount-dgx-shared.timer` after boot instead.
 
 Optional parameters: `-DistroUser` (default `aaron`), `-TarPath`, `-BuildName`, `-BuildDir`.
 
@@ -235,7 +241,7 @@ Then run `firstboot.sh` manually (requires `/etc/wsl2-provision.conf` to exist f
 
 ```powershell
 # Write the provision config
-wsl -d Ubuntu2204-Dev1 --user root -- bash -c "echo distro_name=dev > /etc/wsl2-provision.conf && echo ssh_port=2222 >> /etc/wsl2-provision.conf && echo mount_user=aaron >> /etc/wsl2-provision.conf && echo dgx_host=spark-79b7.local >> /etc/wsl2-provision.conf"
+wsl -d Ubuntu2204-Dev1 --user root -- bash -c "echo distro_name=dev > /etc/wsl2-provision.conf && echo ssh_port=2222 >> /etc/wsl2-provision.conf && echo mount_user=aaron >> /etc/wsl2-provision.conf && echo dgx_host=192.0.2.10 >> /etc/wsl2-provision.conf"
 # Run firstboot
 wsl -d Ubuntu2204-Dev1 --user root -- bash /usr/local/bin/firstboot.sh
 ```
@@ -246,12 +252,12 @@ wsl -d Ubuntu2204-Dev1 --user root -- bash /usr/local/bin/firstboot.sh
 
 After provisioning, verify all SSH paths:
 
-| From | Command | Expected |
-|------|---------|----------|
-| WSL2 | `ssh orin hostname` | `orin` |
-| WSL2 | `ssh spark hostname` | `spark-79b7` (or DGX hostname) |
-| DGX | `ssh wsl2-dev hostname` | `dev` |
-| Orin | `ssh wsl2-dev hostname` | `dev` |
+| From | Command                 | Expected                       |
+| ---- | ----------------------- | ------------------------------ |
+| WSL2 | `ssh orin hostname`     | `orin`                         |
+| WSL2 | `ssh spark hostname`    | `spark-79b7` (or DGX hostname) |
+| DGX  | `ssh wsl2-dev hostname` | `dev`                          |
+| Orin | `ssh wsl2-dev hostname` | `dev`                          |
 
 BatchMode test (confirms no password fallback):
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Mount DGX shared folder for WSL2
+Documentation=man:mount.cifs(8)
+Wants=network-online.target
+After=network-online.target ssh.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/mount-dgx-shared.conf
+ExecStart=/usr/local/sbin/mount-dgx-shared.sh
+TimeoutStartSec=10
+RemainAfterExit=yes

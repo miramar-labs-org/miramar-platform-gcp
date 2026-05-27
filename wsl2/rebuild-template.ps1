@@ -27,13 +27,12 @@ Step "Import template as '$BuildName'"
 New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 wsl --import $BuildName $BuildDir $TarPath --version 2 | Out-Null
 
-Step 'Patch fstab + .smbcredentials'
+Step 'Patch WSL mount config + .smbcredentials'
 # Build all paths in PowerShell — bash variable lookup is unreliable when
 # the distro starts bare without systemd (NSS not initialised).
 $UserHome  = "/home/$DistroUser"
 $Creds     = "$UserHome/.smbcredentials"
 $SharedDir = "$UserHome/shared"
-$FstabLine = "//spark-79b7.local/shared $SharedDir cifs credentials=$Creds,uid=1000,gid=1000,vers=3.0,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0"
 
 Write-Host "==> Writing .smbcredentials at $Creds"
 wsl -d $BuildName --user root -- bash -c "printf 'username=$DistroUser\npassword=$SmbPassword\n' > '$Creds' && chmod 600 '$Creds' && chown $DistroUser`:$DistroUser '$Creds' && echo done"
@@ -41,8 +40,14 @@ wsl -d $BuildName --user root -- bash -c "printf 'username=$DistroUser\npassword
 Write-Host "==> Creating $SharedDir"
 wsl -d $BuildName --user root -- bash -c "mkdir -p '$SharedDir' && chown $DistroUser`:$DistroUser '$SharedDir' && echo done"
 
-Write-Host "==> Patching /etc/fstab (always replace to ensure correct paths/options)"
-wsl -d $BuildName --user root -- bash -c "sed -i '/spark-79b7.local\/shared/d' /etc/fstab; printf '$FstabLine\n' >> /etc/fstab && echo 'patched'"
+Write-Host "==> Removing legacy CIFS entries from /etc/fstab"
+wsl -d $BuildName --user root -- bash -c "grep -v ' $SharedDir ' /etc/fstab > /tmp/fstab.new 2>/dev/null || true; cp /tmp/fstab.new /etc/fstab; rm -f /tmp/fstab.new; echo 'patched'"
+
+Write-Host "==> Ensuring WSL pre-systemd fstab handling stays disabled"
+# Do not mount the DGX shared folder from /etc/fstab on WSL2. Early mDNS/CIFS
+# handling can delay boot or disrupt Plan 9/p9io, causing AcceptAsync canceled
+# followed by distro powerdown. The post-boot systemd timer handles the mount.
+wsl -d $BuildName --user root -- bash -c "grep -q 'mountFsTab = false' /etc/wsl.conf 2>/dev/null || printf '\n[automount]\nmountFsTab = false\n' >> /etc/wsl.conf"
 
 Write-Host "==> /etc/fstab:"
 wsl -d $BuildName --user root -- cat /etc/fstab

@@ -4,9 +4,9 @@
 # Usage (run as root):
 #   setup-shared-ssh.sh <DGX_HOST> <USER> [DISTRO_NAME] [SSH_PORT]
 #
-# Mounts //DGX_HOST/shared at ~/shared/ via CIFS, then symlinks all
-# ~/.ssh/ files (config, known_hosts, authorized_keys, id_ed25519,
-# id_ed25519.pub) to ~/shared/ssh/. All machines share Spark's SSH identity.
+# Configures the post-boot DGX CIFS mount service, mounts once immediately,
+# then symlinks SSH files (config, known_hosts, authorized_keys, id_ed25519,
+# id_ed25519.pub) to the shared store. All machines share Spark's SSH identity.
 # Idempotent: safe to run multiple times.
 
 set -euo pipefail
@@ -21,11 +21,42 @@ USER_HOME=$(getent passwd "$MOUNT_USER" | cut -d: -f6)
 CREDS="$USER_HOME/.smbcredentials"
 SSH_DIR="$USER_HOME/.ssh"
 SHARED_DIR="$USER_HOME/shared"
-UID_NUM=$(id -u "$MOUNT_USER")
-GID_NUM=$(id -g "$MOUNT_USER")
+MOUNT_CONF=/etc/mount-dgx-shared.conf
+MOUNT_HELPER=/usr/local/sbin/mount-dgx-shared.sh
 
 log()  { echo "==> $*"; }
 warn() { echo "WARN: $*"; }
+
+resolve_cifs_host() {
+  local host="$1"
+  local ip=""
+
+  if [[ "$host" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+    printf '%s\n' "$host"
+    return 0
+  fi
+
+  ip=$(awk -v host="$host" '
+    $1 !~ /^#/ {
+      for (i = 2; i <= NF; i++) {
+        if ($i == host) {
+          print $1
+          exit
+        }
+      }
+    }
+  ' /etc/hosts 2>/dev/null || true)
+  if [[ -n "$ip" ]]; then
+    printf '%s\n' "$ip"
+    return 0
+  fi
+
+  if [[ "$host" == *.local ]]; then
+    return 1
+  fi
+
+  getent ahostsv4 "$host" 2>/dev/null | awk '{print $1; exit}'
+}
 
 # ─── 1. Prerequisites ────────────────────────────────────────────────────────
 
@@ -43,71 +74,52 @@ mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
 chown "$MOUNT_USER:$MOUNT_USER" "$SSH_DIR"
 
-# ─── 2. Wait for DGX to be reachable ─────────────────────────────────────────
+# ─── 2. Resolve DGX source without boot-time mDNS ────────────────────────────
 
-log "Waiting for $DGX_HOST..."
-for i in $(seq 1 18); do
-  if ping -c 1 -W 2 "$DGX_HOST" >/dev/null 2>&1; then
-    log "$DGX_HOST reachable"
-    break
-  fi
-  echo "  waiting... ($i/18)"
-  sleep 5
-  if [[ $i -eq 18 ]]; then
-    echo "ERROR: $DGX_HOST not reachable after 90s" >&2
-    exit 1
-  fi
-done
-
-# Resolve hostname → IP while mDNS works (avahi may not be ready at next boot,
-# before systemd starts, causing mount -a to hang and kill the distro in 10s).
-DGX_IP=$(getent hosts "$DGX_HOST" 2>/dev/null | awk '{print $1; exit}')
-if [[ -z "$DGX_IP" ]]; then
-  warn "Could not resolve $DGX_HOST to IP — fstab will use hostname (mDNS required at boot)"
-  DGX_IP="$DGX_HOST"
+DGX_CIFS_HOST=$(resolve_cifs_host "$DGX_HOST" || true)
+if [[ -z "$DGX_CIFS_HOST" ]]; then
+  warn "$DGX_HOST is not a static IP or /etc/hosts-resolved name; mount timer will wait for a safe source"
+else
+  log "CIFS service will use: $DGX_CIFS_HOST"
 fi
-log "CIFS fstab will use: $DGX_IP"
 
 # ─── 3. CIFS mount ───────────────────────────────────────────────────────────
 
 mkdir -p "$SHARED_DIR"
 chown "$MOUNT_USER:$MOUNT_USER" "$SHARED_DIR"
 
-# Filter by mount point (handles stale entries with either hostname or IP)
+# Filter by mount point (handles stale entries with either hostname or IP).
+# Do not write CIFS mounts to /etc/fstab on WSL2. WSL pre-systemd fstab
+# handling and mDNS/CIFS can delay boot or disrupt p9io/Plan9, causing
+# AcceptAsync canceled followed by distro powerdown.
 grep -v " $SHARED_DIR " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
-# noauto: skip during pre-systemd mount -a; x-systemd.automount: mount on first access.
-# No _netdev: omitting _netdev prevents systemd-fstab-generator from adding
-# After=network-online.target to the automount unit. With _netdev, the automount
-# unit joins the remote-fs.target → multi-user.target dependency chain and waits
-# for network-online.target, which is slow in WSL2 mirrored-networking mode. That
-# delay prevents systemd from reaching 'running' state before WSL2's boot tracking
-# window expires, causing WSL2 to fall back to idle-session-tracking (killing the
-# distro when all sessions end). Without _netdev the automount unit loads
-# immediately (just a kernel inode) and the actual CIFS mount fires lazily when
-# the mountpoint is first accessed — by that time the network is already up.
-echo "//$DGX_IP/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,vers=3.0,nofail,noauto,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0" \
-  >> /tmp/fstab.new
 cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
-log "Written CIFS fstab entry (IP: $DGX_IP, noauto, x-systemd.automount, no _netdev)"
-# Do NOT run systemctl daemon-reload here. On WSL2, daemon-reload causes
-# systemd to re-evaluate netplan/networkd, which briefly reconfigures the
-# network interface. That disrupts WSL's internal Plan 9 (p9io) connection
-# to the Windows host, and WSL terminates the distro (CheckConnection:
-# getaddrinfo failed → AcceptAsync canceled → System is powering down).
-# The fstab entry is picked up automatically by systemd-fstab-generator
-# on the next boot, which creates the automount unit then.
+log "Removed legacy CIFS fstab entry for $SHARED_DIR"
 
-if mountpoint -q "$SHARED_DIR" 2>/dev/null; then
-  log "$SHARED_DIR already mounted"
+cat > "$MOUNT_CONF" <<EOF
+DGX_MOUNT_USER=$MOUNT_USER
+DGX_CIFS_HOST=$DGX_CIFS_HOST
+EOF
+chmod 644 "$MOUNT_CONF"
+log "Wrote $MOUNT_CONF"
+
+if [[ -f /etc/systemd/system/mount-dgx-shared.timer ]]; then
+  systemctl enable /etc/systemd/system/mount-dgx-shared.timer >/dev/null 2>&1 || true
+  systemctl start mount-dgx-shared.timer >/dev/null 2>&1 || true
+  log "Enabled mount-dgx-shared.timer"
 else
-  mount -t cifs "//$DGX_IP/shared" "$SHARED_DIR" \
-    -o "credentials=$CREDS,uid=$UID_NUM,gid=$GID_NUM,file_mode=0600,dir_mode=0700"
-  log "Mounted $SHARED_DIR"
+  warn "mount-dgx-shared.timer is not installed"
 fi
 
-# ─── 4. Symlink ~/.ssh/ → ~/shared/ssh/ ──────────────────────────────────────
+if [[ -x "$MOUNT_HELPER" ]]; then
+  "$MOUNT_HELPER"
+else
+  warn "$MOUNT_HELPER is not installed"
+fi
 
-log "Symlinking ~/.ssh/ → $SHARED_DIR/ssh/..."
+# ─── 4. Symlink SSH files to the shared store ────────────────────────────────
+
+log "Symlinking $SSH_DIR files to $SHARED_DIR/ssh/..."
 for f in config known_hosts authorized_keys id_ed25519 id_ed25519.pub; do
   target="$SHARED_DIR/ssh/$f"
   link="$SSH_DIR/$f"
@@ -144,8 +156,8 @@ if [[ -n "$DISTRO_NAME" ]]; then
   if grep -q "^Host $ALIAS" "$CONFIG" 2>/dev/null; then
     log "$ALIAS already in config"
   elif [[ -f "$CONFIG" ]]; then
-    printf '\nHost %s\n    HostName %s\n    User %s\n    Port %s\n    IdentityFile ~/.ssh/id_ed25519\n    IdentitiesOnly yes\n' \
-      "$ALIAS" "$WIN_HOSTNAME" "$MOUNT_USER" "$SSH_PORT" >> "$CONFIG"
+    printf '\nHost %s\n    HostName %s\n    User %s\n    Port %s\n    IdentityFile %s/.ssh/id_ed25519\n    IdentitiesOnly yes\n' \
+      "$ALIAS" "$WIN_HOSTNAME" "$MOUNT_USER" "$SSH_PORT" "$USER_HOME" >> "$CONFIG"
     log "$ALIAS added to config (HostName $WIN_HOSTNAME) — written directly to shared store via CIFS"
   fi
 fi

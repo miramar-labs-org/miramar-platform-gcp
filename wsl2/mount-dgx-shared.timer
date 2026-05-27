@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry DGX shared folder mount for WSL2
+
+[Timer]
+OnBootSec=30
+OnUnitInactiveSec=60
+Unit=mount-dgx-shared.service
+
+[Install]
+WantedBy=timers.target
