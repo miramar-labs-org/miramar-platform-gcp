@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DGX_HOST="spark-79b7.local"
+DGX_HOST_IP="${DGX_HOST_IP:?Set DGX_HOST_IP to the DGX static IP}"
 DGX_USER="${USER}"
 MLFLOW_PORT=5000
 
-echo "==> Checking MLflow service on DGX (${DGX_HOST})..."
-SERVICE_STATUS=$(ssh "${DGX_USER}@${DGX_HOST}" "systemctl is-active mlflow 2>/dev/null || echo inactive")
+echo "==> Checking MLflow service on DGX (${DGX_HOST_IP})..."
+SERVICE_STATUS=$(ssh "${DGX_USER}@${DGX_HOST_IP}" "systemctl is-active mlflow 2>/dev/null || echo inactive")
 if [[ "${SERVICE_STATUS}" == "active" ]]; then
     echo "    Service : active ✓"
 else
@@ -22,5 +22,5 @@ else
     echo "    Tunnel  : not reachable ✗"
     echo ""
     echo "    To open tunnel:"
-    echo "    ssh -L ${MLFLOW_PORT}:localhost:${MLFLOW_PORT} ${DGX_USER}@${DGX_HOST}"
+    echo "    ssh -L ${MLFLOW_PORT}:localhost:${MLFLOW_PORT} ${DGX_USER}@${DGX_HOST_IP}"
 fi

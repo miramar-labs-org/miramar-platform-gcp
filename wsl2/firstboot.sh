@@ -7,7 +7,7 @@
 #   distro_name=dev
 #   ssh_port=2222
 #   mount_user=aaron
-#   dgx_host=192.0.2.10
+#   dgx_host_ip=192.0.2.10
 
 set -euo pipefail
 
@@ -25,9 +25,13 @@ source "$CONF"
 DISTRO_NAME="${distro_name:?distro_name required}"
 SSH_PORT="${ssh_port:-2222}"
 MOUNT_USER="${mount_user:-aaron}"
-DGX_HOST="${dgx_host:-spark-79b7.local}"
+DGX_HOST_IP="${dgx_host_ip:-}"
 
 log "Provisioning $DISTRO_NAME (port: $SSH_PORT, user: $MOUNT_USER)"
+if [[ -z "$DGX_HOST_IP" ]]; then
+  echo "ERROR: dgx_host_ip is required in $CONF" >&2
+  exit 1
+fi
 
 # 0. Remove legacy wsl2-ssh-setup.service if present (older bootstrap.sh
 #    installed a boot-time service that ran setup-shared-ssh.sh on every boot;
@@ -72,6 +76,6 @@ fi
 
 # 3. Post-boot CIFS mount service + SSH symlinks into /home/aaron/shared/ssh/
 log "Running setup-shared-ssh.sh"
-/usr/local/bin/setup-shared-ssh.sh "$DGX_HOST" "$MOUNT_USER" "$DISTRO_NAME" "$SSH_PORT"
+/usr/local/bin/setup-shared-ssh.sh "$DGX_HOST_IP" "$MOUNT_USER" "$DISTRO_NAME" "$SSH_PORT"
 
 log "First-boot complete"

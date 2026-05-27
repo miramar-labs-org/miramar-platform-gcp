@@ -241,7 +241,7 @@ Then run `firstboot.sh` manually (requires `/etc/wsl2-provision.conf` to exist f
 
 ```powershell
 # Write the provision config
-wsl -d Ubuntu2204-Dev1 --user root -- bash -c "echo distro_name=dev > /etc/wsl2-provision.conf && echo ssh_port=2222 >> /etc/wsl2-provision.conf && echo mount_user=aaron >> /etc/wsl2-provision.conf && echo dgx_host=192.0.2.10 >> /etc/wsl2-provision.conf"
+wsl -d Ubuntu2204-Dev1 --user root -- bash -c "echo distro_name=dev > /etc/wsl2-provision.conf && echo ssh_port=2222 >> /etc/wsl2-provision.conf && echo mount_user=aaron >> /etc/wsl2-provision.conf && echo dgx_host_ip=192.0.2.10 >> /etc/wsl2-provision.conf"
 # Run firstboot
 wsl -d Ubuntu2204-Dev1 --user root -- bash /usr/local/bin/firstboot.sh
 ```

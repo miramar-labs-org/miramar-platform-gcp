@@ -185,7 +185,7 @@ jobs:
         env:
           DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          DGX_HOST: ${{ vars.DGX_HOST_IP }}
+          DGX_HOST_IP: ${{ vars.DGX_HOST_IP }}
         run: |
           # Write .smbcredentials via stdin (password never in args)
           printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \
@@ -201,9 +201,9 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
-            "$DGX_HOST_USER@localhost" bash -s "$DGX_HOST" << 'EOF'
+            "$DGX_HOST_USER@localhost" bash -s "$DGX_HOST_IP" << 'EOF'
           set -euo pipefail
-          DGX_HOST_REMOTE="$1"
+          DGX_HOST_IP_REMOTE="$1"
 
           # Remove any stale SSH symlinks
           for f in config known_hosts authorized_keys id_ed25519 id_ed25519.pub; do
@@ -211,8 +211,8 @@ jobs:
           done
 
           # Remove stale CIFS fstab entry
-          if grep -qF "$DGX_HOST_REMOTE/shared" /etc/fstab 2>/dev/null; then
-            grep -vF "$DGX_HOST_REMOTE/shared" /etc/fstab | sudo tee /tmp/fstab.new >/dev/null
+          if grep -qF "$DGX_HOST_IP_REMOTE/shared" /etc/fstab 2>/dev/null; then
+            grep -vF "$DGX_HOST_IP_REMOTE/shared" /etc/fstab | sudo tee /tmp/fstab.new >/dev/null
             sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
             echo "Removed stale CIFS fstab entry"
           fi
@@ -245,7 +245,7 @@ jobs:
           mkdir -p ~/shared
           UID_NUM=$(id -u)
           GID_NUM=$(id -g)
-          FSTAB_LINE="//$DGX_HOST_REMOTE/shared $HOME/shared cifs credentials=$HOME/.smbcredentials,uid=$UID_NUM,gid=$GID_NUM,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0"
+          FSTAB_LINE="//$DGX_HOST_IP_REMOTE/shared $HOME/shared cifs credentials=$HOME/.smbcredentials,uid=$UID_NUM,gid=$GID_NUM,_netdev,nofail,x-systemd.automount,file_mode=0600,dir_mode=0700 0 0"
           echo "$FSTAB_LINE" | sudo tee -a /etc/fstab
           echo "Added CIFS fstab entry"
 

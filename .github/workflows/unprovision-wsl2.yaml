@@ -81,7 +81,7 @@ jobs:
       - name: Remove from shared SSH config
         if: always()
         env:
-          DGX_HOST: ${{ vars.DGX_HOST_IP }}
+          DGX_HOST_IP: ${{ vars.DGX_HOST_IP }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
           DISTRO: ${{ inputs.distro_name }}
           # Stored in env so the script stays inside the YAML block scalar —
@@ -110,7 +110,7 @@ jobs:
           printf '%s' "$PYCODE" | ssh -i /tmp/dgx_priv \
             -o BatchMode=yes -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
-            "$DGX_HOST_USER@$DGX_HOST" \
+            "$DGX_HOST_USER@$DGX_HOST_IP" \
             "python3 - $DISTRO"
           rm -f /tmp/dgx_priv
 

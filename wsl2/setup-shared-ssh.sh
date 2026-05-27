@@ -2,7 +2,7 @@
 # setup-shared-ssh.sh — join the lab SSH mesh from inside a WSL2 distro.
 #
 # Usage (run as root):
-#   setup-shared-ssh.sh <DGX_HOST> <USER> [DISTRO_NAME] [SSH_PORT]
+#   setup-shared-ssh.sh <DGX_HOST_IP> <USER> [DISTRO_NAME] [SSH_PORT]
 #
 # Configures the post-boot DGX CIFS mount service, mounts once immediately,
 # then symlinks SSH files (config, known_hosts, authorized_keys, id_ed25519,
@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-DGX_HOST="${1:-spark-79b7.local}"
+DGX_HOST_IP="${1:-}"
 MOUNT_USER="${2:-${SUDO_USER:-$USER}}"
 DISTRO_NAME="${3:-$(cat /etc/wsl2-distro-name 2>/dev/null || true)}"
 SSH_PORT="${4:-2222}"
@@ -76,9 +76,9 @@ chown "$MOUNT_USER:$MOUNT_USER" "$SSH_DIR"
 
 # ─── 2. Resolve DGX source without boot-time mDNS ────────────────────────────
 
-DGX_CIFS_HOST=$(resolve_cifs_host "$DGX_HOST" || true)
+DGX_CIFS_HOST=$(resolve_cifs_host "$DGX_HOST_IP" || true)
 if [[ -z "$DGX_CIFS_HOST" ]]; then
-  warn "$DGX_HOST is not a static IP or /etc/hosts-resolved name; mount timer will wait for a safe source"
+  warn "$DGX_HOST_IP is not a static IP or /etc/hosts-resolved name; mount timer will wait for a safe source"
 else
   log "CIFS service will use: $DGX_CIFS_HOST"
 fi

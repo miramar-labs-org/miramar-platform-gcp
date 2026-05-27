@@ -67,30 +67,30 @@ flowchart LR
 
 On-premises machines acting as self-hosted GitHub Actions runners and general compute:
 
-| Machine | OS | Arch | CPU | GPU | VRAM | CUDA | Runner label |
-|---|---|---|---|---|---|---|---|
-| Windows laptop | Ubuntu 22.04 (WSL2) | x86_64 / amd64 | AMD | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6 | 12.6 | `wsl2` |
-| NVIDIA DGX Spark 128GB | DGX OS (Ubuntu 24.04) | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen) | 128 GB unified | 12.6 | `dgx` |
-| NVIDIA Jetson AGX Orin 64GB | Ubuntu 22.04 (JetPack 6.x) | aarch64 / arm64 | 12-core Cortex-A78AE | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87) | 64 GB unified | 12.6 | `agx` |
+| Machine                     | OS                         | Arch            | CPU                                             | GPU                                                                              | VRAM           | CUDA | Runner label |
+| --------------------------- | -------------------------- | --------------- | ----------------------------------------------- | -------------------------------------------------------------------------------- | -------------- | ---- | ------------ |
+| Windows laptop              | Ubuntu 22.04 (WSL2)        | x86_64 / amd64  | AMD                                             | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6     | 12.6 | `wsl2`       |
+| NVIDIA DGX Spark 128GB      | DGX OS (Ubuntu 24.04)      | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen)  | 128 GB unified | 12.6 | `dgx`        |
+| NVIDIA Jetson AGX Orin 64GB | Ubuntu 22.04 (JetPack 6.x) | aarch64 / arm64 | 12-core Cortex-A78AE                            | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87)                                | 64 GB unified  | 12.6 | `agx`        |
 
 All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`. GPU access works the same way on both arm64 machines via the NVIDIA container runtime.
 
 ### Cloud infrastructure (GCP)
 
-| Service | Purpose | Dashboard |
-|---|---|---|
-| GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads | [GKE console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) |
-| Artifact Registry (`apps`) | Docker image registry for built application images | [GAR console](https://console.cloud.google.com/artifacts?project=miramar-platform) |
-| GCS buckets | Terraform state + GKE node pool snapshots (see [Storage](#gcp-storage) below) | [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform) |
-| Workload Identity Federation | Keyless auth from GitHub Actions to GCP — no long-lived service account keys | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
-| GCP project | `miramar-platform` — single project for all resources | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform) |
+| Service                                     | Purpose                                                                       | Dashboard                                                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads                              | [GKE console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform)                   |
+| Artifact Registry (`apps`)                  | Docker image registry for built application images                            | [GAR console](https://console.cloud.google.com/artifacts?project=miramar-platform)                         |
+| GCS buckets                                 | Terraform state + GKE node pool snapshots (see [Storage](#gcp-storage) below) | [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform)                   |
+| Workload Identity Federation                | Keyless auth from GitHub Actions to GCP — no long-lived service account keys  | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
+| GCP project                                 | `miramar-platform` — single project for all resources                         | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform)                      |
 
 ### CI/CD
 
-| Service | Role | Link |
-|---|---|---|
-| GitHub Actions | Workflow automation — build, test, deploy | [Actions](https://github.com/orgs/miramar-labs-org/actions) |
-| GHCR | Docker image hosting for the runner image and future app images | [Packages](https://github.com/orgs/miramar-labs-org/packages) |
+| Service             | Role                                                                                    | Link                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| GitHub Actions      | Workflow automation — build, test, deploy                                               | [Actions](https://github.com/orgs/miramar-labs-org/actions)                           |
+| GHCR                | Docker image hosting for the runner image and future app images                         | [Packages](https://github.com/orgs/miramar-labs-org/packages)                         |
 | Self-hosted runners | Jobs requiring GPU, local network access, or aarch64 run on the physical machines above | [Runners](https://github.com/organizations/miramar-labs-org/settings/actions/runners) |
 
 GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Federation. Access is restricted to repos under the `miramar-labs-org` org.
@@ -147,46 +147,46 @@ Open the dashboard at **[http://localhost:8001/api/v1/namespaces/kubernetes-dash
 
 ### Org-level secrets — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/secrets/actions)
 
-| Secret | Value | Purpose |
-|---|---|---|
-| `WIF_PROVIDER` | output of `bootstrap-miramar-platform.zsh` | WIF provider resource path — shared by all repos for GCP auth |
-| `HF_TOKEN` | Hugging Face API token | Injected into workflow steps via `${{ secrets.HF_TOKEN }}` — no longer set on individual machines |
-| `NVIDIA_API_KEY` | NVIDIA NGC API key | Required by NeMo Microservices and NIM workflows |
-| `DGX_HOST_SSH_KEY` | Private SSH key (Ed25519) | Key used to SSH into the DGX host from runners; matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
-| `ORIN_HOST_SSH_KEY` | Private SSH key (Ed25519) | Key used to SSH into the Orin host from the agx runner container (via `localhost:22` — container uses `--network=host`); matching public key must be in `~/.ssh/authorized_keys` for `aaron` on Orin. Use Orin's own `~/.ssh/id_ed25519` and self-authorize it. |
-| `DGX_SMB_PASSWORD` | Samba password for the DGX `aaron` user | Used by **Setup Shared SSH Store** (writes `.smbcredentials` on Orin — one-time admin op). **Not needed by WSL2 Provision** — credentials are baked into the template by `rebuild-template.ps1`. |
-| `DGX_MINIKUBE_KUBECONFIG` | base64-encoded kubeconfig | Written by **Minikube Install**; used by minikube workflows to reach the DGX cluster |
+| Secret                    | Value                                      | Purpose                                                                                                                                                                                                                                                         |
+| ------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WIF_PROVIDER`            | output of `bootstrap-miramar-platform.zsh` | WIF provider resource path — shared by all repos for GCP auth                                                                                                                                                                                                   |
+| `HF_TOKEN`                | Hugging Face API token                     | Injected into workflow steps via `${{ secrets.HF_TOKEN }}` — no longer set on individual machines                                                                                                                                                               |
+| `NVIDIA_API_KEY`          | NVIDIA NGC API key                         | Required by NeMo Microservices and NIM workflows                                                                                                                                                                                                                |
+| `DGX_HOST_SSH_KEY`        | Private SSH key (Ed25519)                  | Key used to SSH into the DGX host from runners; matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX                                                                                                                          |
+| `ORIN_HOST_SSH_KEY`       | Private SSH key (Ed25519)                  | Key used to SSH into the Orin host from the agx runner container (via `localhost:22` — container uses `--network=host`); matching public key must be in `~/.ssh/authorized_keys` for `aaron` on Orin. Use Orin's own `~/.ssh/id_ed25519` and self-authorize it. |
+| `DGX_SMB_PASSWORD`        | Samba password for the DGX `aaron` user    | Used by **Setup Shared SSH Store** (writes `.smbcredentials` on Orin — one-time admin op). **Not needed by WSL2 Provision** — credentials are baked into the template by `rebuild-template.ps1`.                                                                |
+| `DGX_MINIKUBE_KUBECONFIG` | base64-encoded kubeconfig                  | Written by **Minikube Install**; used by minikube workflows to reach the DGX cluster                                                                                                                                                                            |
 
 ### Repo-level secrets — [miramar-platform-gcp settings](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/secrets/actions)
 
-| Secret | Value | Purpose |
-|---|---|---|
-| `GCP_SERVICE_ACCOUNT` | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops SA — used by platform lifecycle workflows |
-| `WSL2_HOST` | hostname or IP of the MSI Windows laptop | SSH target for WSL2 workflows |
-| `WSL2_HOST_USER` | Windows SSH user | SSH login for WSL2 workflows |
-| `WSL2_HOST_SSH_KEY` | Private SSH key | Key used to SSH into Windows from runners; matching public key in `C:\ProgramData\ssh\administrators_authorized_keys` |
+| Secret                | Value                                                         | Purpose                                                                                                               |
+| --------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `GCP_SERVICE_ACCOUNT` | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops SA — used by platform lifecycle workflows                                                                 |
+| `WSL2_HOST`           | hostname or IP of the MSI Windows laptop                      | SSH target for WSL2 workflows                                                                                         |
+| `WSL2_HOST_USER`      | Windows SSH user                                              | SSH login for WSL2 workflows                                                                                          |
+| `WSL2_HOST_SSH_KEY`   | Private SSH key                                               | Key used to SSH into Windows from runners; matching public key in `C:\ProgramData\ssh\administrators_authorized_keys` |
 
 ### Org-level variables — [miramar-labs-org settings](https://github.com/organizations/miramar-labs-org/settings/variables/actions)
 
 Available to all repos via `${{ vars.* }}`. GCP vars are **synced from `gcp/terraform/terraform.tfvars`** — do not edit directly; run `scripts/gha/sync-github-tf-vars.sh` after changing tfvars. Lab host vars are set manually.
 
-| Variable | Value | Notes |
-|---|---|---|
-| `GCP_PROJECT_ID` | `miramar-platform` | synced from tfvars |
-| `GKE_CLUSTER_NAME` | `miramar-shared-gke` | synced from tfvars |
-| `GKE_ZONE` | `us-central1-b` | synced from tfvars |
-| `GCP_REGION` | `us-central1` | synced from tfvars |
-| `GAR_REPO` | `apps` | synced from tfvars |
-| `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` | set manually — not in tfvars |
-| `DGX_HOST` | `spark-79b7.local` | set manually — mDNS hostname of the DGX Spark |
-| `DGX_HOST_USER` | `aaron` | set manually — SSH user on the DGX host |
-| `MLFLOW_TRACKING_URI` | `http://localhost:5000` | set manually — used by ML workflows |
+| Variable              | Value                            | Notes                                     |
+| --------------------- | -------------------------------- | ----------------------------------------- |
+| `GCP_PROJECT_ID`      | `miramar-platform`               | synced from tfvars                        |
+| `GKE_CLUSTER_NAME`    | `miramar-shared-gke`             | synced from tfvars                        |
+| `GKE_ZONE`            | `us-central1-b`                  | synced from tfvars                        |
+| `GCP_REGION`          | `us-central1`                    | synced from tfvars                        |
+| `GAR_REPO`            | `apps`                           | synced from tfvars                        |
+| `GKE_STATE_BUCKET`    | `miramar-platform-cluster-state` | set manually — not in tfvars              |
+| `DGX_HOST_IP`         | `192.0.2.10`                     | set manually — static IP of the DGX Spark |
+| `DGX_HOST_USER`       | `aaron`                          | set manually — SSH user on the DGX host   |
+| `MLFLOW_TRACKING_URI` | `http://localhost:5000`          | set manually — used by ML workflows       |
 
 ### Repo-level variables — [miramar-platform-gcp settings](https://github.com/miramar-labs-org/miramar-platform-gcp/settings/variables/actions)
 
-| Variable | Initial value | Purpose |
-|---|---|---|
-| `WSL2_DISTROS` | `NONE` | Space-separated list of active WSL2 distro names. Updated automatically by **WSL2 Provision** (add) and **WSL2 Unprovision** (remove). Set to `NONE` when no distros are active. Create with value `NONE` before first provision run. |
+| Variable       | Initial value | Purpose                                                                                                                                                                                                                               |
+| -------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WSL2_DISTROS` | `NONE`        | Space-separated list of active WSL2 distro names. Updated automatically by **WSL2 Provision** (add) and **WSL2 Unprovision** (remove). Set to `NONE` when no distros are active. Create with value `NONE` before first provision run. |
 
 ---
 
@@ -194,9 +194,9 @@ Available to all repos via `${{ vars.* }}`. GCP vars are **synced from `gcp/terr
 
 Two GitHub classic PATs must be set as environment variables on each machine. Create them at [github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)**.
 
-| Variable | Scope required | Purpose |
-|---|---|---|
-| `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull the `mlabs-runner` image from GHCR |
+| Variable               | Scope required      | Purpose                                                                                                                  |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GITHUB_ORG_GHCR_PAT`  | `read:packages`     | Pull the `mlabs-runner` image from GHCR                                                                                  |
 | `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo` | Manage self-hosted runners; also used by WSL2 Provision/Unprovision workflows to update the `WSL2_DISTROS` repo variable |
 
 Add to `~/.bashrc` or `~/.zshrc` on each machine:
@@ -218,8 +218,8 @@ Docker-based GitHub Actions runners for self-hosted machines. Supports `amd64` (
 
 Built and pushed to GHCR by the [build-mlabs-runner workflow](.github/workflows/build-mlabs-runner.yml) on every push to `main` that touches `mlabs-runner/**`.
 
-| Image | Architectures |
-|---|---|
+| Image                                                                                                                              | Architectures                |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | [`ghcr.io/miramar-labs-org/mlabs-runner:latest`](https://github.com/orgs/miramar-labs-org/packages/container/package/mlabs-runner) | `linux/amd64`, `linux/arm64` |
 
 Docker automatically pulls the correct variant for the host architecture.
@@ -228,17 +228,18 @@ Docker automatically pulls the correct variant for the host architecture.
 
 **Pre-installed tools:**
 
-| Category | Packages |
-|---|---|
-| CI/CD | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `gh`, `helm`, `ngc`, `make`, `openssh-client`, `zstd` |
-| PyTorch | `torch`, `torchvision`, `torchaudio` — CUDA 12.6 wheels (amd64: pytorch.org/whl/cu126; arm64: standard PyPI) |
+| Category    | Packages                                                                                                                                 |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| CI/CD       | `docker-cli`, `kubectl`, `gcloud`, `terraform`, `gh`, `helm`, `ngc`, `make`, `openssh-client`, `zstd`                                    |
+| PyTorch     | `torch`, `torchvision`, `torchaudio` — CUDA 12.6 wheels (amd64: pytorch.org/whl/cu126; arm64: standard PyPI)                             |
 | HuggingFace | `transformers`, `diffusers`, `accelerate`, `peft`, `optimum`, `sentence-transformers`, `timm`, `huggingface_hub`, `evaluate`, `datasets` |
-| ML tooling | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops` |
-| Audio/video | `ffmpeg`, `libsndfile1`, `sox` |
+| ML tooling  | `mlflow`, `tensorboard`, `bitsandbytes`, `onnx`, `scikit-learn`, `boto3`, `numpy`, `scipy`, `pandas`, `einops`                           |
+| Audio/video | `ffmpeg`, `libsndfile1`, `sox`                                                                                                           |
 
 Terraform is installed directly in the image via the Hashicorp apt repo — the `hashicorp/setup-terraform` GitHub Actions action (which requires Node.js) is not used.
 
 To verify GPU access after pulling a new image:
+
 ```sh
 docker run --rm --gpus all ghcr.io/miramar-labs-org/mlabs-runner:latest \
   python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
@@ -272,15 +273,15 @@ The [launch-runner.sh](scripts/gha/launch-runner.sh) script pulls the multi-arch
 
 **All options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--token` | *(auto-fetched)* | Runner registration token — fetched via `GITHUB_ORG_ADMIN_PAT` if not supplied |
-| `--name` | hostname | Runner display name |
-| `--labels` | `wsl2` / `dgx` / `agx` — auto-detected from arch and `/proc/device-tree/model` | Comma-separated runner labels |
-| `--repo` | *(unset — org-level)* | Scope to a specific repo (`owner/repo`) |
-| `--group` | `Default` | Runner group |
-| `--ephemeral` | false | Deregister after one job |
-| `--detach` | false | Run container in background (`docker run -d`) |
+| Flag          | Default                                                                        | Description                                                                    |
+| ------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `--token`     | _(auto-fetched)_                                                               | Runner registration token — fetched via `GITHUB_ORG_ADMIN_PAT` if not supplied |
+| `--name`      | hostname                                                                       | Runner display name                                                            |
+| `--labels`    | `wsl2` / `dgx` / `agx` — auto-detected from arch and `/proc/device-tree/model` | Comma-separated runner labels                                                  |
+| `--repo`      | _(unset — org-level)_                                                          | Scope to a specific repo (`owner/repo`)                                        |
+| `--group`     | `Default`                                                                      | Runner group                                                                   |
+| `--ephemeral` | false                                                                          | Deregister after one job                                                       |
+| `--detach`    | false                                                                          | Run container in background (`docker run -d`)                                  |
 
 Work directory is mounted from `~/runner/_work` on the host into `/home/runner/_work` in the container.
 
@@ -313,6 +314,7 @@ docker buildx build \
 GitHub Actions workflows authenticate to GCP via WIF — no long-lived service account keys. Two things must be configured correctly for auth to succeed.
 
 **GCP resources (all in `miramar-platform`):**
+
 - Pool: `projects/808481995423/locations/global/workloadIdentityPools/github-actions`
 - Provider: `github` (OIDC, issuer `https://token.actions.githubusercontent.com`)
 - Service account: `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com`
@@ -322,6 +324,7 @@ GitHub Actions workflows authenticate to GCP via WIF — no long-lived service a
 Controls which GitHub tokens the provider will accept. Must reference the correct org.
 
 Check the current condition:
+
 ```sh
 gcloud iam workload-identity-pools providers describe github \
   --project=miramar-platform \
@@ -333,6 +336,7 @@ gcloud iam workload-identity-pools providers describe github \
 Expected: `attribute.repository_owner=='miramar-labs-org'`
 
 Update if wrong:
+
 ```sh
 gcloud iam workload-identity-pools providers update-oidc github \
   --project=miramar-platform \
@@ -346,6 +350,7 @@ gcloud iam workload-identity-pools providers update-oidc github \
 Controls which WIF principal can impersonate the service account. Must reference the correct org.
 
 Check the current binding:
+
 ```sh
 gcloud iam service-accounts get-iam-policy \
   gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
@@ -356,6 +361,7 @@ gcloud iam service-accounts get-iam-policy \
 Expected member: `principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org`
 
 Add the correct binding:
+
 ```sh
 gcloud iam service-accounts add-iam-policy-binding \
   gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
@@ -365,6 +371,7 @@ gcloud iam service-accounts add-iam-policy-binding \
 ```
 
 Remove any stale binding referencing an old org name:
+
 ```sh
 gcloud iam service-accounts remove-iam-policy-binding \
   gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com \
@@ -381,8 +388,8 @@ gcloud iam service-accounts remove-iam-policy-binding \
 
 All buckets are in project `miramar-platform`, region `us-central1`. → [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform)
 
-| Bucket | Purpose | Provisioned by |
-|---|---|---|
+| Bucket                           | Purpose                                                                                                                              | Provisioned by                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `miramar-platform-cluster-state` | Terraform state (`terraform/state/` prefix), GPU pool state (`terraform/gpu-state/` prefix), GKE node pool snapshots (`gke/` prefix) | **Miramar Platform Create** workflow (pre-`terraform init` step) |
 
 The bucket is created before `terraform init` runs — it cannot be managed by the same Terraform config that uses it as a backend.
@@ -403,7 +410,9 @@ To create a bucket manually:
 ### `scripts/gha/` — GitHub Actions runner management
 
 #### [launch-runner.sh](scripts/gha/launch-runner.sh)
+
 Pull and start a self-hosted runner container. Idempotent — if the container is already running, prints its status and exits 0. Requires `GITHUB_ORG_GHCR_PAT` and `GITHUB_ORG_ADMIN_PAT` — registration token is fetched automatically.
+
 ```sh
 # Org-level runner (default)
 ./scripts/gha/launch-runner.sh
@@ -416,19 +425,25 @@ Pull and start a self-hosted runner container. Idempotent — if the container i
 ```
 
 #### [stop-runner.sh](scripts/gha/stop-runner.sh)
+
 Gracefully stop the mlabs-runner container. Sends SIGTERM, which triggers the entrypoint cleanup trap to deregister the runner from GitHub Actions before the container exits.
+
 ```sh
 ./scripts/gha/stop-runner.sh
 ```
 
 #### [runners.sh](scripts/gha/runners.sh)
+
 List all runners registered to the org, with status and labels.
+
 ```sh
 ./scripts/gha/runners.sh
 ```
 
 #### [install-runner.sh](scripts/gha/install-runner.sh)
+
 Install and register a runner directly on the host (no Docker). Useful for the Jetson AGX Orin or any machine where you want the runner running natively. Downloads the correct arch tarball, verifies the SHA256 checksum, configures, and optionally installs as a systemd service.
+
 ```sh
 # Basic install (org-level, foreground)
 ./scripts/gha/install-runner.sh --labels "self-hosted,linux,arm64,agx"
@@ -441,7 +456,9 @@ Install and register a runner directly on the host (no Docker). Useful for the J
 ```
 
 #### [flush-queues.sh](scripts/gha/flush-queues.sh)
+
 Cancel all in-progress, queued, and waiting workflow runs for the repo. Useful for clearing a stuck queue.
+
 ```sh
 # Default: miramar-labs-org/miramar-platform-gcp
 ./scripts/gha/flush-queues.sh
@@ -451,7 +468,9 @@ Cancel all in-progress, queued, and waiting workflow runs for the repo. Useful f
 ```
 
 #### [unregister-runner.sh](scripts/gha/unregister-runner.sh)
+
 Remove a runner from the org via the GitHub API. Lists runners and prompts for ID, or pass a name directly.
+
 ```sh
 # Interactive
 ./scripts/gha/unregister-runner.sh
@@ -461,13 +480,17 @@ Remove a runner from the org via the GitHub API. Lists runners and prompts for I
 ```
 
 #### [sync-github-tf-vars.sh](scripts/gha/sync-github-tf-vars.sh)
+
 Sync `gcp/terraform/terraform.tfvars` to GitHub org variables. Run after editing tfvars to keep GitHub vars in sync.
+
 ```sh
 ./scripts/gha/sync-github-tf-vars.sh
 ```
 
 #### [get-github-secrets.sh](scripts/gha/get-github-secrets.sh)
+
 Print the `WIF_PROVIDER` and `GCP_SERVICE_ACCOUNT` values for the platform. Use this after bootstrap to get the values to paste into GitHub secrets.
+
 ```sh
 ./scripts/gha/get-github-secrets.sh
 ```
@@ -477,13 +500,17 @@ Print the `WIF_PROVIDER` and `GCP_SERVICE_ACCOUNT` values for the platform. Use 
 ### `scripts/gcp/` — GCP utilities
 
 #### [resources.sh](scripts/gcp/resources.sh)
+
 Enumerate live GCP resources in the `miramar-platform` project.
+
 ```sh
 ./scripts/gcp/resources.sh
 ```
 
 #### [create-bucket.sh](scripts/gcp/create-bucket.sh)
+
 Create a GCS bucket idempotently. Optionally grant a service account `storage.admin` on the project.
+
 ```sh
 ./scripts/gcp/create-bucket.sh \
   --bucket <name> \
@@ -493,7 +520,9 @@ Create a GCS bucket idempotently. Optionally grant a service account `storage.ad
 ```
 
 #### [gke/find-gpu-capacity.sh](scripts/gcp/gke/find-gpu-capacity.sh)
+
 Probes actual GPU capacity across all GPU types and zones in parallel (exhausted zones fail in <5s). Requires `compute.instances.create` — run locally, not in CI. Prints the top 5 cheapest available options with ready-to-use GKE Expand GPU input values.
+
 ```sh
 # Probe all GPU types across all US regions (default)
 ./scripts/gcp/gke/find-gpu-capacity.sh
@@ -507,25 +536,33 @@ Probes actual GPU capacity across all GPU types and zones in parallel (exhausted
 ### `scripts/ubuntu/` — Host setup
 
 #### [install-gcloud.sh](scripts/ubuntu/install-gcloud.sh)
+
 Install the Google Cloud CLI via apt on Ubuntu/Debian.
+
 ```sh
 ./scripts/ubuntu/install-gcloud.sh
 ```
 
 #### [install-terraform.sh](scripts/ubuntu/install-terraform.sh)
+
 Install Terraform via apt on Ubuntu/Debian.
+
 ```sh
 ./scripts/ubuntu/install-terraform.sh
 ```
 
 #### [install-gh.sh](scripts/ubuntu/install-gh.sh)
+
 Install the GitHub CLI via apt on Ubuntu/Debian.
+
 ```sh
 ./scripts/ubuntu/install-gh.sh
 ```
 
 #### [install-ollama.sh](scripts/ubuntu/install-ollama.sh)
+
 Install or upgrade Ollama on the host. Skips if the installed version is already the latest. Installs `zstd` as a prerequisite, then runs the official Ollama installer which sets up the `ollama` system user and `ollama.service` systemd unit. Designed to be copied to the DGX host via SCP and run remotely by the **Ollama Update** workflow, but also works when run directly.
+
 ```sh
 sudo ./scripts/ubuntu/install-ollama.sh
 ```
@@ -534,11 +571,11 @@ sudo ./scripts/ubuntu/install-ollama.sh
 
 ### `gcp/` — GCP provisioning
 
-| Script | Usage |
-|---|---|
-| `gcp/bootstrap-miramar-platform.zsh` | One-time local setup — project, billing, APIs, WIF, service accounts, IAM. Run before any workflow. |
-| `gcp/create-miramar-platform.zsh` | K8s setup only — AR IAM bindings + namespaces + RBAC. Called by the **Miramar Platform Create** workflow after `terraform apply`. |
-| `gcp/list-miramar-platform.zsh` | Enumerate live GCP resources in the project |
+| Script                               | Usage                                                                                                                             |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `gcp/bootstrap-miramar-platform.zsh` | One-time local setup — project, billing, APIs, WIF, service accounts, IAM. Run before any workflow.                               |
+| `gcp/create-miramar-platform.zsh`    | K8s setup only — AR IAM bindings + namespaces + RBAC. Called by the **Miramar Platform Create** workflow after `terraform apply`. |
+| `gcp/list-miramar-platform.zsh`      | Enumerate live GCP resources in the project                                                                                       |
 
 ---
 
@@ -554,9 +591,9 @@ zsh ./gcp/bootstrap-miramar-platform.zsh 2>&1 | tee /tmp/bootstrap.log
 
 This creates the GCP project, billing link, APIs, WIF pool/provider, and all service accounts + IAM bindings. The output prints two values to set as GitHub secrets:
 
-| Secret | Scope |
-|---|---|
-| `WIF_PROVIDER` | Org-level secret (shared across all repos) |
+| Secret                | Scope                                       |
+| --------------------- | ------------------------------------------- |
+| `WIF_PROVIDER`        | Org-level secret (shared across all repos)  |
 | `GCP_SERVICE_ACCOUNT` | Repo-level secret on `miramar-platform-gcp` |
 
 After setting those secrets, all subsequent workflows authenticate via WIF.
@@ -588,6 +625,7 @@ Actions → Miramar Platform Create → Run workflow
 **Permanently destroys the platform stack.** Runs `terraform destroy` to remove the GKE cluster, node pool, and AR repo. Falls back to gcloud for any resources not in Terraform state (e.g. pre-migration resources). Deletes the GCS state bucket separately (it cannot be in TF state). Optionally deletes the GCP project itself (30-day undelete window).
 
 Three guards:
+
 1. Type the exact project name (`miramar-platform`) in `confirm_project`
 2. Check `i_confirm`
 3. Check `delete_project` only if you also want the GCP project gone
@@ -636,11 +674,11 @@ Runs `terraform apply` in `gcp/terraform-gpu/` to create the `gpu-pool` node poo
 
 **GPU options (`gpu_type` input):**
 
-| gpu_type | Architecture | VRAM | Paired machine | Zone | Approx cost/hr |
-|---|---|---|---|---|---|
-| `nvidia-tesla-t4` *(default)* | Turing | 16 GB | `n1-standard-4` | cluster zone | ~$0.54 |
-| `nvidia-l4` | Ada Lovelace | 24 GB | `g2-standard-4` | cluster zone | ~$0.74 |
-| `nvidia-tesla-p4` | Pascal | 8 GB | `n1-standard-4` | cluster zone | ~$0.42 |
+| gpu_type                      | Architecture | VRAM  | Paired machine  | Zone         | Approx cost/hr |
+| ----------------------------- | ------------ | ----- | --------------- | ------------ | -------------- |
+| `nvidia-tesla-t4` _(default)_ | Turing       | 16 GB | `n1-standard-4` | cluster zone | ~$0.54         |
+| `nvidia-l4`                   | Ada Lovelace | 24 GB | `g2-standard-4` | cluster zone | ~$0.74         |
+| `nvidia-tesla-p4`             | Pascal       | 8 GB  | `n1-standard-4` | cluster zone | ~$0.42         |
 
 T4 and L4 are recommended for inference workloads. L4 offers better throughput per dollar for larger models and FP8/INT8 serving. P4 is sufficient for lightweight models only.
 
@@ -685,8 +723,8 @@ See [dgx/ollama/README.md](dgx/ollama/README.md) for recommended models, pull co
 
 Pulls an Ollama model and loads it into GPU memory on the DGX Spark. **Fails with a clear error if a NIM or another Ollama model is already occupying the 128 GB GPU pool** — resolve the conflict first, then retry.
 
-| Input | Default | Description |
-|---|---|---|
+| Input   | Default                        | Description                       |
+| ------- | ------------------------------ | --------------------------------- |
 | `model` | `llama3.3:70b-instruct-q4_K_M` | Ollama model tag to pull and load |
 
 ```
@@ -697,10 +735,10 @@ Actions → Ollama Deploy → Run workflow
 
 Unloads the active Ollama model from GPU memory. Auto-detects the running model from `ollama ps` if `model` is left blank. Safe to run when no model is loaded (no-op).
 
-| Input | Default | Description |
-|---|---|---|
-| `model` | *(auto-detect)* | Model tag to unload — leave blank to auto-detect |
-| `delete_model` | `false` | Also delete the model from disk (`ollama rm`) |
+| Input          | Default         | Description                                      |
+| -------------- | --------------- | ------------------------------------------------ |
+| `model`        | _(auto-detect)_ | Model tag to unload — leave blank to auto-detect |
+| `delete_model` | `false`         | Also delete the model from disk (`ollama rm`)    |
 
 ```
 Actions → Ollama Undeploy → Run workflow
@@ -711,23 +749,24 @@ Actions → Ollama Undeploy → Run workflow
 Installs or upgrades Ollama on the DGX host via SSH. The workflow does not run Ollama itself — it runs on a self-hosted runner (`dgx` or `wsl2`, your choice) and SSHes into the DGX host to update it there. Idempotent — if Ollama is already at the latest version, it exits without doing anything.
 
 **How it works:**
-1. Writes `DGX_HOST_SSH_KEY` to `~/.ssh/dgx_host` inside the runner and scans `DGX_HOST` into `known_hosts`
+
+1. Writes `DGX_HOST_SSH_KEY` to `~/.ssh/dgx_host` inside the runner and scans `DGX_HOST_IP` into `known_hosts`
 2. Derives and prints the public-key fingerprint with `ssh-keygen` for troubleshooting
-3. SSHes to `DGX_HOST_USER@DGX_HOST` and pipes `scripts/ubuntu/install-ollama.sh` into `sudo bash -s` on the DGX
+3. SSHes to `DGX_HOST_USER@DGX_HOST_IP` and pipes `scripts/ubuntu/install-ollama.sh` into `sudo bash -s` on the DGX
 
 **Inputs:**
 
-| Input | Options | Default | Purpose |
-|---|---|---|---|
-| `runner` | `dgx`, `wsl2` | `dgx` | Which self-hosted runner to use for the SSH connection |
+| Input    | Options       | Default | Purpose                                                |
+| -------- | ------------- | ------- | ------------------------------------------------------ |
+| `runner` | `dgx`, `wsl2` | `dgx`   | Which self-hosted runner to use for the SSH connection |
 
 **Required org-level variables and secrets:**
 
-| Name | Kind | Purpose |
-|---|---|---|
-| `DGX_HOST` | org variable | Hostname of the DGX Spark (`spark-79b7.local`) |
-| `DGX_HOST_USER` | org variable | SSH user on the DGX host (`aaron`) |
-| `DGX_HOST_SSH_KEY` | org secret | Private SSH key — matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
+| Name               | Kind         | Purpose                                                                                                  |
+| ------------------ | ------------ | -------------------------------------------------------------------------------------------------------- |
+| `DGX_HOST_IP`      | org variable | Static IP of the DGX Spark                                                                               |
+| `DGX_HOST_USER`    | org variable | SSH user on the DGX host (`aaron`)                                                                       |
+| `DGX_HOST_SSH_KEY` | org secret   | Private SSH key — matching public key must be in `~/.ssh/authorized_keys` for `DGX_HOST_USER` on the DGX |
 
 **SSH key notes:**
 
@@ -770,9 +809,9 @@ Actions → NeMo Deploy → Run workflow
 
 Uninstalls the NeMo Helm release, removes Volcano and its `volcano-system` namespace, and cleans up `/etc/hosts` entries. Explicitly deletes the postgres PVCs before uninstall so the next NeMo deploy always initialises a fresh database — preventing password drift between the Kubernetes secret and the on-disk data. Optionally deletes the `nemo-microservices` namespace (default: true).
 
-| Input | Default | Description |
-|---|---|---|
-| `delete_namespace` | `true` | Delete the `nemo-microservices` namespace after uninstall |
+| Input              | Default | Description                                               |
+| ------------------ | ------- | --------------------------------------------------------- |
+| `delete_namespace` | `true`  | Delete the `nemo-microservices` namespace after uninstall |
 
 ```
 Actions → NeMo Undeploy → Run workflow
@@ -788,26 +827,27 @@ See [dgx/minikube/nim/NIM.md](dgx/minikube/nim/NIM.md) for the full model catalo
 
 **Available NIMs built for DGX Spark:**
 
-| Model | org | nim_name | Notes |
-|---|---|---|---|
-| Nemotron Nano 9B v2 | `nvidia` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | Tools enabled — **default** |
-| Llama 3.1 8B Instruct | `meta` | `llama-3.1-8b-instruct-dgx-spark` | |
+| Model                 | org      | nim_name                               | Notes                       |
+| --------------------- | -------- | -------------------------------------- | --------------------------- |
+| Nemotron Nano 9B v2   | `nvidia` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | Tools enabled — **default** |
+| Llama 3.1 8B Instruct | `meta`   | `llama-3.1-8b-instruct-dgx-spark`      |                             |
 
 ### [NIM Deploy](.github/workflows/deploy-nim.yaml)
 
 Deploys a NIM via the NeMo deployment API. If a different NIM is already deployed it is automatically undeployed first. Waits up to 90 minutes for the NIM to reach READY status (model download included).
 
-| Input | Default | Description |
-|---|---|---|
-| `nim_name` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | NIM model name |
-| `nim_org` | `nvidia` | NIM org / NGC namespace |
-| `image_tag` | `1.0.0-variant` | NIM image tag |
+| Input       | Default                                | Description             |
+| ----------- | -------------------------------------- | ----------------------- |
+| `nim_name`  | `nvidia-nemotron-nano-9b-v2-dgx-spark` | NIM model name          |
+| `nim_org`   | `nvidia`                               | NIM org / NGC namespace |
+| `image_tag` | `1.0.0-variant`                        | NIM image tag           |
 
 ```
 Actions → NIM Deploy → Run workflow
 ```
 
 Query the running model after deployment:
+
 ```sh
 curl http://nim.test/v1/models
 ```
@@ -816,10 +856,10 @@ curl http://nim.test/v1/models
 
 Undeploys a NIM via the NeMo deployment API. Safe to run if the NIM is already gone (404 → no-op).
 
-| Input | Default | Description |
-|---|---|---|
-| `nim_name` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | NIM model name |
-| `nim_org` | `nvidia` | NIM org / NGC namespace |
+| Input      | Default                                | Description             |
+| ---------- | -------------------------------------- | ----------------------- |
+| `nim_name` | `nvidia-nemotron-nano-9b-v2-dgx-spark` | NIM model name          |
+| `nim_org`  | `nvidia`                               | NIM org / NGC namespace |
 
 ```
 Actions → NIM Undeploy → Run workflow
@@ -832,6 +872,7 @@ WSL2 distros are provisioned from a pre-built configured template tarball (`C:\w
 **Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `ml`) and its own sshd port (2222 for the first, increment by 1 for each additional). All SSH configs use the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-ml`) so instances never conflict.
 
 **One-time template setup** (per template build):
+
 ```
 wsl2/bootstrap.sh (inside distro)  → bakes id_ed25519_smb + .smbcredentials
 wsl2/rebuild-template.ps1          → patches fstab + .smbcredentials, exports tarball
@@ -840,6 +881,7 @@ Actions → Setup Shared SSH Store
 ```
 
 **Per-distro provisioning sequence** (`DGX_SMB_PASSWORD` not needed — baked into template):
+
 ```
 Actions → WSL2 Provision           → distro_name: dev  ssh_port: 2222
 Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
@@ -847,10 +889,10 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 
 **Required secrets** (repo-level):
 
-| Secret | Purpose |
-|---|---|
-| `WSL2_HOST` | Hostname or IP of the MSI Windows laptop |
-| `WSL2_HOST_USER` | Windows SSH user |
+| Secret              | Purpose                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `WSL2_HOST`         | Hostname or IP of the MSI Windows laptop                                                                        |
+| `WSL2_HOST_USER`    | Windows SSH user                                                                                                |
 | `WSL2_HOST_SSH_KEY` | Private SSH key — matching public key must be in `C:\ProgramData\ssh\administrators_authorized_keys` on Windows |
 
 ### [Setup Shared SSH Store](.github/workflows/setup-shared-ssh.yaml)
@@ -860,6 +902,7 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 After this runs, `~/.ssh/config`, `~/.ssh/known_hosts`, and `~/.ssh/authorized_keys` on DGX are symlinks into `~/shared/ssh/`. Orin mounts the same share via CIFS and symlinks its `~/.ssh/` to the shared store — all machines share Spark's SSH identity.
 
 **Prerequisites for Orin setup** (one-time, on the Orin host as `aaron`):
+
 ```bash
 # If ~/.ssh/ only has .bak files (left by old CIFS-based setup), restore them first:
 cp ~/.ssh/authorized_keys.bak ~/.ssh/authorized_keys 2>/dev/null || touch ~/.ssh/authorized_keys
@@ -885,13 +928,13 @@ Actions → Setup Shared SSH Store → Run workflow
 
 Full lifecycle: imports a new distro from the configured template tarball, then runs `firstboot.sh` inside the distro via Windows SSH → `wsl exec` (no direct port-2222 SSH — avoids WSL2 mirrored-networking issues). Sets hostname, opens Windows Firewall rule, restarts sshd on the configured port, mounts `//DGX/shared` via CIFS, symlinks `~/.ssh/ → ~/shared/ssh/`, and writes the `wsl2-<distro_name>` host block to the shared SSH config. Authorizes the DGX SSH key, then verifies sshd + systemd are up. On success, adds the distro name to the `WSL2_DISTROS` repo variable.
 
-`.smbcredentials` and fstab are baked into the template by `rebuild-template.ps1` — **no `DGX_SMB_PASSWORD` needed at provision time**.
+`.smbcredentials` is baked into the template by `rebuild-template.ps1` — **no `DGX_SMB_PASSWORD` needed at provision time**.
 
-| Input | Default | Description |
-|---|---|---|
-| `distro_name` | `dev` | Name for the new distro (becomes its hostname and SSH alias suffix) |
-| `ssh_port` | `2222` | sshd port — increment for each additional instance |
-| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`) |
+| Input         | Default | Description                                                         |
+| ------------- | ------- | ------------------------------------------------------------------- |
+| `distro_name` | `dev`   | Name for the new distro (becomes its hostname and SSH alias suffix) |
+| `ssh_port`    | `2222`  | sshd port — increment for each additional instance                  |
+| `runner`      | `dgx`   | Runner to SSH from (`dgx`, `agx`)                                   |
 
 ```
 Actions → WSL2 Provision → distro_name: dev  ssh_port: 2222 → Run workflow
@@ -901,19 +944,19 @@ Actions → WSL2 Provision → distro_name: dev  ssh_port: 2222 → Run workflow
 
 Validates every SSH path in the mesh. Reports ✅/❌ per path in the workflow summary.
 
-| Path tested | Runner |
-|---|---|
-| DGX → `ssh orin hostname` | `dgx` |
-| DGX → `ssh wsl2-<distro> hostname` | `dgx` |
-| Orin → `ssh spark hostname` | `agx` |
-| Orin → `ssh wsl2-<distro> hostname` | `agx` |
-| WSL2 → `ssh spark hostname` (nested via `wsl2-<distro>`) | `dgx` |
-| WSL2 → `ssh orin hostname` (nested via `wsl2-<distro>`) | `dgx` |
+| Path tested                                              | Runner |
+| -------------------------------------------------------- | ------ |
+| DGX → `ssh orin hostname`                                | `dgx`  |
+| DGX → `ssh wsl2-<distro> hostname`                       | `dgx`  |
+| Orin → `ssh spark hostname`                              | `agx`  |
+| Orin → `ssh wsl2-<distro> hostname`                      | `agx`  |
+| WSL2 → `ssh spark hostname` (nested via `wsl2-<distro>`) | `dgx`  |
+| WSL2 → `ssh orin hostname` (nested via `wsl2-<distro>`)  | `dgx`  |
 
-| Input | Default | Description |
-|---|---|---|
-| `distro_name` | `dev` | WSL2 distro name (used to build the `wsl2-<distro>` alias) |
-| `ssh_port` | `2222` | sshd port for this distro |
+| Input         | Default | Description                                                |
+| ------------- | ------- | ---------------------------------------------------------- |
+| `distro_name` | `dev`   | WSL2 distro name (used to build the `wsl2-<distro>` alias) |
+| `ssh_port`    | `2222`  | sshd port for this distro                                  |
 
 ```
 Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222 → Run workflow
@@ -923,11 +966,11 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222 → Ru
 
 Unregisters a distro. Optionally deletes `C:\wsl\<name>` from disk. Removes the distro name from the `WSL2_DISTROS` repo variable (sets to `NONE` if no distros remain).
 
-| Input | Default | Description |
-|---|---|---|
-| `distro_name` | `dev` | Name of distro to unregister |
+| Input          | Default | Description                                       |
+| -------------- | ------- | ------------------------------------------------- |
+| `distro_name`  | `dev`   | Name of distro to unregister                      |
 | `delete_files` | `false` | Delete `C:\wsl\<name>` folder after unregistering |
-| `runner` | `dgx` | Runner to SSH from (`dgx`, `agx`, `wsl2`) |
+| `runner`       | `dgx`   | Runner to SSH from (`dgx`, `agx`, `wsl2`)         |
 
 ```
 Actions → WSL2 Unprovision → distro_name: dev → Run workflow
