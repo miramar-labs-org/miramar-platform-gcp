@@ -30,6 +30,15 @@ on:
         required: false
         type: string
         default: ""
+    secrets:
+      WSL2_HOST:
+        required: true
+      WSL2_HOST_USER:
+        required: true
+      WSL2_HOST_SSH_KEY:
+        required: true
+      DGX_HOST_SSH_KEY:
+        required: true
 
 jobs:
   # ── From spark ──────────────────────────────────────────────────────────
@@ -45,8 +54,45 @@ jobs:
         shell: bash
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
+          DGX_HOST_SSH_KEY: ${{ secrets.DGX_HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          setup_wsl_ssh() {
+            [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]] && return
+
+            : "${DGX_HOST_USER:=aaron}"
+            : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
+            : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
+            : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
+            : "${DGX_HOST_SSH_KEY:?DGX_HOST_SSH_KEY is required when WSL2 distros are active}"
+
+            WSL_SSH_DIR="$(mktemp -d)"
+            trap 'rm -rf "$WSL_SSH_DIR"' EXIT
+            printf '%s\n' "$WSL2_HOST_SSH_KEY" > "$WSL_SSH_DIR/win_host"
+            printf '%s\n' "$DGX_HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
+            chmod 600 "$WSL_SSH_DIR/win_host" "$WSL_SSH_DIR/dgx_host"
+
+            WSL_SSH_CONFIG="$WSL_SSH_DIR/config"
+            : > "$WSL_SSH_CONFIG"
+            for d in $DISTROS; do
+              cat >> "$WSL_SSH_CONFIG" <<EOF
+          Host wsl2-$d
+              HostName wsl2-$d
+              User $DGX_HOST_USER
+              IdentityFile $WSL_SSH_DIR/dgx_host
+              IdentitiesOnly yes
+              StrictHostKeyChecking accept-new
+              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /usr/sbin/sshd -i -e"
+          EOF
+            done
+            WSL_SSH="$SSH -F $WSL_SSH_CONFIG"
+          }
+
+          setup_wsl_ssh
           declare -A R
           any_fail=false
 
@@ -63,7 +109,7 @@ jobs:
           if [[ "$DISTROS" != "NONE" && -n "$DISTROS" ]]; then
             for d in $DISTROS; do
               # spark → wsl2-<d>
-              if out=$($SSH "wsl2-$d" hostname 2>&1); then
+              if out=$($WSL_SSH "wsl2-$d" hostname 2>&1); then
                 echo "spark → wsl2-$d: $out"
                 R["spark__wsl2-$d"]=pass
               else
@@ -99,8 +145,45 @@ jobs:
         shell: bash
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
+          DGX_HOST_SSH_KEY: ${{ secrets.DGX_HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          setup_wsl_ssh() {
+            [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]] && return
+
+            : "${DGX_HOST_USER:=aaron}"
+            : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
+            : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
+            : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
+            : "${DGX_HOST_SSH_KEY:?DGX_HOST_SSH_KEY is required when WSL2 distros are active}"
+
+            WSL_SSH_DIR="$(mktemp -d)"
+            trap 'rm -rf "$WSL_SSH_DIR"' EXIT
+            printf '%s\n' "$WSL2_HOST_SSH_KEY" > "$WSL_SSH_DIR/win_host"
+            printf '%s\n' "$DGX_HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
+            chmod 600 "$WSL_SSH_DIR/win_host" "$WSL_SSH_DIR/dgx_host"
+
+            WSL_SSH_CONFIG="$WSL_SSH_DIR/config"
+            : > "$WSL_SSH_CONFIG"
+            for d in $DISTROS; do
+              cat >> "$WSL_SSH_CONFIG" <<EOF
+          Host wsl2-$d
+              HostName wsl2-$d
+              User $DGX_HOST_USER
+              IdentityFile $WSL_SSH_DIR/dgx_host
+              IdentitiesOnly yes
+              StrictHostKeyChecking accept-new
+              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /usr/sbin/sshd -i -e"
+          EOF
+            done
+            WSL_SSH="$SSH -F $WSL_SSH_CONFIG"
+          }
+
+          setup_wsl_ssh
           declare -A R
           any_fail=false
 
@@ -117,7 +200,7 @@ jobs:
           if [[ "$DISTROS" != "NONE" && -n "$DISTROS" ]]; then
             for d in $DISTROS; do
               # orin → wsl2-<d>
-              if out=$($SSH "wsl2-$d" hostname 2>&1); then
+              if out=$($WSL_SSH "wsl2-$d" hostname 2>&1); then
                 echo "orin → wsl2-$d: $out"
                 R["orin__wsl2-$d"]=pass
               else
@@ -155,8 +238,45 @@ jobs:
         shell: bash
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
+          DGX_HOST_SSH_KEY: ${{ secrets.DGX_HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          setup_wsl_ssh() {
+            [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]] && return
+
+            : "${DGX_HOST_USER:=aaron}"
+            : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
+            : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
+            : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
+            : "${DGX_HOST_SSH_KEY:?DGX_HOST_SSH_KEY is required when WSL2 distros are active}"
+
+            WSL_SSH_DIR="$(mktemp -d)"
+            trap 'rm -rf "$WSL_SSH_DIR"' EXIT
+            printf '%s\n' "$WSL2_HOST_SSH_KEY" > "$WSL_SSH_DIR/win_host"
+            printf '%s\n' "$DGX_HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
+            chmod 600 "$WSL_SSH_DIR/win_host" "$WSL_SSH_DIR/dgx_host"
+
+            WSL_SSH_CONFIG="$WSL_SSH_DIR/config"
+            : > "$WSL_SSH_CONFIG"
+            for d in $DISTROS; do
+              cat >> "$WSL_SSH_CONFIG" <<EOF
+          Host wsl2-$d
+              HostName wsl2-$d
+              User $DGX_HOST_USER
+              IdentityFile $WSL_SSH_DIR/dgx_host
+              IdentitiesOnly yes
+              StrictHostKeyChecking accept-new
+              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /usr/sbin/sshd -i -e"
+          EOF
+            done
+            WSL_SSH="$SSH -F $WSL_SSH_CONFIG"
+          }
+
+          setup_wsl_ssh
           declare -A R
           any_fail=false
 
@@ -165,7 +285,7 @@ jobs:
           else
             for d in $DISTROS; do
               # wsl2-<d> → spark  (nested SSH)
-              if out=$($SSH "wsl2-$d" "$SSH spark hostname" 2>&1); then
+              if out=$($WSL_SSH "wsl2-$d" "$SSH spark hostname" 2>&1); then
                 echo "wsl2-$d → spark: $out"
                 R["wsl2-${d}__spark"]=pass
               else
@@ -175,7 +295,7 @@ jobs:
               fi
 
               # wsl2-<d> → orin   (nested SSH)
-              if out=$($SSH "wsl2-$d" "$SSH orin hostname" 2>&1); then
+              if out=$($WSL_SSH "wsl2-$d" "$SSH orin hostname" 2>&1); then
                 echo "wsl2-$d → orin: $out"
                 R["wsl2-${d}__orin"]=pass
               else
@@ -190,7 +310,7 @@ jobs:
               for src in "${DARR[@]}"; do
                 for dst in "${DARR[@]}"; do
                   [[ "$src" == "$dst" ]] && continue
-                  if out=$($SSH "wsl2-$src" "$SSH wsl2-$dst hostname" 2>&1); then
+                  if out=$($WSL_SSH "wsl2-$src" "$SSH wsl2-$dst hostname" 2>&1); then
                     echo "wsl2-$src → wsl2-$dst: $out"
                     R["wsl2-${src}__wsl2-${dst}"]=pass
                   else

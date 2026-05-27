@@ -297,5 +297,6 @@ jobs:
   verify:
     needs: provision
     uses: ./.github/workflows/verify-ssh-topology.yaml
+    secrets: inherit
     with:
       distros: ${{ needs.provision.outputs.wsl2_distros }}
