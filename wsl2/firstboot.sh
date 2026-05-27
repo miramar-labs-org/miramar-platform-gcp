@@ -29,6 +29,15 @@ DGX_HOST="${dgx_host:-spark-79b7.local}"
 
 log "Provisioning $DISTRO_NAME (port: $SSH_PORT, user: $MOUNT_USER)"
 
+# 0. Remove legacy wsl2-ssh-setup.service if present (older bootstrap.sh
+#    installed a boot-time service that ran setup-shared-ssh.sh on every boot;
+#    that role is now handled by firstboot.sh once at provision time).
+if systemctl list-unit-files wsl2-ssh-setup.service &>/dev/null; then
+  log "Removing legacy wsl2-ssh-setup.service"
+  systemctl disable wsl2-ssh-setup.service 2>/dev/null || true
+  rm -f /etc/systemd/system/wsl2-ssh-setup.service
+fi
+
 # Wait for systemd/D-Bus to be ready (needed for systemctl)
 log "Waiting for systemd..."
 for i in $(seq 1 20); do
