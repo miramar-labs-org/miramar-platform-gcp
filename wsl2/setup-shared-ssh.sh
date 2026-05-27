@@ -80,7 +80,13 @@ echo "//$DGX_IP/shared $SHARED_DIR cifs credentials=$CREDS,uid=$UID_NUM,gid=$GID
   >> /tmp/fstab.new
 cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 log "Written CIFS fstab entry (IP: $DGX_IP, noauto, x-systemd.automount)"
-systemctl daemon-reload 2>/dev/null || true
+# Do NOT run systemctl daemon-reload here. On WSL2, daemon-reload causes
+# systemd to re-evaluate netplan/networkd, which briefly reconfigures the
+# network interface. That disrupts WSL's internal Plan 9 (p9io) connection
+# to the Windows host, and WSL terminates the distro (CheckConnection:
+# getaddrinfo failed → AcceptAsync canceled → System is powering down).
+# The fstab entry is picked up automatically by systemd-fstab-generator
+# on the next boot, which creates the automount unit then.
 
 if mountpoint -q "$SHARED_DIR" 2>/dev/null; then
   log "$SHARED_DIR already mounted"
