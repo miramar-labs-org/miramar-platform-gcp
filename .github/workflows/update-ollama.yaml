@@ -30,7 +30,7 @@ jobs:
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
           chmod 600 /tmp/dgx_host
 
-          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Install / upgrade Ollama on DGX host
         shell: bash
@@ -42,5 +42,5 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'sudo bash -s' < scripts/ubuntu/install-ollama.sh

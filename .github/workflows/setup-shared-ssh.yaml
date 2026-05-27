@@ -17,14 +17,13 @@ name: Setup Shared SSH Store
 #
 # Prerequisites:
 #   - DGX ~/shared Samba share configured and running
-#   - Vars:    DGX_HOST, DGX_HOST_USER
+#   - Vars:    DGX_HOST_IP, DGX_HOST_USER
 #   - Secrets: DGX_HOST_SSH_KEY, ORIN_HOST_SSH_KEY, DGX_SMB_PASSWORD
 
 on:
   workflow_dispatch:
 
 jobs:
-
   # -----------------------------------------------------------------------
   # Phase 1: DGX host — init ~/shared/ssh/ + symlinks
   # -----------------------------------------------------------------------
@@ -39,7 +38,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
           chmod 600 /tmp/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Initialise ~/shared/ssh/ and create symlinks on DGX host
         run: |
@@ -49,7 +48,7 @@ jobs:
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             -o StrictHostKeyChecking=accept-new \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" bash -s << 'EOF'
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" bash -s << 'EOF'
           set -euo pipefail
 
           mkdir -p ~/shared/ssh
@@ -160,7 +159,6 @@ jobs:
           echo "DGX host setup complete"
           EOF
 
-
   # -----------------------------------------------------------------------
   # Phase 2: Orin host — CIFS mount + symlinks
   # agx runner runs inside Docker; host-level ops (fstab, mount, ~/.smbcredentials)
@@ -187,7 +185,7 @@ jobs:
         env:
           DGX_SMB_PASSWORD: ${{ secrets.DGX_SMB_PASSWORD }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          DGX_HOST: ${{ vars.DGX_HOST }}
+          DGX_HOST: ${{ vars.DGX_HOST_IP }}
         run: |
           # Write .smbcredentials via stdin (password never in args)
           printf 'username=%s\npassword=%s\n' "$DGX_HOST_USER" "$DGX_SMB_PASSWORD" | \

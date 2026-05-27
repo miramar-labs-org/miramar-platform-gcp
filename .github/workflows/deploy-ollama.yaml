@@ -27,7 +27,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
           chmod 600 /tmp/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Check conflicts and deploy
         shell: bash
@@ -40,7 +40,7 @@ jobs:
             -o PasswordAuthentication=no \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST }}" \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             bash -s -- "${{ inputs.model }}" \
             < dgx/ollama/deploy_ollama.sh
 
@@ -52,5 +52,5 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Model | \`${{ inputs.model }}\` |"
-            echo "| Host | \`${{ vars.DGX_HOST }}\` |"
+            echo "| Host | \`${{ vars.DGX_HOST_IP }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

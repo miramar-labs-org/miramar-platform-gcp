@@ -3,7 +3,7 @@ name: WSL2 Unprovision
 # Unregisters a WSL2 distro on the Windows laptop (removes it from WSL; does not delete C:\wsl\<name> files).
 # Also removes the wsl2-<name> Host block from the shared SSH config on DGX.
 # Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
-# Vars required:    DGX_HOST, DGX_HOST_USER
+# Vars required:    DGX_HOST_IP, DGX_HOST_USER
 
 on:
   workflow_dispatch:
@@ -81,7 +81,7 @@ jobs:
       - name: Remove from shared SSH config
         if: always()
         env:
-          DGX_HOST: ${{ vars.DGX_HOST }}
+          DGX_HOST: ${{ vars.DGX_HOST_IP }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
           DISTRO: ${{ inputs.distro_name }}
           # Stored in env so the script stays inside the YAML block scalar —

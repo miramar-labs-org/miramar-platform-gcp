@@ -95,15 +95,15 @@ See [Rebuild the configured template](#rebuild-the-configured-template) below.
 
 **6. Set GitHub secrets and vars** (repo or org level):
 
-| Secret / Var                 | Value                                                                          | Used by                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `WSL2_HOST` (secret)         | Windows hostname or IP (e.g. `msi.local`)                                      | provision, verify, unprovision                                                        |
-| `WSL2_HOST_USER` (secret)    | Windows SSH username                                                           | provision, verify, unprovision                                                        |
-| `WSL2_HOST_SSH_KEY` (secret) | Private key authorized on Windows                                              | provision, verify, unprovision                                                        |
-| `DGX_HOST_SSH_KEY` (secret)  | Spark's private key — used to authorize DGX in the distro and verify SSH       | provision, verify                                                                     |
-| `DGX_HOST` (var)             | DGX static IP or `/etc/hosts`-resolved hostname for CIFS (avoid mDNS `.local`) | provision                                                                             |
-| `DGX_HOST_USER` (var)        | DGX / Samba username                                                           | provision                                                                             |
-| `WSL2_DISTROS` (repo var)    | `NONE` initially                                                               | Tracks active distro names — create once with value `NONE` before first provision run |
+| Secret / Var                 | Value                                                                    | Used by                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `WSL2_HOST` (secret)         | Windows hostname or IP (e.g. `msi.local`)                                | provision, verify, unprovision                                                        |
+| `WSL2_HOST_USER` (secret)    | Windows SSH username                                                     | provision, verify, unprovision                                                        |
+| `WSL2_HOST_SSH_KEY` (secret) | Private key authorized on Windows                                        | provision, verify, unprovision                                                        |
+| `DGX_HOST_SSH_KEY` (secret)  | Spark's private key — used to authorize DGX in the distro and verify SSH | provision, verify                                                                     |
+| `DGX_HOST_IP` (var)          | DGX static IP for SSH and CIFS (avoid mDNS `.local`)                     | provision, setup, deploy workflows                                                    |
+| `DGX_HOST_USER` (var)        | DGX / Samba username                                                     | provision                                                                             |
+| `WSL2_DISTROS` (repo var)    | `NONE` initially                                                         | Tracks active distro names — create once with value `NONE` before first provision run |
 
 `DGX_SMB_PASSWORD` is **not** required by the provision workflow — credentials are baked into
 the template by `rebuild-template.ps1`.
