@@ -33,7 +33,27 @@ if [[ -z "$DGX_HOST_IP" ]]; then
   exit 1
 fi
 
-# 0. Remove legacy wsl2-ssh-setup.service if present (older bootstrap.sh
+# 0. Wait for systemd/D-Bus to be ready before any systemctl-dependent work.
+# Do not continue after exhaustion: a green firstboot while systemd is still
+# starting hides the WSL lifecycle failure we are trying to debug.
+log "Waiting for systemd..."
+SYSTEMD_STATE=""
+for i in $(seq 1 90); do
+  SYSTEMD_STATE="$(systemctl is-system-running 2>&1 || true)"
+  echo "  systemd: $SYSTEMD_STATE ($i/90)"
+  if [[ "$SYSTEMD_STATE" =~ ^(running|degraded)$ ]]; then
+    break
+  fi
+  sleep 2
+done
+if [[ ! "$SYSTEMD_STATE" =~ ^(running|degraded)$ ]]; then
+  echo "ERROR: systemd did not become ready (last state: $SYSTEMD_STATE)" >&2
+  systemctl --failed --no-pager || true
+  journalctl -b -n 120 --no-pager || true
+  exit 1
+fi
+
+# 1. Remove legacy wsl2-ssh-setup.service if present (older bootstrap.sh
 #    installed a boot-time service that ran setup-shared-ssh.sh on every boot;
 #    that role is now handled by firstboot.sh once at provision time).
 if systemctl list-unit-files wsl2-ssh-setup.service &>/dev/null; then
@@ -42,15 +62,7 @@ if systemctl list-unit-files wsl2-ssh-setup.service &>/dev/null; then
   rm -f /etc/systemd/system/wsl2-ssh-setup.service
 fi
 
-# Wait for systemd/D-Bus to be ready (needed for systemctl)
-log "Waiting for systemd..."
-for i in $(seq 1 20); do
-  systemctl is-system-running 2>/dev/null | grep -qE '^(running|degraded)$' && break
-  echo "  ($i/20)"
-  sleep 3
-done
-
-# 1. Hostname
+# 2. Hostname
 log "Setting hostname → $DISTRO_NAME"
 printf '%s\n' "$DISTRO_NAME" > /etc/hostname
 hostname "$DISTRO_NAME"
@@ -58,7 +70,7 @@ if ! grep -q '^\[network\]' /etc/wsl.conf 2>/dev/null; then
   printf '\n[network]\nhostname = %s\n' "$DISTRO_NAME" >> /etc/wsl.conf
 fi
 
-# 2. sshd port
+# 3. sshd port
 log "Setting sshd port → $SSH_PORT"
 mkdir -p /etc/ssh/sshd_config.d
 printf 'Port %s\n' "$SSH_PORT" > /etc/ssh/sshd_config.d/wsl2-port.conf
@@ -74,7 +86,7 @@ else
   systemctl restart ssh
 fi
 
-# 3. Post-boot CIFS mount service + SSH symlinks into /home/aaron/shared/ssh/
+# 4. Post-boot CIFS mount service + SSH symlinks into /home/aaron/shared/ssh/
 log "Running setup-shared-ssh.sh"
 /usr/local/bin/setup-shared-ssh.sh "$DGX_HOST_IP" "$MOUNT_USER" "$DISTRO_NAME" "$SSH_PORT"
 

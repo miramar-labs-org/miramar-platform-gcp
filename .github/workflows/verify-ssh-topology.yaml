@@ -30,7 +30,6 @@ on:
         default: ""
 
 jobs:
-
   # ── From spark ──────────────────────────────────────────────────────────
   # spark → orin
   # spark → wsl2-<name>   (all distros)
