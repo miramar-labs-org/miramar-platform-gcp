@@ -30,7 +30,9 @@ operational procedure.
   details in [workflows.md](workflows.md).
 - Keep long WSL2 rationale and manual template procedures in
   [wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md), not in the root README.
-- Keep current WSL2 commands in [wsl2/README.md](../wsl2/README.md); legacy
-  direct-port details belong only in [ssh-runbook.md](ssh-runbook.md).
+- Keep current WSL2 commands in [wsl2/README.md](../wsl2/README.md) and
+  lifecycle/template details in [wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md).
+  The SSH runbook should describe the current topology, not legacy direct-port
+  setup.
 - When workflow behavior changes, update both the workflow file and the
   matching docs row above.
