@@ -1,0 +1,90 @@
+name: Build KFP arm64 Images
+
+# Builds arm64-compatible images for KFP components that the upstream project
+# does not publish for arm64, and pushes them to GHCR.
+#
+# Run this workflow BEFORE Kubeflow Deploy whenever the pipeline_version changes.
+#
+# Components built here:
+#
+#   kfp-metadata-writer  — upstream explicitly excludes arm64 in its CI. The
+#                          Dockerfile is pure Python (python:3.11-slim base) with
+#                          no architecture-specific code, so a native arm64 build
+#                          works without modification.
+#
+# Components NOT built here (pre-existing arm64 image used instead):
+#
+#   ml_metadata_store_server — deployKF community image
+#     ghcr.io/deploykf/ml_metadata_store_server:1.14.0-deploykf.0
+#     Matches KFP's pinned version; upstream PR#188 has been open since 2023.
+#
+# References:
+#   kubeflow/pipelines issue #12705 — arm64 support tracking
+#   kubeflow/pipelines PR #12804 — added arm64 for most images, excluded metadata-writer
+#   google/ml-metadata PR#188 — unmerged arm64 Bazel build fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_version:
+        description: KFP version tag to build from (e.g. 2.16.1)
+        default: "2.16.1"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-metadata-writer:
+    name: Build kfp-metadata-writer (arm64)
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
+      IMAGE: ghcr.io/${{ github.repository_owner }}/kfp-metadata-writer
+
+    steps:
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Clone KFP at version
+        run: |
+          rm -rf /tmp/kubeflow-pipelines
+          git clone \
+            --branch "${VERSION}" \
+            --depth 1 \
+            --single-branch \
+            https://github.com/kubeflow/pipelines.git \
+            /tmp/kubeflow-pipelines
+
+      - name: Build kfp-metadata-writer for arm64
+        run: |
+          docker build \
+            --platform linux/arm64 \
+            --file /tmp/kubeflow-pipelines/backend/metadata_writer/Dockerfile \
+            --tag "${IMAGE}:${VERSION}-arm64" \
+            /tmp/kubeflow-pipelines
+
+      - name: Push to GHCR
+        run: docker push "${IMAGE}:${VERSION}-arm64"
+
+      - name: Clean up clone
+        if: always()
+        run: rm -rf /tmp/kubeflow-pipelines
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## KFP arm64 Image Build"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${IMAGE}:${VERSION}-arm64\` |"
+            echo "| KFP version | \`${VERSION}\` |"
+            echo "| Builder | \`$(uname -m)\` (native arm64) |"
+            echo ""
+            echo "Run **Kubeflow Deploy** to use this image."
+          } >> "$GITHUB_STEP_SUMMARY"

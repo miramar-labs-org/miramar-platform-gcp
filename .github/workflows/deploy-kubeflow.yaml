@@ -3,10 +3,12 @@ name: Kubeflow Deploy
 # Deploys Kubeflow Pipelines standalone into the kubeflow namespace on the DGX
 # minikube cluster. The env/dev kustomize overlay creates the kubeflow namespace
 # automatically and includes built-in SeaweedFS and MySQL — no external dependencies.
-# Three arm64-incompatible deployments are removed post-apply: controller-manager
-# (Application CRD, display-only), metadata-grpc-deployment and metadata-writer
-# (MLMD stack — artifact lineage metadata won't be tracked, pipeline execution is
-# unaffected). The remaining 11 pods cover the full pipeline execution stack.
+# arm64 image overrides applied post-apply:
+#   - controller-manager removed (Application CRD, display-only, amd64-only)
+#   - metadata-grpc-deployment patched to ghcr.io/deploykf/ml_metadata_store_server:1.14.0-deploykf.0
+#   - metadata-writer patched to ghcr.io/miramar-labs-org/kfp-metadata-writer:<version>-arm64
+#
+# Prerequisites: run 'Build KFP arm64 Images' before the first deploy or after a version bump.
 #
 # UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by
 # kubeflow-portfwd.service. Restart the service after deploying:
