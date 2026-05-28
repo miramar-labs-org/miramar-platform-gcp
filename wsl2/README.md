@@ -51,6 +51,16 @@ Actions → WSL2 Provision → distro_name: dev   ssh_port: 2222
 Actions → WSL2 Provision → distro_name: test  ssh_port: 2223
 ```
 
+To find usable direct sshd ports on the Windows host before provisioning:
+
+```powershell
+cd path\to\miramar-platform-gcp\wsl2
+.\probe-ssh-ports.ps1 -Distro dev -StartPort 2222 -EndPort 2299
+```
+
+The probe checks Windows-visible listeners, Windows excluded TCP ranges, and an
+actual WSL `sshd` bind inside the selected existing distro.
+
 Teardown:
 
 ```

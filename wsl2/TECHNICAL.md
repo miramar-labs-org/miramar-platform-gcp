@@ -161,6 +161,17 @@ The direct port is not the primary SSH path from Spark or Orin. Normal SSH uses
 the `wsl2-<name>` alias and the on-demand ProxyCommand through Windows port
 `22`.
 
+Before choosing a new port, probe the candidate range from Windows PowerShell:
+
+```powershell
+cd path\to\miramar-platform-gcp\wsl2
+.\probe-ssh-ports.ps1 -Distro dev -StartPort 2222 -EndPort 2299
+```
+
+The script reports contiguous OK ranges after checking Windows-visible listeners,
+Windows excluded TCP ranges, and real `sshd` bindability inside the selected WSL
+distro. The selected distro must already exist and have `/usr/sbin/sshd`.
+
 ## Workflow Responsibilities
 
 `WSL2 Provision`:

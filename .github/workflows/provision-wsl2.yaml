@@ -113,7 +113,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             "$WSL2_HOST_USER@$WSL2_HOST" \
-            "powershell -Command \"wsl -d $DISTRO --user root --exec /bin/bash -lc 'install -d -m 0755 /run/sshd; timeout 2 /usr/sbin/sshd -D -e -f /etc/ssh/sshd_config -o Port=$PORT -o PidFile=/run/sshd-preflight-$PORT.pid'; exit \$LASTEXITCODE\""; then
+            "powershell -Command \"wsl -d $DISTRO --user root --exec /bin/bash -lc 'install -d -m 0755 /run/sshd; timeout 2 /usr/sbin/sshd -D -e -f /dev/null -o HostKey=/etc/ssh/ssh_host_ed25519_key -o HostKey=/etc/ssh/ssh_host_rsa_key -o Port=$PORT -o PidFile=/run/sshd-preflight-$PORT.pid'; exit \$LASTEXITCODE\""; then
             echo "ERROR: preflight sshd exited before timeout; expected timeout after successful bind" >&2
             exit 1
           else
