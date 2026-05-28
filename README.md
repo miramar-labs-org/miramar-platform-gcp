@@ -136,15 +136,15 @@ Detailed operational procedures live in focused docs:
 
 Common entry points:
 
-```text
-Bootstrap GCP once       -> docs/gcp.md
-Launch local runners     -> docs/runners.md
-Create/destroy platform  -> docs/workflows.md
-Scale GKE/GPU capacity   -> docs/workflows.md, docs/gpu-quota-request.md
-Deploy DGX AI services   -> docs/dgx.md
-Provision WSL2 distros   -> wsl2/README.md
-Troubleshoot SSH         -> docs/ssh-runbook.md
-```
+| Task | Start here |
+| --- | --- |
+| Bootstrap GCP once | [docs/gcp.md](docs/gcp.md) |
+| Launch local runners | [docs/runners.md](docs/runners.md) |
+| Create/destroy platform | [docs/workflows.md](docs/workflows.md) |
+| Scale GKE/GPU capacity | [docs/workflows.md](docs/workflows.md), [docs/gpu-quota-request.md](docs/gpu-quota-request.md) |
+| Deploy DGX AI services | [docs/dgx.md](docs/dgx.md) |
+| Provision WSL2 distros | [wsl2/README.md](wsl2/README.md) |
+| Troubleshoot SSH | [docs/ssh-runbook.md](docs/ssh-runbook.md) |
 
 ## Contributing
 
