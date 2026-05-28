@@ -17,7 +17,7 @@
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
 | [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
 | [Helm](https://helm.sh) | [helm/helm](https://github.com/helm/helm) | [docs](https://helm.sh/docs/) |
-| [Volcano](https://volcano.sh) | [volcano-sh/volcano](https://github.com/volcano-sh/volcano) | [docs](https://volcano.sh/en/docs/) |
+| [Volcano](https://volcano.sh) | [volcano-sh/volcano](https://github.com/volcano-sh/volcano) | [docs](https://volcano.sh/) |
 | [NGC Catalog](https://catalog.ngc.nvidia.com/) | — | — |
 | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) on HuggingFace | — | request access at link |
 

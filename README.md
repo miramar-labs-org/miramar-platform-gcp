@@ -76,7 +76,7 @@ On-premises machines acting as self-hosted GitHub Actions runners and general co
 | --------------------------- | -------------------------- | --------------- | ----------------------------------------------- | -------------------------------------------------------------------------------- | -------------- | ---- | ------------ |
 | Windows laptop              | Ubuntu 22.04 ([WSL2](https://github.com/microsoft/WSL))        | x86_64 / amd64  | AMD                                             | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6     | 12.6 | `wsl2`       |
 | [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) 128GB | DGX OS (Ubuntu 24.04)      | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen)  | 128 GB unified | 12.6 | `dgx`        |
-| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-computing/jetson-agx-orin/) 64GB | Ubuntu 22.04 ([JetPack 6.x](https://developer.nvidia.com/embedded/jetpack)) | aarch64 / arm64 | 12-core Cortex-A78AE                            | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87)                                | 64 GB unified  | 12.6 | `agx`        |
+| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) 64GB | Ubuntu 22.04 ([JetPack 6.x](https://developer.nvidia.com/embedded/jetpack)) | aarch64 / arm64 | 12-core Cortex-A78AE                            | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87)                                | 64 GB unified  | 12.6 | `agx`        |
 
 All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`. GPU access works the same way on both arm64 machines via the NVIDIA container runtime.
 
@@ -160,7 +160,7 @@ Common entry points:
 | [NIM](https://developer.nvidia.com/nim) | — | [docs](https://docs.nvidia.com/nim/) |
 | [WSL2](https://github.com/microsoft/WSL) | [microsoft/WSL](https://github.com/microsoft/WSL) | [docs](https://learn.microsoft.com/en-us/windows/wsl/) |
 | [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) | — | [developer docs](https://docs.nvidia.com/dgx/index.html) |
-| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-computing/jetson-agx-orin/) | — | [developer docs](https://developer.nvidia.com/embedded/jetpack) |
+| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) | — | [developer docs](https://developer.nvidia.com/embedded/jetpack) |
 | [CUDA](https://developer.nvidia.com/cuda-toolkit) | — | [docs](https://docs.nvidia.com/cuda/) |
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
 | [Terraform](https://www.terraform.io) | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs) |
