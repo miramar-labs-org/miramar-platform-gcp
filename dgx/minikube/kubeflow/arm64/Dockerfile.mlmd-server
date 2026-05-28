@@ -73,6 +73,20 @@ WORKDIR /mlmd-src
 # Bazelisk cannot parse — extract just the version number on the last line.
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
+# Fix x86-specific defines hardcoded in the PostgreSQL auto-generated config header
+# inside ml_metadata/postgresql.BUILD.
+#
+#   HAVE_X86_64_POPCNTQ — x86-only POPCNTQ instruction; causes pg_bitutils.c to
+#                         include <cpuid.h> which does not exist on arm64.
+#   HAVE__GET_CPUID     — x86-only __get_cpuid() function; same cpuid.h dependency.
+#
+# With both cleared, pg_bitutils.c falls back to __builtin_popcount (also defined:
+# HAVE__BUILTIN_POPCOUNT 1) which is available on all GCC targets including arm64.
+RUN sed -i \
+    -e 's|"#define HAVE_X86_64_POPCNTQ 1",|"/* #undef HAVE_X86_64_POPCNTQ */",|g' \
+    -e 's|"#define HAVE__GET_CPUID 1",|"/* #undef HAVE__GET_CPUID */",|g' \
+    ml_metadata/postgresql.BUILD
+
 # Fix two ZetaSQL WORKSPACE issues caused by the zetasql→googlesql GitHub repo rename:
 #
 #   1. sha256 checksum: GitHub regenerated the archive, changing its hash.
