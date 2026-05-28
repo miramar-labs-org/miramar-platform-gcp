@@ -75,19 +75,21 @@ sudo ufw allow samba
 
 ## Accessing the share from WSL2
 
-WSL2 distros provisioned via **WSL2 Provision** have `~/shared/` **CIFS-mounted automatically**
-by `setup-shared-ssh.sh` during `firstboot.sh`. This is the same mount used for the SSH mesh
-(`~/.ssh/` → `~/shared/ssh/`). The fstab entry uses `noauto` to prevent boot-time mount
-failures; `firstboot.sh` mounts it explicitly at provision time.
+WSL2 distros provisioned via **WSL2 Provision** use `/home/aaron/shared/` for the
+shared store. `setup-shared-ssh.sh` mounts it during `firstboot.sh`, the
+`mount-dgx-shared.service` / `mount-dgx-shared.timer` pair keeps it available
+after normal boots, and the `wsl2-<name>` SSH ProxyCommand runs the mount helper
+again before execing `sshd -i` on cold starts.
 
-After a distro restart, `~/shared/` is **not** automatically remounted (fstab `noauto`).
-To remount manually:
+Do not mount the shared folder from WSL2 `/etc/fstab`; `/etc/wsl.conf` keeps
+`mountFsTab=false`. To remount manually:
 
 ```sh
-sudo mount ~/shared
+sudo /usr/local/sbin/mount-dgx-shared.sh
 ```
 
-Credentials are stored in `~/.smbcredentials` (baked into the template by `rebuild-template.ps1`).
+Credentials are stored in `/home/aaron/.smbcredentials` (baked into the template
+by `rebuild-template.ps1`).
 
 ### Ad-hoc file access via smbclient
 
@@ -95,14 +97,14 @@ For scripts that don't need a mounted filesystem, `smbclient` is available:
 
 ```sh
 # List share contents
-smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N -c "ls"
+smbclient //spark-79b7.local/shared -A /home/aaron/.smbcredentials -N -c "ls"
 
 # Download a file
-smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
+smbclient //spark-79b7.local/shared -A /home/aaron/.smbcredentials -N \
   -c "get path/to/file /local/destination"
 
 # Upload a file
-smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
+smbclient //spark-79b7.local/shared -A /home/aaron/.smbcredentials -N \
   -c "put /local/file remote/path/file"
 ```
 
@@ -110,15 +112,15 @@ smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
 
 ```sh
 sudo apt-get install -y cifs-utils
-mkdir -p ~/shared
-sudo mount -t cifs //spark-79b7.local/shared ~/shared \
+mkdir -p /home/aaron/shared
+sudo mount -t cifs //spark-79b7.local/shared /home/aaron/shared \
   -o credentials=$HOME/.smbcredentials,uid=$(id -u),gid=$(id -g),vers=3.0
 ```
 
 Unmount when done:
 
 ```sh
-sudo umount ~/shared
+sudo umount /home/aaron/shared
 ```
 
 ---

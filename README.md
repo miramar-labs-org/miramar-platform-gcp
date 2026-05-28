@@ -867,15 +867,15 @@ Actions → NIM Undeploy → Run workflow
 
 ## WSL2 Environments (Windows laptop)
 
-WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template. See [docs/ssh-runbook.md](docs/ssh-runbook.md) for the full SSH mesh topology.
+WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template. See [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md) for the final on-demand WSL2 SSH model and [docs/ssh-runbook.md](docs/ssh-runbook.md) for the broader SSH runbook.
 
-**Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `ml`) and its own sshd port (2222 for the first, increment by 1 for each additional). All SSH configs use the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-ml`) so instances never conflict.
+**Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `test`) and its own direct sshd port (`2222` for `dev`, `2223` for `test`, increment by 1 for each additional). Normal SSH uses the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-test`) and starts the distro on demand through Windows OpenSSH and `wsl.exe`; the direct port is for provisioning readiness checks and manual diagnostics.
 
 **One-time template setup** (per template build):
 
 ```
 wsl2/bootstrap.sh (inside distro)  → bakes id_ed25519_smb + .smbcredentials
-wsl2/rebuild-template.ps1          → patches fstab + .smbcredentials, exports tarball
+wsl2/rebuild-template.ps1          → removes stale fstab mounts, patches .smbcredentials, exports tarball
 git add wsl2/id_ed25519_smb.pub && git push
 Actions → Setup Shared SSH Store
 ```
@@ -884,7 +884,8 @@ Actions → Setup Shared SSH Store
 
 ```
 Actions → WSL2 Provision           → distro_name: dev  ssh_port: 2222
-Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
+Actions → WSL2 Provision           → distro_name: test ssh_port: 2223
+Actions → WSL2 Verify SSH Topology
 ```
 
 **Required secrets** (repo-level):
@@ -897,25 +898,25 @@ Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222
 
 ### [Setup Shared SSH Store](.github/workflows/setup-shared-ssh.yaml)
 
-**Run once before provisioning any WSL2 distro** (and again after each template rebuild). Initialises `~/shared/ssh/` on DGX as the single source of truth for SSH config, pre-authorizes `wsl2/id_ed25519_smb.pub` (the template SMB bootstrap key) on DGX, and wires up Orin (CIFS-mounts `//DGX/shared` at `~/shared/`, symlinks all `~/.ssh/` files → `~/shared/ssh/`).
+**Run once before provisioning any WSL2 distro** (and again after each template rebuild). Initialises `/home/aaron/shared/ssh/` on DGX as the single source of truth for SSH config, pre-authorizes `wsl2/id_ed25519_smb.pub` (the template SMB bootstrap key) on DGX, and wires up Orin (CIFS-mounts `//DGX/shared` at `/home/aaron/shared/`, symlinks all `/home/aaron/.ssh/` files to `/home/aaron/shared/ssh/`).
 
-After this runs, `~/.ssh/config`, `~/.ssh/known_hosts`, and `~/.ssh/authorized_keys` on DGX are symlinks into `~/shared/ssh/`. Orin mounts the same share via CIFS and symlinks its `~/.ssh/` to the shared store — all machines share Spark's SSH identity.
+After this runs, `/home/aaron/.ssh/config`, `/home/aaron/.ssh/known_hosts`, and `/home/aaron/.ssh/authorized_keys` on DGX are symlinks into `/home/aaron/shared/ssh/`. Orin mounts the same share via CIFS and symlinks its `/home/aaron/.ssh/` to the shared store — all machines share Spark's SSH identity.
 
 **Prerequisites for Orin setup** (one-time, on the Orin host as `aaron`):
 
 ```bash
-# If ~/.ssh/ only has .bak files (left by old CIFS-based setup), restore them first:
-cp ~/.ssh/authorized_keys.bak ~/.ssh/authorized_keys 2>/dev/null || touch ~/.ssh/authorized_keys
-cp ~/.ssh/config.bak ~/.ssh/config 2>/dev/null || true
-cp ~/.ssh/known_hosts.bak ~/.ssh/known_hosts 2>/dev/null || true
-chmod 600 ~/.ssh/authorized_keys ~/.ssh/config ~/.ssh/known_hosts 2>/dev/null || true
+# If /home/aaron/.ssh/ only has .bak files (left by old CIFS-based setup), restore them first:
+cp /home/aaron/.ssh/authorized_keys.bak /home/aaron/.ssh/authorized_keys 2>/dev/null || touch /home/aaron/.ssh/authorized_keys
+cp /home/aaron/.ssh/config.bak /home/aaron/.ssh/config 2>/dev/null || true
+cp /home/aaron/.ssh/known_hosts.bak /home/aaron/.ssh/known_hosts 2>/dev/null || true
+chmod 600 /home/aaron/.ssh/authorized_keys /home/aaron/.ssh/config /home/aaron/.ssh/known_hosts 2>/dev/null || true
 
 # Self-authorize Orin's own key (needed for ORIN_HOST_SSH_KEY → localhost SSH):
-grep -qF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys \
-  || cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+grep -qF "$(cat /home/aaron/.ssh/id_ed25519.pub)" /home/aaron/.ssh/authorized_keys \
+  || cat /home/aaron/.ssh/id_ed25519.pub >> /home/aaron/.ssh/authorized_keys
 
 # Then add Orin's private key as ORIN_HOST_SSH_KEY secret:
-cat ~/.ssh/id_ed25519
+cat /home/aaron/.ssh/id_ed25519
 ```
 
 **Required secrets:** `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`
@@ -926,7 +927,7 @@ Actions → Setup Shared SSH Store → Run workflow
 
 ### [WSL2 Provision](.github/workflows/provision-wsl2.yaml)
 
-Full lifecycle: imports a new distro from the configured template tarball, then runs `firstboot.sh` inside the distro via Windows SSH → `wsl exec` (no direct port-2222 SSH — avoids WSL2 mirrored-networking issues). Sets hostname, opens Windows Firewall rule, restarts sshd on the configured port, mounts `//DGX/shared` via CIFS, symlinks `~/.ssh/ → ~/shared/ssh/`, and writes the `wsl2-<distro_name>` host block to the shared SSH config. Authorizes the DGX SSH key, then verifies sshd + systemd are up. On success, adds the distro name to the `WSL2_DISTROS` repo variable.
+Full lifecycle: imports a new distro from the configured template tarball, then runs `firstboot.sh` inside the distro via Windows SSH -> `wsl exec` (no direct port-2222 SSH during configuration, which avoids WSL2 mirrored-networking drops). Sets hostname, opens Windows Firewall rule, restarts sshd on the configured direct port, installs the post-boot shared-mount service/timer, symlinks `/home/aaron/.ssh/` to `/home/aaron/shared/ssh/`, and writes the `wsl2-<distro_name>` on-demand host block to the shared SSH config. Authorizes the DGX SSH key through the shared store, then verifies sshd + systemd are up. On success, adds the distro name to the `WSL2_DISTROS` repo variable.
 
 `.smbcredentials` is baked into the template by `rebuild-template.ps1` — **no `DGX_SMB_PASSWORD` needed at provision time**.
 
@@ -942,7 +943,7 @@ Actions → WSL2 Provision → distro_name: dev  ssh_port: 2222 → Run workflow
 
 ### [WSL2 Verify SSH Topology](.github/workflows/verify-ssh-topology.yaml)
 
-Validates every SSH path in the mesh. Reports ✅/❌ per path in the workflow summary.
+Validates every supported SSH path in the mesh. Reports pass/fail per path in the workflow summary. WSL2-to-WSL2 peer checks are intentionally excluded; `wsl2-<name>` aliases are on-demand endpoints reached from Spark or Orin, not a WSL2 peer mesh.
 
 | Path tested                                              | Runner |
 | -------------------------------------------------------- | ------ |
@@ -953,13 +954,12 @@ Validates every SSH path in the mesh. Reports ✅/❌ per path in the workflow s
 | WSL2 → `ssh spark hostname` (nested via `wsl2-<distro>`) | `dgx`  |
 | WSL2 → `ssh orin hostname` (nested via `wsl2-<distro>`)  | `dgx`  |
 
-| Input         | Default | Description                                                |
-| ------------- | ------- | ---------------------------------------------------------- |
-| `distro_name` | `dev`   | WSL2 distro name (used to build the `wsl2-<distro>` alias) |
-| `ssh_port`    | `2222`  | sshd port for this distro                                  |
+| Input     | Default | Description                                                         |
+| --------- | ------- | ------------------------------------------------------------------- |
+| `distros` | blank   | Optional space-separated distro names; blank reads `WSL2_DISTROS`. |
 
 ```
-Actions → WSL2 Verify SSH Topology → distro_name: dev  ssh_port: 2222 → Run workflow
+Actions → WSL2 Verify SSH Topology → Run workflow
 ```
 
 ### [WSL2 Unprovision](.github/workflows/unprovision-wsl2.yaml)

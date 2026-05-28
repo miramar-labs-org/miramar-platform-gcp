@@ -7,7 +7,7 @@ Provision and unprovision WSL2 distros from the configured template tarball via 
 | Workflow                                                  | Purpose                                                                                                                                                                                                                                        |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **WSL2 Provision** (`provision-wsl2.yaml`)                | Import a new distro from `C:\wsl-templates\ubuntu-22.04-configured-template.tar`, run `firstboot.sh` inside the distro via `wsl exec` (sets hostname, sshd port, post-boot CIFS timer, SSH symlinks), authorize DGX key, verify sshd + systemd |
-| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate bi-directional SSH across all lab nodes. Reads active distros from `WSL2_DISTROS` and tests spark↔orin, spark↔wsl2-`<name>`, orin↔wsl2-`<name>`, and wsl2-`<A>`↔wsl2-`<B>` for all pairs. No inputs required.                         |
+| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Validate supported SSH paths across lab nodes. Reads active distros from `WSL2_DISTROS` and tests spark/orin core reachability, spark/orin to each `wsl2-<name>`, and each `wsl2-<name>` back to spark/orin. WSL2-to-WSL2 peer paths are intentionally not part of CI. |
 | **WSL2 Unprovision** (`unprovision-wsl2.yaml`)            | Unregister a distro; optionally delete the folder at `C:\wsl\<name>`                                                                                                                                                                           |
 
 ### WSL2 lifecycle model
@@ -34,11 +34,21 @@ mount the share, the session fails authentication rather than falling back to a 
 per-distro `authorized_keys`; Spark, Orin, and all distros keep using the shared SSH
 topology under `/home/aaron/shared/ssh`.
 
+See [TECHNICAL.md](TECHNICAL.md) for the detailed lifecycle model, supported SSH
+topology, shared-store mount-before-sshd requirement, and troubleshooting notes.
+
 Normal provisioning sequence:
 
 ```
 Actions → WSL2 Provision           → distro_name: dev
 Actions → WSL2 Verify SSH Topology   (no inputs — reads WSL2_DISTROS automatically)
+```
+
+For multiple active distros, use a unique direct sshd port per distro:
+
+```text
+Actions → WSL2 Provision → distro_name: dev   ssh_port: 2222
+Actions → WSL2 Provision → distro_name: test  ssh_port: 2223
 ```
 
 Teardown:
@@ -166,7 +176,7 @@ Optional parameters: `-DistroUser` (default `aaron`), `-TarPath`, `-BuildName`, 
 After rebuilding, verify the template works:
 
 ```
-Actions → WSL2 Provision           → distro_name: test
+Actions → WSL2 Provision           → distro_name: test  ssh_port: 2223
 Actions → WSL2 Verify SSH Topology   (no inputs — reads WSL2_DISTROS automatically)
 ```
 
@@ -240,7 +250,7 @@ curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-g
 curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/setup-shared-ssh.sh -o setup-shared-ssh.sh
 chmod +x setup-shared-ssh.sh
 
-DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(ssh 192.168.1.200 cat ~/.ssh/id_ed25519.pub)" ./bootstrap.sh
+DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(ssh 192.168.1.200 cat /home/aaron/.ssh/id_ed25519.pub)" ./bootstrap.sh
 ```
 
 Configure p10k if desired, then:

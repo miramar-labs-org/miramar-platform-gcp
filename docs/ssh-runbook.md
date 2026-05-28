@@ -1,29 +1,29 @@
 # SSH Runbook: DGX, Orin, MSI, and WSL2
 
-> **Most of this is automated.** Spark's `~/shared/ssh/` is the canonical SSH store. All machines mount it via CIFS and symlink `~/.ssh/` to it — sharing Spark's SSH identity. GHA workflows manage it:
+> **Most of this is automated.** Spark's `/home/aaron/shared/ssh/` is the canonical SSH store. All machines mount it via CIFS and symlink `/home/aaron/.ssh/` to it — sharing Spark's SSH identity. GHA workflows manage it:
 >
 > | Workflow                     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 > | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-> | **Setup Shared SSH Store**   | One-time: init `~/shared/ssh/` on Spark (including `id_ed25519` + `id_ed25519.pub`), create `~/.ssh/` symlinks on Spark, pre-authorize template SMB key. Wires Orin: CIFS-mounts Spark's share at `~/shared/`, symlinks all `~/.ssh/` files → `~/shared/ssh/` (Orin uses Spark's identity — no local keypair). SSHes to Orin via `localhost:22` from agx runner. Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`.                                                     |
+> | **Setup Shared SSH Store**   | One-time: init `/home/aaron/shared/ssh/` on Spark (including `id_ed25519` + `id_ed25519.pub`), create `/home/aaron/.ssh/` symlinks on Spark, pre-authorize template SMB key. Wires Orin: CIFS-mounts Spark's share at `/home/aaron/shared/`, symlinks all `/home/aaron/.ssh/` files to `/home/aaron/shared/ssh/` (Orin uses Spark's identity — no local keypair). SSHes to Orin via `localhost:22` from agx runner. Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
 > | **WSL2 Provision**           | Per-distro: SSHes to the Windows host and runs all config via `wsl -d NAME --user root` (wsl exec) — **no direct port-2222 SSH into the distro**. Writes `/etc/wsl2-provision.conf`, opens Windows Firewall, runs `firstboot.sh` (hostname, sshd port via systemd, post-boot CIFS mount, SSH symlinks, `wsl2-<name>` host block). `.smbcredentials` is baked into the template by `rebuild-template.ps1`. Secrets: `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY`, `DGX_HOST_SSH_KEY`. |
-> | **WSL2 Verify SSH Topology** | Validate bi-directional SSH across all lab nodes. Reads active distros from `WSL2_DISTROS` repo variable and tests spark↔orin, spark↔wsl2-`<name>`, orin↔wsl2-`<name>`, and wsl2-`<A>`↔wsl2-`<B>` for all pairs. Reports ✅/❌ per path. No inputs — triggered manually or called from WSL2 Provision.                                                                                                                                                                                     |
+> | **WSL2 Verify SSH Topology** | Validate supported SSH paths. Reads active distros from `WSL2_DISTROS` and tests spark/orin core reachability, spark/orin to each `wsl2-<name>`, and each `wsl2-<name>` back to spark/orin. WSL2-to-WSL2 peer paths are intentionally excluded. Reports pass/fail per path. Triggered manually or called from WSL2 Provision. |
 >
 > **Orin one-time prerequisites** (run on Orin host as `aaron` before first Setup Shared SSH Store run):
 >
 > ```bash
 > # Restore SSH files if only .bak files exist (left by old CIFS setup):
-> cp ~/.ssh/authorized_keys.bak ~/.ssh/authorized_keys 2>/dev/null || touch ~/.ssh/authorized_keys
-> cp ~/.ssh/config.bak ~/.ssh/config 2>/dev/null || true
-> cp ~/.ssh/known_hosts.bak ~/.ssh/known_hosts 2>/dev/null || true
-> chmod 600 ~/.ssh/authorized_keys ~/.ssh/config ~/.ssh/known_hosts 2>/dev/null || true
+> cp /home/aaron/.ssh/authorized_keys.bak /home/aaron/.ssh/authorized_keys 2>/dev/null || touch /home/aaron/.ssh/authorized_keys
+> cp /home/aaron/.ssh/config.bak /home/aaron/.ssh/config 2>/dev/null || true
+> cp /home/aaron/.ssh/known_hosts.bak /home/aaron/.ssh/known_hosts 2>/dev/null || true
+> chmod 600 /home/aaron/.ssh/authorized_keys /home/aaron/.ssh/config /home/aaron/.ssh/known_hosts 2>/dev/null || true
 > # Self-authorize Orin's own key so ORIN_HOST_SSH_KEY can SSH to localhost:
-> grep -qF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys \
->   || cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+> grep -qF "$(cat /home/aaron/.ssh/id_ed25519.pub)" /home/aaron/.ssh/authorized_keys \
+>   || cat /home/aaron/.ssh/id_ed25519.pub >> /home/aaron/.ssh/authorized_keys
 > # Add Orin's private key as ORIN_HOST_SSH_KEY GitHub secret:
-> cat ~/.ssh/id_ed25519
+> cat /home/aaron/.ssh/id_ed25519
 > ```
 >
-> The manual steps below are kept as a **reference and troubleshooting fallback** only.
+> The manual steps below are kept as a **reference and troubleshooting fallback** only. For the current WSL2 lifecycle and on-demand SSH design, read [../wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md) first.
 
 ---
 
@@ -37,7 +37,7 @@ This runbook documents the SSH and DNS setup for a local lab consisting of:
 | WSL2 distro on MSI | `<distro_name>` | —                  | `wsl2-<distro_name>` (sshd port 2222+) |
 
 Each WSL2 distro gets its own name and sshd port. The `wsl2-<name>` SSH alias is written
-into the shared `~/.ssh/config` by `setup-shared-ssh.sh` during provisioning and is
+into the shared `/home/aaron/shared/ssh/config` by `setup-shared-ssh.sh` during provisioning and is
 immediately visible on all machines that share the store.
 
 All machines share Spark's `id_ed25519` identity — there are no per-machine keypairs.
@@ -48,23 +48,26 @@ All machines share Spark's `id_ed25519` identity — there are no per-machine ke
 
 ```text
 ssh msi          -> MSI Windows OpenSSH shell on port 22
-ssh wsl2-<name>  -> WSL2 distro Linux shell on its assigned port (2222, 2223, …)
+ssh wsl2-<name>  -> WSL2 distro Linux shell through on-demand Windows wsl.exe
 ssh orin         -> Jetson Orin
 ssh spark        -> DGX / Spark
 ```
 
-Each WSL2 distro gets a unique alias (`wsl2-dev`, `wsl2-ml`, etc.) and sshd port.
-The `Host wsl2-<name>` block is written to the shared SSH config by **WSL2 Post-Provision**
-and picked up by all machines automatically via the shared store.
+Each WSL2 distro gets a unique alias (`wsl2-dev`, `wsl2-test`, etc.) and direct
+sshd port (`2222`, `2223`, etc.). The `Host wsl2-<name>` block is written to the
+shared SSH config by **WSL2 Provision** and picked up by all machines
+automatically via the shared store.
 
 Important distinction:
 
 ```text
 MSI Windows OpenSSH uses port 22.
-WSL2 sshd uses port 2222 (first distro) or higher.
+WSL2 direct sshd uses port 2222 for `dev`, 2223 for `test`, and higher ports for additional distros.
 ```
 
 This avoids the problem where `ssh wsl2` accidentally lands in the MSI Windows shell.
+Normal Spark/Orin access should use `ssh wsl2-<name>`, which starts the distro on
+demand through Windows OpenSSH and `wsl.exe`.
 
 ---
 
@@ -85,11 +88,11 @@ C:\Users\aaron\.ssh\id_ed25519
 ```
 
 5. `msi` means MSI Windows OpenSSH on port `22`.
-6. `wsl2` means WSL2 Linux sshd on port `2222`.
-7. Prefer the WSL2 LAN IP for `wsl2` SSH configs unless `wsl2.local` is proven to resolve.
+6. `wsl2-<name>` means an on-demand WSL2 Linux SSH session through Windows OpenSSH and `wsl.exe`.
+7. Direct WSL2 sshd ports are for provisioning readiness checks and manual diagnostics.
 8. The DGX host is `spark-79b7.local`; do not mistype it as `spar-79b7.local`.
 9. Windows firewall changes require Administrator PowerShell.
-10. If `ssh wsl2` opens the MSI Windows shell, the SSH client is hitting port `22` instead of WSL2 port `2222`.
+10. If `ssh wsl2` opens the MSI Windows shell, the SSH client is hitting port `22`; use the generated `wsl2-<name>` alias.
 
 ---
 
@@ -1037,14 +1040,16 @@ ssh spark hostname
 After this runbook is complete:
 
 ```text
-DGX  -> ssh wsl2-<name> -> WSL2 distro Linux shell on its assigned port
-Orin -> ssh wsl2-<name> -> WSL2 distro Linux shell on its assigned port
-MSI  -> ssh wsl2-<name> -> WSL2 distro Linux shell on its assigned port
+DGX  -> ssh wsl2-<name> -> WSL2 distro Linux shell through on-demand wsl.exe
+Orin -> ssh wsl2-<name> -> WSL2 distro Linux shell through on-demand wsl.exe
+MSI  -> direct Windows wsl.exe or direct sshd port for manual diagnostics
 WSL2 -> ssh msi         -> MSI Windows shell on port 22
 WSL2 -> ssh orin        -> Jetson Orin
 WSL2 -> ssh spark       -> DGX / Spark
 ```
 
 All SSH paths use `id_ed25519` keys. SSH config, `known_hosts`, and `authorized_keys` are
-managed centrally in `~/shared/ssh/` on DGX. DGX symlinks `~/.ssh/` to the shared store.
-Orin and each WSL2 distro CIFS-mount Spark's `~/shared/` and symlink `~/.ssh/` to `~/shared/ssh/`, sharing Spark's SSH identity.
+managed centrally in `/home/aaron/shared/ssh/` on DGX. DGX symlinks
+`/home/aaron/.ssh/` to the shared store. Orin and each WSL2 distro CIFS-mount
+Spark's `/home/aaron/shared/` and symlink `/home/aaron/.ssh/` to
+`/home/aaron/shared/ssh/`, sharing Spark's SSH identity.
