@@ -169,7 +169,7 @@ if [[ -n "$DISTRO_NAME" ]]; then
         rm -f /tmp/ssh-config.new
         log "$ALIAS existing config block removed"
       fi
-      printf '\nHost %s\n    HostName %s\n    User %s\n    IdentityFile %s/.ssh/id_ed25519\n    IdentitiesOnly yes\n    ProxyCommand ssh -q -i %s/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new %s@%s "wsl -d %s --user root --exec /usr/sbin/sshd -i -e"\n' \
+      printf '\nHost %s\n    HostName %s\n    User %s\n    IdentityFile %s/.ssh/id_ed25519\n    IdentitiesOnly yes\n    ProxyCommand ssh -q -i %s/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new %s@%s "wsl -d %s --user root --exec /bin/bash -lc '\''/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e'\''"\n' \
         "$ALIAS" "$ALIAS" "$MOUNT_USER" "$USER_HOME" "$USER_HOME" "$MOUNT_USER" "$WIN_HOSTNAME" "$DISTRO_NAME" >> "$CONFIG"
       log "$ALIAS added to config (on-demand via $WIN_HOSTNAME wsl.exe) — written directly to shared store via CIFS"
     fi

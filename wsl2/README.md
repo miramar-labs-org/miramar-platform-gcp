@@ -19,8 +19,20 @@ are running. The shutdown is logged as `Operation canceled @p9io.cpp:258 (Accept
 followed by `systemd-logind: System is powering down`.
 
 The shared `wsl2-<name>` SSH alias therefore connects through the Windows host and runs
-`wsl.exe -d <name> --user root --exec /usr/sbin/sshd -i -e` for each SSH session. This
-creates a per-session WSL client attachment without a resident keepalive process.
+an on-demand WSL command for each SSH session:
+
+```sshconfig
+ProxyCommand ssh -q -i /home/aaron/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new <windows-user>@<windows-host> "wsl -d <name> --user root --exec /bin/bash -lc '/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e'"
+```
+
+This creates a per-session WSL client attachment without a resident keepalive process.
+The `mount-dgx-shared.sh` step is required on cold distro start: `/home/aaron/.ssh/authorized_keys`
+is a symlink to `/home/aaron/shared/ssh/authorized_keys`, so the shared store must be
+mounted before inetd-mode sshd authenticates the incoming key. The helper output is
+suppressed because ProxyCommand stdout is the SSH transport stream. If the helper cannot
+mount the share, the session fails authentication rather than falling back to a local
+per-distro `authorized_keys`; Spark, Orin, and all distros keep using the shared SSH
+topology under `/home/aaron/shared/ssh`.
 
 Normal provisioning sequence:
 
