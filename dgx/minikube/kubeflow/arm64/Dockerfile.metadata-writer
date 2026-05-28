@@ -101,11 +101,16 @@ WORKDIR /build/ml-metadata
 # Bazelisk cannot parse — extract just the version number on the last line.
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
-# Force C++17 globally via .bazelrc. The absl and zetasql versions pinned in this
-# WORKSPACE use enum-class scoping that requires at minimum C++17; without this,
-# Bazel defaults to C++14 and compilation fails with "found ':' in
-# nested-name-specifier" errors in absl/strings/internal/str_format/extension.h.
-RUN echo "build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17" >> .bazelrc
+# Force C++17 for ml_metadata code; compile absl in C++14 to work around a
+# GCC 12 regression (python:3.11 / Debian Bookworm) where forward declarations
+# of the form 'enum class Foo : uint64_t;' trigger "found ':' in
+# nested-name-specifier" in C++17 mode. enum class is a C++11 feature; absl
+# compiles cleanly in C++14. GCC uses the last -std= flag, so the per-file
+# -std=c++14 appended by --per_file_copt overrides the global -std=c++17 for
+# absl translation units only.
+RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc && \
+    echo 'build --per_file_copt=external/com_google_absl/.*@-std=c++14' >> .bazelrc && \
+    echo 'build --host_per_file_copt=external/com_google_absl/.*@-std=c++14' >> .bazelrc
 
 # Fix two ZetaSQL WORKSPACE issues caused by the zetasql→googlesql GitHub repo rename:
 #
