@@ -73,10 +73,14 @@ WORKDIR /mlmd-src
 # Bazelisk cannot parse — extract just the version number on the last line.
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
-# Fix stale ZetaSQL checksum: GitHub regenerated the archive for commit ac37cf5c,
-# changing its SHA-256. Replace the old hash in WORKSPACE with the actual current one.
+# Fix two ZetaSQL WORKSPACE issues caused by the zetasql→googlesql GitHub repo rename:
+#
+#   1. sha256 checksum: GitHub regenerated the archive, changing its hash.
+#   2. strip_prefix: the zip's top-level dir changed from "zetasql-<commit>"
+#      to "googlesql-<commit>" when the repo was renamed.
 RUN sed -i \
-    's/651a768cd51627f58aa6de7039aba9ddab22f4b0450521169800555269447840/86f81591ab5ec20457a5394eb2c5c981e6f6c89f4c49c211d096c3acffec1eb1/g' \
+    -e 's/651a768cd51627f58aa6de7039aba9ddab22f4b0450521169800555269447840/86f81591ab5ec20457a5394eb2c5c981e6f6c89f4c49c211d096c3acffec1eb1/g' \
+    -e 's|strip_prefix = "zetasql-|strip_prefix = "googlesql-|g' \
     WORKSPACE
 
 # Build the gRPC server binary. Flags match upstream exactly.
