@@ -1,27 +1,21 @@
 name: Build KFP arm64 Images
 
-# Builds arm64-compatible images for KFP components that the upstream project
-# does not publish for arm64, and pushes them to GHCR.
+# CURRENTLY BLOCKED — arm64 build of kfp-metadata-writer is not possible because
+# its dependency ml-metadata==1.17.0 has no aarch64 wheel on PyPI and no sdist.
+# Building it requires compiling ml-metadata from source with Bazel, the same
+# complex build as ml_metadata_store_server.
 #
-# Run this workflow BEFORE Kubeflow Deploy whenever the pipeline_version changes.
-#
-# Components built here:
-#
-#   kfp-metadata-writer  — upstream explicitly excludes arm64 in its CI. The
-#                          Dockerfile is pure Python (python:3.11-slim base) with
-#                          no architecture-specific code, so a native arm64 build
-#                          works without modification.
-#
-# Components NOT built here (pre-existing arm64 image used instead):
-#
-#   ml_metadata_store_server — deployKF community image
-#     ghcr.io/deploykf/ml_metadata_store_server:1.14.0-deploykf.0
-#     Matches KFP's pinned version; upstream PR#188 has been open since 2023.
+# This workflow is preserved for when that blocker is resolved. At that point:
+#   1. Build ml-metadata wheel for arm64 (clone google/ml-metadata, apply PR#188 patches, Bazel build)
+#   2. Publish the wheel to a reachable location (GCS, GHCR, or bake into a custom base image)
+#   3. Modify the build step here to install the arm64 wheel before running pip install
+#   4. Re-enable the kubectl set image patches in deploy-kubeflow.sh
 #
 # References:
 #   kubeflow/pipelines issue #12705 — arm64 support tracking
 #   kubeflow/pipelines PR #12804 — added arm64 for most images, excluded metadata-writer
 #   google/ml-metadata PR#188 — unmerged arm64 Bazel build fix
+#   deployKF arm64 server: ghcr.io/deploykf/ml_metadata_store_server:1.14.0-deploykf.0
 
 on:
   workflow_dispatch:
