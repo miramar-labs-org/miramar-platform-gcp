@@ -88,7 +88,7 @@ jobs:
               IdentityFile $WSL_SSH_DIR/dgx_host
               IdentitiesOnly yes
               StrictHostKeyChecking accept-new
-              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /bin/bash -lc '/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e'"
+              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /bin/bash -lc \"/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e\""
           EOF
             done
             WSL_SSH="$SSH -F $WSL_SSH_CONFIG"
@@ -181,7 +181,7 @@ jobs:
               IdentityFile $WSL_SSH_DIR/dgx_host
               IdentitiesOnly yes
               StrictHostKeyChecking accept-new
-              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /bin/bash -lc '/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e'"
+              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /bin/bash -lc \"/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e\""
           EOF
             done
             WSL_SSH="$SSH -F $WSL_SSH_CONFIG"
@@ -276,7 +276,7 @@ jobs:
               IdentityFile $WSL_SSH_DIR/dgx_host
               IdentitiesOnly yes
               StrictHostKeyChecking accept-new
-              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /bin/bash -lc '/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e'"
+              ProxyCommand ssh -q -i $WSL_SSH_DIR/win_host -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new $WSL2_HOST_USER@$WSL2_HOST "wsl -d $d --user root --exec /bin/bash -lc \"/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e\""
           EOF
             done
             WSL_SSH="$SSH -F $WSL_SSH_CONFIG"

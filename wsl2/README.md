@@ -22,7 +22,7 @@ The shared `wsl2-<name>` SSH alias therefore connects through the Windows host a
 an on-demand WSL command for each SSH session:
 
 ```sshconfig
-ProxyCommand ssh -q -i /home/aaron/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new <windows-user>@<windows-host> "wsl -d <name> --user root --exec /bin/bash -lc '/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e'"
+ProxyCommand ssh -q -i /home/aaron/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new <windows-user>@<windows-host> "wsl -d <name> --user root --exec /bin/bash -lc \"/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e\""
 ```
 
 This creates a per-session WSL client attachment without a resident keepalive process.
