@@ -54,10 +54,6 @@ RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release
 # Install openssh-client and zstd
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates \
-      curl \
-      git \
-      jq \
       openssh-client \
       zstd \
     && rm -rf /var/lib/apt/lists/*
