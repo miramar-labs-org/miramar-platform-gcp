@@ -61,14 +61,19 @@ FROM python:3.11 AS wheel-builder
 ARG MLMD_VERSION
 ARG BAZELISK_VERSION
 
-# Install system build dependencies (Java required by Bazel)
+# Install system build dependencies.
+# cmake and libtool are required by @libmysqlclient//:configure (a transitive
+# dependency of ml_metadata's C++ targets). Without cmake, Bazel exits 127
+# ("command not found") during the configure genrule.
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -y && \
     apt-get install --no-install-recommends -y \
       build-essential \
+      cmake \
       curl \
       default-jdk \
       git \
+      libtool \
       unzip \
       zip && \
     rm -rf /var/lib/apt/lists/*

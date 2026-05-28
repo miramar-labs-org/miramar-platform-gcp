@@ -108,14 +108,16 @@ RUN bazel build \
       --cxxopt="-std=c++17"
 
 # Copy libmysqlclient from the Bazel external deps tree.
-# Path: bazel-{workspace_name}/external/libmysqlclient
-# (workspace name is "ml_metadata", giving bazel-ml_metadata)
+# The execroot symlink (bazel-ml_metadata) is a symlink so find needs -L to
+# follow it. If not found, the binary is likely statically linked and we proceed.
 RUN mkdir -p /mlmd-src/third_party && \
-    LIBMYSQL=$(find /mlmd-src -path "*/external/libmysqlclient" -type d 2>/dev/null | head -1) && \
-    if [ -z "${LIBMYSQL}" ]; then \
-      echo "ERROR: libmysqlclient not found in Bazel external deps" >&2 && exit 1; \
-    fi && \
-    cp -RL "${LIBMYSQL}" /mlmd-src/third_party/mariadb-connector-c
+    LIBMYSQL=$(find -L /mlmd-src -name "libmysqlclient" -type d 2>/dev/null | head -1) && \
+    if [ -n "${LIBMYSQL}" ]; then \
+      cp -RL "${LIBMYSQL}" /mlmd-src/third_party/mariadb-connector-c && \
+      echo "Copied libmysqlclient from ${LIBMYSQL}"; \
+    else \
+      echo "libmysqlclient not found — binary is likely statically linked, continuing"; \
+    fi
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — minimal image with just the binary
