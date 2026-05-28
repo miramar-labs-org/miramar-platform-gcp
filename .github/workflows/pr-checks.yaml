@@ -53,3 +53,6 @@ jobs:
           else:
               print("No feature-branch push triggers found.")
           EOF
+
+      - name: Check local Markdown links
+        run: python3 scripts/docs/check-links.py
