@@ -97,6 +97,9 @@ jobs:
                 print(f'Shared SSH config not found at {path} — nothing to remove')
                 sys.exit(0)
             new = re.sub(r'\nHost wsl2-' + re.escape(distro) + r'\n(?:[ \t][^\n]*\n?)*', '\n', text)
+            new = re.sub(r'\n{3,}', '\n\n', new).rstrip()
+            if new:
+                new += '\n'
             with open(path, 'w') as f:
                 f.write(new)
             if new != text:
