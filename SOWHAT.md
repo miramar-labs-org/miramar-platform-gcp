@@ -22,7 +22,7 @@ Local DGX Kubernetes + GCP/GKE infrastructure
 MLflow, NeMo/NIM, Ollama, container builds, deployments, and repo-quality automation
 ```
 
-This is not just a sample app or a collection of scripts. It is a working platform pattern for building, validating, deploying, and operating AI infrastructure across both **on-prem GPU hardware** and **cloud infrastructure**.
+This is not just a sample app or a collection of scripts. It is a working platform pattern for building, validating, deploying, and operating AI infrastructure and local AI services across both **on-prem GPU hardware** and **cloud infrastructure**.
 
 ## What the platform includes
 
@@ -30,9 +30,9 @@ The repo demonstrates:
 
 - A custom CUDA-based GitHub Actions runner image.
 - Multi-architecture support for `amd64` and `arm64`.
-- Self-hosted runners for WSL2, DGX, and Jetson-style targets.
+- Self-hosted runners for WSL2, DGX, and Jetson AGX Orin targets.
 - Terraform-managed GCP infrastructure.
-- GKE deployment automation.
+- GKE platform lifecycle and scaling automation.
 - GHCR-based container publishing.
 - Workload Identity Federation for keyless GCP authentication.
 - Local DGX/minikube workflows for GPU-adjacent AI services.
@@ -118,7 +118,7 @@ That matters for AI infrastructure roles because modern AI systems require more 
 - cloud infrastructure
 - container registries
 - security boundaries
-- observability and validation workflows
+- experiment tracking, validation workflows, and operational checks
 - developer experience
 - repeatable automation
 
@@ -126,4 +126,4 @@ This repo is evidence that Aaron can design and implement that connective tissue
 
 ## One-line summary
 
-Aaron built a **hybrid on-prem/cloud AI platform that uses custom self-hosted GPU-capable GitHub Actions runners to provision, validate, and operate AI infrastructure across local DGX-class hardware and GCP/GKE**, proving hands-on strength in AI platform engineering, DevOps, Kubernetes, Terraform, Docker, GCP, and production-oriented automation.
+Aaron built a **hybrid on-prem/cloud AI infrastructure platform that uses custom self-hosted GPU-capable GitHub Actions runners to provision, validate, and operate local AI services and GCP/GKE infrastructure across DGX, Jetson Orin, WSL2, and Google Cloud**, proving hands-on strength in AI platform engineering, DevOps, Kubernetes, Terraform, Docker, GCP, and production-minded automation.
