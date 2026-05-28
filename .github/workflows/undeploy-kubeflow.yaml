@@ -11,7 +11,7 @@ on:
     inputs:
       pipeline_version:
         description: Kubeflow Pipelines version tag used at deploy time
-        default: "2.5.0"
+        default: "2.16.1"
         required: false
       delete_namespace:
         description: Delete kubeflow namespace after removal
@@ -41,7 +41,7 @@ jobs:
 
       - name: Destroy Kubeflow Pipelines
         env:
-          PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.5.0' }}
+          PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
           DELETE_NS: ${{ inputs.delete_namespace && 'true' || 'false' }}
         run: bash dgx/minikube/kubeflow/destroy-kubeflow.sh
 
@@ -52,6 +52,6 @@ jobs:
             echo "## Kubeflow Pipelines Undeployed"
             echo "| | |"
             echo "|---|---|"
-            echo "| Version | \`${{ inputs.pipeline_version || '2.5.0' }}\` |"
+            echo "| Version | \`${{ inputs.pipeline_version || '2.16.1' }}\` |"
             echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

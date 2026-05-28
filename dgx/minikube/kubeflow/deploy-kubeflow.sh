@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PIPELINE_VERSION="${PIPELINE_VERSION:-2.5.0}"
+PIPELINE_VERSION="${PIPELINE_VERSION:-2.16.1}"
 
 echo "==> Installing cluster-scoped resources (CRDs, ClusterRoles) ..."
 kubectl apply -k \

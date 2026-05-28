@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PIPELINE_VERSION="${PIPELINE_VERSION:-2.5.0}"
+PIPELINE_VERSION="${PIPELINE_VERSION:-2.16.1}"
 DELETE_NS="${DELETE_NS:-true}"
 
 echo "==> Removing Kubeflow Pipelines namespace resources ..."

@@ -16,8 +16,8 @@ on:
   workflow_dispatch:
     inputs:
       pipeline_version:
-        description: Kubeflow Pipelines version tag (e.g. 2.5.0)
-        default: "2.5.0"
+        description: Kubeflow Pipelines version tag (e.g. 2.16.1)
+        default: "2.16.1"
         required: false
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Deploy Kubeflow Pipelines
         env:
-          PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.5.0' }}
+          PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
         run: bash dgx/minikube/kubeflow/deploy-kubeflow.sh
 
       - name: Wait for pods
@@ -78,7 +78,7 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Namespace | \`kubeflow\` |"
-            echo "| Version | \`${{ inputs.pipeline_version || '2.5.0' }}\` |"
+            echo "| Version | \`${{ inputs.pipeline_version || '2.16.1' }}\` |"
             echo "| Pods | \`${POD_COUNT}\` |"
             echo ""
             echo "Restart the port-forward service on DGX, then tunnel to access the UI:"
