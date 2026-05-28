@@ -47,6 +47,12 @@ wsl2/              # WSL2 host config and bootstrap scripts
   TECHNICAL.md        # Source of truth for template builds, lifecycle, on-demand SSH, and troubleshooting
 
 docs/              # Architecture and runbooks
+  index.md         # Source-of-truth map for docs and runbooks
+  configuration.md # GitHub secrets, variables, and host env vars
+  runners.md       # Self-hosted runner image and launch scripts
+  gcp.md           # GCP bootstrap, Terraform, WIF, and state storage
+  workflows.md     # Workflow catalog
+  dgx.md           # DGX local AI stack operations
   ssh-runbook.md   # Full SSH mesh topology and troubleshooting
 .github/workflows/ # CI/CD workflows
 ```
