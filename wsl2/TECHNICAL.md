@@ -222,6 +222,219 @@ Samba credentials baked into the template at:
 /home/aaron/.smbcredentials
 ```
 
+## Windows Host Prerequisites
+
+The GitHub Actions workflows SSH to the Windows host first, then run `wsl.exe`
+from that Windows session. The Windows host needs OpenSSH Server, PowerShell as
+the default SSH shell, mirrored WSL networking, and Spark's public key
+authorized for the Windows user.
+
+Enable OpenSSH Server from Windows Settings, then start it from PowerShell:
+
+```powershell
+Start-Service sshd
+Set-Service -Name sshd -StartupType Automatic
+```
+
+Set PowerShell as the default OpenSSH shell:
+
+```powershell
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" `
+  -Name DefaultShell `
+  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" `
+  -PropertyType String -Force
+```
+
+Authorize Spark's public key (`/home/aaron/shared/ssh/id_ed25519.pub` on the
+DGX) for the Windows user. For an admin user, add it to:
+
+```text
+C:\ProgramData\ssh\administrators_authorized_keys
+```
+
+Then fix Windows OpenSSH permissions:
+
+```powershell
+icacls C:\ProgramData\ssh\administrators_authorized_keys /inheritance:r
+icacls C:\ProgramData\ssh\administrators_authorized_keys /grant "Administrators:F"
+icacls C:\ProgramData\ssh\administrators_authorized_keys /grant "SYSTEM:F"
+Restart-Service sshd
+```
+
+For non-admin users, use:
+
+```text
+C:\Users\<user>\.ssh\authorized_keys
+```
+
+Enable mirrored networking in `$env:USERPROFILE\.wslconfig`:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true
+```
+
+Do not include `localhostForwarding=true`; it has no effect in mirrored mode
+and causes a warning. Restart WSL after changing `.wslconfig`:
+
+```powershell
+wsl --shutdown
+wsl
+```
+
+## Rebuild the Configured Template
+
+Use `rebuild-template.ps1` when `bootstrap.sh` changes, when rotating the Samba
+password, or when refreshing tools already present in the configured template.
+It starts from the existing configured tarball, so no clean Ubuntu install is
+needed.
+
+Run from Windows PowerShell:
+
+```powershell
+cd path\to\miramar-platform-gcp\wsl2
+.\rebuild-template.ps1 -SmbPassword <samba-password>
+```
+
+The script:
+
+1. Imports the current tarball as a temp distro named `template-build`.
+2. Writes `/home/aaron/.smbcredentials` for the Samba share.
+3. Removes legacy shared-folder CIFS entries from `/etc/fstab`.
+4. Keeps `mountFsTab = false`.
+5. Exports back to the same tar path and backs up the old tar as `-prev.tar`.
+6. Cleans up the temp distro.
+
+Optional parameters:
+
+```text
+-DistroUser  default: aaron
+-TarPath     default: C:\wsl-templates\ubuntu-22.04-configured-template.tar
+-BuildName   default: template-build
+-BuildDir    default: C:\wsl\template-build
+```
+
+After rebuilding, validate with:
+
+```text
+Actions -> Setup Shared SSH Store
+Actions -> WSL2 Provision -> distro_name: test  ssh_port: 2223
+Actions -> WSL2 Verify SSH Topology
+```
+
+## Build a Configured Template From Scratch
+
+Only use this path when there is no existing configured tarball or a completely
+clean base is desired.
+
+Install Ubuntu 22.04:
+
+```powershell
+wsl --update
+wsl --install -d Ubuntu-22.04
+```
+
+For NVIDIA containers, install a current NVIDIA Windows driver with WSL2 CUDA
+support. Do not install a Linux display driver inside WSL. After the driver is
+installed, `nvidia-smi` should eventually work inside WSL.
+
+Enable passwordless sudo inside the distro:
+
+```bash
+sudo visudo -f /etc/sudoers.d/aaron
+```
+
+Add:
+
+```text
+aaron ALL=(ALL) NOPASSWD: ALL
+```
+
+Create `/etc/wsl.conf`:
+
+```ini
+[boot]
+systemd=true
+
+[user]
+default=aaron
+
+[interop]
+appendWindowsPath=false
+```
+
+Export a base snapshot from PowerShell:
+
+```powershell
+wsl --shutdown
+mkdir C:\wsl-templates -Force
+wsl --export Ubuntu-22.04 C:\wsl-templates\ubuntu-22.04-base-template.tar
+```
+
+Import the base and enter it:
+
+```powershell
+mkdir C:\wsl\Ubuntu2204-Base -Force
+wsl --import Ubuntu2204-Base C:\wsl\Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-base-template.tar --version 2
+wsl -d Ubuntu2204-Base --cd ~
+```
+
+Inside the distro, download and run the bootstrap files:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/bootstrap.sh -o bootstrap.sh
+chmod +x bootstrap.sh
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/mount-dgx-shared.sh -o mount-dgx-shared.sh
+chmod +x mount-dgx-shared.sh
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/mount-dgx-shared.service -o mount-dgx-shared.service
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/mount-dgx-shared.timer -o mount-dgx-shared.timer
+
+curl -fsSL https://raw.githubusercontent.com/miramar-labs-org/miramar-platform-gcp/main/wsl2/setup-shared-ssh.sh -o setup-shared-ssh.sh
+chmod +x setup-shared-ssh.sh
+
+DGX_SMB_PASSWORD=<samba-password> DGX_PUBKEY="$(ssh 192.168.1.200 cat /home/aaron/.ssh/id_ed25519.pub)" ./bootstrap.sh
+```
+
+After optional shell customization, shut down and export the configured
+template:
+
+```powershell
+wsl --shutdown
+mkdir C:\wsl-templates -Force
+wsl --export Ubuntu2204-Base C:\wsl-templates\ubuntu-22.04-configured-template.tar
+wsl --unregister Ubuntu2204-Base
+wsl --unregister Ubuntu-22.04
+```
+
+Then wire the shared SSH store and validate:
+
+```text
+Actions -> Setup Shared SSH Store
+Actions -> WSL2 Provision -> distro_name: test
+Actions -> WSL2 Verify SSH Topology
+```
+
+## Manual Distro Bring-Up
+
+GitHub Actions is the normal path. For diagnostics, a distro can be imported and
+bootstrapped manually from PowerShell:
+
+```powershell
+wsl --import Ubuntu2204-Dev1 C:\wsl\Ubuntu2204-Dev1 C:\wsl-templates\ubuntu-22.04-configured-template.tar --version 2
+```
+
+Write `/etc/wsl2-provision.conf` before running `firstboot.sh`:
+
+```powershell
+wsl -d Ubuntu2204-Dev1 --user root -- bash -c "echo distro_name=dev > /etc/wsl2-provision.conf && echo ssh_port=2222 >> /etc/wsl2-provision.conf && echo mount_user=aaron >> /etc/wsl2-provision.conf && echo dgx_host_ip=192.0.2.10 >> /etc/wsl2-provision.conf"
+wsl -d Ubuntu2204-Dev1 --user root -- bash /usr/local/bin/firstboot.sh
+```
+
 ## Operational Notes
 
 Seeing `dev` or `test` in `Stopped` state after provision is not by itself a

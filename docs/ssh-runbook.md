@@ -4,7 +4,7 @@
 >
 > | Workflow                     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 > | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-> | **Setup Shared SSH Store**   | One-time: init `/home/aaron/shared/ssh/` on Spark (including `id_ed25519` + `id_ed25519.pub`), create `/home/aaron/.ssh/` symlinks on Spark, pre-authorize template SMB key. Wires Orin: CIFS-mounts Spark's share at `/home/aaron/shared/`, symlinks all `/home/aaron/.ssh/` files to `/home/aaron/shared/ssh/` (Orin uses Spark's identity — no local keypair). SSHes to Orin via `localhost:22` from agx runner. Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
+> | **Setup Shared SSH Store**   | One-time: init `/home/aaron/shared/ssh/` on Spark (including `id_ed25519` + `id_ed25519.pub`), create `/home/aaron/.ssh/` symlinks on Spark, and wire Orin: CIFS-mount Spark's share at `/home/aaron/shared/`, symlink all `/home/aaron/.ssh/` files to `/home/aaron/shared/ssh/` (Orin uses Spark's identity — no local keypair). SSHes to Orin via `localhost:22` from agx runner. Secrets: `DGX_HOST_SSH_KEY`, `ORIN_HOST_SSH_KEY`, `DGX_SMB_PASSWORD`. |
 > | **WSL2 Provision**           | Per-distro: SSHes to the Windows host and runs all config via `wsl -d NAME --user root` (wsl exec) — **no direct port-2222 SSH into the distro**. Writes `/etc/wsl2-provision.conf`, opens Windows Firewall, runs `firstboot.sh` (hostname, sshd port via systemd, post-boot CIFS mount, SSH symlinks, `wsl2-<name>` host block). `.smbcredentials` is baked into the template by `rebuild-template.ps1`. Secrets: `WSL2_HOST`, `WSL2_HOST_USER`, `WSL2_HOST_SSH_KEY`, `DGX_HOST_SSH_KEY`. |
 > | **WSL2 Verify SSH Topology** | Validate supported SSH paths. Reads active distros from `WSL2_DISTROS` and tests spark/orin core reachability, spark/orin to each `wsl2-<name>`, and each `wsl2-<name>` back to spark/orin. WSL2-to-WSL2 peer paths are intentionally excluded. Reports pass/fail per path. Triggered manually or called from WSL2 Provision. |
 >
@@ -23,11 +23,11 @@
 > cat /home/aaron/.ssh/id_ed25519
 > ```
 >
-> The manual steps below are kept as a **reference and troubleshooting fallback** only. For the current WSL2 lifecycle and on-demand SSH design, read [../wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md) first.
+> The manual steps below are kept as a **legacy direct-port reference and troubleshooting fallback** only. They are not the normal setup path for current WSL2 distros. For normal operation, use [../wsl2/README.md](../wsl2/README.md). For the current WSL2 lifecycle, template build procedures, and on-demand SSH design, read [../wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md) first.
 
 ---
 
-This runbook documents the SSH and DNS setup for a local lab consisting of:
+This runbook documents the current SSH topology for a local lab consisting of:
 
 | Machine            | Hostname        | DNS                | SSH alias                              |
 | ------------------ | --------------- | ------------------ | -------------------------------------- |
@@ -96,7 +96,15 @@ C:\Users\aaron\.ssh\id_ed25519
 
 ---
 
-## Assumptions
+## Legacy Direct-Port Reference
+
+The remaining numbered setup parts document the older direct-port WSL2 SSH
+model. Use them only for diagnostics or for reconstructing a broken host by
+hand. Current provisioned distros should be managed by **WSL2 Provision** and
+accessed with `wsl2-<name>` aliases, not a generic `wsl2` host block or local
+per-distro keypairs.
+
+## Assumptions For Legacy Sections
 
 Update these if your LAN changes:
 
@@ -819,7 +827,18 @@ If BatchMode fails, key-based auth is not working and SSH would otherwise have a
 
 Cause: client is hitting MSI Windows OpenSSH on port `22`.
 
-Fix: WSL2 must use port `2222`, and the client config must include:
+Current fix: use the generated alias for the distro:
+
+```bash
+ssh wsl2-<name> hostname
+```
+
+The `wsl2-<name>` host block is written by **WSL2 Provision** into
+`/home/aaron/shared/ssh/config` and starts the distro on demand through Windows
+OpenSSH and `wsl.exe`.
+
+Legacy direct-port fallback: WSL2 must use its assigned direct sshd port, and
+the client config must include:
 
 ```sshconfig
 Host wsl2
@@ -843,15 +862,22 @@ Host wsl2
 
 ---
 
-## Problem: `ssh wsl2` asks for a password
+## Problem: `ssh wsl2-<name>` asks for a password
 
-Cause: WSL2 does not have the client machine's public key in:
+Cause: the shared SSH store was not mounted before `sshd -i` performed
+public-key authentication, or `/home/aaron/shared/ssh/authorized_keys` does not
+contain Spark's public key. In current provisioned distros,
+`/home/aaron/.ssh/authorized_keys` is a symlink to:
 
 ```text
-/home/aaron/.ssh/authorized_keys
+/home/aaron/shared/ssh/authorized_keys
 ```
 
-From the Linux client, run:
+Current fix: rerun **Setup Shared SSH Store** if the shared store is broken,
+then rerun **WSL2 Provision** for the affected distro. Do not replace the
+symlink with a local per-distro `authorized_keys` file.
+
+Legacy direct-port fallback: from the Linux client, run:
 
 ```bash
 ssh-copy-id -p 2222 -i /home/aaron/.ssh/id_ed25519.pub aaron@192.168.1.201
@@ -869,7 +895,7 @@ Expected:
 wsl2
 ```
 
-Fix WSL2 permissions if needed:
+Fix legacy WSL2 permissions if needed:
 
 ```bash
 chmod 700 /home/aaron/.ssh

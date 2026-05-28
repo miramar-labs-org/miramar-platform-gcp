@@ -867,18 +867,18 @@ Actions → NIM Undeploy → Run workflow
 
 ## WSL2 Environments (Windows laptop)
 
-WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for prerequisites (OpenSSH Server, PowerShell default shell, SSH key) and how to build the template. See [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md) for the final on-demand WSL2 SSH model and [docs/ssh-runbook.md](docs/ssh-runbook.md) for the broader SSH runbook.
+WSL2 distros are provisioned from a pre-built configured template tarball (`C:\wsl-templates\ubuntu-22.04-configured-template.tar`) via SSH from any self-hosted runner. See [wsl2/README.md](wsl2/README.md) for the operator quickstart and prerequisites. See [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md) for template build procedures, the final on-demand WSL2 SSH model, and troubleshooting notes. See [docs/ssh-runbook.md](docs/ssh-runbook.md) for the broader SSH runbook.
 
 **Multiple instances are supported.** Each distro gets a unique name (e.g. `dev`, `test`) and its own direct sshd port (`2222` for `dev`, `2223` for `test`, increment by 1 for each additional). Normal SSH uses the alias `wsl2-<distro_name>` (e.g. `wsl2-dev`, `wsl2-test`) and starts the distro on demand through Windows OpenSSH and `wsl.exe`; the direct port is for provisioning readiness checks and manual diagnostics.
 
-**One-time template setup** (per template build):
+**Template maintenance** (when rebuilding the configured tarball):
 
 ```
-wsl2/bootstrap.sh (inside distro)  → bakes id_ed25519_smb + .smbcredentials
-wsl2/rebuild-template.ps1          → removes stale fstab mounts, patches .smbcredentials, exports tarball
-git add wsl2/id_ed25519_smb.pub && git push
-Actions → Setup Shared SSH Store
+wsl2/rebuild-template.ps1          → refreshes .smbcredentials, removes stale fstab mounts, exports tarball
+Actions → Setup Shared SSH Store   → refreshes the shared SSH store wiring
 ```
+
+For clean template builds from scratch, see [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md).
 
 **Per-distro provisioning sequence** (`DGX_SMB_PASSWORD` not needed — baked into template):
 
@@ -888,17 +888,19 @@ Actions → WSL2 Provision           → distro_name: test ssh_port: 2223
 Actions → WSL2 Verify SSH Topology
 ```
 
-**Required secrets** (repo-level):
+**Required secrets and vars** (repo-level unless inherited from org):
 
-| Secret              | Purpose                                                                                                         |
+| Secret / Var        | Purpose                                                                                                         |
 | ------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `WSL2_HOST`         | Hostname or IP of the MSI Windows laptop                                                                        |
 | `WSL2_HOST_USER`    | Windows SSH user                                                                                                |
 | `WSL2_HOST_SSH_KEY` | Private SSH key — matching public key must be in `C:\ProgramData\ssh\administrators_authorized_keys` on Windows |
+| `DGX_HOST_SSH_KEY`  | Spark private key used to authorize and verify SSH into provisioned distros                                      |
+| `WSL2_DISTROS`      | Repo variable tracking active distro names; create with value `NONE` before the first provision run              |
 
 ### [Setup Shared SSH Store](.github/workflows/setup-shared-ssh.yaml)
 
-**Run once before provisioning any WSL2 distro** (and again after each template rebuild). Initialises `/home/aaron/shared/ssh/` on DGX as the single source of truth for SSH config, pre-authorizes `wsl2/id_ed25519_smb.pub` (the template SMB bootstrap key) on DGX, and wires up Orin (CIFS-mounts `//DGX/shared` at `/home/aaron/shared/`, symlinks all `/home/aaron/.ssh/` files to `/home/aaron/shared/ssh/`).
+**Run once before provisioning any WSL2 distro** (and again after each template rebuild). Initialises `/home/aaron/shared/ssh/` on DGX as the single source of truth for SSH config and wires up Orin (CIFS-mounts `//DGX/shared` at `/home/aaron/shared/`, symlinks all `/home/aaron/.ssh/` files to `/home/aaron/shared/ssh/`).
 
 After this runs, `/home/aaron/.ssh/config`, `/home/aaron/.ssh/known_hosts`, and `/home/aaron/.ssh/authorized_keys` on DGX are symlinks into `/home/aaron/shared/ssh/`. Orin mounts the same share via CIFS and symlinks its `/home/aaron/.ssh/` to the shared store — all machines share Spark's SSH identity.
 
