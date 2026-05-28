@@ -2,7 +2,9 @@ name: Kubeflow Deploy
 
 # Deploys Kubeflow Pipelines standalone into the kubeflow namespace on the DGX
 # minikube cluster. The env/dev kustomize overlay creates the kubeflow namespace
-# automatically and includes a built-in MinIO and MySQL — no external dependencies.
+# automatically and includes built-in SeaweedFS and MySQL — no external dependencies.
+# The arm64-incompatible controller-manager (Application CRD) is removed post-apply;
+# it is display-only and not required for pipeline functionality.
 #
 # UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by
 # kubeflow-portfwd.service. Restart the service after deploying:
@@ -50,12 +52,21 @@ jobs:
         run: |
           echo "Waiting up to 20m for all pods to reach Running/Completed..."
           timeout 1200 bash -c '
+            pull_fail_iters=0
             while true; do
               statuses="$(kubectl get pods -n kubeflow --no-headers 2>/dev/null)"
               if echo "$statuses" | grep -qE "ImagePullBackOff|ErrImagePull"; then
-                echo "ERROR: image pull failure detected" >&2
-                echo "$statuses" >&2
-                exit 1
+                pull_fail_iters=$((pull_fail_iters + 1))
+                # Tolerate transient pull failures for up to 5 minutes (10 x 30s)
+                # before declaring fatal — slow GHCR responses are common on first pull.
+                if [[ $pull_fail_iters -ge 10 ]]; then
+                  echo "ERROR: image pull failure persisted for 5m — giving up" >&2
+                  echo "$statuses" >&2
+                  exit 1
+                fi
+                echo "$(date -u +%H:%M:%S) — image pull backoff on $(echo "$statuses" | grep -cE "ImagePullBackOff|ErrImagePull") pod(s) [attempt ${pull_fail_iters}/10, waiting...]"
+              else
+                pull_fail_iters=0
               fi
               not_ready="$(echo "$statuses" | grep -vE "Running|Completed|Succeeded" | grep -v "^$")"
               if [[ -z "$not_ready" ]]; then
