@@ -91,7 +91,7 @@ All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 p
 
 | Service             | Role                                                                                    | Link                                                                                  |
 | ------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| GitHub Actions      | Workflow automation — build, test, deploy                                               | [Actions](https://github.com/orgs/miramar-labs-org/actions)                           |
+| GitHub Actions      | Workflow automation — build, test, deploy                                               | [Actions](https://github.com/miramar-labs-org/miramar-platform-gcp/actions)           |
 | GHCR                | Docker image hosting for the runner image and future app images                         | [Packages](https://github.com/orgs/miramar-labs-org/packages)                         |
 | Self-hosted runners | Jobs requiring GPU, local network access, or aarch64 run on the physical machines above | [Runners](https://github.com/organizations/miramar-labs-org/settings/actions/runners) |
 
