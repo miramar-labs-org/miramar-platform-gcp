@@ -96,6 +96,12 @@ WORKDIR /build/ml-metadata
 # Bazelisk cannot parse — extract just the version number on the last line.
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
+# Force C++17 globally via .bazelrc. The absl and zetasql versions pinned in this
+# WORKSPACE use enum-class scoping that requires at minimum C++17; without this,
+# Bazel defaults to C++14 and compilation fails with "found ':' in
+# nested-name-specifier" errors in absl/strings/internal/str_format/extension.h.
+RUN echo "build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17" >> .bazelrc
+
 # Fix two ZetaSQL WORKSPACE issues caused by the zetasql→googlesql GitHub repo rename:
 #
 #   1. sha256 checksum: GitHub regenerated the archive, changing its hash.

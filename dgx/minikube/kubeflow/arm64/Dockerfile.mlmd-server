@@ -83,11 +83,13 @@ RUN sed -i \
     -e 's|strip_prefix = "zetasql-|strip_prefix = "googlesql-|g' \
     WORKSPACE
 
-# Build the gRPC server binary. Flags match upstream exactly.
+# Build the gRPC server binary. Flags match upstream; --verbose_failures added so
+# compile errors are visible in GHA logs without a separate debug step.
 RUN bazel build \
       -c opt \
       --action_env=PATH \
       --define=grpc_no_ares=true \
+      --verbose_failures \
       //ml_metadata/metadata_store:metadata_store_server \
       --cxxopt="-std=c++17"
 
