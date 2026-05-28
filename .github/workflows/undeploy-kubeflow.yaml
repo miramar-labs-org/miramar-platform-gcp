@@ -1,0 +1,57 @@
+name: Kubeflow Undeploy
+
+# Removes Kubeflow Pipelines from the DGX minikube cluster and optionally
+# deletes the kubeflow namespace. Passes the same pipeline_version used at
+# deploy time so kustomize can find the exact resources to delete.
+#
+# Does NOT stop minikube or affect any other workloads.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_version:
+        description: Kubeflow Pipelines version tag used at deploy time
+        default: "2.5.0"
+        required: false
+      delete_namespace:
+        description: Delete kubeflow namespace after removal
+        type: boolean
+        default: true
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          # After a runner restart the container is on the default bridge and
+          # can't reach 192.168.49.x (minikube Docker network). Connect to it.
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Destroy Kubeflow Pipelines
+        env:
+          PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.5.0' }}
+          DELETE_NS: ${{ inputs.delete_namespace && 'true' || 'false' }}
+        run: bash dgx/minikube/kubeflow/destroy-kubeflow.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Kubeflow Pipelines Undeployed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version | \`${{ inputs.pipeline_version || '2.5.0' }}\` |"
+            echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

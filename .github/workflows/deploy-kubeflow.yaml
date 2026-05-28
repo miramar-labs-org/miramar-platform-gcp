@@ -1,0 +1,90 @@
+name: Kubeflow Deploy
+
+# Deploys Kubeflow Pipelines standalone into the kubeflow namespace on the DGX
+# minikube cluster. The env/dev kustomize overlay creates the kubeflow namespace
+# automatically and includes a built-in MinIO and MySQL — no external dependencies.
+#
+# UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by
+# kubeflow-portfwd.service. Restart the service after deploying:
+#   systemctl --user restart kubeflow-portfwd
+#
+# Prerequisites:
+#   - minikube running on the DGX (Minikube Install workflow)
+#   - kubeflow-portfwd.service installed (dgx/systemd/install.sh)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_version:
+        description: Kubeflow Pipelines version tag (e.g. 2.5.0)
+        default: "2.5.0"
+        required: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          # After a runner restart the container is on the default bridge and
+          # can't reach 192.168.49.x (minikube Docker network). Connect to it.
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Deploy Kubeflow Pipelines
+        env:
+          PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.5.0' }}
+        run: bash dgx/minikube/kubeflow/deploy-kubeflow.sh
+
+      - name: Wait for pods
+        run: |
+          echo "Waiting up to 20m for all pods to reach Running/Completed..."
+          timeout 1200 bash -c '
+            while true; do
+              statuses="$(kubectl get pods -n kubeflow --no-headers 2>/dev/null)"
+              if echo "$statuses" | grep -qE "ImagePullBackOff|ErrImagePull"; then
+                echo "ERROR: image pull failure detected" >&2
+                echo "$statuses" >&2
+                exit 1
+              fi
+              not_ready="$(echo "$statuses" | grep -vE "Running|Completed|Succeeded" | grep -v "^$")"
+              if [[ -z "$not_ready" ]]; then
+                echo "All pods ready."
+                break
+              fi
+              echo "$(date -u +%H:%M:%S) — waiting on $(echo "$not_ready" | wc -l) pod(s):"
+              echo "$not_ready" | awk "{print \"  \", \$1, \$3}" | head -5
+              sleep 30
+            done
+          '
+          kubectl get pods -n kubeflow
+
+      - name: Summary
+        if: always()
+        run: |
+          POD_COUNT=$(kubectl get pods -n kubeflow --no-headers 2>/dev/null | grep -c . || echo 0)
+          {
+            echo "## Kubeflow Pipelines Deployed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Namespace | \`kubeflow\` |"
+            echo "| Version | \`${{ inputs.pipeline_version || '2.5.0' }}\` |"
+            echo "| Pods | \`${POD_COUNT}\` |"
+            echo ""
+            echo "Restart the port-forward service on DGX, then tunnel to access the UI:"
+            echo "\`\`\`"
+            echo "systemctl --user restart kubeflow-portfwd"
+            echo "ssh -L 8080:localhost:8080 <user>@spark-79b7.local"
+            echo "# open http://localhost:8080"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

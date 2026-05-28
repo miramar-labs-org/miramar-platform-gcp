@@ -11,6 +11,7 @@ The DGX user services are reached through SSH tunnels:
 ssh -L 8001:localhost:8001 \
     -L 8888:localhost:8888 \
     -L 5000:localhost:5000 \
+    -L 8080:localhost:8080 \
     -L 11434:localhost:11434 \
     <user>@spark-79b7.local
 ```
@@ -20,6 +21,7 @@ ssh -L 8001:localhost:8001 \
 | `8001` | Kubernetes dashboard proxy |
 | `8888` | JupyterLab |
 | `5000` | MLflow |
+| `8080` | Kubeflow Pipelines UI |
 | `11434` | Ollama API |
 
 See [../dgx/README.md](../dgx/README.md) and
@@ -56,6 +58,21 @@ Actions -> MLflow Undeploy
 ```
 
 NeMo must be deployed before MLflow because MLflow uses NeMo's postgres backend.
+
+## Kubeflow Pipelines
+
+Kubeflow Pipelines runs in minikube namespace `kubeflow` behind
+`svc/ml-pipeline-ui:80`. The `kubeflow-portfwd.service` forwards port `8080`.
+After deploying, restart the service and open `http://localhost:8080` through
+an SSH tunnel.
+
+```text
+Actions -> Kubeflow Deploy
+Actions -> Kubeflow Undeploy
+```
+
+Kubeflow is independent of NeMo and MLflow — it can be deployed on a fresh
+minikube cluster without any other workloads.
 
 ## Ollama
 
