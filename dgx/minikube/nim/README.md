@@ -1,5 +1,7 @@
 # NIM Notes
 
+[NVIDIA NIM](https://developer.nvidia.com/nim) ([docs](https://docs.nvidia.com/nim/)) — inference microservices deployed through the NeMo deployment API and served at `http://nim.test/v1`.
+
 list NIMs:
 
     curl -sS http://nim.test/v1/models | jq .

@@ -44,6 +44,7 @@ flowchart LR
     Mini --> Nemo[NeMo Microservices]
     Mini --> MLflow[MLflow + MinIO]
     Mini --> NIM[NVIDIA NIM]
+    Mini --> KFP[Kubeflow Pipelines]
 ```
 
 [![Miramar Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/miramar-platform-create.yaml)
@@ -71,11 +72,11 @@ flowchart LR
 
 On-premises machines acting as self-hosted GitHub Actions runners and general compute:
 
-| Machine                     | OS                         | Arch            | CPU                                             | GPU                                                                              | VRAM           | CUDA | Runner label |
+| Machine                     | OS                         | Arch            | CPU                                             | GPU                                                                              | VRAM           | [CUDA](https://developer.nvidia.com/cuda-toolkit) | Runner label |
 | --------------------------- | -------------------------- | --------------- | ----------------------------------------------- | -------------------------------------------------------------------------------- | -------------- | ---- | ------------ |
-| Windows laptop              | Ubuntu 22.04 (WSL2)        | x86_64 / amd64  | AMD                                             | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6     | 12.6 | `wsl2`       |
-| NVIDIA DGX Spark 128GB      | DGX OS (Ubuntu 24.04)      | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen)  | 128 GB unified | 12.6 | `dgx`        |
-| NVIDIA Jetson AGX Orin 64GB | Ubuntu 22.04 (JetPack 6.x) | aarch64 / arm64 | 12-core Cortex-A78AE                            | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87)                                | 64 GB unified  | 12.6 | `agx`        |
+| Windows laptop              | Ubuntu 22.04 ([WSL2](https://github.com/microsoft/WSL))        | x86_64 / amd64  | AMD                                             | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6     | 12.6 | `wsl2`       |
+| [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) 128GB | DGX OS (Ubuntu 24.04)      | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen)  | 128 GB unified | 12.6 | `dgx`        |
+| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-computing/jetson-agx-orin/) 64GB | Ubuntu 22.04 ([JetPack 6.x](https://developer.nvidia.com/embedded/jetpack)) | aarch64 / arm64 | 12-core Cortex-A78AE                            | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87)                                | 64 GB unified  | 12.6 | `agx`        |
 
 All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`. GPU access works the same way on both arm64 machines via the NVIDIA container runtime.
 
@@ -83,10 +84,10 @@ All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 p
 
 | Service                                     | Purpose                                                                       | Dashboard                                                                                                  |
 | ------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| GKE Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads                              | [GKE console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform)                   |
-| Artifact Registry (`apps`)                  | Docker image registry for built application images                            | [GAR console](https://console.cloud.google.com/artifacts?project=miramar-platform)                         |
-| GCS buckets                                 | Terraform state + GKE node pool snapshots (see [docs/gcp.md](docs/gcp.md))    | [GCS console](https://console.cloud.google.com/storage/browser?project=miramar-platform)                   |
-| Workload Identity Federation                | Keyless auth from GitHub Actions to GCP — no long-lived service account keys  | [WIF console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
+| [GKE](https://cloud.google.com/kubernetes-engine) Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads                              | [console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) · [docs](https://cloud.google.com/kubernetes-engine/docs)                   |
+| [Artifact Registry](https://cloud.google.com/artifact-registry) (`apps`)                  | Docker image registry for built application images                            | [console](https://console.cloud.google.com/artifacts?project=miramar-platform) · [docs](https://cloud.google.com/artifact-registry/docs)                         |
+| GCS buckets                                 | [Terraform](https://www.terraform.io) state + GKE node pool snapshots (see [docs/gcp.md](docs/gcp.md))    | [console](https://console.cloud.google.com/storage/browser?project=miramar-platform)                   |
+| [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)                | Keyless auth from [GitHub Actions](https://github.com/features/actions) to GCP — no long-lived service account keys  | [console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
 | GCP project                                 | `miramar-platform` — single project for all resources                         | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform)                      |
 
 ### CI/CD
@@ -103,9 +104,7 @@ GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Fed
 
 ## Local DGX Stack
 
-DGX Spark runs the local AI stack: minikube, NeMo Microservices, MLflow, NIM,
-and Ollama. See [docs/dgx.md](docs/dgx.md) for workflow details and
-[dgx/README.md](dgx/README.md) for host-level service notes.
+DGX Spark runs the local AI stack: [minikube](https://minikube.sigs.k8s.io/), [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/), [MLflow](https://mlflow.org), [Kubeflow Pipelines](https://www.kubeflow.org/), [NIM](https://developer.nvidia.com/nim), and [Ollama](https://ollama.com). See [docs/dgx.md](docs/dgx.md) for workflow details and [dgx/README.md](dgx/README.md) for host-level service notes.
 
 Common tunnel:
 
@@ -113,11 +112,12 @@ Common tunnel:
 ssh -L 8001:localhost:8001 \
     -L 8888:localhost:8888 \
     -L 5000:localhost:5000 \
+    -L 8080:localhost:8080 \
     -L 11434:localhost:11434 \
     <user>@spark-79b7.local
 ```
 
-Stack order: **Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy**.
+Stack order: **Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy**. Kubeflow Deploy is standalone.
 
 ---
 
@@ -147,6 +147,26 @@ Common entry points:
 | Deploy DGX AI services | [docs/dgx.md](docs/dgx.md) |
 | Provision WSL2 distros | [wsl2/README.md](wsl2/README.md) |
 | Troubleshoot SSH | [docs/ssh-runbook.md](docs/ssh-runbook.md) |
+
+## Key Technologies
+
+| Technology | GitHub | Docs |
+| --- | --- | --- |
+| [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
+| [Ollama](https://ollama.com) | [ollama/ollama](https://github.com/ollama/ollama) | [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md) |
+| [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
+| [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines) | [docs](https://www.kubeflow.org/docs/components/pipelines/) |
+| [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) | — | [docs](https://docs.nvidia.com/nemo/microservices/latest/) |
+| [NIM](https://developer.nvidia.com/nim) | — | [docs](https://docs.nvidia.com/nim/) |
+| [WSL2](https://github.com/microsoft/WSL) | [microsoft/WSL](https://github.com/microsoft/WSL) | [docs](https://learn.microsoft.com/en-us/windows/wsl/) |
+| [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) | — | [developer docs](https://docs.nvidia.com/dgx/index.html) |
+| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-computing/jetson-agx-orin/) | — | [developer docs](https://developer.nvidia.com/embedded/jetpack) |
+| [CUDA](https://developer.nvidia.com/cuda-toolkit) | — | [docs](https://docs.nvidia.com/cuda/) |
+| [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
+| [Terraform](https://www.terraform.io) | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs) |
+| [GKE](https://cloud.google.com/kubernetes-engine) | — | [docs](https://cloud.google.com/kubernetes-engine/docs) |
+| [Helm](https://helm.sh) | [helm/helm](https://github.com/helm/helm) | [docs](https://helm.sh/docs/) |
+| [GitHub Actions](https://github.com/features/actions) | — | [docs](https://docs.github.com/en/actions) |
 
 ## Contributing
 

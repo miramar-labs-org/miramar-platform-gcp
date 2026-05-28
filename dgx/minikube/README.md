@@ -1,7 +1,6 @@
 # minikube (DGX)
 
-Minikube cluster on the NVIDIA DGX Spark. Lifecycle is managed exclusively via GitHub Actions
-workflows — there are no local shell scripts.
+[minikube](https://minikube.sigs.k8s.io/) cluster on the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/). Lifecycle is managed exclusively via [GitHub Actions](https://github.com/features/actions) workflows — there are no local shell scripts.
 
 | Workflow | Purpose |
 |---|---|
@@ -13,8 +12,9 @@ workflows — there are no local shell scripts.
 
 | Folder | Contents |
 |---|---|
-| [nemo/](nemo/) | NeMo Microservices Helm chart install — values, credentials, deployment config |
-| [nim/](nim/) | NIM inference scripts — deploy, undeploy, and log tailing |
+| [nemo/](nemo/) | [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) [Helm](https://helm.sh) chart install — values, credentials, deployment config |
+| [nim/](nim/) | [NIM](https://developer.nvidia.com/nim) inference scripts — deploy, undeploy, and log tailing |
+| [kubeflow/](kubeflow/) | [Kubeflow Pipelines](https://www.kubeflow.org/) standalone deploy/destroy scripts |
 
 The `kubectl proxy` on port `8001` is managed by the systemd service in [../systemd/dashboard.service](../systemd/). It starts automatically and does not need to be managed manually.
 
@@ -51,6 +51,16 @@ docker stop mlabs-runner-arm64
 Then trigger the **Minikube Install** workflow from the GitHub Actions UI. It will download the
 latest binary onto the host, start a fresh cluster, pin the nvidia-device-plugin, enable addons,
 label the node, and update `DGX_MINIKUBE_KUBECONFIG`.
+
+## References
+
+| Technology | GitHub | Docs |
+|---|---|---|
+| [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
+| [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) | — | [docs](https://docs.nvidia.com/nemo/microservices/latest/) |
+| [NIM](https://developer.nvidia.com/nim) | — | [docs](https://docs.nvidia.com/nim/) |
+| [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines) | [docs](https://www.kubeflow.org/docs/components/pipelines/) |
+| [Helm](https://helm.sh) | [helm/helm](https://github.com/helm/helm) | [docs](https://helm.sh/docs/) |
 
 ## GitHub Secret — `DGX_MINIKUBE_KUBECONFIG`
 

@@ -1,6 +1,6 @@
 # WSL2 Dev Environments
 
-Provision and remove Windows-hosted WSL2 distros from GitHub Actions. Each
+[Windows Subsystem for Linux 2](https://github.com/microsoft/WSL) ([docs](https://learn.microsoft.com/en-us/windows/wsl/)) — provision and remove Windows-hosted WSL2 distros from [GitHub Actions](https://github.com/features/actions). Each
 distro is imported from a configured template tarball on the Windows host, wired
 into the shared lab SSH store, and reached through the `wsl2-<name>` SSH alias.
 
@@ -154,6 +154,11 @@ Expected basic paths:
 | Orin | `ssh wsl2-dev hostname` | `dev` |
 
 ## References
+
+| Technology | GitHub | Docs |
+|---|---|---|
+| [WSL2](https://learn.microsoft.com/en-us/windows/wsl/) | [microsoft/WSL](https://github.com/microsoft/WSL) | [install guide](https://learn.microsoft.com/en-us/windows/wsl/install) |
+| [GitHub Actions](https://github.com/features/actions) | — | [docs](https://docs.github.com/en/actions) |
 
 - [TECHNICAL.md](TECHNICAL.md): architecture, lifecycle model, template rules,
   troubleshooting, and manual setup

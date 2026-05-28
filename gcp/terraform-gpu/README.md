@@ -1,6 +1,6 @@
 # gcp/terraform-gpu — Transient GPU node pool
 
-Manages a single GPU node pool attached to the existing `miramar-shared-gke` cluster. This module is **separate from `gcp/terraform/`** and has its own state — the two must never share state or be applied together.
+[Terraform](https://www.terraform.io) ([docs](https://developer.hashicorp.com/terraform/docs)) manages a single [CUDA](https://developer.nvidia.com/cuda-toolkit)-enabled GPU node pool attached to the existing [GKE](https://cloud.google.com/kubernetes-engine) `miramar-shared-gke` cluster. This module is **separate from `gcp/terraform/`** and has its own state — the two must never share state or be applied together.
 
 ## What this module provisions
 
@@ -57,6 +57,14 @@ terraform plan  -var-file=gpu.tfvars   # add pool
 terraform apply -var-file=gpu.tfvars
 terraform destroy -var-file=gpu.tfvars  # remove pool
 ```
+
+## References
+
+| Technology | GitHub | Docs |
+|---|---|---|
+| [Terraform](https://www.terraform.io) | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs) |
+| [GKE](https://cloud.google.com/kubernetes-engine) | — | [docs](https://cloud.google.com/kubernetes-engine/docs) |
+| [CUDA](https://developer.nvidia.com/cuda-toolkit) | — | [docs](https://docs.nvidia.com/cuda/) |
 
 ## Typical lifecycle
 

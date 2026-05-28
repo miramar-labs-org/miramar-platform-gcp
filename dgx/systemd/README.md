@@ -1,15 +1,14 @@
 # dgx/systemd
 
-Systemd user services for the DGX Spark. These start automatically on boot (via linger) and on
-login — no manual intervention needed after a reboot.
+Systemd user services for the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/). These start automatically on boot (via linger) and on login — no manual intervention needed after a reboot.
 
 | Service | Port | Purpose |
 |---|---|---|
-| `minikube.service` | — | Starts/stops the minikube cluster; other services depend on it |
+| `minikube.service` | — | Starts/stops the [minikube](https://minikube.sigs.k8s.io/) cluster; other services depend on it |
 | `dashboard.service` | `8001` | `kubectl proxy` for the minikube Kubernetes dashboard |
-| `jupyterlab.service` | `8888` | JupyterLab (pyNeMo environment) |
-| `mlflow-portfwd.service` | `5000` | `kubectl port-forward` — proxies `svc/mlflow-tracking` in the `mlflow-system` namespace |
-| `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` in the `kubeflow` namespace |
+| `jupyterlab.service` | `8888` | [JupyterLab](https://jupyter.org) (pyNeMo environment) |
+| `mlflow-portfwd.service` | `5000` | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace |
+| `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace |
 
 `dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
 services (`mlflow-portfwd`, `kubeflow-portfwd`) bind to `0.0.0.0` so the runner container can
@@ -78,3 +77,12 @@ journalctl --user -u kubeflow-portfwd -f
 - Services are user-scoped (`WantedBy=default.target`) and do not require `sudo`.
 - Linger (`loginctl enable-linger`) is set by `install.sh` — this is what makes the services
   start on boot rather than only on interactive login.
+
+## References
+
+| Technology | GitHub | Docs |
+|---|---|---|
+| [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
+| [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
+| [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
+| [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines) | [docs](https://www.kubeflow.org/docs/components/pipelines/) |

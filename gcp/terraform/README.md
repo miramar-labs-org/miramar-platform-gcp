@@ -1,6 +1,6 @@
 # gcp/terraform — GKE cluster + Artifact Registry
 
-Manages the core GCP infrastructure for the Miramar platform: a GKE Standard cluster, a default node pool, and an Artifact Registry repository.
+[Terraform](https://www.terraform.io) ([GitHub](https://github.com/hashicorp/terraform) · [docs](https://developer.hashicorp.com/terraform/docs)) manages the core GCP infrastructure for the Miramar platform: a [GKE](https://cloud.google.com/kubernetes-engine) ([docs](https://cloud.google.com/kubernetes-engine/docs)) Standard cluster, a default node pool, and an [Artifact Registry](https://cloud.google.com/artifact-registry) ([docs](https://cloud.google.com/artifact-registry/docs)) repository.
 
 ## What this module provisions
 
@@ -63,6 +63,14 @@ This is a dev/experimental platform. Deletion protection would block `terraform 
 | `node_pool_name` | `default-pool` |
 | `node_pool_count` | Current node count |
 | `ar_repository` | `{region}-docker.pkg.dev/{project_id}/{ar_repo}` |
+
+## References
+
+| Technology | GitHub | Docs |
+|---|---|---|
+| [Terraform](https://www.terraform.io) | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs) |
+| [GKE](https://cloud.google.com/kubernetes-engine) | — | [docs](https://cloud.google.com/kubernetes-engine/docs) |
+| [Artifact Registry](https://cloud.google.com/artifact-registry) | — | [docs](https://cloud.google.com/artifact-registry/docs) |
 
 ## Usage
 

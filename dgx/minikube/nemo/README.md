@@ -9,12 +9,17 @@
 
 ## References
 
-- [NeMo Framework](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html)
-- [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/latest/get-started/index.html)
-- [NeMo Demo Cluster on minikube](https://docs.nvidia.com/nemo/microservices/25.12.0/get-started/index.html)
-- [NGC Catalog](https://catalog.ngc.nvidia.com/)
-- [llama-3.1-8b-instruct-dgx-spark](https://catalog.ngc.nvidia.com/orgs/nim/teams/meta/containers/llama-3.1-8b-instruct-dgx-spark?version=1.0.0-variant)
-- [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) — request access here
+| Technology | GitHub | Docs |
+|---|---|---|
+| [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) | — | [docs](https://docs.nvidia.com/nemo/microservices/latest/) · [get started on minikube](https://docs.nvidia.com/nemo/microservices/25.12.0/get-started/index.html) |
+| [NeMo Framework](https://developer.nvidia.com/nemo-framework) | [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) | [docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html) |
+| [NIM](https://developer.nvidia.com/nim) | — | [docs](https://docs.nvidia.com/nim/) · [supported models](https://docs.nvidia.com/nim/large-language-models/1.15.0/supported-models.html) |
+| [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
+| [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
+| [Helm](https://helm.sh) | [helm/helm](https://github.com/helm/helm) | [docs](https://helm.sh/docs/) |
+| [Volcano](https://volcano.sh) | [volcano-sh/volcano](https://github.com/volcano-sh/volcano) | [docs](https://volcano.sh/en/docs/) |
+| [NGC Catalog](https://catalog.ngc.nvidia.com/) | — | — |
+| [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) on HuggingFace | — | request access at link |
 
 ## Deploying NeMo Microservices
 
@@ -81,8 +86,8 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@
 | Service | URL |
 |---|---|
 | Kubernetes dashboard | `http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/` |
-| JupyterLab | `http://localhost:8888/lab` |
-| MLflow | `http://localhost:5000` |
+| [JupyterLab](https://jupyter.org) | `http://localhost:8888/lab` |
+| [MLflow](https://mlflow.org) | `http://localhost:5000` |
 
 ## Python Client SDK
 
