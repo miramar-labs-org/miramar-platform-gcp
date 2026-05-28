@@ -2,6 +2,23 @@
 set -euo pipefail
 
 PIPELINE_VERSION="${PIPELINE_VERSION:-2.16.1}"
+MLMD_SERVER_VERSION="${MLMD_SERVER_VERSION:-1.14.0}"
+ORG="ghcr.io/miramar-labs-org"
+
+MLMD_SERVER_IMAGE="${ORG}/ml_metadata_store_server:${MLMD_SERVER_VERSION}-arm64"
+METADATA_WRITER_IMAGE="${ORG}/kfp-metadata-writer:${PIPELINE_VERSION}-arm64"
+
+# Pre-flight: verify arm64 MLMD images exist before applying kustomize.
+# If missing, the deploy would apply successfully but MLMD pods would fail.
+echo "==> Checking arm64 MLMD images exist on GHCR ..."
+for img in "${MLMD_SERVER_IMAGE}" "${METADATA_WRITER_IMAGE}"; do
+  if ! docker manifest inspect "${img}" >/dev/null 2>&1; then
+    echo "ERROR: ${img} not found." >&2
+    echo "Run the 'Build MLMD arm64 Images' workflow first, then retry." >&2
+    exit 1
+  fi
+done
+echo "    OK — both images found."
 
 echo "==> Installing cluster-scoped resources (CRDs, ClusterRoles) ..."
 kubectl apply -k \
@@ -14,25 +31,21 @@ echo "==> Installing Kubeflow Pipelines (env/dev) into kubeflow namespace ..."
 kubectl apply -k \
   "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=${PIPELINE_VERSION}"
 
-# Three components cannot run on arm64 DGX and are removed post-apply:
-#
-#   controller-manager        gcr.io/ml-pipeline/application-crd-controller
-#                             amd64-only binary; manages the Application CRD for
-#                             display purposes only — unneeded for pipeline execution.
-#
-#   metadata-grpc-deployment  gcr.io/tfx-oss-public/ml_metadata_store_server
-#                             amd64-only C++ binary; crashes under QEMU. A deployKF
-#                             arm64 community build exists (v1.14.0-deploykf.0) but
-#                             the Python client (ml-metadata==1.17.0) has no arm64
-#                             PyPI wheel, blocking kfp-metadata-writer too.
-#
-#   metadata-writer           ghcr.io/kubeflow/kfp-metadata-writer
-#                             Upstream explicitly excludes arm64 from CI. Depends on
-#                             ml-metadata==1.17.0 which has no aarch64 wheel on PyPI
-#                             and no sdist — building from source requires Bazel.
-#
-# Impact: artifact lineage metadata (MLMD) is not tracked. The full pipeline
-# execution stack (API server, UI, scheduler, SeaweedFS, MySQL, Argo) runs normally.
-echo "==> Removing arm64-incompatible deployments (controller-manager, MLMD stack) ..."
-kubectl delete deployment controller-manager metadata-grpc-deployment metadata-writer \
-  -n kubeflow --ignore-not-found || true
+# controller-manager (gcr.io/ml-pipeline/application-crd-controller) is amd64-only
+# and manages the Application CRD for display purposes only — not needed for pipelines.
+echo "==> Removing arm64-incompatible controller-manager ..."
+kubectl delete deployment controller-manager -n kubeflow --ignore-not-found || true
+
+# Patch the MLMD stack with arm64-compatible images built by 'Build MLMD arm64 Images'.
+# Container names are from the upstream deployment specs:
+#   metadata-grpc-deployment → container name: "container"
+#   metadata-writer          → container name: "main"
+echo "==> Patching MLMD deployments with arm64 images ..."
+kubectl set image deployment/metadata-grpc-deployment \
+  container="${MLMD_SERVER_IMAGE}" \
+  -n kubeflow
+kubectl set image deployment/metadata-writer \
+  main="${METADATA_WRITER_IMAGE}" \
+  -n kubeflow
+echo "    ml_metadata_store_server → ${MLMD_SERVER_IMAGE}"
+echo "    kfp-metadata-writer      → ${METADATA_WRITER_IMAGE}"

@@ -1,0 +1,112 @@
+# Builds ml_metadata_store_server for arm64/aarch64.
+#
+# Upstream (gcr.io/tfx-oss-public/ml_metadata_store_server) is amd64-only because
+# its Dockerfile hardcodes the x86_64 Bazel installer. This Dockerfile makes two
+# changes to enable native arm64 builds:
+#
+#   1. Replace the hardcoded Bazel installer with Bazelisk, which auto-selects the
+#      correct binary for the host architecture.
+#
+#   2. Write a clean .bazelversion in the repo root — the upstream file at
+#      ml_metadata/.bazelversion has a 13-line Apache license header that Bazelisk
+#      cannot parse (it expects a bare version string).
+#
+# Everything else is identical to the upstream Dockerfile at
+# ml_metadata/tools/docker_server/Dockerfile.
+#
+# Build:
+#   docker build --network=host \
+#     --build-arg MLMD_VERSION=1.14.0 \
+#     -f Dockerfile.mlmd-server \
+#     -t ghcr.io/miramar-labs-org/ml_metadata_store_server:1.14.0-arm64 \
+#     .
+
+ARG MLMD_VERSION=1.14.0
+ARG BAZELISK_VERSION=1.19.0
+
+# ---------------------------------------------------------------------------
+# Stage 1: Builder — compiles the gRPC server binary with Bazel
+# ---------------------------------------------------------------------------
+FROM ubuntu:20.04 AS builder
+
+ARG MLMD_VERSION
+ARG BAZELISK_VERSION
+
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update -y --option Acquire::Retries=3 && \
+    apt-get install --no-install-recommends -y -q --option Acquire::Retries=3 \
+      build-essential \
+      clang \
+      cmake \
+      curl \
+      ca-certificates \
+      git \
+      make \
+      musl-dev \
+      openssl \
+      python-is-python3 \
+      python3-dev \
+      python3-distutils \
+      software-properties-common \
+      unzip \
+      zip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Bazelisk — detects the host arch and downloads the matching Bazel binary.
+# Replaces the upstream's hardcoded bazel-${VERSION}-installer-linux-x86_64.sh.
+RUN curl -fL \
+      "https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VERSION}/bazelisk-linux-$(dpkg --print-architecture)" \
+      -o /usr/local/bin/bazel && \
+    chmod +x /usr/local/bin/bazel
+
+# Clone ml-metadata at the target version
+RUN git clone \
+      --branch "v${MLMD_VERSION}" \
+      --depth 1 \
+      --single-branch \
+      https://github.com/google/ml-metadata.git \
+      /mlmd-src
+
+WORKDIR /mlmd-src
+
+# Fix .bazelversion: upstream file has a 13-line Apache license header that
+# Bazelisk cannot parse — extract just the version number on the last line.
+RUN tail -1 ml_metadata/.bazelversion > .bazelversion
+
+# Build the gRPC server binary. Flags match upstream exactly.
+RUN bazel build \
+      -c opt \
+      --action_env=PATH \
+      --define=grpc_no_ares=true \
+      //ml_metadata/metadata_store:metadata_store_server \
+      --cxxopt="-std=c++17"
+
+# Copy libmysqlclient from the Bazel external deps tree.
+# Path: bazel-{workspace_name}/external/libmysqlclient
+# (workspace name is "ml_metadata", giving bazel-ml_metadata)
+RUN mkdir -p /mlmd-src/third_party && \
+    LIBMYSQL=$(find /mlmd-src -path "*/external/libmysqlclient" -type d 2>/dev/null | head -1) && \
+    if [ -z "${LIBMYSQL}" ]; then \
+      echo "ERROR: libmysqlclient not found in Bazel external deps" >&2 && exit 1; \
+    fi && \
+    cp -RL "${LIBMYSQL}" /mlmd-src/third_party/mariadb-connector-c
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime — minimal image with just the binary
+# ---------------------------------------------------------------------------
+FROM ubuntu:20.04
+
+COPY --from=builder /mlmd-src/bazel-bin/ml_metadata/metadata_store/metadata_store_server /bin/metadata_store_server
+COPY --from=builder /mlmd-src/third_party /mlmd-src/third_party
+
+ENV GRPC_PORT="8080"
+ENV METADATA_STORE_SERVER_CONFIG_FILE=""
+
+# tzdata required to avoid LoadTimeZone errors in the metadata store server
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update -y --option Acquire::Retries=3 && \
+    apt-get install --no-install-recommends -y -q tzdata && \
+    rm -rf /var/lib/apt/lists/*
+
+ENTRYPOINT ["/bin/metadata_store_server"]
+CMD ["--grpc_port=8080", "--metadata_store_server_config_file="]

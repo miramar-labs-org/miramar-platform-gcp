@@ -1,0 +1,123 @@
+name: Build MLMD arm64 Images
+
+# Builds arm64-compatible images for the KFP MLMD stack on the DGX Spark.
+# Both jobs run in parallel on the native arm64 DGX runner (~45-60 min each).
+# Docker layer caching means subsequent builds are fast (seconds) unless the
+# source version or Dockerfiles change.
+#
+# Run this workflow once per KFP version, then run Kubeflow Deploy.
+#
+# Images produced:
+#   ghcr.io/miramar-labs-org/ml_metadata_store_server:<mlmd_server_version>-arm64
+#   ghcr.io/miramar-labs-org/kfp-metadata-writer:<pipeline_version>-arm64
+#
+# Why arm64 builds are needed:
+#   - ml_metadata_store_server: upstream is amd64-only (hardcoded x86_64 Bazel installer)
+#   - kfp-metadata-writer: explicitly excluded from arm64 CI; depends on ml-metadata
+#     Python package which has no aarch64 PyPI wheel — requires Bazel build
+#
+# See dgx/minikube/kubeflow/arm64/README.md for full technical details.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_version:
+        description: KFP version (sets kfp-metadata-writer image tag, e.g. 2.16.1)
+        default: "2.16.1"
+        required: false
+      mlmd_server_version:
+        description: ml-metadata server version (1.14.0 for KFP 2.16.1)
+        default: "1.14.0"
+        required: false
+      mlmd_wheel_version:
+        description: ml-metadata Python wheel version (1.17.0 for KFP 2.16.1)
+        default: "1.17.0"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-mlmd-server:
+    name: Build ml_metadata_store_server (arm64)
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 90
+    env:
+      MLMD_VERSION: ${{ inputs.mlmd_server_version || '1.14.0' }}
+      IMAGE: ghcr.io/${{ github.repository_owner }}/ml_metadata_store_server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build ml_metadata_store_server for arm64
+        run: |
+          docker build \
+            --network=host \
+            --build-arg MLMD_VERSION="${MLMD_VERSION}" \
+            -f dgx/minikube/kubeflow/arm64/Dockerfile.mlmd-server \
+            -t "${IMAGE}:${MLMD_VERSION}-arm64" \
+            dgx/minikube/kubeflow/arm64
+
+      - name: Push to GHCR
+        run: docker push "${IMAGE}:${MLMD_VERSION}-arm64"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## ml_metadata_store_server arm64"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${IMAGE}:${MLMD_VERSION}-arm64\` |"
+            echo "| MLMD version | \`${MLMD_VERSION}\` |"
+            echo "| Builder arch | \`$(uname -m)\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-metadata-writer:
+    name: Build kfp-metadata-writer (arm64)
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 90
+    env:
+      KFP_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
+      MLMD_VERSION: ${{ inputs.mlmd_wheel_version || '1.17.0' }}
+      IMAGE: ghcr.io/${{ github.repository_owner }}/kfp-metadata-writer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build kfp-metadata-writer for arm64
+        run: |
+          docker build \
+            --network=host \
+            --build-arg KFP_VERSION="${KFP_VERSION}" \
+            --build-arg MLMD_VERSION="${MLMD_VERSION}" \
+            -f dgx/minikube/kubeflow/arm64/Dockerfile.metadata-writer \
+            -t "${IMAGE}:${KFP_VERSION}-arm64" \
+            dgx/minikube/kubeflow/arm64
+
+      - name: Push to GHCR
+        run: docker push "${IMAGE}:${KFP_VERSION}-arm64"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## kfp-metadata-writer arm64"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${IMAGE}:${KFP_VERSION}-arm64\` |"
+            echo "| KFP version | \`${KFP_VERSION}\` |"
+            echo "| ml-metadata wheel | \`${MLMD_VERSION}\` |"
+            echo "| Builder arch | \`$(uname -m)\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

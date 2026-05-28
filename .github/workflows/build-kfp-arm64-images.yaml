@@ -1,4 +1,4 @@
-name: Build KFP arm64 Images
+name: Build KFP arm64 Images (superseded)
 
 # CURRENTLY BLOCKED — arm64 build of kfp-metadata-writer is not possible because
 # its dependency ml-metadata==1.17.0 has no aarch64 wheel on PyPI and no sdist.

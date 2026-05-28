@@ -1,0 +1,121 @@
+# Builds kfp-metadata-writer for arm64/aarch64.
+#
+# Upstream builds this image with arm64 explicitly excluded from CI
+# (kubeflow/pipelines PR#12804). The blocker is the ml-metadata Python
+# package (version 1.17.0) which has no aarch64 wheel on PyPI and no
+# source distribution — it requires a Bazel build to produce a wheel.
+#
+# This Dockerfile solves it with a three-stage build:
+#
+#   Stage 1 (kfp-source): Sparse-clones kubeflow/pipelines to get
+#     backend/metadata_writer/ without downloading the full repo.
+#
+#   Stage 2 (wheel-builder): Clones google/ml-metadata at v1.17.0, applies
+#     the same two arm64 fixes as Dockerfile.mlmd-server (Bazelisk + .bazelversion),
+#     then builds the Python wheel natively on arm64. The resulting wheel is a
+#     platform-specific cp311-linux_aarch64 wheel (not manylinux — we don't need
+#     portability since this runs in a controlled Docker environment).
+#
+#   Stage 3 (final): python:3.11-slim. Installs the arm64 wheel from Stage 2,
+#     then installs all remaining requirements from requirements.txt (pip skips
+#     ml-metadata since it's already satisfied at the correct version).
+#
+# Build:
+#   docker build --network=host \
+#     --build-arg KFP_VERSION=2.16.1 \
+#     --build-arg MLMD_VERSION=1.17.0 \
+#     -f Dockerfile.metadata-writer \
+#     -t ghcr.io/miramar-labs-org/kfp-metadata-writer:2.16.1-arm64 \
+#     .
+
+ARG KFP_VERSION=2.16.1
+ARG MLMD_VERSION=1.17.0
+ARG BAZELISK_VERSION=1.19.0
+
+# ---------------------------------------------------------------------------
+# Stage 1: Sparse-clone kubeflow/pipelines for backend/metadata_writer only
+# ---------------------------------------------------------------------------
+FROM alpine/git:latest AS kfp-source
+
+ARG KFP_VERSION
+
+# Sparse checkout: only fetch backend/metadata_writer/ — avoids pulling the
+# entire kubeflow/pipelines repo (~500 MB)
+RUN git clone \
+      --branch "${KFP_VERSION}" \
+      --depth 1 \
+      --filter=blob:none \
+      --no-checkout \
+      https://github.com/kubeflow/pipelines.git \
+      /kfp && \
+    cd /kfp && \
+    git sparse-checkout init --cone && \
+    git sparse-checkout set backend/metadata_writer && \
+    git checkout
+
+# ---------------------------------------------------------------------------
+# Stage 2: Build ml-metadata Python wheel for arm64 with Bazel
+# ---------------------------------------------------------------------------
+FROM python:3.11 AS wheel-builder
+
+ARG MLMD_VERSION
+ARG BAZELISK_VERSION
+
+# Install system build dependencies (Java required by Bazel)
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update -y && \
+    apt-get install --no-install-recommends -y \
+      build-essential \
+      curl \
+      default-jdk \
+      git \
+      unzip \
+      zip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Bazelisk — detects the host arch and downloads the matching Bazel binary
+RUN curl -fL \
+      "https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VERSION}/bazelisk-linux-$(dpkg --print-architecture)" \
+      -o /usr/local/bin/bazel && \
+    chmod +x /usr/local/bin/bazel
+
+# Install Python build tools
+RUN pip install --no-cache-dir wheel setuptools
+
+# Clone ml-metadata at the target version
+RUN git clone \
+      --branch "v${MLMD_VERSION}" \
+      --depth 1 \
+      --single-branch \
+      https://github.com/google/ml-metadata.git \
+      /build/ml-metadata
+
+WORKDIR /build/ml-metadata
+
+# Fix .bazelversion: upstream file has a 13-line Apache license header that
+# Bazelisk cannot parse — extract just the version number on the last line.
+RUN tail -1 ml_metadata/.bazelversion > .bazelversion
+
+# Build the Python wheel. setup.py invokes Bazel internally to compile the
+# C++ extension (gRPC stubs, pybind11 bindings). Output: dist/*.whl
+RUN python setup.py bdist_wheel
+
+# ---------------------------------------------------------------------------
+# Stage 3: Final kfp-metadata-writer image
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim
+
+# Install the arm64 ml-metadata wheel built in Stage 2
+COPY --from=wheel-builder /build/ml-metadata/dist/ml_metadata-*.whl /tmp/wheels/
+RUN pip install --no-cache-dir /tmp/wheels/ml_metadata-*.whl && \
+    rm -rf /tmp/wheels
+
+# Get requirements.txt and source from the kubeflow/pipelines sparse clone
+COPY --from=kfp-source /kfp/backend/metadata_writer/requirements.txt /kfp/metadata_writer/
+COPY --from=kfp-source /kfp/backend/metadata_writer/src/ /kfp/metadata_writer/
+
+# Install all requirements — pip will see ml-metadata==1.17.0 is already
+# satisfied (from our wheel) and skip it without hitting PyPI
+RUN pip install --no-cache-dir -r /kfp/metadata_writer/requirements.txt
+
+CMD ["python3", "-u", "/kfp/metadata_writer/metadata_writer.py"]
