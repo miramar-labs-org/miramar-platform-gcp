@@ -3,8 +3,10 @@ name: Kubeflow Deploy
 # Deploys Kubeflow Pipelines standalone into the kubeflow namespace on the DGX
 # minikube cluster. The env/dev kustomize overlay creates the kubeflow namespace
 # automatically and includes built-in SeaweedFS and MySQL — no external dependencies.
-# The arm64-incompatible controller-manager (Application CRD) is removed post-apply;
-# it is display-only and not required for pipeline functionality.
+# Three arm64-incompatible deployments are removed post-apply: controller-manager
+# (Application CRD, display-only), metadata-grpc-deployment and metadata-writer
+# (MLMD stack — artifact lineage metadata won't be tracked, pipeline execution is
+# unaffected). The remaining 11 pods cover the full pipeline execution stack.
 #
 # UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by
 # kubeflow-portfwd.service. Restart the service after deploying:
