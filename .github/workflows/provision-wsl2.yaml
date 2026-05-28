@@ -8,11 +8,12 @@ name: WSL2 Provision
 # no direct port-2222 SSH, so WSL2 mirrored-networking issues are avoided.
 #
 #   1. SSH to Windows host → wsl --import (idempotent)
-#   2. Write /etc/wsl2-provision.conf into distro (via wsl exec)
-#   3. Open Windows firewall for SSH port
-#   4. Run firstboot.sh inside distro (sets hostname, sshd port, CIFS timer, SSH symlinks)
-#   5. Authorize DGX SSH key (writes to ~/shared/ssh/authorized_keys via symlink)
-#   6. Wait for sshd + systemd ready (verification)
+#   2. Preflight that sshd can bind the requested port inside WSL2
+#   3. Write /etc/wsl2-provision.conf into distro (via wsl exec)
+#   4. Open Windows firewall for SSH port
+#   5. Run firstboot.sh inside distro (sets hostname, sshd port, CIFS timer, SSH symlinks)
+#   6. Authorize DGX SSH key (writes to ~/shared/ssh/authorized_keys via symlink)
+#   7. Wait for sshd + systemd ready (verification)
 #
 # Prerequisites:
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
@@ -51,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Step 1: import distro from template tarball ──────────────────────
+      # ── Step 1: preflight Windows port state, then import distro ─────────
       - name: Import WSL2 distro from template
         env:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
@@ -63,6 +64,15 @@ jobs:
           ssh-keyscan -H "$WSL2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
           DISTRO='${{ inputs.distro_name }}'
+          PORT='${{ inputs.ssh_port }}'
+
+          echo "Checking Windows-side port state for $PORT before import..."
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -NoProfile -Command \"\$port = $PORT; \$listeners = Get-NetTCPConnection -LocalPort \$port -State Listen -ErrorAction SilentlyContinue; if (\$listeners) { \$listeners | Format-Table -AutoSize; Write-Error \\\"Port \$port already has a Windows-visible listener\\\"; exit 1 }; \$ranges = netsh interface ipv4 show excludedportrange protocol=tcp | Select-String '^\\s*\\d+\\s+\\d+' | ForEach-Object { \$parts = -split \$_.Line; [pscustomobject]@{ Start = [int]\$parts[0]; End = [int]\$parts[1] } }; \$hit = \$ranges | Where-Object { \$_.Start -le \$port -and \$port -le \$_.End }; if (\$hit) { \$hit | Format-Table -AutoSize; Write-Error \\\"Port \$port is in a Windows excluded port range\\\"; exit 1 }; Write-Host \\\"Windows-side port \$port preflight passed\\\"\""
 
           scp -i /tmp/wsl2_win_host \
             -o BatchMode=yes \
@@ -85,6 +95,44 @@ jobs:
             "$WSL2_HOST_USER@$WSL2_HOST" \
             "powershell -ExecutionPolicy Bypass -File wsl-from-tar.ps1 -Name $DISTRO"
           echo "Import step complete"
+
+      # ── Step 1a: fail early if the requested direct sshd port cannot bind ─
+      # WSL mirrored networking can reject a port inside the distro even when
+      # Windows does not show a normal listener. Test with sshd itself before
+      # firstboot writes shared SSH config or registers the distro.
+      - name: Preflight sshd port bindability
+        env:
+          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+        run: |
+          DISTRO='${{ inputs.distro_name }}'
+          PORT='${{ inputs.ssh_port }}'
+          echo "Checking whether $DISTRO can bind sshd port $PORT..."
+          if ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "powershell -Command \"wsl -d $DISTRO --user root --exec /bin/bash -lc 'install -d -m 0755 /run/sshd; timeout 2 /usr/sbin/sshd -D -e -f /etc/ssh/sshd_config -o Port=$PORT -o PidFile=/run/sshd-preflight-$PORT.pid'; exit \$LASTEXITCODE\""; then
+            echo "ERROR: preflight sshd exited before timeout; expected timeout after successful bind" >&2
+            exit 1
+          else
+            rc=$?
+            if [[ "$rc" == "124" ]]; then
+              echo "Port $PORT bind preflight passed"
+            else
+              echo "ERROR: WSL2 distro '$DISTRO' cannot bind sshd port $PORT (exit $rc)." >&2
+              echo "Choose another unique ssh_port, for example 2225 or 2230." >&2
+              exit "$rc"
+            fi
+          fi
+          ssh -i /tmp/wsl2_win_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            "$WSL2_HOST_USER@$WSL2_HOST" \
+            "wsl --terminate $DISTRO"
+          echo "Port bind preflight complete; distro terminated for clean provisioning"
 
       # ── Step 1b: restart distros stopped by wsl --shutdown during import ─
       # wsl-from-tar.ps1 runs `wsl --shutdown` before importing the new distro,
