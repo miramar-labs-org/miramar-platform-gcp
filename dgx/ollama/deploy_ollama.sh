@@ -67,17 +67,18 @@ if [[ -n "$active_nims" ]]; then
   warn "A NIM is deployed and using GPU memory on the shared 128 GB pool:"
   while IFS= read -r nim; do warn "  → $nim"; done <<< "$active_nims"
 
-  free_vram_mib=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits \
-    2>/dev/null | head -1 | tr -d ' ' || echo 0)
-  free_vram_gb=$(( free_vram_mib / 1024 ))
-  log "Free GPU memory: ${free_vram_gb} GB"
+  # DGX Spark has unified CPU+GPU memory — nvidia-smi memory.free returns "Not Supported".
+  # Use OS-level available memory instead; GPU allocations reduce it just like CPU allocations.
+  free_mib=$(free -m | awk '/^Mem:/ {print $7}')
+  free_gb=$(( free_mib / 1024 ))
+  log "Available unified memory: ${free_gb} GB"
 
-  if (( free_vram_gb < MIN_FREE_VRAM_GB )); then
-    err "Insufficient free GPU memory (${free_vram_gb} GB free, ${MIN_FREE_VRAM_GB} GB required)."
+  if (( free_gb < MIN_FREE_VRAM_GB )); then
+    err "Insufficient free memory (${free_gb} GB available, ${MIN_FREE_VRAM_GB} GB required)."
     warn "Run the NIM Undeploy workflow first to free memory, then retry."
     CONFLICT=1
   else
-    warn "Proceeding with ${free_vram_gb} GB free — ensure $MODEL fits within available budget."
+    warn "Proceeding with ${free_gb} GB available — ensure $MODEL fits within available budget."
   fi
 else
   log "No active NIM deployments."
