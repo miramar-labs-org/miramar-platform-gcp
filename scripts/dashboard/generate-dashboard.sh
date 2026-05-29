@@ -138,7 +138,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-kfp      { background: #1a4731; color: #3fb950; }
   .badge-nemo     { background: #0c2d6b; color: #79c0ff; }
   .badge-other    { background: #2d2b00; color: #d29922; }
-  .badge-default  { background: #1d2d3e; color: #79c0ff; }
+  .badge-default  { background: #2d2b00; color: #d29922; }
   .badge-deployed { background: #1a4731; color: #3fb950; }
   .badge-idle     { background: #21262d; color: #8b949e; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
