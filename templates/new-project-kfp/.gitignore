@@ -18,9 +18,9 @@ env/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# KFP compiled artefacts
+# KFP compiled artefacts (keep workflow definitions)
 *.yaml
-!.github/workflows/*.yaml   # keep workflow files
+!.github/workflows/*.yaml
 
 # Data / models
 *.csv
