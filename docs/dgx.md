@@ -68,23 +68,18 @@ an SSH tunnel.
 
 ```text
 Actions -> Build MLMD arm64 Images   (once per version, or after version bump)
+Actions -> Build KFP arm64 Images    (once per version, or after version bump)
+Actions -> Kubeflow Undeploy         (clean slate before deploy)
 Actions -> Kubeflow Deploy
-Actions -> Kubeflow Undeploy
 ```
 
 Kubeflow is independent of NeMo and MLflow — it can be deployed on a fresh
 minikube cluster without any other workloads.
 
-### arm64 MLMD images (GHCR)
+### arm64 images (GHCR)
 
-The upstream MLMD images are amd64-only. These are our arm64 builds:
-
-| Image | GHCR |
-| --- | --- |
-| `ml_metadata_store_server:1.14.0-arm64` | [ghcr.io/miramar-labs-org/ml_metadata_store_server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/ml_metadata_store_server) |
-| `kfp-metadata-writer:2.16.1-arm64` | [ghcr.io/miramar-labs-org/kfp-metadata-writer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-writer) |
-
-Build details and patches: [../dgx/minikube/kubeflow/arm64/README.md](../dgx/minikube/kubeflow/arm64/README.md)
+All 13 KFP images are built natively on the DGX. Full image catalog and patch
+details: [../dgx/minikube/kubeflow/arm64/README.md](../dgx/minikube/kubeflow/arm64/README.md)
 
 ## Ollama
 

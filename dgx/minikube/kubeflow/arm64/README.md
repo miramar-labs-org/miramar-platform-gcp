@@ -1,8 +1,9 @@
-# KFP MLMD Stack — arm64 Build Notes
+# KFP arm64 Build Notes
 
-Kubeflow Pipelines 2.x includes an ML Metadata (MLMD) subsystem. Three of its
-components have no upstream arm64 images; this directory contains the Dockerfiles
-to build them natively on the DGX Spark (aarch64).
+The upstream Kubeflow Pipelines 2.x images are amd64-only. This directory
+contains patched Dockerfiles for the components that cannot be built from
+upstream sources unchanged on arm64. All images are built natively on the
+DGX Spark (aarch64) and pushed to GHCR.
 
 ## Versions
 
@@ -10,7 +11,7 @@ Each KFP version has its own subdirectory containing patched Dockerfiles for tha
 
 | Version | Patched Dockerfiles |
 | --- | --- |
-| [2.16.1](2.16.1/) | `Dockerfile.mlmd-server`, `Dockerfile.metadata-writer`, `Dockerfile.visualization-server` |
+| [2.16.1](2.16.1/) | `Dockerfile.mlmd-server`, `Dockerfile.metadata-writer`, `Dockerfile.visualization-server`, `Dockerfile.api-server` |
 
 ## Published Images
 
@@ -21,11 +22,11 @@ Each KFP version has its own subdirectory containing patched Dockerfiles for tha
 | `ghcr.io/miramar-labs-org/ml_metadata_store_server:1.14.0-arm64` | [pkgs/container/ml_metadata_store_server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/ml_metadata_store_server) |
 | `ghcr.io/miramar-labs-org/kfp-metadata-writer:2.16.1-arm64` | [pkgs/container/kfp-metadata-writer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-writer) |
 
-### KFP components (built natively from KFP source; most need no patches)
+### KFP components (built natively from KFP source)
 
 | Image | GHCR package | Patched? |
 | --- | --- | --- |
-| `ghcr.io/miramar-labs-org/kfp-api-server:2.16.1-arm64` | [pkgs/container/kfp-api-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-api-server) | No |
+| `ghcr.io/miramar-labs-org/kfp-api-server:2.16.1-arm64` | [pkgs/container/kfp-api-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-api-server) | **Yes** — `$TARGETARCH` unset in plain `docker build`; Argo CLI URL hardcoded to arm64 |
 | `ghcr.io/miramar-labs-org/kfp-frontend:2.16.1-arm64` | [pkgs/container/kfp-frontend](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-frontend) | No |
 | `ghcr.io/miramar-labs-org/kfp-persistence-agent:2.16.1-arm64` | [pkgs/container/kfp-persistence-agent](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-persistence-agent) | No |
 | `ghcr.io/miramar-labs-org/kfp-scheduled-workflow-controller:2.16.1-arm64` | [pkgs/container/kfp-scheduled-workflow-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-scheduled-workflow-controller) | No |
@@ -33,9 +34,9 @@ Each KFP version has its own subdirectory containing patched Dockerfiles for tha
 | `ghcr.io/miramar-labs-org/kfp-cache-deployer:2.16.1-arm64` | [pkgs/container/kfp-cache-deployer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-cache-deployer) | No (`google-cloud-cli:alpine` base is multi-arch) |
 | `ghcr.io/miramar-labs-org/kfp-viewer-crd-controller:2.16.1-arm64` | [pkgs/container/kfp-viewer-crd-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-viewer-crd-controller) | No |
 | `ghcr.io/miramar-labs-org/kfp-metadata-envoy:2.16.1-arm64` | [pkgs/container/kfp-metadata-envoy](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-envoy) | No (`envoyproxy/envoy` is multi-arch) |
-| `ghcr.io/miramar-labs-org/kfp-visualization-server:2.16.1-arm64` | [pkgs/container/kfp-visualization-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-visualization-server) | **Yes** — gcloud URL hardcoded to x86_64 |
-| `ghcr.io/miramar-labs-org/kfp-driver:2.16.1-arm64` | [pkgs/container/kfp-driver](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-driver) | No (CGO_ENABLED=0 static binary) |
-| `ghcr.io/miramar-labs-org/kfp-launcher:2.16.1-arm64` | [pkgs/container/kfp-launcher](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-launcher) | No (CGO_ENABLED=0 static binary) |
+| `ghcr.io/miramar-labs-org/kfp-visualization-server:2.16.1-arm64` | [pkgs/container/kfp-visualization-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-visualization-server) | **Yes** — gcloud SDK download URL hardcoded to `x86_64`; patched to use `arm` |
+| `ghcr.io/miramar-labs-org/kfp-driver:2.16.1-arm64` | [pkgs/container/kfp-driver](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-driver) | No (`CGO_ENABLED=0` static binary) |
+| `ghcr.io/miramar-labs-org/kfp-launcher:2.16.1-arm64` | [pkgs/container/kfp-launcher](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-launcher) | No (`CGO_ENABLED=0` static binary) |
 
 ## Why arm64 Images Are Missing Upstream
 
@@ -64,6 +65,30 @@ dependency `ml-metadata==1.17.0` has no aarch64 wheel on PyPI and no source
 distribution — it requires a Bazel build to compile C++ extensions.
 
 Upstream tracking: [kubeflow/pipelines issue #12705](https://github.com/kubeflow/pipelines/issues/12705)
+
+### kfp-visualization-server (Python service)
+
+The upstream `backend/Dockerfile.visualization` downloads the gcloud SDK with a
+URL hardcoded to `linux-x86_64`. On arm64 the correct suffix is `linux-arm`.
+The patched Dockerfile detects the arch at build time:
+
+```dockerfile
+GCLOUD_ARCH="$([ "$ARCH" = "arm64" ] && echo "arm" || echo "x86_64")"
+```
+
+### kfp-api-server (Go service)
+
+The upstream `backend/Dockerfile` downloads the Argo CLI binary using
+`$TARGETARCH`, a Docker BuildKit variable that is **not** populated in a plain
+`docker build` (without `--platform`). With `$TARGETARCH` empty the URL becomes
+`argo-linux-.gz` which 404s; curl exits 0 (no `-f` flag), then `gunzip` fails.
+The patched Dockerfile hardcodes `arm64`:
+
+```dockerfile
+RUN curl -sL .../argo-linux-arm64.gz -o argo-linux-arm64.gz && \
+    gunzip argo-linux-arm64.gz && chmod +x argo-linux-arm64 && \
+    mv argo-linux-arm64 /usr/local/bin/argo
+```
 
 ### controller-manager (Application CRD controller)
 
@@ -217,10 +242,12 @@ Three-stage build:
 
 ---
 
-## Build Workflow
+## Build Workflows
 
-Trigger **Build MLMD arm64 Images** from GitHub Actions. Both jobs run in parallel
-on the DGX native arm64 runner (`dgx` label).
+### Build MLMD arm64 Images (`build-mlmd-arm64.yaml`)
+
+Builds the two MLMD components that require Bazel. Both jobs run in parallel on
+the DGX native arm64 runner (`dgx` label).
 
 | Input | Default | Notes |
 |---|---|---|
@@ -237,25 +264,40 @@ version changes.
 `backend/metadata_writer/requirements.txt` to find the new pinned versions, then
 update all three workflow inputs.
 
+### Build KFP arm64 Images (`build-kfp-arm64.yaml`)
+
+Builds all 11 remaining KFP components natively on the DGX. A `setup` job
+generates the build matrix from the `component` input.
+
+| Input | Default | Notes |
+|---|---|---|
+| `pipeline_version` | `2.16.1` | KFP version tag |
+| `component` | `` (blank) | Leave blank to build all 11; set to one name (e.g. `kfp-api-server`) to rebuild a single image |
+
+**Expected duration:** Pure-Go components are ~5 min each; `kfp-frontend` (Node.js) is the slowest at ~30 min. All 11 queue on the single DGX runner — expect 60–90 min for the full set.
+
+**When to re-run:** After a KFP version bump, or to rebuild a single component after a Dockerfile patch (`--field component=kfp-api-server`).
+
 ---
 
 ## Deploy Order
 
 ```
-1. Build MLMD arm64 Images    (once per version; cached on repeat)
-2. Kubeflow Undeploy          (clean slate)
-3. Kubeflow Deploy            (applies kustomize + patches MLMD + creates pull secret)
+1. Build MLMD arm64 Images    (once per version; ~45-60 min Bazel build, fast on cache)
+2. Build KFP arm64 Images     (once per version; ~60-90 min for all 11)
+3. Kubeflow Undeploy          (clean slate)
+4. Kubeflow Deploy            (applies kustomize + patches all 13 images + creates pull secret)
 ```
 
 `deploy-kubeflow.sh`:
-- Verifies both arm64 images exist on GHCR (pre-flight)
+- Verifies all 13 arm64 images exist on GHCR (pre-flight)
 - Applies the KFP kustomize manifests
 - Removes the amd64-only `controller-manager`
-- Patches both MLMD deployments with the arm64 images
+- Patches all 13 deployments with native arm64 images
 - Creates a `ghcr-pull-secret` docker-registry secret in the `kubeflow` namespace
   (from the short-lived `GITHUB_TOKEN` with `packages:read`) so pods can pull from
   the private GHCR registry
-- Adds `imagePullSecrets` to both MLMD deployments
+- Adds `imagePullSecrets` to all patched deployments
 
 **Note on the pull secret:** `GITHUB_TOKEN` expires after the workflow run. Re-running
 **Kubeflow Deploy** refreshes the secret. If MLMD pods enter `ImagePullBackOff` after
@@ -265,7 +307,7 @@ extended time without a redeploy, run the deploy workflow again.
 
 ## Verification
 
-After deploy, all 13 pods should be Running:
+After deploy, all 14 pods should be Running:
 
 ```sh
 kubectl get pods -n kubeflow

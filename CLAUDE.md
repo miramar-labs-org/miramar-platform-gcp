@@ -120,8 +120,9 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace |
-| Build MLMD arm64 Images | `build-mlmd-arm64.yaml` | Build arm64 KFP MLMD images on DGX via Bazel. Run before Kubeflow Deploy or after KFP version bump. |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches MLMD to arm64 images. Prerequisite: Build MLMD arm64. |
+| Build MLMD arm64 Images | `build-mlmd-arm64.yaml` | Build arm64 MLMD images (ml_metadata_store_server, kfp-metadata-writer) via Bazel. ~45-60 min first run. |
+| Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 11 remaining KFP arm64 images on DGX. Optional `component` input to rebuild a single image. |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images. Prerequisites: both Build workflows. |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
 | Ollama Deploy | `deploy-ollama.yaml` | Pull + load Ollama model on DGX host. Fails if 128 GB pool is full. |
 | Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank |
@@ -201,16 +202,3 @@ Access all services via SSH tunnel:
 ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 <user>@spark-79b7.local
 ```
 
-## Current effort: arm64 Kubeflow/MLMD build
-
-This is a long multi-arch port that spans many sessions. Checkpoint aggressively:
-
-- After each image builds successfully, OR after a failed run is diagnosed,
-  update the handoff before moving on — these are the natural checkpoint points.
-- In the handoff, always record: which images built clean (with their registry
-  tags), which one is currently failing and the exact error, the current state
-  of any in-progress Dockerfile edits (especially uncommitted ones), and
-  arm64-specific dead ends (missing wheels, deps without arm64 builds, base-image
-  swaps) so they're never re-litigated.
-- Prefer `gh run view <id> --log-failed` over watching full run logs — it pulls
-  only the failing step, saving large amounts of context.
