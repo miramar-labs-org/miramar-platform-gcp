@@ -1,0 +1,69 @@
+# pyJLab — JupyterLab Python environment for the DGX Spark
+#
+# PyTorch must be installed separately before this file (CUDA 12.6, arm64):
+#   pip install torch torchvision torchaudio \
+#     --index-url https://download.pytorch.org/whl/cu126
+#
+# Then:
+#   pip install -r requirements.txt
+
+# ── JupyterLab + extensions ──────────────────────────────────────────────────
+jupyterlab
+jupyterlab-myst                 # Markdown / MyST preview
+jupyterlab-git                  # Git integration sidebar
+jupyterlab-lsp                  # Language server protocol (completions, hover)
+python-lsp-server[all]          # LSP backend for Python
+jupyterlab-code-formatter       # Format-on-save via black/isort
+black
+isort
+ipywidgets
+ipykernel
+notebook                        # classic notebook compatibility
+nbconvert                       # export to HTML, PDF, script
+
+# ── ML core ──────────────────────────────────────────────────────────────────
+numpy
+scipy
+scikit-learn
+pandas
+matplotlib
+seaborn
+plotly
+
+# ── HuggingFace / LLM ────────────────────────────────────────────────────────
+transformers
+datasets
+huggingface_hub
+tokenizers
+accelerate
+peft                            # LoRA and other parameter-efficient fine-tuning
+trl                             # SFT, DPO, RLHF trainers
+
+# ── NeMo Microservices SDK ───────────────────────────────────────────────────
+nemo-microservices
+
+# ── Kubeflow Pipelines ───────────────────────────────────────────────────────
+kfp
+
+# ── MLflow ───────────────────────────────────────────────────────────────────
+mlflow
+
+# ── Eval / benchmarking ──────────────────────────────────────────────────────
+lm-eval[api]
+
+# ── NLP utilities ────────────────────────────────────────────────────────────
+ftfy
+beautifulsoup4
+tiktoken
+
+# ── HTTP / data utilities ────────────────────────────────────────────────────
+requests
+httpx
+pyyaml
+python-dotenv
+tqdm
+rich
+
+# ── Dev / testing ────────────────────────────────────────────────────────────
+pytest
+pytest-asyncio
