@@ -197,6 +197,8 @@ Ollama API quirks (relevant when editing scripts):
 
 **Kubeflow Pipelines** (`kubeflow` namespace) — independent of NeMo/MLflow; can deploy on a fresh minikube cluster.
 
+**DGX inotify limits** — the default `fs.inotify.max_user_instances=128` is too low for minikube. Pods like `nvidia-device-plugin` and `volcano-scheduler` will `CrashLoopBackOff` with "too many open files" when the limit is exhausted. Current values set in `/etc/sysctl.d/99-sysctl.conf`: `max_user_instances=1024`, `max_user_watches=1048576`. To diagnose: `docker exec minikube bash -c 'cat /proc/sys/fs/inotify/max_user_instances; find /proc/*/fd -lname "anon_inode:inotify" 2>/dev/null | wc -l'`.
+
 Access all services via SSH tunnel:
 ```sh
 ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 -L 8082:localhost:8082 <user>@spark-79b7.local
