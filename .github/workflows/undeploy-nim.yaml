@@ -57,12 +57,15 @@ jobs:
         if: success()
         run: |
           set -euo pipefail
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_MODEL" \
-            -f value="none" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="CURRENT_NIM_MODEL" -f value="none"
+          for var_val in "CURRENT_NIM_MODEL=none" "CURRENT_NIM_VRAM_GB=0"; do
+            var="${var_val%%=*}"; val="${var_val#*=}"
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
+              -f value="${val}" 2>/dev/null || \
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+              -f name="${var}" -f value="${val}"
+          done
 
       - name: Summary
         if: always()

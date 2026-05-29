@@ -91,15 +91,29 @@ KFP_VERSION=$(read_platform_var "KFP_VERSION")
 OLLAMA_VERSION=$(read_platform_var "OLLAMA_VERSION")
 NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL")
 OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL")
+NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB")
+OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB")
+DGX_VRAM_USEABLE=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+  "orgs/${ORG}/actions/variables/DGX_VRAM_USEABLE" \
+  --jq '.value' 2>/dev/null || echo "100")
 
 [[ -z "$NEMO_VERSION" ]]   && NEMO_VERSION="—"
 [[ -z "$KFP_VERSION" ]]    && KFP_VERSION="—"
 [[ -z "$OLLAMA_VERSION" ]] && OLLAMA_VERSION="—"
 [[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
 [[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
+[[ -z "$NIM_VRAM_GB" || "$NIM_VRAM_GB" == "null" ]]       && NIM_VRAM_GB="0"
+[[ -z "$OLLAMA_VRAM_GB" || "$OLLAMA_VRAM_GB" == "null" ]] && OLLAMA_VRAM_GB="0"
+[[ -z "$DGX_VRAM_USEABLE" || "$DGX_VRAM_USEABLE" == "null" ]] && DGX_VRAM_USEABLE="100"
+
+VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
+VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
+(( VRAM_AVAIL_GB < 0 )) && VRAM_AVAIL_GB=0
 
 NIM_CLASS="ps-value";    [[ "$NIM_MODEL"    == "none" ]] && NIM_CLASS="ps-value ps-none"
 OLLAMA_CLASS="ps-value"; [[ "$OLLAMA_MODEL" == "none" ]] && OLLAMA_CLASS="ps-value ps-none"
+VRAM_AVAIL_CLASS="ps-value"
+(( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -155,6 +169,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8b949e; }
   .ps-value { font-size: 0.875rem; color: #e6edf3; background: transparent; }
   .ps-none { color: #484f58; }
+  .ps-warn { color: #d29922; }
 </style>
 </head>
 <body>
@@ -180,6 +195,14 @@ cat > "$OUTPUT" <<HTMLEOF
   <div class="ps-item ps-wide">
     <div class="ps-label">Ollama model</div>
     <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
+  </div>
+  <div class="ps-item">
+    <div class="ps-label">VRAM Used</div>
+    <code class="ps-value">${VRAM_USED_GB} GB</code>
+  </div>
+  <div class="ps-item">
+    <div class="ps-label">VRAM Available</div>
+    <code class="${VRAM_AVAIL_CLASS}">${VRAM_AVAIL_GB} GB</code>
   </div>
 </div>
 <table>

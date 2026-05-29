@@ -72,12 +72,15 @@ jobs:
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'bash -s' \
             < dgx/ollama/undeploy_ollama.sh || true
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_OLLAMA_MODEL" \
-            -f value="none" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="CURRENT_OLLAMA_MODEL" -f value="none" || true
+          for var_val in "CURRENT_OLLAMA_MODEL=none" "CURRENT_OLLAMA_VRAM_GB=0"; do
+            var="${var_val%%=*}"; val="${var_val#*=}"
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
+              -f value="${val}" 2>/dev/null || \
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+              -f name="${var}" -f value="${val}" || true
+          done
 
       - name: Update platform state
         if: success()
@@ -90,6 +93,25 @@ jobs:
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
             -f name="CURRENT_OLLAMA_MODEL" -f value="${{ inputs.model }}"
+
+      - name: Record Ollama VRAM usage
+        if: success()
+        shell: bash
+        run: |
+          vram_gb=$(ssh -i /tmp/dgx_host \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'curl -s http://localhost:11434/api/ps | jq "[.models[].size_vram // 0] | add // 0 | . / 1073741824 | round"' \
+            2>/dev/null || echo "0")
+          vram_gb="${vram_gb:-0}"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_OLLAMA_VRAM_GB" \
+            -f value="${vram_gb}" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="CURRENT_OLLAMA_VRAM_GB" -f value="${vram_gb}"
 
       - name: Summary
         if: always()

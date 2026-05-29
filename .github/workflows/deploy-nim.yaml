@@ -123,12 +123,15 @@ jobs:
           echo "NIM deploy failed — submitting undeploy for ${NIM_ORG}/${NIM_NAME}..."
           ( source dgx/minikube/nim/undeploy_nim.sh
             undeploy_nim "$NIM_ORG" "$NIM_NAME" ) || echo "Undeploy attempt finished (404 = already gone)"
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_MODEL" \
-            -f value="none" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="CURRENT_NIM_MODEL" -f value="none" || true
+          for var in CURRENT_NIM_MODEL CURRENT_NIM_VRAM_GB; do
+            val="none"; [[ "$var" == "CURRENT_NIM_VRAM_GB" ]] && val="0"
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
+              -f value="${val}" 2>/dev/null || \
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+              -f name="${var}" -f value="${val}" || true
+          done
 
       - name: Update platform state
         if: success()
@@ -141,6 +144,24 @@ jobs:
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
             -f name="CURRENT_NIM_MODEL" -f value="${NIM_MODEL}"
+
+      - name: Record NIM VRAM usage
+        if: success()
+        run: |
+          vram_gb=$(ssh -i /tmp/dgx_host \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'nvidia-smi --query-compute-apps=used_memory --format=csv,noheader,nounits 2>/dev/null | jq -Rn "[inputs | tonumber] | add // 0 | . / 1024 | round"' \
+            2>/dev/null || echo "0")
+          vram_gb="${vram_gb:-0}"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_VRAM_GB" \
+            -f value="${vram_gb}" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="CURRENT_NIM_VRAM_GB" -f value="${vram_gb}"
 
       - name: Summary
         if: always()

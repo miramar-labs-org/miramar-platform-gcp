@@ -145,6 +145,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `OLLAMA_VERSION` | Ollama Update | — | set by `update-ollama.yaml` |
 | `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `none` |
 | `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `none` |
+| `CURRENT_NIM_VRAM_GB` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `0` |
+| `CURRENT_OLLAMA_VRAM_GB` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `0` |
 
 Variables must exist before the dashboard reads them. On a fresh install, create missing variables via the GitHub API (PATCH→POST upsert using `GITHUB_ORG_ADMIN_PAT`) or the GitHub UI (`Settings → Secrets and variables → Actions → Variables`).
 
