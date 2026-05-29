@@ -61,11 +61,24 @@ else
   log "nemo-microservices namespace not found — no NIM deployed."
 fi
 
+MIN_FREE_VRAM_GB=15   # require at least 15 GB free before loading a model alongside NIM
+
 if [[ -n "$active_nims" ]]; then
-  err "A NIM is currently deployed and holds GPU memory on the shared 128 GB pool:"
-  while IFS= read -r nim; do err "  → $nim"; done <<< "$active_nims"
-  warn "Run the NIM Undeploy workflow first, then retry."
-  CONFLICT=1
+  warn "A NIM is deployed and using GPU memory on the shared 128 GB pool:"
+  while IFS= read -r nim; do warn "  → $nim"; done <<< "$active_nims"
+
+  free_vram_mib=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits \
+    2>/dev/null | head -1 | tr -d ' ' || echo 0)
+  free_vram_gb=$(( free_vram_mib / 1024 ))
+  log "Free GPU memory: ${free_vram_gb} GB"
+
+  if (( free_vram_gb < MIN_FREE_VRAM_GB )); then
+    err "Insufficient free GPU memory (${free_vram_gb} GB free, ${MIN_FREE_VRAM_GB} GB required)."
+    warn "Run the NIM Undeploy workflow first to free memory, then retry."
+    CONFLICT=1
+  else
+    warn "Proceeding with ${free_vram_gb} GB free — ensure $MODEL fits within available budget."
+  fi
 else
   log "No active NIM deployments."
 fi
