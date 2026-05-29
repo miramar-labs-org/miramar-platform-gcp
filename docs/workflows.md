@@ -39,10 +39,10 @@ GKE Expand -> GKE Expand GPU -> deploy workload -> GKE Restore GPU -> GKE Restor
 | NeMo Undeploy | `undeploy-nemo.yaml` | Remove NeMo, Volcano, DNS entries, and postgres PVCs |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into minikube |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow namespace |
-| NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via NeMo API; swaps conflicting NIM; rollback on failure; writes `CURRENT_NIM_MODEL` |
-| NIM Undeploy | `undeploy-nim.yaml` | Remove a NIM deployment; clears `CURRENT_NIM_MODEL` |
-| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing model, pull + load new one; rollback on failure; writes `CURRENT_OLLAMA_MODEL` |
-| Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model; clears `CURRENT_OLLAMA_MODEL` |
+| NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via NeMo API; swaps conflicting NIM; rollback on failure; writes `CURRENT_NIM_MODEL` + `CURRENT_NIM_VRAM_GB` |
+| NIM Undeploy | `undeploy-nim.yaml` | Remove a NIM deployment; clears `CURRENT_NIM_MODEL` + `CURRENT_NIM_VRAM_GB` |
+| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing model, pull + load new one; NIM co-deployment allowed if free memory ≥ 15 GB; rollback on failure; writes `CURRENT_OLLAMA_MODEL` + `CURRENT_OLLAMA_VRAM_GB` |
+| Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model; clears `CURRENT_OLLAMA_MODEL` + `CURRENT_OLLAMA_VRAM_GB` |
 | Ollama Update | `update-ollama.yaml` | Install or upgrade Ollama on the DGX host; writes `OLLAMA_VERSION` |
 
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images on DGX; optional `component` input to rebuild one |
@@ -64,6 +64,8 @@ Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy (or Ollama Deploy
 | `OLLAMA_VERSION` | Ollama Update | — | set by `update-ollama.yaml` |
 | `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `none` |
 | `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `none` |
+| `CURRENT_NIM_VRAM_GB` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `0` |
+| `CURRENT_OLLAMA_VRAM_GB` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `0` |
 
 Variables must exist before the dashboard reads them. On a fresh install, seed them via the GitHub UI (`Settings → Secrets and variables → Actions → Variables`) or with the PATCH→POST upsert pattern using `GITHUB_ORG_ADMIN_PAT`.
 
