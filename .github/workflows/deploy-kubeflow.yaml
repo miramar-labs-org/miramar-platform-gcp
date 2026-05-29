@@ -27,6 +27,10 @@ on:
         default: "2.16.1"
         required: false
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   deploy:
     runs-on: [self-hosted, dgx]
@@ -47,6 +51,11 @@ jobs:
 
       - name: Verify cluster access
         run: kubectl get nodes
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Deploy Kubeflow Pipelines
         env:
