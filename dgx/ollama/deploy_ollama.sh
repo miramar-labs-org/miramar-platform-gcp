@@ -5,6 +5,7 @@
 set -euo pipefail
 
 MODEL="${1:?model name required (e.g. llama3.3:70b-instruct-q4_K_M)}"
+VRAM_BUDGET_GB="${2:-100}"   # total GB available for AI models (DGX_VRAM_USEABLE org var)
 
 log()  { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
 warn() { printf "\033[1;33m[WARN]\033[0m %b\n" "$*"; }
@@ -61,7 +62,7 @@ else
   log "nemo-microservices namespace not found — no NIM deployed."
 fi
 
-MIN_FREE_VRAM_GB=15   # require at least 15 GB free before loading a model alongside NIM
+MIN_FREE_VRAM_GB=15   # minimum GB free required to co-deploy alongside a NIM
 
 if [[ -n "$active_nims" ]]; then
   warn "A NIM is deployed and using GPU memory on the shared 128 GB pool:"
@@ -78,7 +79,7 @@ if [[ -n "$active_nims" ]]; then
     warn "Run the NIM Undeploy workflow first to free memory, then retry."
     CONFLICT=1
   else
-    warn "Proceeding with ${free_gb} GB available — ensure $MODEL fits within available budget."
+    warn "Proceeding with ${free_gb} GB available (budget: ${VRAM_BUDGET_GB} GB) — ensure $MODEL fits."
   fi
 else
   log "No active NIM deployments."

@@ -56,7 +56,7 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
-            bash -s -- "${{ inputs.model }}" \
+            bash -s -- "${{ inputs.model }}" "${{ vars.DGX_VRAM_USEABLE }}" \
             < dgx/ollama/deploy_ollama.sh
 
       - name: Rollback on deploy failure
