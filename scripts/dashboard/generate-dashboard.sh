@@ -174,7 +174,7 @@ cat > "$OUTPUT" <<HTMLEOF
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
-<p class="subtitle">Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly.</p>
+<p class="subtitle">Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly. &mdash; <a href="https://github.com/${ORG}/miramar-platform-gcp">Platform repo</a></p>
 <div class="platform-status">
   <div class="ps-item">
     <div class="ps-label">NeMo</div>
