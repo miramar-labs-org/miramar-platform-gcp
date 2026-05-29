@@ -5,7 +5,7 @@ on:
     - cron: '0 * * * *'   # hourly
   workflow_dispatch:
   workflow_run:
-    workflows: ["New Project"]
+    workflows: ["New Project", "Delete Project"]
     types: [completed]
 
 permissions:

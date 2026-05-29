@@ -1,0 +1,59 @@
+name: Delete Project
+
+# Permanently deletes a miramar-labs-org repository created by the New Project workflow.
+# Triggers the Platform Dashboard to refresh immediately after deletion.
+#
+# Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) — requires
+# delete_repo scope which GITHUB_TOKEN does not have.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: Repository name to delete (e.g. my-llm-experiment)
+        required: true
+      confirm:
+        description: Type the repository name again to confirm deletion
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  delete:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate confirmation
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "${PROJECT_NAME}" != "${CONFIRM}" ]; then
+            echo "ERROR: confirmation does not match repository name." >&2
+            echo "  Expected: ${PROJECT_NAME}" >&2
+            echo "  Got:      ${CONFIRM}" >&2
+            exit 1
+          fi
+
+      - name: Delete repository
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: |
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo delete \
+            "miramar-labs-org/${PROJECT_NAME}" \
+            --yes
+          echo "Deleted miramar-labs-org/${PROJECT_NAME}"
+
+      - name: Summary
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: |
+          {
+            echo "## Project Deleted"
+            echo ""
+            echo "**Repository:** \`miramar-labs-org/${PROJECT_NAME}\`"
+            echo ""
+            echo "The platform dashboard will refresh within minutes."
+          } >> "$GITHUB_STEP_SUMMARY"
