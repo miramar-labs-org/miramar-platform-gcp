@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ---------- CONFIG (edit or override via env) ----------
-NS="${NS:-default}"
+NS="${NS:-nemo-microservices}"
 
 SVC_EVALUATOR="${SVC_EVALUATOR:-nemo-evaluator}"
 SVC_CUSTOMIZER="${SVC_CUSTOMIZER:-nemo-customizer}"
