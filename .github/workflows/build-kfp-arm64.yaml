@@ -21,6 +21,7 @@ name: Build KFP arm64 Images
 #   kfp-driver, kfp-launcher
 #
 # Run before Kubeflow Deploy when first deploying or after a version bump.
+# Set "component" to rebuild a single image (e.g. after a Dockerfile patch).
 # See dgx/minikube/kubeflow/arm64/README.md for full details.
 
 on:
@@ -30,9 +31,8 @@ on:
         description: KFP version tag (e.g. 2.16.1)
         default: "2.16.1"
         required: false
-      # Optional: limit the run to a single component. Leave blank to build all.
       component:
-        description: "Component to build (e.g. kfp-api-server). Leave blank to build all."
+        description: "Component to build (e.g. kfp-api-server). Leave blank to build all 11."
         default: ""
         required: false
 
@@ -41,40 +41,71 @@ permissions:
   packages: write
 
 jobs:
+  # Generates the matrix based on the "component" input.
+  # When component is blank all 11 are included; when set only that one runs.
+  # This indirection is required because GHA does not allow `matrix` context
+  # in a job-level `if:` expression.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+    steps:
+      - id: build-matrix
+        env:
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os
+
+          ALL = [
+            {"component": "kfp-api-server",                    "patched_dockerfile": "Dockerfile.api-server"},
+            {"component": "kfp-frontend"},
+            {"component": "kfp-persistence-agent"},
+            {"component": "kfp-scheduled-workflow-controller"},
+            {"component": "kfp-cache-server"},
+            {"component": "kfp-cache-deployer"},
+            {"component": "kfp-viewer-crd-controller"},
+            {"component": "kfp-metadata-envoy"},
+            {"component": "kfp-visualization-server",          "patched_dockerfile": "Dockerfile.visualization-server"},
+            {"component": "kfp-driver"},
+            {"component": "kfp-launcher"},
+          ]
+
+          # Upstream Dockerfile paths (used when no patched_dockerfile is set)
+          UPSTREAM = {
+            "kfp-api-server":                    "backend/Dockerfile",
+            "kfp-frontend":                      "frontend/Dockerfile",
+            "kfp-persistence-agent":             "backend/Dockerfile.persistenceagent",
+            "kfp-scheduled-workflow-controller": "backend/Dockerfile.scheduledworkflow",
+            "kfp-cache-server":                  "backend/Dockerfile.cacheserver",
+            "kfp-cache-deployer":                "backend/src/cache/deployer/Dockerfile",
+            "kfp-viewer-crd-controller":         "backend/Dockerfile.viewercontroller",
+            "kfp-metadata-envoy":                "third_party/metadata_envoy/Dockerfile",
+            "kfp-visualization-server":          "backend/Dockerfile.visualization",
+            "kfp-driver":                        "backend/Dockerfile.driver",
+            "kfp-launcher":                      "backend/Dockerfile.launcher",
+          }
+
+          for entry in ALL:
+            entry["dockerfile"] = UPSTREAM[entry["component"]]
+
+          component = os.environ.get("COMPONENT", "").strip()
+          subset = [e for e in ALL if e["component"] == component] if component else ALL
+
+          matrix = json.dumps({"include": subset})
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"matrix={matrix}\n")
+          PYEOF
+
   build:
+    needs: setup
     name: Build ${{ matrix.component }} (arm64)
-    if: inputs.component == '' || inputs.component == matrix.component
     runs-on: [self-hosted, dgx]
     timeout-minutes: 90
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - component: kfp-api-server
-            dockerfile: backend/Dockerfile
-            patched_dockerfile: Dockerfile.api-server
-          - component: kfp-frontend
-            dockerfile: frontend/Dockerfile
-          - component: kfp-persistence-agent
-            dockerfile: backend/Dockerfile.persistenceagent
-          - component: kfp-scheduled-workflow-controller
-            dockerfile: backend/Dockerfile.scheduledworkflow
-          - component: kfp-cache-server
-            dockerfile: backend/Dockerfile.cacheserver
-          - component: kfp-cache-deployer
-            dockerfile: backend/src/cache/deployer/Dockerfile
-          - component: kfp-viewer-crd-controller
-            dockerfile: backend/Dockerfile.viewercontroller
-          - component: kfp-metadata-envoy
-            dockerfile: third_party/metadata_envoy/Dockerfile
-          - component: kfp-visualization-server
-            dockerfile: backend/Dockerfile.visualization
-            patched_dockerfile: Dockerfile.visualization-server
-          - component: kfp-driver
-            dockerfile: backend/Dockerfile.driver
-          - component: kfp-launcher
-            dockerfile: backend/Dockerfile.launcher
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
 
     env:
       KFP_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
