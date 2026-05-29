@@ -295,13 +295,9 @@ generates the build matrix from the `component` input.
 - Removes the amd64-only `controller-manager`
 - Patches all 13 deployments with native arm64 images
 - Creates a `ghcr-pull-secret` docker-registry secret in the `kubeflow` namespace
-  (from the short-lived `GITHUB_TOKEN` with `packages:read`) so pods can pull from
-  the private GHCR registry
+  (from `GITHUB_ORG_GHCR_PAT`, the long-lived runner env var with `read:packages`)
+  so pods can pull from GHCR after the workflow run ends
 - Adds `imagePullSecrets` to all patched deployments
-
-**Note on the pull secret:** `GITHUB_TOKEN` expires after the workflow run. Re-running
-**Kubeflow Deploy** refreshes the secret. If MLMD pods enter `ImagePullBackOff` after
-extended time without a redeploy, run the deploy workflow again.
 
 ---
 
