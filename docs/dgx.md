@@ -59,6 +59,10 @@ Actions -> MLflow Undeploy
 
 NeMo must be deployed before MLflow because MLflow uses NeMo's postgres backend.
 
+The deploy workflow runs a smoke test after deployment (`dgx/minikube/mlflow/verify-mlflow-endpoints.sh`):
+- `GET /health` — tracking server up
+- `GET /api/2.0/mlflow/experiments/list` — PostgreSQL backend reachable
+
 ## Kubeflow Pipelines
 
 Kubeflow Pipelines runs in minikube namespace `kubeflow` behind
@@ -74,6 +78,10 @@ Actions -> Kubeflow Deploy
 
 Kubeflow is independent of NeMo and MLflow — it can be deployed on a fresh
 minikube cluster without any other workloads.
+
+The deploy workflow runs a smoke test after deployment (`dgx/minikube/kubeflow/verify-kfp-endpoints.sh`):
+- `GET /` on `svc/ml-pipeline-ui:80` — UI serving
+- `GET /apis/v2beta1/healthz` on `svc/ml-pipeline:8888` — API server healthy
 
 ### arm64 images (GHCR)
 

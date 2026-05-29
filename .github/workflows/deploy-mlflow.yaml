@@ -37,3 +37,7 @@ jobs:
 
       - name: Deploy MLflow and integrate with NeMo
         run: bash dgx/minikube/mlflow/integrate-mlflow.sh
+
+      - name: Smoke-test endpoints
+        continue-on-error: true
+        run: bash dgx/minikube/mlflow/verify-mlflow-endpoints.sh
