@@ -1,4 +1,4 @@
-name: New Project
+name: Create Project
 
 # Creates a new GitHub repository under miramar-labs-org pre-wired
 # to the Miramar platform. Defaults to public so projects appear in the dashboard.

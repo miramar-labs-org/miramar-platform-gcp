@@ -1,0 +1,51 @@
+name: Deploy Platform Dashboard
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # hourly
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Create Project", "Delete Project"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Generate dashboard
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate dashboard HTML
+        run: |
+          mkdir -p /tmp/pages
+          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+          GH_ADMIN_TOKEN="${GITHUB_ORG_ADMIN_PAT}" \
+          bash scripts/dashboard/generate-dashboard.sh \
+            --org miramar-labs-org \
+            --output /tmp/pages/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/pages
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: [self-hosted, dgx]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages
+        uses: actions/deploy-pages@v4
+        id: deployment

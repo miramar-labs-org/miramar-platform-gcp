@@ -103,11 +103,30 @@ jobs:
 
 Push a commit to trigger it. **Remove the `push` trigger before merging** — a PR check (`pr-checks.yaml`) runs on every PR to `main` and fails if it finds push triggers on non-main branches.
 
-**2. `gh` CLI after merge to main**
+**2. Run the underlying script directly**
+
+For workflows whose core logic lives in a shell script (e.g. `scripts/dashboard/generate-dashboard.sh`), test the script independently without touching GHA at all. This validates everything except the Pages upload / artifact steps:
+
+```sh
+GH_TOKEN="$(gh auth token)" \
+GH_ADMIN_TOKEN="${GITHUB_ORG_ADMIN_PAT}" \
+bash scripts/dashboard/generate-dashboard.sh \
+  --org miramar-labs-org --output /tmp/preview/index.html
+```
+
+The DGX is **headless** — copy output files to `~/shared/` to open them from the laptop:
+
+```sh
+cp /tmp/preview/index.html ~/shared/dashboard-preview.html
+# Open from Windows: \\spark-79b7\shared\dashboard-preview.html
+# Open from WSL2:    /mnt/spark-shared/dashboard-preview.html
+```
+
+**3. `gh` CLI after merge to main**
 
 Merge the PR first, then test on main. Revert with another PR if broken.
 
-**3. `act` — run locally**
+**4. `act` — run locally**
 
 [`act`](https://github.com/nektos/act) runs GitHub Actions workflows locally using Docker. No push needed.
 
