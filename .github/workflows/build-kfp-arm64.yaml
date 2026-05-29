@@ -7,9 +7,12 @@ name: Build KFP arm64 Images
 # at the specified version tag. Build context is the KFP repo root for all
 # components (they share go.mod and each Dockerfile uses repo-relative paths).
 #
-# One component requires a patched Dockerfile:
+# Two components require patched Dockerfiles:
+#   kfp-api-server — upstream uses $TARGETARCH (unset in plain docker build) for the Argo
+#     CLI download URL, producing argo-linux-.gz (404); patch hardcodes arm64.
+#     Patched version: dgx/minikube/kubeflow/arm64/<version>/Dockerfile.api-server
 #   kfp-visualization-server — upstream hardcodes x86_64 in the gcloud SDK URL;
-#   patched version lives at dgx/minikube/kubeflow/arm64/<version>/Dockerfile.visualization-server
+#     patched version lives at dgx/minikube/kubeflow/arm64/<version>/Dockerfile.visualization-server
 #
 # Images produced (all under ghcr.io/miramar-labs-org/):
 #   kfp-api-server, kfp-frontend, kfp-persistence-agent,
@@ -44,6 +47,7 @@ jobs:
         include:
           - component: kfp-api-server
             dockerfile: backend/Dockerfile
+            patched_dockerfile: Dockerfile.api-server
           - component: kfp-frontend
             dockerfile: frontend/Dockerfile
           - component: kfp-persistence-agent
