@@ -61,9 +61,10 @@ jobs:
           # Copy template files (includes hidden .github/ directory)
           cp -r "${GITHUB_WORKSPACE}/templates/new-project/." .
 
-          # Replace the {{PROJECT_NAME}} placeholder in README and notebook
+          # Replace the {{PROJECT_NAME}} placeholder in all template files
           sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" README.md
           sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" notebook.ipynb
+          sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" CLAUDE.md
 
           # Commit
           git add .
@@ -86,6 +87,7 @@ jobs:
             echo ""
             echo "### Files"
             echo "- \`README.md\`"
+            echo "- \`CLAUDE.md\` — Claude Code instructions"
             echo "- \`notebook.ipynb\`"
             echo "- \`pipeline.py\` — KFP v2 pipeline stub"
             echo "- \`scripts/deploy_pipeline.py\`"
