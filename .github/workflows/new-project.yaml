@@ -77,23 +77,21 @@ jobs:
               -e "s/{{YEAR}}/${YEAR}/g" \
             {} +
 
-          # Inject workflow badges into README.md (done here, not in the template,
-          # so the template repo itself never shows broken placeholder URLs)
+          # Inject workflow badges after the title line.
+          # Each badge is a separate variable so no line falls to column 0
+          # (which would break the YAML block scalar).
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
+          WF="${ORG_URL}/actions/workflows"
+          BADGE_JL="[![Open in JupyterLab](${WF}/open-jupyterlab.yaml/badge.svg)](${WF}/open-jupyterlab.yaml)"
           if [ "${PROJECT_TYPE}" = "kfp" ]; then
-            BADGES="[![Open in JupyterLab](${ORG_URL}/actions/workflows/open-jupyterlab.yaml/badge.svg)](${ORG_URL}/actions/workflows/open-jupyterlab.yaml)
-[![Deploy to KFP](${ORG_URL}/actions/workflows/deploy-kfp.yaml/badge.svg)](${ORG_URL}/actions/workflows/deploy-kfp.yaml)
-[![Undeploy from KFP](${ORG_URL}/actions/workflows/undeploy-kfp.yaml/badge.svg)](${ORG_URL}/actions/workflows/undeploy-kfp.yaml)"
+            BADGE_2="[![Deploy to KFP](${WF}/deploy-kfp.yaml/badge.svg)](${WF}/deploy-kfp.yaml)"
+            BADGE_3="[![Undeploy from KFP](${WF}/undeploy-kfp.yaml/badge.svg)](${WF}/undeploy-kfp.yaml)"
           else
-            BADGES="[![Open in JupyterLab](${ORG_URL}/actions/workflows/open-jupyterlab.yaml/badge.svg)](${ORG_URL}/actions/workflows/open-jupyterlab.yaml)
-[![Deploy to NeMo](${ORG_URL}/actions/workflows/deploy-nemo.yaml/badge.svg)](${ORG_URL}/actions/workflows/deploy-nemo.yaml)
-[![Undeploy from NeMo](${ORG_URL}/actions/workflows/undeploy-nemo.yaml/badge.svg)](${ORG_URL}/actions/workflows/undeploy-nemo.yaml)"
+            BADGE_2="[![Deploy to NeMo](${WF}/deploy-nemo.yaml/badge.svg)](${WF}/deploy-nemo.yaml)"
+            BADGE_3="[![Undeploy from NeMo](${WF}/undeploy-nemo.yaml/badge.svg)](${WF}/undeploy-nemo.yaml)"
           fi
-          # Insert badges after the first line (the # title)
-          sed -i "1a\\
-\\
-${BADGES}
-" README.md
+          { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_JL}" "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
+          mv README.tmp README.md
 
           git add .
           git commit -m "Initial scaffold (type: ${PROJECT_TYPE}) from Miramar template"
