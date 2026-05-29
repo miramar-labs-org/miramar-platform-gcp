@@ -8,6 +8,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 
 > **Docs Index:** [docs/index.md](docs/index.md) — source-of-truth map for architecture, workflows, WSL2, SSH, and runbooks.
 
+> **Platform Dashboard:** [miramar-labs-org.github.io/miramar-platform-gcp](https://miramar-labs-org.github.io/miramar-platform-gcp/) — live table of all platform projects.
+
 ```mermaid
 flowchart LR
     Dev[Developer Workstation] --> GH[GitHub Repository]
