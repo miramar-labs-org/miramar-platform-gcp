@@ -82,17 +82,23 @@ details: [../dgx/minikube/kubeflow/arm64/README.md](../dgx/minikube/kubeflow/arm
 
 ## Ollama
 
-Ollama runs natively on the DGX host, not inside minikube.
+Ollama runs natively on the DGX host, not inside minikube. The platform
+reserves ~28 GB for OS/services, leaving ~100 GB for models; no deployed model
+may exceed this budget.
 
 ```text
-Actions -> Ollama Update
-Actions -> Ollama Deploy
+Actions -> Ollama Update      (installs/upgrades binary; writes OLLAMA_VERSION)
+Actions -> Ollama Deploy      (auto-undeploys existing model first; rollback on failure)
 Actions -> Ollama Undeploy
 ```
 
-Deploy fails clearly if a NIM or another Ollama model is already occupying the
-128 GB GPU pool. See [../dgx/ollama/README.md](../dgx/ollama/README.md) for the
-local model catalog. Browse available models: [ollama.com/library](https://ollama.com/library).
+Deploy auto-undeploys any currently loaded Ollama model before pulling the new
+one, so you never need to manually undeploy first. If the deploy fails
+(OOM, pull error, etc.) the workflow rolls back: unloads any partial load and
+clears `CURRENT_OLLAMA_MODEL`. Fails if a NIM is still loaded.
+
+See [../dgx/ollama/README.md](../dgx/ollama/README.md) for the local model
+catalog. Browse available models: [ollama.com/library](https://ollama.com/library).
 
 ## NeMo Microservices
 
@@ -110,7 +116,8 @@ and postgres PVCs to avoid password drift on redeploy.
 ## NIM
 
 NIMs are deployed through the NeMo deployment API and serve at
-`http://nim.test/v1`.
+`http://nim.test/v1`. NIM Deploy swaps any currently running NIM first and
+rolls back (undeploys + clears `CURRENT_NIM_MODEL`) on failure.
 
 ```text
 Actions -> NIM Deploy

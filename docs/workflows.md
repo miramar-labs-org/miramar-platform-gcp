@@ -35,24 +35,46 @@ GKE Expand -> GKE Expand GPU -> deploy workload -> GKE Restore GPU -> GKE Restor
 | Minikube Install | `install-minikube.yaml` | Install/start DGX minikube and update kubeconfig secret |
 | Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster and purge minikube state |
 | Minikube Toggle | `toggle-minikube.yaml` | Pause/resume DGX minikube |
-| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices and Volcano |
+| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices and Volcano; `nemo_version` input; auto-commits doc/SDK updates; writes `NEMO_VERSION` |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Remove NeMo, Volcano, DNS entries, and postgres PVCs |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into minikube |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow namespace |
-| NIM Deploy | `deploy-nim.yaml` | Deploy a NIM through the NeMo deployment API |
-| NIM Undeploy | `undeploy-nim.yaml` | Remove a NIM deployment |
-| Ollama Deploy | `deploy-ollama.yaml` | Pull and load an Ollama model into DGX GPU memory |
-| Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model |
-| Ollama Update | `update-ollama.yaml` | Install or upgrade Ollama on the DGX host |
+| NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via NeMo API; swaps conflicting NIM; rollback on failure; writes `CURRENT_NIM_MODEL` |
+| NIM Undeploy | `undeploy-nim.yaml` | Remove a NIM deployment; clears `CURRENT_NIM_MODEL` |
+| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing model, pull + load new one; rollback on failure; writes `CURRENT_OLLAMA_MODEL` |
+| Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model; clears `CURRENT_OLLAMA_MODEL` |
+| Ollama Update | `update-ollama.yaml` | Install or upgrade Ollama on the DGX host; writes `OLLAMA_VERSION` |
+
+| Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images on DGX; optional `component` input to rebuild one |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; writes `KFP_VERSION` |
+| Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
 
 DGX stack order:
 
 ```text
-Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy
+Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy (or Ollama Deploy)
 ```
+
+**Platform state repo variables** written by workflows and read by the dashboard:
+
+| Variable | Written by | Cleared by |
+| --- | --- | --- |
+| `NEMO_VERSION` | NeMo Deploy | — |
+| `KFP_VERSION` | Kubeflow Deploy | — |
+| `OLLAMA_VERSION` | Ollama Update | — |
+| `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback |
+| `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback |
 
 See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 [../dgx/ollama/README.md](../dgx/ollama/README.md).
+
+## Projects and Dashboard
+
+| Workflow | File | Purpose |
+| --- | --- | --- |
+| Create Project | `create-project.yaml` | Create a new org repo pre-wired with notebook, KFP/NeMo pipeline stub, and deploy/undeploy workflows |
+| Delete Project | `delete-project.yaml` | Permanently delete a platform repo (double-entry guard); triggers dashboard refresh |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard; reads platform state variables; runs hourly |
 
 ## WSL2 and SSH
 

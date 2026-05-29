@@ -116,25 +116,35 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Minikube Install | `install-minikube.yaml` | Install minikube on DGX, start cluster, enable addons, update kubeconfig secret |
 | Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove binary |
 | Minikube Toggle | `toggle-minikube.yaml` | `minikube pause` / `unpause`. Inputs: `action`, `runner` |
-| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; triggers MLflow Deploy |
+| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; `nemo_version` input (default `25.12.1`); auto-commits doc/hosts/SDK updates; writes `NEMO_VERSION` repo var |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift |
-| NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first |
-| NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op |
+| NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first; rollback on failure; writes `CURRENT_NIM_MODEL` repo var |
+| NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL` |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images. Prerequisite: Build KFP arm64 Images. |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `KFP_VERSION` repo var. Prerequisite: Build KFP arm64 Images. |
 | Create Project | `create-project.yaml` | Create a new repo under miramar-labs-org pre-wired with a notebook, KFP/NeMo pipeline stub, and deploy/undeploy workflows. Defaults to public so the project appears in the dashboard. Tags repo with `miramar-project` + `miramar-kfp`/`miramar-nemo`. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Double-entry confirmation guard. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Runs hourly + on Create/Delete Project completion. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Reads platform state repo vars (see below). Runs hourly + on Create/Delete Project completion. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
-| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing Ollama model, then pull + load new one. Fails if a NIM is loaded or model exceeds 100 GB budget. |
-| Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank |
-| Ollama Update | `update-ollama.yaml` | Install/upgrade Ollama on DGX or WSL2 host |
+| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing Ollama model, then pull + load new one; rollback on failure; writes `CURRENT_OLLAMA_MODEL` repo var. Fails if NIM loaded or model > 100 GB. |
+| Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank; clears `CURRENT_OLLAMA_MODEL` |
+| Ollama Update | `update-ollama.yaml` | Install/upgrade Ollama on DGX or WSL2 host; writes `OLLAMA_VERSION` repo var |
 | Setup Shared SSH Store | `setup-shared-ssh.yaml` | One-time: wire DGX + Orin shared SSH store |
 | WSL2 Provision | `provision-wsl2.yaml` | Import distro, run firstboot, add to WSL2_DISTROS |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Test all SSH paths for active distros in WSL2_DISTROS |
 | WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister distro, remove from WSL2_DISTROS |
+
+**Platform state repo variables** (written by workflows, read by dashboard):
+
+| Variable | Set by | Cleared by |
+|---|---|---|
+| `NEMO_VERSION` | NeMo Deploy | — |
+| `KFP_VERSION` | Kubeflow Deploy | — |
+| `OLLAMA_VERSION` | Ollama Update | — |
+| `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback |
+| `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback |
 
 Typical node-count sequence: **GKE Expand** → deploy workload → **GKE Restore**. Restore reads saved state automatically — no manual count needed.
 
