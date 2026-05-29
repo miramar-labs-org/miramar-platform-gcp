@@ -152,14 +152,6 @@ Typical node-count sequence: **GKE Expand** → deploy workload → **GKE Restor
 
 Typical GPU sequence: **GKE Expand GPU** → deploy GPU workload → **GKE Restore GPU**.
 
-## GCP project structure
-
-Single project: **`miramar-platform`** — GKE cluster (`miramar-shared-gke`), Artifact Registry repo (`apps`), WIF pool/provider, deploy service accounts, and workloads.
-
-GitHub Actions authenticate keylessly via WIF; attribute condition restricts access to the `miramar-labs-org` org.
-
-Cluster operations SA: `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` — `container.admin`, `storage.admin`, `artifactregistry.admin`, `compute.viewer` (required by Terraform after node pool ops), `compute.instanceAdmin` (required by Find GPU Capacity).
-
 ## Cost-control constraints
 
 The cluster is intentionally minimized. These constraints must be preserved:
@@ -206,19 +198,9 @@ Seven systemd user services start on boot (via linger) — managed via `dgx/syst
 
 **Ollama** — runs as a systemd service on the DGX host (not in minikube). **NIM and Ollama share the 128 GB unified memory pool** — ~28 GB reserved for the platform, leaving **~100 GB for AI models**. No single deployed model may exceed this budget. See `dgx/ollama/README.md` for model catalog. Browse available models: https://ollama.com/library
 
-Ollama API quirks (relevant when editing scripts):
-- Unloading requires `POST /api/generate` with `{"model":"...","prompt":"","keep_alive":0}` — the `prompt` field is required; omitting it silently no-ops.
-- The API returns before VRAM is freed; poll `GET /api/ps` until `.models` is empty (up to ~60s for 70B).
-- Optional model args passed via SSH use `printf '%q'` to prevent empty-string dropping.
-
 **MLflow** (`mlflow-system` namespace) — port-forward binds to `0.0.0.0`; all other services bind to `127.0.0.1`.
 
 **Kubeflow Pipelines** (`kubeflow` namespace) — independent of NeMo/MLflow; can deploy on a fresh minikube cluster.
 
 **DGX inotify limits** — the default `fs.inotify.max_user_instances=128` is too low for minikube. Pods like `nvidia-device-plugin` and `volcano-scheduler` will `CrashLoopBackOff` with "too many open files" when the limit is exhausted. Current values set in `/etc/sysctl.d/99-sysctl.conf`: `max_user_instances=1024`, `max_user_watches=1048576`. To diagnose: `docker exec minikube bash -c 'cat /proc/sys/fs/inotify/max_user_instances; find /proc/*/fd -lname "anon_inode:inotify" 2>/dev/null | wc -l'`.
-
-Access all services via SSH tunnel:
-```sh
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 -L 11434:localhost:11434 <user>@spark-79b7.local
-```
 
