@@ -22,6 +22,7 @@ Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** i
 
 | Workflow | Input | Effect |
 |---|---|---|
+| **Open in JupyterLab** | — | Sync repo to DGX and open in JupyterLab |
 | **Deploy to KFP** | `run_name` | Compile `pipeline.py` → upload → submit run |
 | **Undeploy from KFP** | `run_id` | Terminate a run |
 

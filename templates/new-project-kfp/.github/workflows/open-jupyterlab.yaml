@@ -8,7 +8,7 @@ name: Open in JupyterLab
 #
 # Prerequisites:
 #   - Shared SSH store set up on the DGX (Setup Shared SSH Store workflow)
-#   - JupyterLab running on DGX (minikube systemd services installed)
+#   - JupyterLab running on DGX (DGX systemd services installed and lingering)
 #   - SSH tunnel: ssh -L 8888:localhost:8888 <user>@spark-79b7.local
 
 on:

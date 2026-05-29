@@ -6,7 +6,7 @@ Systemd user services for the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/pr
 |---|---|---|
 | `minikube.service` | — | Starts/stops the [minikube](https://minikube.sigs.k8s.io/) cluster; other services depend on it |
 | `dashboard.service` | `8001` | `kubectl proxy` for the minikube Kubernetes dashboard |
-| `jupyterlab.service` | `8888` | [JupyterLab](https://jupyter.org) (pyNeMo environment) |
+| `jupyterlab.service` | `8888` | [JupyterLab](https://jupyter.org) (pyNeMo environment) — no token required |
 | `mlflow-portfwd.service` | `5000` | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace |
 | `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace |
 | `nemo-portfwd.service` | `8082` | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
