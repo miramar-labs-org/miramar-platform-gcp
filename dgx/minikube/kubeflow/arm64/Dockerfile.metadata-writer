@@ -113,15 +113,16 @@ RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 #   transitively through <limits.h> on glibc; Clang does not. Force-including
 #   /usr/include/stdint.h (from build-essential) before absl TUs fixes this.
 #   --per_file_copt appends AFTER the BUILD copts, so placement is correct.
-# upb -Wno-c23-extensions: upb (gRPC dep) uses __builtin_offsetof(struct{...})
-#   which Clang 19 flags as C23 extension. upb's BUILD has -Werror=pedantic
-#   which makes it fatal. --copt injects before BUILD copts (pedantic re-enables
-#   the warning), so we must use --per_file_copt which appends after BUILD copts.
+# upb -Wno-c23-extensions,-Wno-deprecated-builtins: upb (gRPC dep) uses
+#   __builtin_offsetof(struct{...}) (C23 ext) and upbc C++ files include absl
+#   type_traits.h which uses deprecated __has_trivial_* builtins (Clang 19).
+#   upb/upbc BUILD files have -Werror/-Werror=pedantic which make these fatal.
+#   --per_file_copt appends after BUILD copts so the -Wno- flags take effect.
 RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc && \
     echo 'build --per_file_copt=external/com_google_absl/.*@-include,/usr/include/stdint.h' >> .bazelrc && \
     echo 'build --host_per_file_copt=external/com_google_absl/.*@-include,/usr/include/stdint.h' >> .bazelrc && \
-    echo 'build --per_file_copt=external/upb/.*@-Wno-c23-extensions' >> .bazelrc && \
-    echo 'build --host_per_file_copt=external/upb/.*@-Wno-c23-extensions' >> .bazelrc
+    echo 'build --per_file_copt=external/upb/.*@-Wno-c23-extensions,-Wno-deprecated-builtins' >> .bazelrc && \
+    echo 'build --host_per_file_copt=external/upb/.*@-Wno-c23-extensions,-Wno-deprecated-builtins' >> .bazelrc
 
 # Fix platform-specific defines hardcoded in ml_metadata/postgresql.BUILD.
 # Same fixes as Dockerfile.mlmd-server for x86-only; additionally clear
