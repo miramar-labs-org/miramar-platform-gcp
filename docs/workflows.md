@@ -55,15 +55,17 @@ DGX stack order:
 Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy (or Ollama Deploy)
 ```
 
-**Platform state repo variables** written by workflows and read by the dashboard:
+**Platform state repo variables** written by workflows and displayed in the dashboard status bar:
 
-| Variable | Written by | Cleared by |
-| --- | --- | --- |
-| `NEMO_VERSION` | NeMo Deploy | — |
-| `KFP_VERSION` | Kubeflow Deploy | — |
-| `OLLAMA_VERSION` | Ollama Update | — |
-| `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback |
-| `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback |
+| Variable | Written by | Cleared by | Default |
+| --- | --- | --- | --- |
+| `NEMO_VERSION` | NeMo Deploy | — | `25.12.1` |
+| `KFP_VERSION` | Kubeflow Deploy | — | `2.16.1` |
+| `OLLAMA_VERSION` | Ollama Update | — | set by `update-ollama.yaml` |
+| `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `none` |
+| `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `none` |
+
+Variables must exist before the dashboard reads them. On a fresh install, seed them via the GitHub UI (`Settings → Secrets and variables → Actions → Variables`) or with the PATCH→POST upsert pattern using `GITHUB_ORG_ADMIN_PAT`.
 
 See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 [../dgx/ollama/README.md](../dgx/ollama/README.md).

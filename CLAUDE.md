@@ -138,13 +138,15 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 
 **Platform state repo variables** (written by workflows, read by dashboard):
 
-| Variable | Set by | Cleared by |
-|---|---|---|
-| `NEMO_VERSION` | NeMo Deploy | — |
-| `KFP_VERSION` | Kubeflow Deploy | — |
-| `OLLAMA_VERSION` | Ollama Update | — |
-| `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback |
-| `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback |
+| Variable | Set by | Cleared by | Default |
+|---|---|---|---|
+| `NEMO_VERSION` | NeMo Deploy | — | `25.12.1` |
+| `KFP_VERSION` | Kubeflow Deploy | — | `2.16.1` |
+| `OLLAMA_VERSION` | Ollama Update | — | set by `update-ollama.yaml` |
+| `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `none` |
+| `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `none` |
+
+Variables must exist before the dashboard reads them. On a fresh install, create missing variables via the GitHub API (PATCH→POST upsert using `GITHUB_ORG_ADMIN_PAT`) or the GitHub UI (`Settings → Secrets and variables → Actions → Variables`).
 
 Typical node-count sequence: **GKE Expand** → deploy workload → **GKE Restore**. Restore reads saved state automatically — no manual count needed.
 
