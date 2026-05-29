@@ -30,6 +30,11 @@ on:
         description: KFP version tag (e.g. 2.16.1)
         default: "2.16.1"
         required: false
+      # Optional: limit the run to a single component. Leave blank to build all.
+      component:
+        description: "Component to build (e.g. kfp-api-server). Leave blank to build all."
+        default: ""
+        required: false
 
 permissions:
   contents: read
@@ -38,6 +43,7 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.component }} (arm64)
+    if: inputs.component == '' || inputs.component == matrix.component
     runs-on: [self-hosted, dgx]
     timeout-minutes: 90
 
