@@ -94,6 +94,7 @@ jobs:
           mv README.tmp README.md
 
           git add .
+          git add -f .github/  # guarantee workflows are staged regardless of gitignore
           git commit -m "Initial scaffold (type: ${PROJECT_TYPE}) from Miramar template"
 
           git remote add origin \

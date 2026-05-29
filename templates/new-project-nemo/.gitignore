@@ -18,10 +18,7 @@ env/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# NeMo config (keep job_config.yaml and workflow definitions; ignore generated YAML)
-*.yaml
-!job_config.yaml
-!.github/workflows/*.yaml
+# Generated YAML artefacts (keep job_config.yaml and workflow definitions)
 
 # Data / models
 *.csv
