@@ -28,10 +28,6 @@ ingress:
           pathType: Prefix
           service: nemo-entity-store
           port: 8000
-        - path: /v1/repos
-          pathType: Prefix
-          service: nemo-entity-store
-          port: 8000
         - path: /v1/models
           pathType: Prefix
           service: nemo-entity-store
@@ -43,18 +39,6 @@ ingress:
           service: nemo-deployment-management
           port: 8000
         - path: /v1/jobs
-          pathType: Prefix
-          service: nemo-core-api
-          port: 8000
-        - path: /v2/inference/gateway
-          pathType: Prefix
-          service: nemo-core-api
-          port: 8000
-        - path: /v2/inference
-          pathType: Prefix
-          service: nemo-core-api
-          port: 8000
-        - path: /v2/models
           pathType: Prefix
           service: nemo-core-api
           port: 8000
