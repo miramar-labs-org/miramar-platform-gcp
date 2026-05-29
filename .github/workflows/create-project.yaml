@@ -119,6 +119,28 @@ jobs:
             "https://x-access-token:${GITHUB_ORG_ADMIN_PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git"
           git push -u origin main
 
+      - name: Clone to DGX projects folder
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          DGX_USER: ${{ vars.DGX_HOST_USER }}
+          SCRIPT: |
+            set -euo pipefail
+            mkdir -p "${HOME}/git-miramar-labs-org/projects"
+            git clone \
+              "https://x-access-token:${PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git" \
+              "${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
+            echo "Cloned to: ${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
+        run: |
+          if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo "WARNING: ~/.ssh/id_ed25519 not found — skipping DGX clone" >&2
+            exit 0
+          fi
+          printf '%s' "${SCRIPT}" \
+            | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+                "${DGX_USER:-aaron}@localhost" \
+                env PROJECT_NAME="${PROJECT_NAME}" \
+                    PAT="${GITHUB_ORG_ADMIN_PAT}" bash
+
       - name: Summary
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
