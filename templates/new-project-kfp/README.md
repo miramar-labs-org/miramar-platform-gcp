@@ -2,10 +2,6 @@
 
 <!-- One-line description of this project -->
 
-[![Open in JupyterLab](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/open-jupyterlab.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/open-jupyterlab.yaml)
-[![Deploy to KFP](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/deploy-kfp.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/deploy-kfp.yaml)
-[![Undeploy from KFP](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/undeploy-kfp.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/undeploy-kfp.yaml)
-
 **Type**: Kubeflow Pipelines
 
 ## Prerequisites

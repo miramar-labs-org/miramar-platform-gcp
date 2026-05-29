@@ -77,6 +77,24 @@ jobs:
               -e "s/{{YEAR}}/${YEAR}/g" \
             {} +
 
+          # Inject workflow badges into README.md (done here, not in the template,
+          # so the template repo itself never shows broken placeholder URLs)
+          ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
+          if [ "${PROJECT_TYPE}" = "kfp" ]; then
+            BADGES="[![Open in JupyterLab](${ORG_URL}/actions/workflows/open-jupyterlab.yaml/badge.svg)](${ORG_URL}/actions/workflows/open-jupyterlab.yaml)
+[![Deploy to KFP](${ORG_URL}/actions/workflows/deploy-kfp.yaml/badge.svg)](${ORG_URL}/actions/workflows/deploy-kfp.yaml)
+[![Undeploy from KFP](${ORG_URL}/actions/workflows/undeploy-kfp.yaml/badge.svg)](${ORG_URL}/actions/workflows/undeploy-kfp.yaml)"
+          else
+            BADGES="[![Open in JupyterLab](${ORG_URL}/actions/workflows/open-jupyterlab.yaml/badge.svg)](${ORG_URL}/actions/workflows/open-jupyterlab.yaml)
+[![Deploy to NeMo](${ORG_URL}/actions/workflows/deploy-nemo.yaml/badge.svg)](${ORG_URL}/actions/workflows/deploy-nemo.yaml)
+[![Undeploy from NeMo](${ORG_URL}/actions/workflows/undeploy-nemo.yaml/badge.svg)](${ORG_URL}/actions/workflows/undeploy-nemo.yaml)"
+          fi
+          # Insert badges after the first line (the # title)
+          sed -i "1a\\
+\\
+${BADGES}
+" README.md
+
           git add .
           git commit -m "Initial scaffold (type: ${PROJECT_TYPE}) from Miramar template"
 
