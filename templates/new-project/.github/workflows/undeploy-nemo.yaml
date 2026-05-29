@@ -1,0 +1,60 @@
+name: Undeploy from NeMo
+
+# Cancels / deletes a NeMo training job by name.
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_name:
+        description: Name of the NeMo job to cancel
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 10
+
+    steps:
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Set up /etc/hosts for NeMo endpoint
+        run: |
+          MINIKUBE_IP=$(kubectl get node minikube \
+            -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+          sudo sed -i '/nemo\.test/d' /etc/hosts || true
+          printf '%s nemo.test\n' "$MINIKUBE_IP" | sudo tee -a /etc/hosts >/dev/null
+
+      - name: Cancel job
+        env:
+          JOB_NAME: ${{ inputs.job_name }}
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X DELETE "http://nemo.test/v1/jobs/${JOB_NAME}")
+          if [ "${HTTP_STATUS}" = "404" ]; then
+            echo "Job '${JOB_NAME}' not found — already deleted or never started."
+          elif [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 300 ]; then
+            echo "Job '${JOB_NAME}' cancelled (HTTP ${HTTP_STATUS})."
+          else
+            echo "Unexpected HTTP ${HTTP_STATUS}" >&2
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## NeMo Job Cancelled"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Job name | \`${{ inputs.job_name }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,102 @@
+name: New Project
+
+# Creates a new private GitHub repository under miramar-labs-org pre-wired
+# with a Jupyter notebook, a KFP v2 pipeline stub, and four GitHub Actions
+# workflows (deploy/undeploy KFP + deploy/undeploy NeMo).
+#
+# Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) for repo
+# creation and initial push. No GitHub secrets required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: Repository name (e.g. my-llm-experiment)
+        required: true
+      description:
+        description: Short repo description (optional)
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  create:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create repository
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          DESCRIPTION: ${{ inputs.description }}
+        run: |
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo create \
+            "miramar-labs-org/${PROJECT_NAME}" \
+            --private \
+            --description "${DESCRIPTION}"
+          echo "Created miramar-labs-org/${PROJECT_NAME}"
+
+      - name: Initialise repository with template
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: |
+          set -euo pipefail
+
+          WORK_DIR=$(mktemp -d)
+          trap 'rm -rf "${WORK_DIR}"' EXIT
+
+          # Configure git identity for the commit
+          git config --global user.email "actions@github.com"
+          git config --global user.name "Miramar Platform"
+
+          # Initialise the local repo
+          cd "${WORK_DIR}"
+          git init
+          git checkout -b main
+
+          # Copy template files (includes hidden .github/ directory)
+          cp -r "${GITHUB_WORKSPACE}/templates/new-project/." .
+
+          # Replace the {{PROJECT_NAME}} placeholder in README and notebook
+          sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" README.md
+          sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" notebook.ipynb
+
+          # Commit
+          git add .
+          git commit -m "Initial scaffold from Miramar template"
+
+          # Push via PAT
+          git remote add origin \
+            "https://x-access-token:${GITHUB_ORG_ADMIN_PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git"
+          git push -u origin main
+
+      - name: Summary
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: |
+          REPO_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
+          {
+            echo "## New Project Created"
+            echo ""
+            echo "**Repository:** [${REPO_URL}](${REPO_URL})"
+            echo ""
+            echo "### Files"
+            echo "- \`README.md\`"
+            echo "- \`notebook.ipynb\`"
+            echo "- \`pipeline.py\` — KFP v2 pipeline stub"
+            echo "- \`scripts/deploy_pipeline.py\`"
+            echo "- \`scripts/terminate_pipeline.py\`"
+            echo "- \`.github/workflows/deploy-kfp.yaml\`"
+            echo "- \`.github/workflows/undeploy-kfp.yaml\`"
+            echo "- \`.github/workflows/deploy-nemo.yaml\`"
+            echo "- \`.github/workflows/undeploy-nemo.yaml\`"
+            echo ""
+            echo "### Next steps"
+            echo "1. Edit \`pipeline.py\` to define your pipeline components"
+            echo "2. Trigger **Deploy to KFP** to compile and submit a run"
+            echo "3. Edit the NeMo payload in \`deploy-nemo.yaml\` before first use"
+          } >> "$GITHUB_STEP_SUMMARY"
