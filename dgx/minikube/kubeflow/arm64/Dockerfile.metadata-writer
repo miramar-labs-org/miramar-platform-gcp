@@ -62,17 +62,19 @@ ARG MLMD_VERSION
 ARG BAZELISK_VERSION
 
 # Install system build dependencies.
-# clang: used instead of GCC 12 (Debian Bookworm default) because GCC 12 has
-#   an arm64 parser regression where 'enum class Foo : uint8_t;' fails with
-#   "found ':' in nested-name-specifier" in C++17 mode. Clang handles the
-#   absl commit (940c06c) correctly.
+# clang-14: used instead of GCC 12 (Debian Bookworm default) because GCC 12
+#   has an arm64 parser regression where 'enum class Foo : uint8_t;' fails with
+#   "found ':' in nested-name-specifier" in C++17 mode. Generic 'clang' on
+#   Bookworm resolves to Clang 19 which is too strict: it treats the
+#   '__builtin_offsetof(struct{...})' pattern in upb (gRPC dependency) as a
+#   C23 extension error via -Werror=pedantic. Clang 14 handles both cases.
 # cmake + libtool: required by @libmysqlclient//:configure — Bazel exits 127
 #   without cmake.
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -y && \
     apt-get install --no-install-recommends -y \
       build-essential \
-      clang \
+      clang-14 \
       cmake \
       curl \
       default-jdk \
@@ -121,9 +123,10 @@ RUN sed -i \
 
 # Build the Python wheel. setup.py invokes Bazel internally to compile the
 # C++ extension (gRPC stubs, pybind11 bindings). Output: dist/*.whl
-# CC=clang: Bazel auto-configures its C++ toolchain from CC/CXX at startup.
-# Clang avoids the GCC 12 arm64 regression for absl's enum class declarations.
-RUN CC=clang CXX=clang++ python setup.py bdist_wheel
+# CC=clang-14: Bazel auto-configures its C++ toolchain from CC/CXX at startup.
+# Clang 14 avoids the GCC 12 arm64 regression (absl enum class) and is not
+# strict enough to error on the upb __builtin_offsetof extension (Clang 19 is).
+RUN CC=clang-14 CXX=clang++-14 python setup.py bdist_wheel
 
 # ---------------------------------------------------------------------------
 # Stage 3: Final kfp-metadata-writer image
