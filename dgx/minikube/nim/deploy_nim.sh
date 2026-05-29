@@ -72,7 +72,7 @@ deploy_nim() {
 wait_for_nim() {
   local nim_api_namespace="${1:?namespace required}"
   local nim_name="${2:?name required}"
-  local nim_label_selector="app=$nim_name"
+  local nim_label_selector="app=modeldeployment-${nim_api_namespace}-${nim_name}"
   local nim_api_url="http://nemo.test/v1/deployment/model-deployments/$nim_api_namespace/$nim_name"
 
   log "Waiting for $nim_name NIM to reach READY status (up to 5 hours)... Press Ctrl+C to exit early."
