@@ -123,6 +123,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Build MLMD arm64 Images | `build-mlmd-arm64.yaml` | Build arm64 MLMD images (ml_metadata_store_server, kfp-metadata-writer) via Bazel. ~45-60 min first run. |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 11 remaining KFP arm64 images on DGX. Optional `component` input to rebuild a single image. |
 | Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images. Prerequisites: both Build workflows. |
+| New Project | `new-project.yaml` | Create a new private repo under miramar-labs-org pre-wired with a notebook, KFP pipeline stub, and deploy/undeploy workflows for KFP and NeMo. |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
 | Ollama Deploy | `deploy-ollama.yaml` | Pull + load Ollama model on DGX host. Fails if 128 GB pool is full. |
 | Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank |
