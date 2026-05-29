@@ -62,13 +62,17 @@ ARG MLMD_VERSION
 ARG BAZELISK_VERSION
 
 # Install system build dependencies.
-# cmake and libtool are required by @libmysqlclient//:configure (a transitive
-# dependency of ml_metadata's C++ targets). Without cmake, Bazel exits 127
-# ("command not found") during the configure genrule.
+# clang: used instead of GCC 12 (Debian Bookworm default) because GCC 12 has
+#   an arm64 parser regression where 'enum class Foo : uint8_t;' fails with
+#   "found ':' in nested-name-specifier" in C++17 mode. Clang handles the
+#   absl commit (940c06c) correctly.
+# cmake + libtool: required by @libmysqlclient//:configure — Bazel exits 127
+#   without cmake.
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -y && \
     apt-get install --no-install-recommends -y \
       build-essential \
+      clang \
       cmake \
       curl \
       default-jdk \
@@ -101,16 +105,9 @@ WORKDIR /build/ml-metadata
 # Bazelisk cannot parse — extract just the version number on the last line.
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
-# Force C++17 for ml_metadata code; compile absl in C++14 to work around a
-# GCC 12 regression (python:3.11 / Debian Bookworm) where forward declarations
-# of the form 'enum class Foo : uint64_t;' trigger "found ':' in
-# nested-name-specifier" in C++17 mode. enum class is a C++11 feature; absl
-# compiles cleanly in C++14. GCC uses the last -std= flag, so the per-file
-# -std=c++14 appended by --per_file_copt overrides the global -std=c++17 for
-# absl translation units only.
-RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc && \
-    echo 'build --per_file_copt=external/com_google_absl/.*@-std=c++14' >> .bazelrc && \
-    echo 'build --host_per_file_copt=external/com_google_absl/.*@-std=c++14' >> .bazelrc
+# Force C++17 globally via .bazelrc. The absl and zetasql versions pinned in
+# this WORKSPACE use enum-class scoping that requires at minimum C++17.
+RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc
 
 # Fix two ZetaSQL WORKSPACE issues caused by the zetasql→googlesql GitHub repo rename:
 #
@@ -124,7 +121,9 @@ RUN sed -i \
 
 # Build the Python wheel. setup.py invokes Bazel internally to compile the
 # C++ extension (gRPC stubs, pybind11 bindings). Output: dist/*.whl
-RUN python setup.py bdist_wheel
+# CC=clang: Bazel auto-configures its C++ toolchain from CC/CXX at startup.
+# Clang avoids the GCC 12 arm64 regression for absl's enum class declarations.
+RUN CC=clang CXX=clang++ python setup.py bdist_wheel
 
 # ---------------------------------------------------------------------------
 # Stage 3: Final kfp-metadata-writer image
