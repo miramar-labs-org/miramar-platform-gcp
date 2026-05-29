@@ -62,19 +62,18 @@ ARG MLMD_VERSION
 ARG BAZELISK_VERSION
 
 # Install system build dependencies.
-# clang-14: used instead of GCC 12 (Debian Bookworm default) because GCC 12
-#   has an arm64 parser regression where 'enum class Foo : uint8_t;' fails with
-#   "found ':' in nested-name-specifier" in C++17 mode. Generic 'clang' on
-#   Bookworm resolves to Clang 19 which is too strict: it treats the
-#   '__builtin_offsetof(struct{...})' pattern in upb (gRPC dependency) as a
-#   C23 extension error via -Werror=pedantic. Clang 14 handles both cases.
+# clang: used instead of GCC 12 (Debian Bookworm default) because GCC 12 has
+#   an arm64 parser regression where 'enum class Foo : uint8_t;' fails with
+#   "found ':' in nested-name-specifier" in C++17 mode. The installed Clang
+#   version may warn about C23 extensions in upb (gRPC dependency); that is
+#   suppressed below via --copt=-Wno-c23-extensions.
 # cmake + libtool: required by @libmysqlclient//:configure — Bazel exits 127
 #   without cmake.
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -y && \
     apt-get install --no-install-recommends -y \
       build-essential \
-      clang-14 \
+      clang \
       cmake \
       curl \
       default-jdk \
@@ -107,9 +106,15 @@ WORKDIR /build/ml-metadata
 # Bazelisk cannot parse — extract just the version number on the last line.
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
-# Force C++17 globally via .bazelrc. The absl and zetasql versions pinned in
-# this WORKSPACE use enum-class scoping that requires at minimum C++17.
-RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc
+# .bazelrc additions:
+# --cxxopt/-host_cxxopt=-std=c++17: absl/zetasql use enum-class scoping
+#   (C++11) but the WORKSPACE versions require C++17 to avoid other errors.
+# --copt/--host_copt=-Wno-c23-extensions: the upb C library (gRPC transitive
+#   dep) uses __builtin_offsetof(struct{...}) which newer Clang flags as a
+#   C23 extension. upb's BUILD sets -Werror=pedantic which turns it fatal.
+#   This suppresses the warning before -Werror can act on it.
+RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc && \
+    echo 'build --copt=-Wno-c23-extensions --host_copt=-Wno-c23-extensions' >> .bazelrc
 
 # Fix two ZetaSQL WORKSPACE issues caused by the zetasql→googlesql GitHub repo rename:
 #
@@ -123,10 +128,9 @@ RUN sed -i \
 
 # Build the Python wheel. setup.py invokes Bazel internally to compile the
 # C++ extension (gRPC stubs, pybind11 bindings). Output: dist/*.whl
-# CC=clang-14: Bazel auto-configures its C++ toolchain from CC/CXX at startup.
-# Clang 14 avoids the GCC 12 arm64 regression (absl enum class) and is not
-# strict enough to error on the upb __builtin_offsetof extension (Clang 19 is).
-RUN CC=clang-14 CXX=clang++-14 python setup.py bdist_wheel
+# CC=clang: Bazel auto-configures its C++ toolchain from CC/CXX at startup.
+# Clang handles absl commit 940c06c correctly in C++17 mode on arm64.
+RUN CC=clang CXX=clang++ python setup.py bdist_wheel
 
 # ---------------------------------------------------------------------------
 # Stage 3: Final kfp-metadata-writer image
