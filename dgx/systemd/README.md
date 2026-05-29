@@ -9,6 +9,7 @@ Systemd user services for the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/pr
 | `jupyterlab.service` | `8888` | [JupyterLab](https://jupyter.org) (pyJLab environment) — no token required |
 | `mlflow-portfwd.service` | `5000` | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace |
 | `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace |
+| `kfp-api-portfwd.service` | `8890` | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace |
 | `nemo-portfwd.service` | `8082` | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
 
 `dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
@@ -21,6 +22,8 @@ ssh -L 8001:localhost:8001 \
     -L 5000:localhost:5000 \
     -L 8080:localhost:8080 \
     -L 8082:localhost:8082 \
+    -L 8890:localhost:8890 \
+    -L 11434:localhost:11434 \
     <user>@spark-79b7.local
 ```
 
@@ -71,6 +74,7 @@ journalctl --user -u dashboard -f
 journalctl --user -u jupyterlab -f
 journalctl --user -u mlflow-portfwd -f
 journalctl --user -u kubeflow-portfwd -f
+journalctl --user -u kfp-api-portfwd -f
 journalctl --user -u nemo-portfwd -f
 ```
 
@@ -81,10 +85,11 @@ journalctl --user -u nemo-portfwd -f
   up to 5 minutes to start (first boot after a reboot may pull images).
 - `dashboard.service` and `mlflow-portfwd.service` have `After=minikube.service` so systemd
   starts minikube first and stops it last on shutdown.
-- `mlflow-portfwd.service` and `kubeflow-portfwd.service` wait for their respective services to
-  have a ready endpoint before starting the port-forward, so they won't crash-loop on boot if pods
-  are still coming up. If the workload is not deployed they hit `StartLimitBurst=3` quickly and
-  stop retrying — expected behavior when MLflow or Kubeflow is not installed.
+- `mlflow-portfwd.service`, `kubeflow-portfwd.service`, and `kfp-api-portfwd.service` wait for
+  their respective services to have a ready endpoint before starting the port-forward, so they
+  won't crash-loop on boot if pods are still coming up. If the workload is not deployed they hit
+  `StartLimitBurst=3` quickly and stop retrying — expected behavior when MLflow or Kubeflow is
+  not installed.
 - Services are user-scoped (`WantedBy=default.target`) and do not require `sudo`.
 - Linger (`loginctl enable-linger`) is set by `install.sh` — this is what makes the services
   start on boot rather than only on interactive login.

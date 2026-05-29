@@ -12,6 +12,8 @@ ssh -L 8001:localhost:8001 \
     -L 8888:localhost:8888 \
     -L 5000:localhost:5000 \
     -L 8080:localhost:8080 \
+    -L 8082:localhost:8082 \
+    -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
     <user>@spark-79b7.local
 ```
@@ -22,6 +24,8 @@ ssh -L 8001:localhost:8001 \
 | `8888` | JupyterLab |
 | `5000` | MLflow |
 | `8080` | Kubeflow Pipelines UI |
+| `8082` | NeMo / NIM / Data Store ingress |
+| `8890` | KFP REST API |
 | `11434` | Ollama API |
 
 See [../dgx/README.md](../dgx/README.md) and
@@ -65,10 +69,14 @@ The deploy workflow runs a smoke test after deployment (`dgx/minikube/mlflow/ver
 
 ## Kubeflow Pipelines
 
-Kubeflow Pipelines runs in minikube namespace `kubeflow` behind
-`svc/ml-pipeline-ui:80`. The `kubeflow-portfwd.service` forwards port `8080`.
-After deploying, restart the service and open `http://localhost:8080` through
-an SSH tunnel.
+Kubeflow Pipelines runs in minikube namespace `kubeflow`. Two systemd services
+expose it over SSH tunnels:
+
+- `kubeflow-portfwd.service` (port `8080`) — KFP UI (`svc/ml-pipeline-ui:80`)
+- `kfp-api-portfwd.service` (port `8890`) — KFP REST API (`svc/ml-pipeline:8888`)
+
+After deploying, restart both services and open `http://localhost:8080` (UI) or
+hit `http://localhost:8890/apis/v2beta1/healthz` (API) through the SSH tunnel.
 
 ```text
 Actions -> Build KFP arm64 Images    (once per version; covers all 13 arm64 images including MLMD)

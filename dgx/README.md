@@ -11,7 +11,7 @@
 
 ## Systemd services
 
-Five user services start automatically on boot (via linger) — see [systemd/](systemd/) for unit files and install instructions:
+Seven user services start automatically on boot (via linger) — see [systemd/](systemd/) for unit files and install instructions:
 
 | Service | Port | What it does |
 |---|---|---|
@@ -20,6 +20,8 @@ Five user services start automatically on boot (via linger) — see [systemd/](s
 | `jupyterlab` | `8888` | [JupyterLab](https://jupyter.org) |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward` → [MLflow](https://mlflow.org) (`svc/mlflow-tracking` in minikube) |
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward` → [Kubeflow Pipelines](https://www.kubeflow.org/) UI (`svc/ml-pipeline-ui` in minikube) |
+| `kfp-api-portfwd` | `8890` | `kubectl port-forward` → KFP REST API (`svc/ml-pipeline:8888` in minikube) |
+| `nemo-portfwd` | `8082` | `kubectl port-forward` → NeMo ingress (`nemo.test`, `nim.test`, `data-store.test`) |
 
 `dashboard` and `jupyterlab` bind to `127.0.0.1`; the port-forward services bind to `0.0.0.0` so the runner container can reach them. Access from your laptop via SSH tunnel:
 
@@ -28,6 +30,8 @@ ssh -L 8001:localhost:8001 \
     -L 8888:localhost:8888 \
     -L 5000:localhost:5000 \
     -L 8080:localhost:8080 \
+    -L 8082:localhost:8082 \
+    -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
     <user>@spark-79b7.local
 ```
@@ -38,6 +42,8 @@ ssh -L 8001:localhost:8001 \
 | `8888` | JupyterLab |
 | `5000` | MLflow |
 | `8080` | Kubeflow Pipelines UI |
+| `8082` | NeMo / NIM / Data Store ingress |
+| `8890` | KFP REST API |
 | `11434` | Ollama API |
 
 [Ollama](https://ollama.com) (`port 11434`) is installed via `scripts/ubuntu/install-ollama.sh` and runs as a native systemd service — not in the table above as it is not a user service managed by `dgx/systemd/`.

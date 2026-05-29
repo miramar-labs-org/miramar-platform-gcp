@@ -3,8 +3,23 @@
 All endpoints are reachable **from the DGX host** directly. To reach them **from your laptop**, open an SSH tunnel first:
 
 ```bash
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082:localhost:8082 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 \
+    -L 8888:localhost:8888 \
+    -L 5000:localhost:5000 \
+    -L 8080:localhost:8080 \
+    -L 8082:localhost:8082 \
+    -L 8890:localhost:8890 \
+    -L 11434:localhost:11434 \
+    <user>@spark-79b7.local
 ```
+
+## One-time laptop setup
+
+1. Open the SSH tunnel above.
+2. Add to your laptop's `/etc/hosts`:
+   ```
+   127.0.0.1 nemo.test nim.test data-store.test
+   ```
 
 > **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for system use (minikube, OS), leaving ~100 GB for workloads. They can coexist as long as their combined memory fits within that budget.
 
@@ -18,6 +33,8 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082
 - [NeMo Data Store — `http://data-store.test`](#nemo-data-store----httpdata-storetest)
 - [Ollama — `http://localhost:11434`](#ollama----httplocalhost11434)
 - [Qwen3 32B standalone — `http://localhost:8000`](#qwen3-32b-standalone----httplocalhost8000)
+- [Kubeflow Pipelines — `http://localhost:8080` / `http://localhost:8890`](#kubeflow-pipelines----httplocalhost8080--httplocalhost8890)
+- [MLflow — `http://localhost:5000`](#mlflow----httplocalhost5000)
 - [UI services (SSH tunnel)](#ui-services-ssh-tunnel)
 
 ---
@@ -34,6 +51,8 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082
 | `localhost:8001` | 8001 | 8001 (via tunnel) | Kubernetes dashboard (via `kubectl proxy`) | minikube running |
 | `localhost:8888` | 8888 | 8888 (via tunnel) | JupyterLab | minikube running |
 | `localhost:5000` | 5000 | 5000 (via tunnel) | MLflow Tracking UI | NeMo + MLflow deployed |
+| `localhost:8080` | 8080 | 8080 (via tunnel) | Kubeflow Pipelines UI | KFP deployed |
+| `localhost:8890` | 8890 | 8890 (via tunnel) | KFP REST API (`/apis/v2beta1/...`) | KFP deployed |
 
 DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the DGX host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.49.2`). Source files: [`hosts.dgx`](hosts.dgx) (DGX), [`hosts.win`](hosts.win) (Windows/WSL2, for use with SSH tunnel on port 8082).
 
@@ -477,13 +496,57 @@ curl http://localhost:8000/v1/chat/completions \
 
 ---
 
+## Kubeflow Pipelines — `http://localhost:8080` / `http://localhost:8890`
+
+Requires KFP deployed (`Actions → Kubeflow Deploy`) and the SSH tunnel open.
+
+```bash
+# UI — open in browser
+curl http://localhost:8080
+
+# API server health
+curl http://localhost:8890/apis/v2beta1/healthz | jq .
+
+# List pipelines
+curl http://localhost:8890/apis/v2beta1/pipelines | jq .
+
+# List runs
+curl http://localhost:8890/apis/v2beta1/runs | jq .
+```
+
+---
+
+## MLflow — `http://localhost:5000`
+
+Requires MLflow deployed (`Actions → MLflow Deploy`) and the SSH tunnel open.
+
+```bash
+# Tracking server health
+curl http://localhost:5000/health
+
+# List experiments (exercises PostgreSQL backend)
+curl http://localhost:5000/api/2.0/mlflow/experiments/list | jq .
+
+# Set tracking URI for SDK / notebooks
+export MLFLOW_TRACKING_URI=http://localhost:5000
+```
+
+---
+
 ## UI services (SSH tunnel)
 
 Always running via systemd on the DGX — no manual start needed.
 
 ```bash
 # Open tunnel from your laptop
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082:localhost:8082 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 \
+    -L 8888:localhost:8888 \
+    -L 5000:localhost:5000 \
+    -L 8080:localhost:8080 \
+    -L 8082:localhost:8082 \
+    -L 8890:localhost:8890 \
+    -L 11434:localhost:11434 \
+    <user>@spark-79b7.local
 ```
 
 | Service | URL |
@@ -491,6 +554,8 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082
 | Kubernetes dashboard | `http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/` |
 | JupyterLab | `http://localhost:8888/lab` |
 | MLflow Tracking | `http://localhost:5000` |
+| Kubeflow Pipelines UI | `http://localhost:8080` |
+| KFP REST API | `http://localhost:8890/apis/v2beta1/healthz` |
 
 ```bash
 # Set MLflow tracking URI (from inside the mlabs-runner container or any host-networked process)

@@ -184,7 +184,7 @@ To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`
 
 ## DGX local services
 
-Five systemd user services start on boot (via linger) — managed via `dgx/systemd/`:
+Seven systemd user services start on boot (via linger) — managed via `dgx/systemd/`:
 
 | Service | Port | Purpose |
 |---|---|---|
@@ -193,6 +193,8 @@ Five systemd user services start on boot (via linger) — managed via `dgx/syste
 | `jupyterlab` | `8888` | JupyterLab in the pyJLab Python environment (see `dgx/jupyterlab/`) |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` |
+| `kfp-api-portfwd` | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API) |
+| `nemo-portfwd` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
 
 **Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the DGX host so cluster state persists. The shared SSH store (`~/shared/ssh`) is also mounted, enabling workflows to SSH back to the DGX host as the local user (used by e.g. **Open in JupyterLab**).
 
@@ -217,6 +219,6 @@ Ollama API quirks (relevant when editing scripts):
 
 Access all services via SSH tunnel:
 ```sh
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 -L 8082:localhost:8082 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 -L 11434:localhost:11434 <user>@spark-79b7.local
 ```
 

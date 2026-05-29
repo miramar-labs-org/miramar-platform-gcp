@@ -13,12 +13,14 @@ name: Kubeflow Deploy
 # See dgx/minikube/kubeflow/arm64/README.md for details.
 #
 # UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by
-# kubeflow-portfwd.service. Restart the service after deploying:
-#   systemctl --user restart kubeflow-portfwd
+# kubeflow-portfwd.service. The REST API is served by svc/ml-pipeline:8888,
+# forwarded to host port 8890 by kfp-api-portfwd.service. Restart both after
+# deploying:
+#   systemctl --user restart kubeflow-portfwd kfp-api-portfwd
 #
 # Prerequisites:
 #   - minikube running on the DGX (Minikube Install workflow)
-#   - kubeflow-portfwd.service installed (dgx/systemd/install.sh)
+#   - kubeflow-portfwd.service and kfp-api-portfwd.service installed (dgx/systemd/install.sh)
 
 on:
   workflow_dispatch:
@@ -132,10 +134,11 @@ jobs:
             echo "| Version | \`${{ inputs.pipeline_version || '2.16.1' }}\` |"
             echo "| Pods | \`${POD_COUNT}\` |"
             echo ""
-            echo "Restart the port-forward service on DGX, then tunnel to access the UI:"
+            echo "Restart port-forward services on DGX, then tunnel to access:"
             echo "\`\`\`"
-            echo "systemctl --user restart kubeflow-portfwd"
-            echo "ssh -L 8080:localhost:8080 <user>@spark-79b7.local"
-            echo "# open http://localhost:8080"
+            echo "systemctl --user restart kubeflow-portfwd kfp-api-portfwd"
+            echo "ssh -L 8080:localhost:8080 -L 8890:localhost:8890 <user>@spark-79b7.local"
+            echo "# UI:  http://localhost:8080"
+            echo "# API: http://localhost:8890/apis/v2beta1/healthz"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
