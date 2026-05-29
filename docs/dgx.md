@@ -67,8 +67,7 @@ After deploying, restart the service and open `http://localhost:8080` through
 an SSH tunnel.
 
 ```text
-Actions -> Build MLMD arm64 Images   (once per version, or after version bump)
-Actions -> Build KFP arm64 Images    (once per version, or after version bump)
+Actions -> Build KFP arm64 Images    (once per version; covers all 13 arm64 images including MLMD)
 Actions -> Kubeflow Undeploy         (clean slate before deploy)
 Actions -> Kubeflow Deploy
 ```

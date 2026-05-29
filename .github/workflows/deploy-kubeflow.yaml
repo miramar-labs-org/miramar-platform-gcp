@@ -9,8 +9,7 @@ name: Kubeflow Deploy
 #     when use_native_kfp_images=true (the default)
 #
 # Prerequisites (run in order before first deploy or after version bump):
-#   1. Build MLMD arm64 Images
-#   2. Build KFP arm64 Images
+#   1. Build KFP arm64 Images (covers all 13 components including MLMD)
 # See dgx/minikube/kubeflow/arm64/README.md for details.
 #
 # UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by

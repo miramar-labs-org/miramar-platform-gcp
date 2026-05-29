@@ -120,9 +120,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace |
-| Build MLMD arm64 Images | `build-mlmd-arm64.yaml` | Build arm64 MLMD images (ml_metadata_store_server, kfp-metadata-writer) via Bazel. ~45-60 min first run. |
-| Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 11 remaining KFP arm64 images on DGX. Optional `component` input to rebuild a single image. |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images. Prerequisites: both Build workflows. |
+| Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images. Prerequisite: Build KFP arm64 Images. |
 | New Project | `new-project.yaml` | Create a new private repo under miramar-labs-org pre-wired with a notebook, KFP pipeline stub, and deploy/undeploy workflows for KFP and NeMo. |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
 | Ollama Deploy | `deploy-ollama.yaml` | Pull + load Ollama model on DGX host. Fails if 128 GB pool is full. |

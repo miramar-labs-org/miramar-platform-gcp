@@ -1,20 +1,28 @@
 name: Build KFP arm64 Images
 
-# Builds native arm64 images for all Kubeflow Pipelines 2.x components that
+# Builds native arm64 images for all 13 Kubeflow Pipelines 2.x components that
 # upstream publishes as amd64-only (tracked in kubeflow/pipelines#12705).
 #
-# All components are built natively on the DGX arm64 runner from the KFP source
-# at the specified version tag. Build context is the KFP repo root for all
-# components (they share go.mod and each Dockerfile uses repo-relative paths).
+# 11 KFP components are built natively on the DGX arm64 runner from the KFP
+# source at the specified version tag. Build context is the KFP repo root for
+# all components (they share go.mod and each Dockerfile uses repo-relative
+# paths).
 #
-# Two components require patched Dockerfiles:
-#   kfp-api-server — upstream uses $TARGETARCH (unset in plain docker build) for the Argo
-#     CLI download URL, producing argo-linux-.gz (404); patch hardcodes arm64.
-#     Patched version: dgx/minikube/kubeflow/arm64/<version>/Dockerfile.api-server
+# 2 MLMD components require Bazel and custom Dockerfiles from this repo:
+#   ml_metadata_store_server — upstream hardcodes x86_64 Bazel installer; patched
+#     to use Bazelisk (auto-selects arch). ~45-60 min first run; fast on cache.
+#   kfp-metadata-writer — explicitly excluded from upstream arm64 CI; depends on
+#     ml-metadata Python wheel which has no aarch64 PyPI build — built via Bazel.
+#
+# Two KFP components require patched Dockerfiles:
+#   kfp-api-server — upstream uses $TARGETARCH (unset in plain docker build) for
+#     the Argo CLI download URL, producing argo-linux-.gz (404); patch hardcodes
+#     arm64. Patched version: dgx/minikube/kubeflow/arm64/<version>/Dockerfile.api-server
 #   kfp-visualization-server — upstream hardcodes x86_64 in the gcloud SDK URL;
-#     patched version lives at dgx/minikube/kubeflow/arm64/<version>/Dockerfile.visualization-server
+#     patched version: dgx/minikube/kubeflow/arm64/<version>/Dockerfile.visualization-server
 #
 # Images produced (all under ghcr.io/miramar-labs-org/):
+#   ml_metadata_store_server, kfp-metadata-writer,
 #   kfp-api-server, kfp-frontend, kfp-persistence-agent,
 #   kfp-scheduled-workflow-controller, kfp-cache-server, kfp-cache-deployer,
 #   kfp-viewer-crd-controller, kfp-metadata-envoy, kfp-visualization-server,
@@ -31,8 +39,16 @@ on:
         description: KFP version tag (e.g. 2.16.1)
         default: "2.16.1"
         required: false
+      mlmd_server_version:
+        description: ml-metadata server version (1.14.0 for KFP 2.16.1)
+        default: "1.14.0"
+        required: false
+      mlmd_wheel_version:
+        description: ml-metadata Python wheel version (1.17.0 for KFP 2.16.1)
+        default: "1.17.0"
+        required: false
       component:
-        description: "Component to build (e.g. kfp-api-server). Leave blank to build all 11."
+        description: "Component to build (e.g. kfp-api-server). Leave blank to build all 13."
         default: ""
         required: false
 
@@ -42,11 +58,11 @@ permissions:
 
 jobs:
   # Generates the matrix based on the "component" input.
-  # When component is blank all 11 are included; when set only that one runs.
+  # When component is blank all 13 are included; when set only that one runs.
   # This indirection is required because GHA does not allow `matrix` context
   # in a job-level `if:` expression.
   setup:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dgx]
     outputs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
     steps:
@@ -58,17 +74,19 @@ jobs:
           import json, os
 
           ALL = [
-            {"component": "kfp-api-server",                    "patched_dockerfile": "Dockerfile.api-server"},
-            {"component": "kfp-frontend"},
-            {"component": "kfp-persistence-agent"},
-            {"component": "kfp-scheduled-workflow-controller"},
-            {"component": "kfp-cache-server"},
-            {"component": "kfp-cache-deployer"},
-            {"component": "kfp-viewer-crd-controller"},
-            {"component": "kfp-metadata-envoy"},
-            {"component": "kfp-visualization-server",          "patched_dockerfile": "Dockerfile.visualization-server"},
-            {"component": "kfp-driver"},
-            {"component": "kfp-launcher"},
+            {"component": "kfp-api-server",                    "type": "kfp", "patched_dockerfile": "Dockerfile.api-server"},
+            {"component": "kfp-frontend",                      "type": "kfp"},
+            {"component": "kfp-persistence-agent",             "type": "kfp"},
+            {"component": "kfp-scheduled-workflow-controller", "type": "kfp"},
+            {"component": "kfp-cache-server",                  "type": "kfp"},
+            {"component": "kfp-cache-deployer",                "type": "kfp"},
+            {"component": "kfp-viewer-crd-controller",         "type": "kfp"},
+            {"component": "kfp-metadata-envoy",                "type": "kfp"},
+            {"component": "kfp-visualization-server",          "type": "kfp", "patched_dockerfile": "Dockerfile.visualization-server"},
+            {"component": "kfp-driver",                        "type": "kfp"},
+            {"component": "kfp-launcher",                      "type": "kfp"},
+            {"component": "ml-metadata-server",  "type": "mlmd", "image_name": "ml_metadata_store_server", "mlmd_dockerfile": "Dockerfile.mlmd-server",    "use_mlmd_server_version": True},
+            {"component": "kfp-metadata-writer", "type": "mlmd", "image_name": "kfp-metadata-writer",      "mlmd_dockerfile": "Dockerfile.metadata-writer", "use_mlmd_server_version": False},
           ]
 
           # Upstream Dockerfile paths (used when no patched_dockerfile is set)
@@ -87,7 +105,8 @@ jobs:
           }
 
           for entry in ALL:
-            entry["dockerfile"] = UPSTREAM[entry["component"]]
+            if entry["type"] == "kfp":
+              entry["dockerfile"] = UPSTREAM[entry["component"]]
 
           component = os.environ.get("COMPONENT", "").strip()
           subset = [e for e in ALL if e["component"] == component] if component else ALL
@@ -109,7 +128,6 @@ jobs:
 
     env:
       KFP_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
-      IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.component }}
 
     steps:
       - uses: actions/checkout@v4
@@ -120,6 +138,7 @@ jobs:
             | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Clone kubeflow/pipelines at ${{ env.KFP_VERSION }}
+        if: matrix.type == 'kfp'
         run: |
           git clone \
             --branch "${KFP_VERSION}" \
@@ -129,9 +148,11 @@ jobs:
             kfp-src
 
       - name: Build ${{ matrix.component }} for arm64
+        if: matrix.type == 'kfp'
         env:
           PATCHED_DOCKERFILE: ${{ matrix.patched_dockerfile }}
         run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ matrix.component }}"
           if [ -n "${PATCHED_DOCKERFILE}" ]; then
             DOCKERFILE="dgx/minikube/kubeflow/arm64/${KFP_VERSION}/${PATCHED_DOCKERFILE}"
           else
@@ -142,9 +163,32 @@ jobs:
             -f "${DOCKERFILE}" \
             -t "${IMAGE}:${KFP_VERSION}-arm64" \
             kfp-src
+          echo "BUILT_IMAGE=${IMAGE}:${KFP_VERSION}-arm64" >> "$GITHUB_ENV"
+
+      - name: Build ${{ matrix.component }} for arm64 (MLMD)
+        if: matrix.type == 'mlmd'
+        env:
+          MLMD_SERVER_VERSION: ${{ inputs.mlmd_server_version || '1.14.0' }}
+          MLMD_WHEEL_VERSION:  ${{ inputs.mlmd_wheel_version  || '1.17.0' }}
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}"
+          if [ "${{ matrix.use_mlmd_server_version }}" = "true" ]; then
+            TAG="${MLMD_SERVER_VERSION}-arm64"
+            BUILD_ARGS="--build-arg MLMD_VERSION=${MLMD_SERVER_VERSION}"
+          else
+            TAG="${KFP_VERSION}-arm64"
+            BUILD_ARGS="--build-arg KFP_VERSION=${KFP_VERSION} --build-arg MLMD_VERSION=${MLMD_WHEEL_VERSION}"
+          fi
+          docker build \
+            --network=host \
+            ${BUILD_ARGS} \
+            -f "dgx/minikube/kubeflow/arm64/${KFP_VERSION}/${{ matrix.mlmd_dockerfile }}" \
+            -t "${IMAGE}:${TAG}" \
+            "dgx/minikube/kubeflow/arm64/${KFP_VERSION}"
+          echo "BUILT_IMAGE=${IMAGE}:${TAG}" >> "$GITHUB_ENV"
 
       - name: Push to GHCR
-        run: docker push "${IMAGE}:${KFP_VERSION}-arm64"
+        run: docker push "${BUILT_IMAGE}"
 
       - name: Summary
         if: always()
@@ -153,7 +197,7 @@ jobs:
             echo "## ${{ matrix.component }} arm64"
             echo "| | |"
             echo "|---|---|"
-            echo "| Image | \`${IMAGE}:${KFP_VERSION}-arm64\` |"
+            echo "| Image | \`${BUILT_IMAGE}\` |"
             echo "| KFP version | \`${KFP_VERSION}\` |"
             echo "| Builder arch | \`$(uname -m)\` |"
           } >> "$GITHUB_STEP_SUMMARY"

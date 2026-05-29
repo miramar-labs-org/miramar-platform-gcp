@@ -19,7 +19,7 @@ echo "==> Checking arm64 MLMD images exist on GHCR ..."
 for img in "${MLMD_SERVER_IMAGE}" "${METADATA_WRITER_IMAGE}"; do
   if ! docker manifest inspect "${img}" >/dev/null 2>&1; then
     echo "ERROR: ${img} not found." >&2
-    echo "Run the 'Build MLMD arm64 Images' workflow first, then retry." >&2
+    echo "Run the 'Build KFP arm64 Images' workflow first, then retry." >&2
     exit 1
   fi
 done

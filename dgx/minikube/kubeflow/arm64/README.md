@@ -244,49 +244,36 @@ Three-stage build:
 
 ## Build Workflows
 
-### Build MLMD arm64 Images (`build-mlmd-arm64.yaml`)
+### Build KFP arm64 Images (`build-kfp-arm64.yaml`)
 
-Builds the two MLMD components that require Bazel. Both jobs run in parallel on
-the DGX native arm64 runner (`dgx` label).
+Builds all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) natively on
+the DGX. A `setup` job generates the build matrix from the `component` input.
 
 | Input | Default | Notes |
 |---|---|---|
-| `pipeline_version` | `2.16.1` | Sets kfp-metadata-writer image tag |
+| `pipeline_version` | `2.16.1` | KFP version tag; also sets kfp-metadata-writer image tag |
 | `mlmd_server_version` | `1.14.0` | ml_metadata_store_server version |
 | `mlmd_wheel_version` | `1.17.0` | ml-metadata Python wheel version |
+| `component` | `` (blank) | Leave blank to build all 13; set to one name (e.g. `kfp-api-server` or `ml-metadata-server`) to rebuild a single image |
 
-**Expected duration:** ~45–60 min per job on first run (fresh Bazel build). Docker
-layer cache makes subsequent runs fast (seconds) unless the Dockerfile or source
-version changes.
+**Expected duration:** MLMD jobs (~45–60 min first run; fast on Docker layer cache).
+Pure-Go KFP components are ~5 min each; `kfp-frontend` (Node.js) is the slowest at
+~30 min. All 13 queue on the single DGX runner — expect 60–90 min for the full set
+on a warm cache.
 
 **When to re-run:** When bumping KFP version. Check the new version's
 `manifests/kustomize/base/metadata/base/metadata-grpc-deployment.yaml` and
-`backend/metadata_writer/requirements.txt` to find the new pinned versions, then
-update all three workflow inputs.
-
-### Build KFP arm64 Images (`build-kfp-arm64.yaml`)
-
-Builds all 11 remaining KFP components natively on the DGX. A `setup` job
-generates the build matrix from the `component` input.
-
-| Input | Default | Notes |
-|---|---|---|
-| `pipeline_version` | `2.16.1` | KFP version tag |
-| `component` | `` (blank) | Leave blank to build all 11; set to one name (e.g. `kfp-api-server`) to rebuild a single image |
-
-**Expected duration:** Pure-Go components are ~5 min each; `kfp-frontend` (Node.js) is the slowest at ~30 min. All 11 queue on the single DGX runner — expect 60–90 min for the full set.
-
-**When to re-run:** After a KFP version bump, or to rebuild a single component after a Dockerfile patch (`--field component=kfp-api-server`).
+`backend/metadata_writer/requirements.txt` to find the new pinned MLMD versions, then
+update `mlmd_server_version` and `mlmd_wheel_version` workflow inputs accordingly.
 
 ---
 
 ## Deploy Order
 
 ```
-1. Build MLMD arm64 Images    (once per version; ~45-60 min Bazel build, fast on cache)
-2. Build KFP arm64 Images     (once per version; ~60-90 min for all 11)
-3. Kubeflow Undeploy          (clean slate)
-4. Kubeflow Deploy            (applies kustomize + patches all 13 images + creates pull secret)
+1. Build KFP arm64 Images    (once per version; ~45-60 min Bazel build on first run)
+2. Kubeflow Undeploy         (clean slate)
+3. Kubeflow Deploy           (applies kustomize + patches all 13 images + creates pull secret)
 ```
 
 `deploy-kubeflow.sh`:
