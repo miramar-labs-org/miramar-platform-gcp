@@ -61,6 +61,8 @@ jobs:
         env:
           PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
           MLMD_SERVER_VERSION: "1.14.0"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: bash dgx/minikube/kubeflow/deploy-kubeflow.sh
 
       - name: Wait for pods

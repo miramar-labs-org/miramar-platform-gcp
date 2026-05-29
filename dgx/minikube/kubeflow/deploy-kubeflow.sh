@@ -36,16 +36,32 @@ kubectl apply -k \
 echo "==> Removing arm64-incompatible controller-manager ..."
 kubectl delete deployment controller-manager -n kubeflow --ignore-not-found || true
 
+# Create (or update) a GHCR imagePullSecret in the kubeflow namespace.
+# GITHUB_TOKEN is a short-lived Actions token with packages:read — sufficient
+# to pull from ghcr.io. The secret is recreated each deploy so the token stays fresh.
+echo "==> Creating GHCR imagePullSecret in kubeflow namespace ..."
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username="${GITHUB_ACTOR:-github-actions}" \
+  --docker-password="${GITHUB_TOKEN}" \
+  --namespace=kubeflow \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 # Patch the MLMD stack with arm64-compatible images built by 'Build MLMD arm64 Images'.
 # Container names are from the upstream deployment specs:
 #   metadata-grpc-deployment → container name: "container"
 #   metadata-writer          → container name: "main"
-echo "==> Patching MLMD deployments with arm64 images ..."
+echo "==> Patching MLMD deployments with arm64 images and GHCR pull secret ..."
 kubectl set image deployment/metadata-grpc-deployment \
   container="${MLMD_SERVER_IMAGE}" \
   -n kubeflow
 kubectl set image deployment/metadata-writer \
   main="${METADATA_WRITER_IMAGE}" \
   -n kubeflow
+# Add imagePullSecrets so pods can pull from private GHCR registry
+for deploy in metadata-grpc-deployment metadata-writer; do
+  kubectl patch deployment "${deploy}" -n kubeflow \
+    -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-pull-secret"}]}}}}'
+done
 echo "    ml_metadata_store_server → ${MLMD_SERVER_IMAGE}"
 echo "    kfp-metadata-writer      → ${METADATA_WRITER_IMAGE}"
