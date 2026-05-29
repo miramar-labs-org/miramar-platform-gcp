@@ -39,11 +39,11 @@ ROWS=""
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   sha=$(GH_TOKEN="$GH_TOKEN" gh api \
-    "repos/${ORG}/${name}/commits?per_page=1" \
-    --jq '.[0].sha[0:7]' 2>/dev/null || echo "")
+    "repos/${ORG}/${name}/commits?per_page=1" 2>/dev/null \
+    | jq -r 'if type == "array" then (.[0].sha // "")[:7] else "" end' 2>/dev/null || echo "")
 
   # --- Deploy status: compare latest successful deploy vs undeploy run ---
   deploy_ts=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
@@ -138,6 +138,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-kfp      { background: #1a4731; color: #3fb950; }
   .badge-nemo     { background: #0c2d6b; color: #79c0ff; }
   .badge-other    { background: #2d2b00; color: #d29922; }
+  .badge-default  { background: #1d2d3e; color: #79c0ff; }
   .badge-deployed { background: #1a4731; color: #3fb950; }
   .badge-idle     { background: #21262d; color: #8b949e; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }

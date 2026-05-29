@@ -1,0 +1,68 @@
+name: Open in JupyterLab
+
+# Clones or pulls this repo to ~/git-miramar-labs-org/projects/<repo-name>
+# on the DGX host and prints the direct JupyterLab URL.
+#
+# Uses the SSH key already mounted in the runner at ~/.ssh/id_ed25519
+# (from the shared SSH store). No GitHub secrets required.
+#
+# Prerequisites:
+#   - Shared SSH store set up on the DGX (Setup Shared SSH Store workflow)
+#   - JupyterLab running on DGX (DGX systemd services installed and lingering)
+#   - SSH tunnel: ssh -L 8888:localhost:8888 <user>@spark-79b7.local
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  open:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 5
+
+    steps:
+      - name: Clone or pull repo on DGX host
+        env:
+          REPO: ${{ github.repository }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          DGX_USER: ${{ vars.DGX_HOST_USER }}
+          SCRIPT: |
+            set -euo pipefail
+            mkdir -p "${HOME}/git-miramar-labs-org/projects"
+            DEST="${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+            if [ -d "${DEST}/.git" ]; then
+              git -C "${DEST}" stash
+              git -C "${DEST}" pull --ff-only
+              git -C "${DEST}" stash drop 2>/dev/null || true
+              echo "Pulled: ${DEST}"
+            else
+              git clone \
+                "https://x-access-token:${PAT}@github.com/${REPO}.git" \
+                "${DEST}"
+              echo "Cloned: ${DEST}"
+            fi
+        run: |
+          if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo "ERROR: ~/.ssh/id_ed25519 not found." \
+                 "Run the Setup Shared SSH Store workflow first." >&2
+            exit 1
+          fi
+          printf '%s' "${SCRIPT}" \
+            | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+                "${DGX_USER:-aaron}@localhost" \
+                env REPO="${REPO}" REPO_NAME="${REPO_NAME}" \
+                    PAT="${GITHUB_ORG_ADMIN_PAT}" bash
+
+      - name: Summary
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          {
+            echo "## Open in JupyterLab"
+            echo ""
+            echo "Repo synced to \`~/git-miramar-labs-org/projects/${REPO_NAME}\` on the DGX."
+            echo ""
+            echo "**Open:** [http://localhost:8888/lab/tree/git-miramar-labs-org/projects/${REPO_NAME}](http://localhost:8888/lab/tree/git-miramar-labs-org/projects/${REPO_NAME})"
+          } >> "$GITHUB_STEP_SUMMARY"

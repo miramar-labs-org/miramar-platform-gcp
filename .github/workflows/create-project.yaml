@@ -3,6 +3,7 @@ name: Create Project
 # Creates a new GitHub repository under miramar-labs-org pre-wired
 # to the Miramar platform. Defaults to public so projects appear in the dashboard.
 #
+# default — generic notebook + platform endpoint reference
 # kfp  — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
 # nemo — NeMo training job config, notebook, deploy/undeploy NeMo workflows
 #
@@ -18,8 +19,8 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [kfp, nemo]
-        default: kfp
+        options: [default, kfp, nemo]
+        default: default
         required: true
       description:
         description: Short repo description (optional)
@@ -101,14 +102,17 @@ jobs:
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           WF="${ORG_URL}/actions/workflows"
           BADGE_JL="[![Open in JupyterLab](${WF}/open-jupyterlab.yaml/badge.svg)](${WF}/open-jupyterlab.yaml)"
-          if [ "${PROJECT_TYPE}" = "kfp" ]; then
+          if [ "${PROJECT_TYPE}" = "default" ]; then
+            { head -1 README.md; printf '\n%s\n' "${BADGE_JL}"; tail -n +2 README.md; } > README.tmp
+          elif [ "${PROJECT_TYPE}" = "kfp" ]; then
             BADGE_2="[![Deploy to KFP](${WF}/deploy-kfp.yaml/badge.svg)](${WF}/deploy-kfp.yaml)"
             BADGE_3="[![Undeploy from KFP](${WF}/undeploy-kfp.yaml/badge.svg)](${WF}/undeploy-kfp.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_JL}" "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
           else
             BADGE_2="[![Deploy to NeMo](${WF}/deploy-nemo.yaml/badge.svg)](${WF}/deploy-nemo.yaml)"
             BADGE_3="[![Undeploy from NeMo](${WF}/undeploy-nemo.yaml/badge.svg)](${WF}/undeploy-nemo.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_JL}" "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
           fi
-          { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_JL}" "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
           mv README.tmp README.md
 
           git add .
@@ -161,7 +165,15 @@ jobs:
             echo "**Type:** \`${PROJECT_TYPE}\`"
             echo "**Visibility:** \`${REPO_VISIBILITY}\`"
             echo ""
-            if [ "${PROJECT_TYPE}" = "kfp" ]; then
+            if [ "${PROJECT_TYPE}" = "default" ]; then
+              echo "### Files"
+              echo "- \`README.md\`, \`CLAUDE.md\`, \`notebook.ipynb\`"
+              echo ""
+              echo "### Next steps"
+              echo "1. Edit \`README.md\` — add a one-line description"
+              echo "2. Open \`notebook.ipynb\` in JupyterLab via the **Open in JupyterLab** workflow"
+              echo "3. SSH tunnel for platform endpoints: see README"
+            elif [ "${PROJECT_TYPE}" = "kfp" ]; then
               echo "### Files"
               echo "- \`README.md\`, \`CLAUDE.md\`"
               echo "- \`pipeline.py\` — KFP v2 pipeline stub"
