@@ -107,14 +107,19 @@ WORKDIR /build/ml-metadata
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
 # .bazelrc additions:
-# --cxxopt/-host_cxxopt=-std=c++17: absl/zetasql use enum-class scoping
-#   (C++11) but the WORKSPACE versions require C++17 to avoid other errors.
-# --per_file_copt/--host_per_file_copt for external/upb: upb (gRPC transitive
-#   dep) uses __builtin_offsetof(struct{...}) which Clang 19 flags as a C23
-#   extension. upb's BUILD adds -pedantic -Werror=pedantic which turn it fatal.
-#   --copt/-Wno- flags are injected BEFORE BUILD copts so -pedantic re-enables
-#   the warning. --per_file_copt appends AFTER BUILD copts, so -Wno- wins.
+# C++17: absl/zetasql require C++17 for enum-class scoping.
+# absl -include stdint.h: absl commit 940c06c uses uint8_t/uint64_t in
+#   extension.h but does not include <cstdint>. GCC gets these types
+#   transitively through <limits.h> on glibc; Clang does not. Force-including
+#   /usr/include/stdint.h (from build-essential) before absl TUs fixes this.
+#   --per_file_copt appends AFTER the BUILD copts, so placement is correct.
+# upb -Wno-c23-extensions: upb (gRPC dep) uses __builtin_offsetof(struct{...})
+#   which Clang 19 flags as C23 extension. upb's BUILD has -Werror=pedantic
+#   which makes it fatal. --copt injects before BUILD copts (pedantic re-enables
+#   the warning), so we must use --per_file_copt which appends after BUILD copts.
 RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc && \
+    echo 'build --per_file_copt=external/com_google_absl/.*@-include,/usr/include/stdint.h' >> .bazelrc && \
+    echo 'build --host_per_file_copt=external/com_google_absl/.*@-include,/usr/include/stdint.h' >> .bazelrc && \
     echo 'build --per_file_copt=external/upb/.*@-Wno-c23-extensions' >> .bazelrc && \
     echo 'build --host_per_file_copt=external/upb/.*@-Wno-c23-extensions' >> .bazelrc
 
