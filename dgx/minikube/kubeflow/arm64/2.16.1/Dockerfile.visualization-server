@@ -1,6 +1,6 @@
 # Patched from backend/Dockerfile.visualization for arm64.
 # Only change: the google-cloud-cli download URL was hardcoded to x86_64.
-# This version detects the host architecture (arm64 → aarch64, else x86_64)
+# This version detects the host architecture (arm64 → arm, else x86_64)
 # and downloads the matching tarball. sha256 verification is omitted because
 # the checksum differs per architecture; the download is HTTPS from Google CDN.
 #
@@ -14,7 +14,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends wget curl tar openssl \
   && rm -rf /var/lib/apt/lists/* \
   && ARCH="$(dpkg --print-architecture)" \
-  && GCLOUD_ARCH="$([ "$ARCH" = "arm64" ] && echo "aarch64" || echo "x86_64")" \
+  && GCLOUD_ARCH="$([ "$ARCH" = "arm64" ] && echo "arm" || echo "x86_64")" \
   && curl -fsSL "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-${CLOUD_SDK_VERSION}-linux-${GCLOUD_ARCH}.tar.gz" \
        -o /tmp/google-cloud-sdk.tar.gz \
   && mkdir -p /usr/local/gcloud \
