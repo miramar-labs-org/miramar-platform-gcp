@@ -1,6 +1,6 @@
 name: Delete Project
 
-# Permanently deletes a miramar-labs-org repository created by the New Project workflow.
+# Permanently deletes a miramar-labs-org repository created by the Create Project workflow.
 # Triggers the Platform Dashboard to refresh immediately after deletion.
 #
 # Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) — requires

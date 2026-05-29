@@ -63,7 +63,7 @@ environment:
 | Variable | Scope required | Purpose |
 | --- | --- | --- |
 | `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull `mlabs-runner` from GHCR |
-| `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Manage self-hosted runners, update `WSL2_DISTROS`, push `.github/workflows/` files to new repos. The `workflow` scope is required by GitHub whenever a push includes files under `.github/workflows/` — e.g. the **New Project** workflow. |
+| `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Manage self-hosted runners, update `WSL2_DISTROS`, push `.github/workflows/` files to new repos. The `workflow` scope is required by GitHub whenever a push includes files under `.github/workflows/` — e.g. the **Create Project** workflow. |
 
 Example:
 
