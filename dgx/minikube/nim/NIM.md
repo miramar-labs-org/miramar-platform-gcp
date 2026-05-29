@@ -4,7 +4,7 @@ NIM containers built specifically for the DGX Spark (GB10 Grace Blackwell, arm64
 These use a different base container than standard NIMs (`-variant` tag) and are the only NIMs verified
 to run on the Spark's Blackwell GPU.
 
-Source: [NVIDIA NIM for LLMs — Supported Models](https://docs.nvidia.com/nim/large-language-models/1.15.0/supported-models.html) (v1.15.0/1.15.5, May 2026)
+Sources: [NVIDIA NIM for LLMs — Supported Models](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html) · [NGC DGX Spark NIM containers](https://catalog.ngc.nvidia.com/orgs/nim/containers?filters=&orderBy=scoreDESC&query=dgx-spark)
 
 ## Deploy via NeMo Microservices API
 

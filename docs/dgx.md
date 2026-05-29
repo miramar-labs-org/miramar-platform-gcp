@@ -91,7 +91,8 @@ Actions -> Ollama Undeploy
 ```
 
 Deploy fails clearly if a NIM or another Ollama model is already occupying the
-128 GB GPU pool. See [../dgx/ollama/README.md](../dgx/ollama/README.md).
+128 GB GPU pool. See [../dgx/ollama/README.md](../dgx/ollama/README.md) for the
+local model catalog. Browse available models: [ollama.com/library](https://ollama.com/library).
 
 ## NeMo Microservices
 
@@ -128,3 +129,5 @@ After deployment:
 ```sh
 curl http://nim.test/v1/models
 ```
+
+Available DGX Spark NIMs: [NVIDIA NIM supported models](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html) · [NGC DGX Spark containers](https://catalog.ngc.nvidia.com/orgs/nim/containers?filters=&orderBy=scoreDESC&query=dgx-spark).

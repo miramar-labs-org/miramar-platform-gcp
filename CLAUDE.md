@@ -188,9 +188,9 @@ Five systemd user services start on boot (via linger) — managed via `dgx/syste
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
-**NIM** — default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`. See `dgx/minikube/nim/NIM.md` for catalog.
+**NIM** — default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`. See `dgx/minikube/nim/NIM.md` for catalog. Available DGX Spark NIMs: https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html
 
-**Ollama** — runs as a systemd service on the DGX host (not in minikube). **NIM and Ollama share the 128 GB unified memory pool** (~28 GB reserved for system, ~100 GB for workloads). See `dgx/ollama/README.md` for model catalog.
+**Ollama** — runs as a systemd service on the DGX host (not in minikube). **NIM and Ollama share the 128 GB unified memory pool** (~28 GB reserved for system, ~100 GB for workloads). See `dgx/ollama/README.md` for model catalog. Browse available models: https://ollama.com/library
 
 Ollama API quirks (relevant when editing scripts):
 - Unloading requires `POST /api/generate` with `{"model":"...","prompt":"","keep_alive":0}` — the `prompt` field is required; omitting it silently no-ops.

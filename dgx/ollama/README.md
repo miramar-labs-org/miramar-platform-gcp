@@ -1,6 +1,6 @@
 # Ollama on DGX Spark
 
-[Ollama](https://ollama.com) ([GitHub](https://github.com/ollama/ollama) · [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md)) runs on the DGX Spark with full GPU acceleration. The GB10 is sm_121 (Blackwell); Ollama ships
+[Ollama](https://ollama.com) ([Model library](https://ollama.com/library) · [GitHub](https://github.com/ollama/ollama) · [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md)) runs on the DGX Spark with full GPU acceleration. The GB10 is sm_121 (Blackwell); Ollama ships
 sm_120 binaries that are binary-compatible with sm_121 — confirmed working as of Ollama v0.12.6 +
 firmware 580.95.05. As of mid-2026, Ollama is the only local LLM runtime with reliable GPU acceleration
 on DGX Spark (vLLM and TGI have open sm_121/aarch64 issues).
@@ -41,7 +41,7 @@ bash dgx/ollama/undeploy_ollama.sh llama3.3:70b-instruct-q4_K_M true
 
 Source: [Ollama DGX Spark performance blog](https://ollama.com/blog/nvidia-spark-performance) (official benchmarks, Ollama v0.12.6)
 
-**References:** [Ollama](https://ollama.com) · [GitHub](https://github.com/ollama/ollama) · [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md) · [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) · [CUDA](https://developer.nvidia.com/cuda-toolkit)
+**References:** [Ollama](https://ollama.com) · [Model library](https://ollama.com/library) · [GitHub](https://github.com/ollama/ollama) · [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md) · [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) · [CUDA](https://developer.nvidia.com/cuda-toolkit)
 
 ## Top 5 Models
 
