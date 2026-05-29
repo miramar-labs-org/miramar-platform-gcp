@@ -56,7 +56,19 @@ RUN git clone \
 # ---------------------------------------------------------------------------
 # Stage 2: Build ml-metadata Python wheel for arm64 with Bazel
 # ---------------------------------------------------------------------------
-FROM python:3.11 AS wheel-builder
+# python:3.11-bullseye (Debian 11 / glibc 2.31) instead of python:3.11
+# (Debian 12 / glibc 2.36) for two glibc-version-dependent reasons:
+#
+#   1. uint8_t availability: absl commit 940c06c uses uint8_t in extension.h
+#      but doesn't include <cstdint>. On glibc 2.36, <limits.h> no longer
+#      provides uint8_t transitively. On glibc 2.31 it does (same behavior
+#      as ubuntu:20.04 used by Dockerfile.mlmd-server which builds fine).
+#
+#   2. SIGSTKSZ is constant: glibc 2.34+ made SIGSTKSZ dynamic via
+#      sysconf(_SC_SIGSTKSZ). ZetaSQL's m4 build (c-stack.c line 55) uses
+#      SIGSTKSZ in a #if condition which fails when it's not a compile-time
+#      constant. On glibc 2.31, SIGSTKSZ is still a plain integer constant.
+FROM python:3.11-bullseye AS wheel-builder
 
 ARG MLMD_VERSION
 ARG BAZELISK_VERSION
@@ -100,22 +112,13 @@ WORKDIR /build/ml-metadata
 # Bazelisk cannot parse — extract just the version number on the last line.
 RUN tail -1 ml_metadata/.bazelversion > .bazelversion
 
-# .bazelrc additions:
-# C++17: absl/zetasql require C++17 for enum-class scoping.
-# absl -include stdint.h: absl commit 940c06c uses uint8_t/uint64_t in
-#   extension.h but does not include <cstdint>. GCC 12 (Debian Bookworm
-#   default) emits "found ':' in nested-name-specifier" as its confusing
-#   error for an unknown enum underlying type when uint8_t is undefined.
-#   Force-including /usr/include/stdint.h makes uint8_t available before
-#   any absl translation unit is compiled. --per_file_copt appends AFTER
-#   the target's BUILD copts so the include fires at the right position.
-RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc && \
-    echo 'build --per_file_copt=external/com_google_absl/.*@-include,/usr/include/stdint.h' >> .bazelrc && \
-    echo 'build --host_per_file_copt=external/com_google_absl/.*@-include,/usr/include/stdint.h' >> .bazelrc
+# Force C++17 globally via .bazelrc. The absl and zetasql versions pinned in
+# this WORKSPACE use enum-class scoping that requires at minimum C++17.
+RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc
 
 # Fix platform-specific defines hardcoded in ml_metadata/postgresql.BUILD.
-# Same fixes as Dockerfile.mlmd-server for x86-only. HAVE_GETPEEREID is
-# a BSD/macOS function absent on Linux (GCC warns, Clang errors).
+# Same x86-only fixes as Dockerfile.mlmd-server. HAVE_GETPEEREID is a
+# BSD/macOS function not on Linux; GCC warns but the linker would fail.
 #
 #   HAVE_X86_64_POPCNTQ — x86-only POPCNTQ; causes pg_bitutils.c to include
 #                         Clang's cpuid.h which errors "for x86 only" on arm64.
