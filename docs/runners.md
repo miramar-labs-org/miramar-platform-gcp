@@ -72,6 +72,25 @@ If jobs queue while a runner is idle, check org runner group access:
 | `scripts/gha/sync-github-tf-vars.sh` | Sync Terraform variables to GitHub org variables |
 | `scripts/gha/get-github-secrets.sh` | Print WIF/GCP secret values after bootstrap |
 
+## DGX volume mounts
+
+`launch-runner.sh` adds these mounts when running on the DGX (`dgx` label):
+
+| Host path | Container path | Purpose |
+|---|---|---|
+| `~/.minikube` | `/home/runner/.minikube` | Minikube state persists across container restarts |
+| `~/.kube` | `/home/runner/.kube` | kubeconfig for minikube cluster access |
+| `/usr/local/bin` | `/host-bin` | Workflows can install binaries to the host (e.g. minikube) |
+| `~/git-miramar-labs-org/projects` | `/home/runner/git-miramar-labs-org/projects` | Project repos cloned by **Open in JupyterLab** land on the host filesystem so JupyterLab can open them directly |
+| `~/shared/ssh` | `/home/runner/.ssh` | Shared SSH identity (if set up via **Setup Shared SSH Store**) |
+| `/run/avahi-daemon/socket` | `/run/avahi-daemon/socket` | `.local` mDNS resolution via host avahi daemon |
+
+After any change to volume mounts in `launch-runner.sh`, restart the runner to apply:
+
+```sh
+./scripts/gha/stop-runner.sh && ./scripts/gha/launch-runner.sh --detach
+```
+
 ## Rebuild
 
 ```sh

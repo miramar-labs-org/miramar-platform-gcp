@@ -179,7 +179,7 @@ Five systemd user services start on boot (via linger) — managed via `dgx/syste
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` |
 
-**Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the DGX host so cluster state persists.
+**Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the DGX host so cluster state persists. It also mounts `~/git-miramar-labs-org/projects` so the **Open in JupyterLab** workflow can clone project repos directly to the host filesystem without SSH.
 
 **DGX workload stack** (deployment order): Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy (or Ollama Deploy)
 
