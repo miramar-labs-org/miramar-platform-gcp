@@ -60,7 +60,7 @@ while IFS= read -r repo_json; do
   fi
 
   # --- JupyterLab direct link (requires active SSH tunnel on port 8888) ---
-  jl_path="git-miramar-labs-org/projects/${name}"
+  jl_path="git-miramar-labs-org/projects/${name}/notebook.ipynb"
   jl_url="http://localhost:8888/lab/tree/${jl_path}"
   jl_html="<a href=\"${jl_url}\" class=\"jl-link\" title=\"${jl_url}\">&#x1F9EA; Open</a>"
 
