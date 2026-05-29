@@ -3,6 +3,8 @@
 Use this as the source-of-truth map when changing docs or looking for the right
 operational procedure.
 
+**[Platform Dashboard](https://miramar-labs-org.github.io/miramar-platform-gcp/)** — live table of all public Miramar projects (auto-refreshed hourly via `deploy-dashboard.yaml`).
+
 | Area | Start here | Source of truth |
 | --- | --- | --- |
 | Repo purpose and positioning | [SOWHAT.md](../SOWHAT.md) | [README.md](../README.md), [SOWHAT.md](../SOWHAT.md) |
