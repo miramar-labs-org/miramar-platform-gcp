@@ -5,6 +5,8 @@ operational procedure.
 
 **[Platform Dashboard](https://miramar-labs-org.github.io/miramar-platform-gcp/)** — live table of all public Miramar projects (auto-refreshed hourly via `deploy-dashboard.yaml`).
 
+> **One-time setup:** repo Settings → Pages → Source → **GitHub Actions**. After enabling, trigger `Deploy Platform Dashboard` via `workflow_dispatch` to seed the first deployment.
+
 | Area | Start here | Source of truth |
 | --- | --- | --- |
 | Repo purpose and positioning | [SOWHAT.md](../SOWHAT.md) | [README.md](../README.md), [SOWHAT.md](../SOWHAT.md) |
