@@ -2,6 +2,10 @@
 
 <!-- One-line description of this project -->
 
+[![Open in JupyterLab](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/open-jupyterlab.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/open-jupyterlab.yaml)
+[![Deploy to NeMo](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/deploy-nemo.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/deploy-nemo.yaml)
+[![Undeploy from NeMo](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/undeploy-nemo.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/undeploy-nemo.yaml)
+
 **Type**: NeMo Microservices
 
 ## Prerequisites
