@@ -76,7 +76,7 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 | --- | --- | --- |
 | Create Project | `create-project.yaml` | Create a new org repo pre-wired with notebook, KFP/NeMo pipeline stub, and deploy/undeploy workflows |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo (double-entry guard); triggers dashboard refresh |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard; reads platform state variables; runs hourly |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard; reads platform state variables; runs hourly + on completion of any state-writing workflow |
 
 ## WSL2 and SSH
 

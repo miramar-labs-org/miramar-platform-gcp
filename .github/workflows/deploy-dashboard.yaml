@@ -5,7 +5,16 @@ on:
     - cron: '0 * * * *'   # hourly
   workflow_dispatch:
   workflow_run:
-    workflows: ["Create Project", "Delete Project"]
+    workflows:
+      - "Create Project"
+      - "Delete Project"
+      - "NeMo Deploy"
+      - "Kubeflow Deploy"
+      - "Ollama Update"
+      - "NIM Deploy"
+      - "NIM Undeploy"
+      - "Ollama Deploy"
+      - "Ollama Undeploy"
     types: [completed]
 
 permissions:
