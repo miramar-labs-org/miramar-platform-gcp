@@ -80,9 +80,11 @@ GENERATED_AT=$(date -u '+%Y-%m-%d %H:%M UTC')
 # --- Platform state ---
 echo "==> Fetching platform state..."
 read_platform_var() {
-  GH_TOKEN="$ADMIN_TOKEN" gh api \
+  local val
+  val=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
     "repos/${ORG}/miramar-platform-gcp/actions/variables/${1}" \
-    --jq '.value' 2>/dev/null || echo ""
+    --jq '.value' 2>/dev/null) || val=""
+  echo "${val}"
 }
 NEMO_VERSION=$(read_platform_var "NEMO_VERSION")
 KFP_VERSION=$(read_platform_var "KFP_VERSION")
