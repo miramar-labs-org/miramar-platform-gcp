@@ -3,12 +3,11 @@ name: Open in JupyterLab
 # Clones or pulls this repo to ~/git-miramar-labs-org/projects/<repo-name>
 # on the DGX host and prints the direct JupyterLab URL.
 #
-# No secrets required — uses GITHUB_ORG_ADMIN_PAT (runner env var) for the
-# HTTPS clone. The host path is exposed via a volume mount in launch-runner.sh:
-#   ~/git-miramar-labs-org/projects -> /home/runner/git-miramar-labs-org/projects
+# Uses the SSH key already mounted in the runner at ~/.ssh/id_ed25519
+# (from the shared SSH store). No GitHub secrets required.
 #
 # Prerequisites:
-#   - Runner restarted after launch-runner.sh was updated to add the volume mount
+#   - Shared SSH store set up on the DGX (Setup Shared SSH Store workflow)
 #   - JupyterLab running on DGX (minikube systemd services installed)
 #   - SSH tunnel: ssh -L 8888:localhost:8888 <user>@spark-79b7.local
 
@@ -24,26 +23,34 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Clone or pull repo to DGX host
+      - name: Clone or pull repo on DGX host
         env:
           REPO: ${{ github.repository }}
           REPO_NAME: ${{ github.event.repository.name }}
+          DGX_USER: ${{ vars.DGX_HOST_USER }}
+          SCRIPT: |
+            set -euo pipefail
+            mkdir -p "${HOME}/git-miramar-labs-org/projects"
+            if [ -d "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}/.git" ]; then
+              git -C "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}" pull --ff-only
+              echo "Pulled: ${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+            else
+              git clone \
+                "https://x-access-token:${PAT}@github.com/${REPO}.git" \
+                "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+              echo "Cloned: ${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+            fi
         run: |
-          PROJECTS="${HOME}/git-miramar-labs-org/projects"
-          if [ ! -d "${PROJECTS}" ]; then
-            echo "ERROR: ${PROJECTS} not mounted — restart the runner after" \
-                 "updating launch-runner.sh to add the projects volume mount." >&2
+          if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo "ERROR: ~/.ssh/id_ed25519 not found." \
+                 "Run the Setup Shared SSH Store workflow first." >&2
             exit 1
           fi
-          if [ -d "${PROJECTS}/${REPO_NAME}/.git" ]; then
-            git -C "${PROJECTS}/${REPO_NAME}" pull --ff-only
-            echo "Pulled: ${PROJECTS}/${REPO_NAME}"
-          else
-            git clone \
-              "https://x-access-token:${GITHUB_ORG_ADMIN_PAT}@github.com/${REPO}.git" \
-              "${PROJECTS}/${REPO_NAME}"
-            echo "Cloned: ${PROJECTS}/${REPO_NAME}"
-          fi
+          printf '%s' "${SCRIPT}" \
+            | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+                "${DGX_USER:-aaron}@localhost" \
+                env REPO="${REPO}" REPO_NAME="${REPO_NAME}" \
+                    PAT="${GITHUB_ORG_ADMIN_PAT}" bash
 
       - name: Summary
         env:

@@ -81,8 +81,7 @@ If jobs queue while a runner is idle, check org runner group access:
 | `~/.minikube` | `/home/runner/.minikube` | Minikube state persists across container restarts |
 | `~/.kube` | `/home/runner/.kube` | kubeconfig for minikube cluster access |
 | `/usr/local/bin` | `/host-bin` | Workflows can install binaries to the host (e.g. minikube) |
-| `~/git-miramar-labs-org/projects` | `/home/runner/git-miramar-labs-org/projects` | Project repos cloned by **Open in JupyterLab** land on the host filesystem so JupyterLab can open them directly |
-| `~/shared/ssh` | `/home/runner/.ssh` | Shared SSH identity (if set up via **Setup Shared SSH Store**) |
+| `~/shared/ssh` | `/home/runner/.ssh` | Shared SSH identity (if set up via **Setup Shared SSH Store**); enables workflows to SSH to the DGX host as the host user |
 | `/run/avahi-daemon/socket` | `/run/avahi-daemon/socket` | `.local` mDNS resolution via host avahi daemon |
 
 After any change to volume mounts in `launch-runner.sh`, restart the runner to apply:
