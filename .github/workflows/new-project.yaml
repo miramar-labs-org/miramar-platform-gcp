@@ -1,7 +1,7 @@
 name: New Project
 
-# Creates a new private GitHub repository under miramar-labs-org pre-wired
-# to the Miramar platform.
+# Creates a new GitHub repository under miramar-labs-org pre-wired
+# to the Miramar platform. Defaults to public so projects appear in the dashboard.
 #
 # kfp  — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
 # nemo — NeMo training job config, notebook, deploy/undeploy NeMo workflows
@@ -25,6 +25,12 @@ on:
         description: Short repo description (optional)
         default: ""
         required: false
+      repo_visibility:
+        description: Repository visibility
+        type: choice
+        options: [public, private]
+        default: public
+        required: false
 
 permissions:
   contents: read
@@ -42,12 +48,24 @@ jobs:
           PROJECT_NAME: ${{ inputs.project_name }}
           DESCRIPTION: ${{ inputs.description }}
           PROJECT_TYPE: ${{ inputs.project_type }}
+          REPO_VISIBILITY: ${{ inputs.repo_visibility }}
         run: |
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo create \
             "miramar-labs-org/${PROJECT_NAME}" \
-            --private \
+            --${REPO_VISIBILITY} \
             --description "${DESCRIPTION:-${PROJECT_TYPE} project}"
           echo "Created miramar-labs-org/${PROJECT_NAME}"
+
+      - name: Set repository topics
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
+        run: |
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PUT \
+            "repos/miramar-labs-org/${PROJECT_NAME}/topics" \
+            -f "names[]=miramar-project" \
+            -f "names[]=miramar-${PROJECT_TYPE}"
 
       - name: Initialise repository with template
         env:
@@ -105,6 +123,7 @@ jobs:
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_TYPE: ${{ inputs.project_type }}
+          REPO_VISIBILITY: ${{ inputs.repo_visibility }}
         run: |
           REPO_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           {
@@ -112,6 +131,7 @@ jobs:
             echo ""
             echo "**Repository:** [${REPO_URL}](${REPO_URL})"
             echo "**Type:** \`${PROJECT_TYPE}\`"
+            echo "**Visibility:** \`${REPO_VISIBILITY}\`"
             echo ""
             if [ "${PROJECT_TYPE}" = "kfp" ]; then
               echo "### Files"
