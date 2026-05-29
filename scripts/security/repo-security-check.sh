@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # repo-security-check.sh — security audit for a PUBLIC repo (tuned for a GCP infra repo).
-# Run from the repo root:  ./repo-security-check.sh
+# Run from the repo root:  ./scripts/security/repo-security-check.sh
 # Read-only. Scans tracked files + history filenames; flags secrets, sensitive
 # files, Terraform state, GCP keys, Actions risks, and internal-info leakage.
 #

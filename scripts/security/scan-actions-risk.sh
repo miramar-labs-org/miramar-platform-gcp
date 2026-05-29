@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # scan-actions-risk.sh — flag risky GitHub Actions patterns in a public repo.
-# Run from the repo root:  ./scan-actions-risk.sh
+# Run from the repo root:  ./scripts/security/scan-actions-risk.sh
 # Read-only; reports findings, changes nothing.
 
 WF_DIR=".github/workflows"
