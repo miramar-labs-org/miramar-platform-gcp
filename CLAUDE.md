@@ -178,7 +178,7 @@ Five systemd user services start on boot (via linger) — managed via `dgx/syste
 |---|---|---|
 | `minikube` | — | Starts/stops minikube; other services depend on it |
 | `dashboard` | `8001` | `kubectl proxy --context minikube` |
-| `jupyterlab` | `8888` | JupyterLab in the pyNeMo Python environment |
+| `jupyterlab` | `8888` | JupyterLab in the pyJLab Python environment (see `dgx/jupyterlab/`) |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` |
 
