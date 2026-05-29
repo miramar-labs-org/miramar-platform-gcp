@@ -41,8 +41,9 @@ while IFS= read -r repo_json; do
   url=$(echo     "$repo_json" | jq -r '.html_url')
   type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
-  created=$(echo "$repo_json" | jq -r '.created_at | split("T")[0]')
-  pushed=$(echo  "$repo_json" | jq -r '.pushed_at  | split("T")[0]')
+  sha=$(GH_TOKEN="$GH_TOKEN" gh api \
+    "repos/${ORG}/${name}/commits?per_page=1" \
+    --jq '.[0].sha[0:7]' 2>/dev/null || echo "")
 
   # --- Deploy status: compare latest successful deploy vs undeploy run ---
   deploy_ts=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
@@ -69,8 +70,7 @@ while IFS= read -r repo_json; do
   <td>${desc}</td>
   <td>${status_html}</td>
   <td>${jl_html}</td>
-  <td>${created}</td>
-  <td>${pushed}</td>
+  <td><code>${sha}</code></td>
 </tr>
 "
 done < <(echo "$REPOS_JSON" | jq -c 'sort_by(.created_at) | reverse | .[]')
@@ -133,8 +133,7 @@ cat > "$OUTPUT" <<HTMLEOF
     <th>Description</th>
     <th>Status</th>
     <th>JupyterLab</th>
-    <th>Created</th>
-    <th>Last push</th>
+    <th>SHA</th>
   </tr>
 </thead>
 <tbody>
