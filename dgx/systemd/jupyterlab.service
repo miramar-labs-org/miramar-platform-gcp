@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h
-ExecStart=/home/aaron/.pyenv/versions/pyNeMo/bin/jupyter lab --no-browser --ip=127.0.0.1 --port=8888
+ExecStart=/home/aaron/.pyenv/versions/pyNeMo/bin/jupyter lab --no-browser --ip=127.0.0.1 --port=8888 --ServerApp.token=''
 Restart=on-failure
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1
