@@ -44,3 +44,23 @@ jobs:
             -o PasswordAuthentication=no \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'sudo bash -s' < scripts/ubuntu/install-ollama.sh
+
+      - name: Update platform state
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLLAMA_VERSION=$(ssh -i /tmp/dgx_host \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o PasswordAuthentication=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'ollama --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "unknown"')
+          echo "Ollama version: ${OLLAMA_VERSION}"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/OLLAMA_VERSION" \
+            -f value="${OLLAMA_VERSION}" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="OLLAMA_VERSION" -f value="${OLLAMA_VERSION}"

@@ -53,6 +53,17 @@ jobs:
           source dgx/minikube/nim/undeploy_nim.sh
           undeploy_nim "$NIM_ORG" "$NIM_NAME"
 
+      - name: Update platform state
+        if: success()
+        run: |
+          set -euo pipefail
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_MODEL" \
+            -f value="none" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="CURRENT_NIM_MODEL" -f value="none"
+
       - name: Summary
         if: always()
         run: |

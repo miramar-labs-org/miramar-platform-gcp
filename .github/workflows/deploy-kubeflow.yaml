@@ -104,6 +104,18 @@ jobs:
           '
           kubectl get pods -n kubeflow
 
+      - name: Update platform state
+        if: success()
+        run: |
+          set -euo pipefail
+          KFP_VERSION="${{ inputs.pipeline_version || '2.16.1' }}"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/KFP_VERSION" \
+            -f value="${KFP_VERSION}" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="KFP_VERSION" -f value="${KFP_VERSION}"
+
       - name: Summary
         if: always()
         run: |

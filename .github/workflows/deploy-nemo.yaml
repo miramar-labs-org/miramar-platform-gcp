@@ -202,6 +202,17 @@ jobs:
               grep -E "nemo\.test|nim\.test|data-store\.test" /host-etc/hosts
             '
 
+      - name: Update platform state
+        if: success()
+        run: |
+          set -euo pipefail
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/NEMO_VERSION" \
+            -f value="${{ inputs.nemo_version }}" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="NEMO_VERSION" -f value="${{ inputs.nemo_version }}"
+
       - name: Smoke-test endpoints
         continue-on-error: true
         run: |

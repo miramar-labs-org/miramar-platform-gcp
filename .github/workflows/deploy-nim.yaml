@@ -114,6 +114,18 @@ jobs:
           source dgx/minikube/nim/deploy_nim.sh
           deploy_nim "$NIM_ORG" "$NIM_NAME" "$IMAGE_TAG"
 
+      - name: Update platform state
+        if: success()
+        run: |
+          set -euo pipefail
+          NIM_MODEL="${{ inputs.nim_org }}/${{ inputs.nim_name }}"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_MODEL" \
+            -f value="${NIM_MODEL}" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="CURRENT_NIM_MODEL" -f value="${NIM_MODEL}"
+
       - name: Summary
         if: always()
         run: |

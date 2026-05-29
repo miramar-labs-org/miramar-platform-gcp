@@ -77,6 +77,28 @@ done < <(echo "$REPOS_JSON" | jq -c 'sort_by(.created_at) | reverse | .[]')
 
 GENERATED_AT=$(date -u '+%Y-%m-%d %H:%M UTC')
 
+# --- Platform state ---
+echo "==> Fetching platform state..."
+read_platform_var() {
+  GH_TOKEN="$ADMIN_TOKEN" gh api \
+    "repos/${ORG}/miramar-platform-gcp/actions/variables/${1}" \
+    --jq '.value' 2>/dev/null || echo ""
+}
+NEMO_VERSION=$(read_platform_var "NEMO_VERSION")
+KFP_VERSION=$(read_platform_var "KFP_VERSION")
+OLLAMA_VERSION=$(read_platform_var "OLLAMA_VERSION")
+NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL")
+OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL")
+
+[[ -z "$NEMO_VERSION" ]]   && NEMO_VERSION="—"
+[[ -z "$KFP_VERSION" ]]    && KFP_VERSION="—"
+[[ -z "$OLLAMA_VERSION" ]] && OLLAMA_VERSION="—"
+[[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
+[[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
+
+NIM_CLASS="ps-value";    [[ "$NIM_MODEL"    == "none" ]] && NIM_CLASS="ps-value ps-none"
+OLLAMA_CLASS="ps-value"; [[ "$OLLAMA_MODEL" == "none" ]] && OLLAMA_CLASS="ps-value ps-none"
+
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
 <html lang="en">
@@ -120,11 +142,43 @@ cat > "$OUTPUT" <<HTMLEOF
   .jl-link:hover { color: #ffa657; }
   .count { color: #8b949e; font-weight: normal; font-size: 1rem; }
   .footer { margin-top: 2rem; color: #484f58; font-size: 0.75rem; }
+  .platform-status {
+    display: flex; flex-wrap: wrap; gap: 1.5rem;
+    margin-bottom: 2rem; padding: 1rem 1.25rem;
+    background: #161b22; border: 1px solid #21262d; border-radius: 6px;
+  }
+  .ps-item { display: flex; flex-direction: column; gap: 0.2rem; min-width: 90px; }
+  .ps-item.ps-wide { min-width: 220px; }
+  .ps-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8b949e; }
+  .ps-value { font-size: 0.875rem; color: #e6edf3; background: transparent; }
+  .ps-none { color: #484f58; }
 </style>
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
 <p class="subtitle">Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly.</p>
+<div class="platform-status">
+  <div class="ps-item">
+    <div class="ps-label">NeMo</div>
+    <code class="ps-value">${NEMO_VERSION}</code>
+  </div>
+  <div class="ps-item">
+    <div class="ps-label">KFP</div>
+    <code class="ps-value">${KFP_VERSION}</code>
+  </div>
+  <div class="ps-item">
+    <div class="ps-label">Ollama</div>
+    <code class="ps-value">${OLLAMA_VERSION}</code>
+  </div>
+  <div class="ps-item ps-wide">
+    <div class="ps-label">NIM model</div>
+    <code class="${NIM_CLASS}">${NIM_MODEL}</code>
+  </div>
+  <div class="ps-item ps-wide">
+    <div class="ps-label">Ollama model</div>
+    <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
+  </div>
+</div>
 <table>
 <thead>
   <tr>

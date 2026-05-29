@@ -49,6 +49,18 @@ jobs:
             "bash -s -- ${model} ${{ inputs.delete_model }}" \
             < dgx/ollama/undeploy_ollama.sh
 
+      - name: Update platform state
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_OLLAMA_MODEL" \
+            -f value="none" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="CURRENT_OLLAMA_MODEL" -f value="none"
+
       - name: Summary
         if: always()
         run: |
