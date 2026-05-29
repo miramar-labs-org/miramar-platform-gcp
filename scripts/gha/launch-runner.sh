@@ -198,10 +198,15 @@ if [[ "${DEFAULT_LABELS}" == *"dgx"* ]]; then
     # user (different uid). Make .minikube and .kube world-readable so kubectl
     # inside the container can read cert files referenced in the kubeconfig.
     chmod -R a+rX "${HOME}/.minikube" "${HOME}/.kube" 2>/dev/null || true
+    # ~/git-miramar-labs-org/projects is mounted so workflows (e.g. Open in
+    # JupyterLab) can clone project repos directly to the host filesystem
+    # without needing SSH. JupyterLab on the host sees changes immediately.
+    mkdir -p "${HOME}/git-miramar-labs-org/projects"
     DOCKER_VOLS+=(
         -v "${HOME}/.minikube:/home/runner/.minikube"
         -v "${HOME}/.kube:/home/runner/.kube"
         -v /usr/local/bin:/host-bin
+        -v "${HOME}/git-miramar-labs-org/projects:/home/runner/git-miramar-labs-org/projects"
     )
 fi
 
