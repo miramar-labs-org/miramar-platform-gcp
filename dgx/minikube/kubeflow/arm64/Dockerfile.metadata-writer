@@ -123,19 +123,20 @@ RUN echo 'build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17' >> .bazelrc && \
     echo 'build --per_file_copt=external/upb/.*@-Wno-c23-extensions' >> .bazelrc && \
     echo 'build --host_per_file_copt=external/upb/.*@-Wno-c23-extensions' >> .bazelrc
 
-# Fix x86-specific defines hardcoded in the PostgreSQL auto-generated config
-# header inside ml_metadata/postgresql.BUILD. Same fix as Dockerfile.mlmd-server.
+# Fix platform-specific defines hardcoded in ml_metadata/postgresql.BUILD.
+# Same fixes as Dockerfile.mlmd-server for x86-only; additionally clear
+# HAVE_GETPEEREID which is a BSD/macOS function not on Linux — Clang 19 hard-
+# errors on implicit function declarations (GCC just warns).
 #
-#   HAVE_X86_64_POPCNTQ — x86-only POPCNTQ instruction; causes pg_bitutils.c
-#                         to include Clang's cpuid.h which errors on arm64:
-#                         "this header is for x86 only".
+#   HAVE_X86_64_POPCNTQ — x86-only POPCNTQ; causes pg_bitutils.c to include
+#                         Clang's cpuid.h which errors "for x86 only" on arm64.
 #   HAVE__GET_CPUID     — x86-only __get_cpuid(); same cpuid.h dependency.
-#
-# Clearing both makes pg_bitutils.c fall back to __builtin_popcount (also
-# defined: HAVE__BUILTIN_POPCOUNT 1) which is available on all targets.
+#   HAVE_GETPEEREID     — BSD/macOS peer-credential helper; absent on Linux.
+#                         Falls back to SO_PEERCRED via getsockopt() instead.
 RUN sed -i \
     -e 's|"#define HAVE_X86_64_POPCNTQ 1",|"/* #undef HAVE_X86_64_POPCNTQ */",|g' \
     -e 's|"#define HAVE__GET_CPUID 1",|"/* #undef HAVE__GET_CPUID */",|g' \
+    -e 's|"#define HAVE_GETPEEREID 1",|"/* #undef HAVE_GETPEEREID */",|g' \
     ml_metadata/postgresql.BUILD
 
 # Fix two ZetaSQL WORKSPACE issues caused by the zetasql→googlesql GitHub repo rename:
