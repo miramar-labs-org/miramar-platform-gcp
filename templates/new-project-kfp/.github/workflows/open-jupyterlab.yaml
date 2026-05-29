@@ -31,14 +31,17 @@ jobs:
           SCRIPT: |
             set -euo pipefail
             mkdir -p "${HOME}/git-miramar-labs-org/projects"
-            if [ -d "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}/.git" ]; then
-              git -C "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}" pull --ff-only
-              echo "Pulled: ${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+            DEST="${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+            if [ -d "${DEST}/.git" ]; then
+              git -C "${DEST}" stash
+              git -C "${DEST}" pull --ff-only
+              git -C "${DEST}" stash drop 2>/dev/null || true
+              echo "Pulled: ${DEST}"
             else
               git clone \
                 "https://x-access-token:${PAT}@github.com/${REPO}.git" \
-                "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
-              echo "Cloned: ${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+                "${DEST}"
+              echo "Cloned: ${DEST}"
             fi
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
