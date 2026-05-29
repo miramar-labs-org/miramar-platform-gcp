@@ -1,0 +1,76 @@
+name: Deploy to NeMo
+
+# Submits a training job to NeMo Microservices using job_config.yaml.
+# Prerequisites: NeMo must be running (miramar-platform-gcp — NeMo Deploy workflow).
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_name:
+        description: Job name (overrides job_config.yaml name)
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 30
+    outputs:
+      job_name: ${{ steps.submit.outputs.job_name }}
+      job_id: ${{ steps.submit.outputs.job_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Set up /etc/hosts for NeMo endpoint
+        run: |
+          MINIKUBE_IP=$(kubectl get node minikube \
+            -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+          sudo sed -i '/nemo\.test/d' /etc/hosts || true
+          printf '%s nemo.test\n' "$MINIKUBE_IP" | sudo tee -a /etc/hosts >/dev/null
+          echo "nemo.test → $MINIKUBE_IP"
+
+      - name: Install dependencies
+        run: pip install pyyaml --quiet
+
+      - name: Submit training job
+        id: submit
+        env:
+          NEMO_HOST: http://nemo.test
+          JOB_NAME: ${{ inputs.job_name }}
+        run: python3 scripts/submit_job.py
+
+      - name: Wait for job to leave pending
+        run: |
+          JOB="${{ steps.submit.outputs.job_name }}"
+          echo "Polling job: ${JOB}"
+          for i in $(seq 1 12); do
+            STATUS=$(curl -sf "http://nemo.test/v1/customization/jobs/${JOB}" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))")
+            echo "  ${STATUS}"
+            [ "${STATUS}" != "pending" ] && [ "${STATUS}" != "unknown" ] && break
+            sleep 10
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## NeMo Training Job"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Job name | \`${{ steps.submit.outputs.job_name }}\` |"
+            echo "| Job ID | \`${{ steps.submit.outputs.job_id }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

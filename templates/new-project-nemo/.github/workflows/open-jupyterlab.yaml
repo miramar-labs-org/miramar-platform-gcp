@@ -1,0 +1,63 @@
+name: Open in JupyterLab
+
+# Clones or pulls this repo on the DGX host under ~/git-miramar-labs-org/projects/<repo-name>
+# and prints the direct JupyterLab URL.
+#
+# Prerequisites:
+#   - JupyterLab running on DGX (minikube systemd services installed)
+#   - SSH tunnel active on your laptop: ssh -L 8888:localhost:8888 <user>@spark-79b7.local
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  open:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 5
+
+    steps:
+      - name: Sync repo to DGX host
+        env:
+          SSH_KEY: ${{ secrets.DGX_HOST_SSH_KEY }}
+          DGX_IP: ${{ vars.DGX_HOST_IP }}
+          REPO: ${{ github.repository }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          SCRIPT: |
+            set -euo pipefail
+            mkdir -p "${HOME}/git-miramar-labs-org/projects"
+            if [ -d "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}/.git" ]; then
+              git -C "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}" pull --ff-only
+              echo "Pulled: ${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+            else
+              git clone "https://x-access-token:${PAT}@github.com/${REPO}.git" \
+                "${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+              echo "Cloned: ${HOME}/git-miramar-labs-org/projects/${REPO_NAME}"
+            fi
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${SSH_KEY}" > /tmp/dgx_host
+          chmod 600 /tmp/dgx_host
+          ssh-keyscan -H "${DGX_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          printf '%s' "${SCRIPT}" \
+            | ssh -i /tmp/dgx_host -o StrictHostKeyChecking=no "${DGX_IP}" \
+                env PAT="${GITHUB_ORG_ADMIN_PAT}" REPO="${REPO}" REPO_NAME="${REPO_NAME}" bash
+
+      - name: Summary
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          {
+            echo "## Open in JupyterLab"
+            echo ""
+            echo "Repo synced to \`~/git-miramar-labs-org/projects/${REPO_NAME}\` on the DGX."
+            echo ""
+            echo "**SSH tunnel** (if not already active):"
+            echo "\`\`\`sh"
+            echo "ssh -L 8888:localhost:8888 <user>@spark-79b7.local"
+            echo "\`\`\`"
+            echo ""
+            echo "**Open:** [http://localhost:8888/lab/tree/git-miramar-labs-org/projects/${REPO_NAME}](http://localhost:8888/lab/tree/git-miramar-labs-org/projects/${REPO_NAME})"
+          } >> "$GITHUB_STEP_SUMMARY"

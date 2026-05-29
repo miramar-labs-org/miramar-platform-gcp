@@ -1,6 +1,6 @@
 name: Undeploy from NeMo
 
-# Cancels / deletes a NeMo training job by name.
+# Cancels a NeMo training job by name.
 
 on:
   workflow_dispatch:
@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Set up kubeconfig
         run: |
           docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
@@ -36,18 +38,9 @@ jobs:
 
       - name: Cancel job
         env:
+          NEMO_HOST: http://nemo.test
           JOB_NAME: ${{ inputs.job_name }}
-        run: |
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X DELETE "http://nemo.test/v1/jobs/${JOB_NAME}")
-          if [ "${HTTP_STATUS}" = "404" ]; then
-            echo "Job '${JOB_NAME}' not found — already deleted or never started."
-          elif [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 300 ]; then
-            echo "Job '${JOB_NAME}' cancelled (HTTP ${HTTP_STATUS})."
-          else
-            echo "Unexpected HTTP ${HTTP_STATUS}" >&2
-            exit 1
-          fi
+        run: python3 scripts/cancel_job.py
 
       - name: Summary
         if: always()

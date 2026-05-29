@@ -240,3 +240,8 @@ kubeconfig
 *.tfvars
 *.tfstate
 *.tfstate.backup
+
+# Claude
+# Personal / per-machine — never commit
+settings.local.json
+worktrees/

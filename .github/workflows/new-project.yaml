@@ -1,8 +1,10 @@
 name: New Project
 
 # Creates a new private GitHub repository under miramar-labs-org pre-wired
-# with a Jupyter notebook, a KFP v2 pipeline stub, and four GitHub Actions
-# workflows (deploy/undeploy KFP + deploy/undeploy NeMo).
+# to the Miramar platform.
+#
+# kfp  — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
+# nemo — NeMo training job config, notebook, deploy/undeploy NeMo workflows
 #
 # Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) for repo
 # creation and initial push. No GitHub secrets required.
@@ -12,6 +14,12 @@ on:
     inputs:
       project_name:
         description: Repository name (e.g. my-llm-experiment)
+        required: true
+      project_type:
+        description: Project type
+        type: choice
+        options: [kfp, nemo]
+        default: kfp
         required: true
       description:
         description: Short repo description (optional)
@@ -33,44 +41,45 @@ jobs:
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
           DESCRIPTION: ${{ inputs.description }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
         run: |
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo create \
             "miramar-labs-org/${PROJECT_NAME}" \
             --private \
-            --description "${DESCRIPTION}"
+            --description "${DESCRIPTION:-${PROJECT_TYPE} project}"
           echo "Created miramar-labs-org/${PROJECT_NAME}"
 
       - name: Initialise repository with template
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
         run: |
           set -euo pipefail
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "${WORK_DIR}"' EXIT
 
-          # Configure git identity for the commit
           git config --global user.email "actions@github.com"
           git config --global user.name "Miramar Platform"
 
-          # Initialise the local repo
           cd "${WORK_DIR}"
           git init
           git checkout -b main
 
-          # Copy template files (includes hidden .github/ directory)
-          cp -r "${GITHUB_WORKSPACE}/templates/new-project/." .
+          # Copy the appropriate template (includes hidden .github/ dir)
+          cp -r "${GITHUB_WORKSPACE}/templates/new-project-${PROJECT_TYPE}/." .
 
-          # Replace the {{PROJECT_NAME}} placeholder in all template files
-          sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" README.md
-          sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" notebook.ipynb
-          sed -i "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" CLAUDE.md
+          # Replace placeholders in all text files
+          YEAR=$(date +%Y)
+          find . -type f \( -name "*.md" -o -name "*.ipynb" -o -name "*.yaml" -o -name "*.py" -o -name "LICENSE" \) \
+            -exec sed -i \
+              -e "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" \
+              -e "s/{{YEAR}}/${YEAR}/g" \
+            {} +
 
-          # Commit
           git add .
-          git commit -m "Initial scaffold from Miramar template"
+          git commit -m "Initial scaffold (type: ${PROJECT_TYPE}) from Miramar template"
 
-          # Push via PAT
           git remote add origin \
             "https://x-access-token:${GITHUB_ORG_ADMIN_PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git"
           git push -u origin main
@@ -78,27 +87,38 @@ jobs:
       - name: Summary
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
         run: |
           REPO_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           {
-            echo "## New Project Created"
+            echo "## New ${PROJECT_TYPE} Project Created"
             echo ""
             echo "**Repository:** [${REPO_URL}](${REPO_URL})"
+            echo "**Type:** \`${PROJECT_TYPE}\`"
             echo ""
-            echo "### Files"
-            echo "- \`README.md\`"
-            echo "- \`CLAUDE.md\` — Claude Code instructions"
-            echo "- \`notebook.ipynb\`"
-            echo "- \`pipeline.py\` — KFP v2 pipeline stub"
-            echo "- \`scripts/deploy_pipeline.py\`"
-            echo "- \`scripts/terminate_pipeline.py\`"
-            echo "- \`.github/workflows/deploy-kfp.yaml\`"
-            echo "- \`.github/workflows/undeploy-kfp.yaml\`"
-            echo "- \`.github/workflows/deploy-nemo.yaml\`"
-            echo "- \`.github/workflows/undeploy-nemo.yaml\`"
-            echo ""
-            echo "### Next steps"
-            echo "1. Edit \`pipeline.py\` to define your pipeline components"
-            echo "2. Trigger **Deploy to KFP** to compile and submit a run"
-            echo "3. Edit the NeMo payload in \`deploy-nemo.yaml\` before first use"
+            if [ "${PROJECT_TYPE}" = "kfp" ]; then
+              echo "### Files"
+              echo "- \`README.md\`, \`CLAUDE.md\`"
+              echo "- \`pipeline.py\` — KFP v2 pipeline stub"
+              echo "- \`notebook.ipynb\` — compile, submit, monitor runs"
+              echo "- \`scripts/deploy_pipeline.py\`, \`scripts/terminate_pipeline.py\`"
+              echo "- \`.github/workflows/deploy-kfp.yaml\`, \`undeploy-kfp.yaml\`"
+              echo ""
+              echo "### Next steps"
+              echo "1. Edit \`pipeline.py\` to define your pipeline components"
+              echo "2. Trigger **Deploy to KFP** to compile and submit a run"
+              echo "3. Prerequisites: **Kubeflow Deploy** must be running on DGX"
+            else
+              echo "### Files"
+              echo "- \`README.md\`, \`CLAUDE.md\`"
+              echo "- \`job_config.yaml\` — training job config"
+              echo "- \`notebook.ipynb\` — NeMo SDK + job monitoring"
+              echo "- \`scripts/submit_job.py\`, \`scripts/cancel_job.py\`"
+              echo "- \`.github/workflows/deploy-nemo.yaml\`, \`undeploy-nemo.yaml\`"
+              echo ""
+              echo "### Next steps"
+              echo "1. Edit \`job_config.yaml\` — set model, dataset path, hyperparameters"
+              echo "2. Trigger **Deploy to NeMo** to submit the job"
+              echo "3. Prerequisites: **NeMo Deploy** must be running on DGX"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
