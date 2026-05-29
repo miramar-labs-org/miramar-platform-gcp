@@ -126,10 +126,16 @@ jobs:
           SCRIPT: |
             set -euo pipefail
             mkdir -p "${HOME}/git-miramar-labs-org/projects"
-            git clone \
-              "https://x-access-token:${PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git" \
-              "${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
-            echo "Cloned to: ${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
+            DEST="${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
+            if [ -d "${DEST}/.git" ]; then
+              git -C "${DEST}" pull --ff-only
+              echo "Pulled: ${DEST}"
+            else
+              git clone \
+                "https://x-access-token:${PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git" \
+                "${DEST}"
+              echo "Cloned to: ${DEST}"
+            fi
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "WARNING: ~/.ssh/id_ed25519 not found — skipping DGX clone" >&2
