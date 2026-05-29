@@ -119,16 +119,22 @@ echo "    kfp-metadata-writer      → ${METADATA_WRITER_IMAGE}"
 if [ "${USE_NATIVE_KFP_IMAGES}" = "true" ]; then
   echo "==> Patching KFP component deployments with native arm64 images ..."
 
+  # Patch ml-pipeline (api-server) separately — container name differs from deployment name
+  kubectl set image deployment/ml-pipeline \
+    "ml-pipeline-api-server=${ORG}/kfp-api-server:${PIPELINE_VERSION}-arm64" \
+    -n kubeflow
+  kubectl patch deployment ml-pipeline -n kubeflow \
+    -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-pull-secret"}]}}}}'
+  echo "    ml-pipeline → ${ORG}/kfp-api-server:${PIPELINE_VERSION}-arm64"
+
   # Deployments where container name == deployment name
   for deploy in \
-    ml-pipeline \
     ml-pipeline-ui \
     ml-pipeline-persistenceagent \
     ml-pipeline-scheduledworkflow \
     ml-pipeline-viewer-crd \
     ml-pipeline-visualizationserver; do
     case "${deploy}" in
-      ml-pipeline)              comp="kfp-api-server" ;;
       ml-pipeline-ui)           comp="kfp-frontend" ;;
       ml-pipeline-persistenceagent) comp="kfp-persistence-agent" ;;
       ml-pipeline-scheduledworkflow) comp="kfp-scheduled-workflow-controller" ;;
