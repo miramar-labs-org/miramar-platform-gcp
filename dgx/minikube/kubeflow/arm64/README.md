@@ -4,6 +4,13 @@ Kubeflow Pipelines 2.x includes an ML Metadata (MLMD) subsystem. Three of its
 components have no upstream arm64 images; this directory contains the Dockerfiles
 to build them natively on the DGX Spark (aarch64).
 
+## Published Images
+
+| Image | GHCR package |
+| --- | --- |
+| `ghcr.io/miramar-labs-org/ml_metadata_store_server:1.14.0-arm64` | [pkgs/container/ml_metadata_store_server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/ml_metadata_store_server) |
+| `ghcr.io/miramar-labs-org/kfp-metadata-writer:2.16.1-arm64` | [pkgs/container/kfp-metadata-writer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-writer) |
+
 ## Why arm64 Images Are Missing Upstream
 
 ### ml_metadata_store_server (C++ gRPC server)
