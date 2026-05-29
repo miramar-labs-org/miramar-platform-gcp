@@ -122,7 +122,9 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. |
 | Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images. Prerequisite: Build KFP arm64 Images. |
-| New Project | `new-project.yaml` | Create a new private repo under miramar-labs-org pre-wired with a notebook, KFP pipeline stub, and deploy/undeploy workflows for KFP and NeMo. |
+| New Project | `new-project.yaml` | Create a new repo under miramar-labs-org pre-wired with a notebook, KFP/NeMo pipeline stub, and deploy/undeploy workflows. Defaults to public so the project appears in the dashboard. Tags repo with `miramar-project` + `miramar-kfp`/`miramar-nemo`. |
+| Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Double-entry confirmation guard. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Runs hourly + on New/Delete Project completion. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
 | Ollama Deploy | `deploy-ollama.yaml` | Pull + load Ollama model on DGX host. Fails if 128 GB pool is full. |
 | Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank |
