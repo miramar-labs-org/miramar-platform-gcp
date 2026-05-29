@@ -3,7 +3,7 @@
 All endpoints are reachable **from the DGX host** directly. To reach them **from your laptop**, open an SSH tunnel first:
 
 ```bash
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082:localhost:8082 <user>@spark-79b7.local
 ```
 
 > **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for system use (minikube, OS), leaving ~100 GB for workloads. They can coexist as long as their combined memory fits within that budget.
@@ -24,18 +24,18 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@
 
 ## Hosts at a glance
 
-| Host | Port | What it is | Requires |
-|---|---|---|---|
-| `nim.test` | 80 | NIM inference gateway (OpenAI-compatible) | NeMo deployed + NIM deployed |
-| `nemo.test` | 80 | NeMo microservices REST API | NeMo deployed |
-| `data-store.test` | 80 | HuggingFace-compatible data/model store | NeMo deployed |
-| `localhost:11434` | 11434 | Ollama (host service, GPU-accelerated) | Ollama model loaded |
-| `localhost:8000` | 8000 | Qwen3 32B standalone Docker NIM | Running `docker run …` manually |
-| `localhost:8001` | 8001 | Kubernetes dashboard (via `kubectl proxy`) | minikube running |
-| `localhost:8888` | 8888 | JupyterLab | minikube running |
-| `localhost:5000` | 5000 | MLflow Tracking UI | NeMo + MLflow deployed |
+| Host | DGX port | Laptop port | What it is | Requires |
+|---|---|---|---|---|
+| `nim.test` | 80 | 8082 | NIM inference gateway (OpenAI-compatible) | NeMo deployed + NIM deployed |
+| `nemo.test` | 80 | 8082 | NeMo microservices REST API | NeMo deployed |
+| `data-store.test` | 80 | 8082 | HuggingFace-compatible data/model store | NeMo deployed |
+| `localhost:11434` | 11434 | 11434 (via tunnel) | Ollama (host service, GPU-accelerated) | Ollama model loaded |
+| `localhost:8000` | 8000 | 8000 (via tunnel) | Qwen3 32B standalone Docker NIM | Running `docker run …` manually |
+| `localhost:8001` | 8001 | 8001 (via tunnel) | Kubernetes dashboard (via `kubectl proxy`) | minikube running |
+| `localhost:8888` | 8888 | 8888 (via tunnel) | JupyterLab | minikube running |
+| `localhost:5000` | 5000 | 5000 (via tunnel) | MLflow Tracking UI | NeMo + MLflow deployed |
 
-DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the DGX host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP.
+DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the DGX host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.49.2`). Source files: [`hosts.dgx`](hosts.dgx) (DGX), [`hosts.win`](hosts.win) (Windows/WSL2, for use with SSH tunnel on port 8082).
 
 ---
 
@@ -170,9 +170,6 @@ curl http://nemo.test/v1/models | jq .
 ```bash
 # List customization jobs
 curl http://nemo.test/v1/customization/jobs | jq .
-
-# List available base models for fine-tuning
-curl http://nemo.test/v1/customization/models | jq .
 ```
 
 ### Evaluation
@@ -486,7 +483,7 @@ Always running via systemd on the DGX — no manual start needed.
 
 ```bash
 # Open tunnel from your laptop
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082:localhost:8082 <user>@spark-79b7.local
 ```
 
 | Service | URL |
