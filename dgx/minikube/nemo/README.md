@@ -11,7 +11,7 @@
 
 | Technology | GitHub | Docs |
 |---|---|---|
-| [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) | — | [docs](https://docs.nvidia.com/nemo/microservices/latest/) · [get started on minikube](https://docs.nvidia.com/nemo/microservices/25.12.0/get-started/index.html) |
+| [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) | — | [docs](https://docs.nvidia.com/nemo/microservices/latest/) · [API reference (25.12)](https://docs.nvidia.com/nemo/microservices/25.12.0/api/index.html) · [get started on minikube](https://docs.nvidia.com/nemo/microservices/25.12.0/get-started/index.html) |
 | [NeMo Framework](https://developer.nvidia.com/nemo-framework) | [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) | [docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html) |
 | [NIM](https://developer.nvidia.com/nim) | — | [docs](https://docs.nvidia.com/nim/) · [supported models](https://docs.nvidia.com/nim/large-language-models/1.15.0/supported-models.html) |
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |

@@ -35,7 +35,7 @@ scripts/
 Trigger **Open in JupyterLab** from the Actions tab. It clones/pulls this repo to
 `~/git-miramar-labs-org/projects/{{PROJECT_NAME}}` on the DGX and prints a direct link in the workflow summary.
 
-Then open: [http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}}](http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}})
+Then open: [http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}}/notebook.ipynb](http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}}/notebook.ipynb)
 
 ### 2. Set up NeMo access
 
@@ -162,3 +162,4 @@ The workflow calls `scripts/submit_job.py` and prints the job name + ID in the s
 | Data store health | [http://data-store.test:8082/v1/health](http://data-store.test:8082/v1/health) | Data store status |
 | NIM inference | [http://nim.test:8082/v1/models](http://nim.test:8082/v1/models) | Deployed NIM models |
 | JupyterLab | [http://localhost:8888](http://localhost:8888) | Notebook environment |
+| API reference | [NeMo 25.12 Swagger](https://docs.nvidia.com/nemo/microservices/25.12.0/api/index.html) | Full API docs for all NeMo endpoints |
