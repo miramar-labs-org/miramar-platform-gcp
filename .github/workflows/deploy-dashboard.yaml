@@ -27,7 +27,9 @@ jobs:
       - name: Generate dashboard HTML
         run: |
           mkdir -p /tmp/pages
-          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" bash scripts/dashboard/generate-dashboard.sh \
+          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+          GH_ADMIN_TOKEN="${GITHUB_ORG_ADMIN_PAT}" \
+          bash scripts/dashboard/generate-dashboard.sh \
             --org miramar-labs-org \
             --output /tmp/pages/index.html
 
