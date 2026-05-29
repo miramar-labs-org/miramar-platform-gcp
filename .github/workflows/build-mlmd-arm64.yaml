@@ -60,9 +60,9 @@ jobs:
           docker build \
             --network=host \
             --build-arg MLMD_VERSION="${MLMD_VERSION}" \
-            -f dgx/minikube/kubeflow/arm64/Dockerfile.mlmd-server \
+            -f dgx/minikube/kubeflow/arm64/${KFP_VERSION}/Dockerfile.mlmd-server \
             -t "${IMAGE}:${MLMD_VERSION}-arm64" \
-            dgx/minikube/kubeflow/arm64
+            dgx/minikube/kubeflow/arm64/${KFP_VERSION}
 
       - name: Push to GHCR
         run: docker push "${IMAGE}:${MLMD_VERSION}-arm64"
@@ -102,9 +102,9 @@ jobs:
             --network=host \
             --build-arg KFP_VERSION="${KFP_VERSION}" \
             --build-arg MLMD_VERSION="${MLMD_VERSION}" \
-            -f dgx/minikube/kubeflow/arm64/Dockerfile.metadata-writer \
+            -f dgx/minikube/kubeflow/arm64/${KFP_VERSION}/Dockerfile.metadata-writer \
             -t "${IMAGE}:${KFP_VERSION}-arm64" \
-            dgx/minikube/kubeflow/arm64
+            dgx/minikube/kubeflow/arm64/${KFP_VERSION}
 
       - name: Push to GHCR
         run: docker push "${IMAGE}:${KFP_VERSION}-arm64"

@@ -4,6 +4,14 @@ Kubeflow Pipelines 2.x includes an ML Metadata (MLMD) subsystem. Three of its
 components have no upstream arm64 images; this directory contains the Dockerfiles
 to build them natively on the DGX Spark (aarch64).
 
+## Versions
+
+Each KFP version has its own subdirectory containing the Dockerfiles for that release:
+
+| Version | Dockerfiles |
+| --- | --- |
+| [2.16.1](2.16.1/) | `Dockerfile.mlmd-server`, `Dockerfile.metadata-writer` |
+
 ## Published Images
 
 | Image | GHCR package |
@@ -164,6 +172,8 @@ only the build stage is constrained to Bullseye.
 ---
 
 ## Dockerfile Details
+
+Dockerfiles live under the versioned subdirectory, e.g. `2.16.1/Dockerfile.mlmd-server`.
 
 ### Dockerfile.mlmd-server
 
