@@ -199,6 +199,6 @@ Ollama API quirks (relevant when editing scripts):
 
 Access all services via SSH tunnel:
 ```sh
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 -L 8082:localhost:8082 <user>@spark-79b7.local
 ```
 

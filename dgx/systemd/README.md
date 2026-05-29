@@ -9,6 +9,7 @@ Systemd user services for the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/pr
 | `jupyterlab.service` | `8888` | [JupyterLab](https://jupyter.org) (pyNeMo environment) |
 | `mlflow-portfwd.service` | `5000` | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace |
 | `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace |
+| `nemo-portfwd.service` | `8082` | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
 
 `dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
 services (`mlflow-portfwd`, `kubeflow-portfwd`) bind to `0.0.0.0` so the runner container can
@@ -19,8 +20,17 @@ ssh -L 8001:localhost:8001 \
     -L 8888:localhost:8888 \
     -L 5000:localhost:5000 \
     -L 8080:localhost:8080 \
+    -L 8082:localhost:8082 \
     <user>@spark-79b7.local
 ```
+
+To reach NeMo endpoints via the tunnel, add these entries to your **laptop's** `/etc/hosts`:
+
+```
+127.0.0.1 nemo.test nim.test data-store.test
+```
+
+Then access NeMo APIs on the standard port (e.g. `http://nemo.test:8082/v1/namespaces`).
 
 ## Install
 
@@ -61,6 +71,7 @@ journalctl --user -u dashboard -f
 journalctl --user -u jupyterlab -f
 journalctl --user -u mlflow-portfwd -f
 journalctl --user -u kubeflow-portfwd -f
+journalctl --user -u nemo-portfwd -f
 ```
 
 ## Notes

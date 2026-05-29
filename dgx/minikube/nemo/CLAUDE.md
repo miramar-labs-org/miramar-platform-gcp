@@ -33,12 +33,15 @@ Always running on the DGX — no manual start needed. Managed via `dgx/systemd/`
 | `dashboard` | `8001` | `kubectl proxy` → Kubernetes dashboard |
 | `jupyterlab` | `8888` | JupyterLab |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
+| `nemo-portfwd` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` — exposes `nemo.test`, `nim.test`, `data-store.test` |
 
 Access from laptop via SSH tunnel:
 
 ```bash
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8082:localhost:8082 <user>@spark-79b7.local
 ```
+
+Add to laptop `/etc/hosts`: `127.0.0.1 nemo.test nim.test data-store.test`
 
 ## Required secrets
 
