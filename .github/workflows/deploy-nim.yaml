@@ -114,6 +114,22 @@ jobs:
           source dgx/minikube/nim/deploy_nim.sh
           deploy_nim "$NIM_ORG" "$NIM_NAME" "$IMAGE_TAG"
 
+      - name: Rollback on deploy failure
+        if: failure()
+        env:
+          NIM_ORG: ${{ inputs.nim_org }}
+          NIM_NAME: ${{ inputs.nim_name }}
+        run: |
+          echo "NIM deploy failed — submitting undeploy for ${NIM_ORG}/${NIM_NAME}..."
+          ( source dgx/minikube/nim/undeploy_nim.sh
+            undeploy_nim "$NIM_ORG" "$NIM_NAME" ) || echo "Undeploy attempt finished (404 = already gone)"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_MODEL" \
+            -f value="none" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            -f name="CURRENT_NIM_MODEL" -f value="none" || true
+
       - name: Update platform state
         if: success()
         run: |

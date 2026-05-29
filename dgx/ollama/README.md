@@ -7,8 +7,7 @@ on DGX Spark (vLLM and TGI have open sm_121/aarch64 issues).
 
 Ollama is installed on the DGX host via the **Ollama Update** GHA workflow (`update-ollama.yaml`).
 
-> **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for system use (minikube, OS), leaving ~100 GB for workloads. They can coexist as long as their combined memory fits within that budget.
-> The deploy workflow and `deploy_ollama.sh` check for conflicts and fail with a clear error if there is insufficient headroom.
+> **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for the platform (OS, minikube, services), leaving **~100 GB for AI models**. No deployed model may exceed this budget. The deploy workflow auto-undeploys any existing Ollama model before loading a new one, and fails if a NIM is still loaded.
 
 ## GHA Workflows
 
@@ -53,10 +52,9 @@ Source: [Ollama DGX Spark performance blog](https://ollama.com/blog/nvidia-spark
 | 4 | `gpt-oss:20b` | 21B | 3.6B (MoE) | MXFP4 | 14 GB | 131K | Yes | **58** | Speed, coding, agentic |
 | 5 | `qwen3-coder:30b-a3b-q4_K_M` | 30B | 3B (MoE) | Q4_K_M | 19 GB | 256K | Yes | ~20 | Code, repo-level, SWE |
 
-All five fit comfortably in the 128 GB unified memory pool (combined max ~139 GB if all loaded simultaneously,
-but only one is typically loaded at a time).
+All five fit within the **100 GB model budget** (only one is loaded at a time; combined sizes are irrelevant).
 
-> **Note:** `qwen3:235b-a22b` at Q4_K_M is 142 GB — 14 GB over the 128 GB limit. Skip it for single-Spark use.
+> **Note:** `qwen3:235b-a22b` at Q4_K_M is 142 GB — 42 GB over the 100 GB model budget. Skip it.
 
 ---
 

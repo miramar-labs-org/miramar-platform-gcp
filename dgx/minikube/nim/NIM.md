@@ -102,7 +102,7 @@ NGC: `catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/nvidia-nemotron-na
 
 The Qwen3 32B variant explicitly does not support deployment via KServe or Kubernetes per NVIDIA release notes,
 which rules it out for NeMo Microservices on minikube. Run it as a standalone Docker container on the DGX host
-if needed (~41.6 GB image, uses ~108 GB of the 128 GB unified memory).
+if needed (~41.6 GB image, uses ~108 GB of unified memory — 8 GB over the 100 GB model budget).
 
 ```bash
 # Run standalone (on DGX host, not inside minikube)

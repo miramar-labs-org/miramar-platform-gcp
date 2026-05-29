@@ -128,7 +128,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Double-entry confirmation guard. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
 | Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Runs hourly + on Create/Delete Project completion. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
-| Ollama Deploy | `deploy-ollama.yaml` | Pull + load Ollama model on DGX host. Fails if 128 GB pool is full. |
+| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing Ollama model, then pull + load new one. Fails if a NIM is loaded or model exceeds 100 GB budget. |
 | Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank |
 | Ollama Update | `update-ollama.yaml` | Install/upgrade Ollama on DGX or WSL2 host |
 | Setup Shared SSH Store | `setup-shared-ssh.yaml` | One-time: wire DGX + Orin shared SSH store |
@@ -190,7 +190,7 @@ Five systemd user services start on boot (via linger) — managed via `dgx/syste
 
 **NIM** — default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`. See `dgx/minikube/nim/NIM.md` for catalog. Available DGX Spark NIMs: https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html
 
-**Ollama** — runs as a systemd service on the DGX host (not in minikube). **NIM and Ollama share the 128 GB unified memory pool** (~28 GB reserved for system, ~100 GB for workloads). See `dgx/ollama/README.md` for model catalog. Browse available models: https://ollama.com/library
+**Ollama** — runs as a systemd service on the DGX host (not in minikube). **NIM and Ollama share the 128 GB unified memory pool** — ~28 GB reserved for the platform, leaving **~100 GB for AI models**. No single deployed model may exceed this budget. See `dgx/ollama/README.md` for model catalog. Browse available models: https://ollama.com/library
 
 Ollama API quirks (relevant when editing scripts):
 - Unloading requires `POST /api/generate` with `{"model":"...","prompt":"","keep_alive":0}` — the `prompt` field is required; omitting it silently no-ops.
