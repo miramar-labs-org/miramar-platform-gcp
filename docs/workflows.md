@@ -74,7 +74,7 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Create Project | `create-project.yaml` | Create a new org repo pre-wired with notebook, KFP/NeMo pipeline stub, and deploy/undeploy workflows |
+| Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. Type `default` (generic notebook + endpoint reference, default), `kfp` (KFP v2 pipeline stub + deploy/undeploy), or `nemo` (NeMo training job + deploy/undeploy). Tags repo `miramar-project` + `miramar-<type>` so it appears in the dashboard. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo (double-entry guard); triggers dashboard refresh |
 | Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard; reads platform state variables; runs hourly + on completion of any state-writing workflow |
 

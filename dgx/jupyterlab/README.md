@@ -9,8 +9,8 @@ The `jupyterlab.service` systemd unit launches from this environment. See [`../s
 ### 1. Create the pyenv
 
 ```bash
-pyenv install 3.11     # if not already installed
-pyenv virtualenv 3.11 pyJLab
+pyenv install 3.13     # if not already installed
+pyenv virtualenv 3.13 pyJLab
 pyenv activate pyJLab
 ```
 
