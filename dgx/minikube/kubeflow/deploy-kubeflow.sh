@@ -73,13 +73,13 @@ echo "==> Removing arm64-incompatible controller-manager ..."
 kubectl delete deployment controller-manager -n kubeflow --ignore-not-found || true
 
 # Create (or update) a GHCR imagePullSecret in the kubeflow namespace.
-# GITHUB_TOKEN is a short-lived Actions token with packages:read — sufficient
-# to pull from ghcr.io. The secret is recreated each deploy so the token stays fresh.
+# Uses GITHUB_ORG_GHCR_PAT (long-lived runner env var) so pods can pull even
+# after the workflow run ends and GITHUB_TOKEN has expired.
 echo "==> Creating GHCR imagePullSecret in kubeflow namespace ..."
 kubectl create secret docker-registry ghcr-pull-secret \
   --docker-server=ghcr.io \
   --docker-username="${GITHUB_ACTOR:-github-actions}" \
-  --docker-password="${GITHUB_TOKEN}" \
+  --docker-password="${GITHUB_ORG_GHCR_PAT}" \
   --namespace=kubeflow \
   --dry-run=client -o yaml | kubectl apply -f -
 
