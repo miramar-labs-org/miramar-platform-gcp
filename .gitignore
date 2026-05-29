@@ -229,3 +229,14 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+
+# Secrets / keys / infra state
+*.pem
+*.key
+*-sa.json
+*service-account*.json
+kubeconfig
+*.kubeconfig
+*.tfvars
+*.tfstate
+*.tfstate.backup

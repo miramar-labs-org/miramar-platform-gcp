@@ -1,0 +1,118 @@
+name: Build KFP arm64 Images
+
+# Builds native arm64 images for all Kubeflow Pipelines 2.x components that
+# upstream publishes as amd64-only (tracked in kubeflow/pipelines#12705).
+#
+# All components are built natively on the DGX arm64 runner from the KFP source
+# at the specified version tag. Build context is the KFP repo root for all
+# components (they share go.mod and each Dockerfile uses repo-relative paths).
+#
+# One component requires a patched Dockerfile:
+#   kfp-visualization-server — upstream hardcodes x86_64 in the gcloud SDK URL;
+#   patched version lives at dgx/minikube/kubeflow/arm64/<version>/Dockerfile.visualization-server
+#
+# Images produced (all under ghcr.io/miramar-labs-org/):
+#   kfp-api-server, kfp-frontend, kfp-persistence-agent,
+#   kfp-scheduled-workflow-controller, kfp-cache-server, kfp-cache-deployer,
+#   kfp-viewer-crd-controller, kfp-metadata-envoy, kfp-visualization-server,
+#   kfp-driver, kfp-launcher
+#
+# Run before Kubeflow Deploy when first deploying or after a version bump.
+# See dgx/minikube/kubeflow/arm64/README.md for full details.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_version:
+        description: KFP version tag (e.g. 2.16.1)
+        default: "2.16.1"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.component }} (arm64)
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: kfp-api-server
+            dockerfile: backend/Dockerfile
+          - component: kfp-frontend
+            dockerfile: frontend/Dockerfile
+          - component: kfp-persistence-agent
+            dockerfile: backend/Dockerfile.persistenceagent
+          - component: kfp-scheduled-workflow-controller
+            dockerfile: backend/Dockerfile.scheduledworkflow
+          - component: kfp-cache-server
+            dockerfile: backend/Dockerfile.cacheserver
+          - component: kfp-cache-deployer
+            dockerfile: backend/src/cache/deployer/Dockerfile
+          - component: kfp-viewer-crd-controller
+            dockerfile: backend/Dockerfile.viewercontroller
+          - component: kfp-metadata-envoy
+            dockerfile: third_party/metadata_envoy/Dockerfile
+          - component: kfp-visualization-server
+            dockerfile: backend/Dockerfile.visualization
+            patched_dockerfile: Dockerfile.visualization-server
+          - component: kfp-driver
+            dockerfile: backend/Dockerfile.driver
+          - component: kfp-launcher
+            dockerfile: backend/Dockerfile.launcher
+
+    env:
+      KFP_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
+      IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.component }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Clone kubeflow/pipelines at ${{ env.KFP_VERSION }}
+        run: |
+          git clone \
+            --branch "${KFP_VERSION}" \
+            --depth 1 \
+            --single-branch \
+            https://github.com/kubeflow/pipelines.git \
+            kfp-src
+
+      - name: Build ${{ matrix.component }} for arm64
+        env:
+          PATCHED_DOCKERFILE: ${{ matrix.patched_dockerfile }}
+        run: |
+          if [ -n "${PATCHED_DOCKERFILE}" ]; then
+            DOCKERFILE="dgx/minikube/kubeflow/arm64/${KFP_VERSION}/${PATCHED_DOCKERFILE}"
+          else
+            DOCKERFILE="kfp-src/${{ matrix.dockerfile }}"
+          fi
+          docker build \
+            --network=host \
+            -f "${DOCKERFILE}" \
+            -t "${IMAGE}:${KFP_VERSION}-arm64" \
+            kfp-src
+
+      - name: Push to GHCR
+        run: docker push "${IMAGE}:${KFP_VERSION}-arm64"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## ${{ matrix.component }} arm64"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${IMAGE}:${KFP_VERSION}-arm64\` |"
+            echo "| KFP version | \`${KFP_VERSION}\` |"
+            echo "| Builder arch | \`$(uname -m)\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

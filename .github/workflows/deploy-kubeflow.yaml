@@ -5,10 +5,12 @@ name: Kubeflow Deploy
 # automatically and includes built-in SeaweedFS and MySQL — no external dependencies.
 # arm64 image overrides applied post-apply:
 #   - controller-manager removed (Application CRD, display-only, amd64-only binary)
-#   - metadata-grpc-deployment patched to ghcr.io/miramar-labs-org/ml_metadata_store_server:<ver>-arm64
-#   - metadata-writer patched to ghcr.io/miramar-labs-org/kfp-metadata-writer:<ver>-arm64
+#   - All upstream amd64-only images replaced with ghcr.io/miramar-labs-org arm64 builds
+#     when use_native_kfp_images=true (the default)
 #
-# Prerequisite: run 'Build MLMD arm64 Images' before first deploy or after version bump.
+# Prerequisites (run in order before first deploy or after version bump):
+#   1. Build MLMD arm64 Images
+#   2. Build KFP arm64 Images
 # See dgx/minikube/kubeflow/arm64/README.md for details.
 #
 # UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by
@@ -25,6 +27,11 @@ on:
       pipeline_version:
         description: Kubeflow Pipelines version tag (e.g. 2.16.1)
         default: "2.16.1"
+        required: false
+      use_native_kfp_images:
+        description: Patch all KFP deployments with native arm64 images (requires Build KFP arm64 Images to have run)
+        type: boolean
+        default: true
         required: false
 
 permissions:
@@ -61,6 +68,7 @@ jobs:
         env:
           PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
           MLMD_SERVER_VERSION: "1.14.0"
+          USE_NATIVE_KFP_IMAGES: ${{ inputs.use_native_kfp_images == false && 'false' || 'true' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: bash dgx/minikube/kubeflow/deploy-kubeflow.sh

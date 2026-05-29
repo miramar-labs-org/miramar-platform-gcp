@@ -6,18 +6,36 @@ to build them natively on the DGX Spark (aarch64).
 
 ## Versions
 
-Each KFP version has its own subdirectory containing the Dockerfiles for that release:
+Each KFP version has its own subdirectory containing patched Dockerfiles for that release (only components that need patches — everything else is built directly from the KFP source):
 
-| Version | Dockerfiles |
+| Version | Patched Dockerfiles |
 | --- | --- |
-| [2.16.1](2.16.1/) | `Dockerfile.mlmd-server`, `Dockerfile.metadata-writer` |
+| [2.16.1](2.16.1/) | `Dockerfile.mlmd-server`, `Dockerfile.metadata-writer`, `Dockerfile.visualization-server` |
 
 ## Published Images
+
+### MLMD stack (no upstream arm64 images — built from custom Dockerfiles)
 
 | Image | GHCR package |
 | --- | --- |
 | `ghcr.io/miramar-labs-org/ml_metadata_store_server:1.14.0-arm64` | [pkgs/container/ml_metadata_store_server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/ml_metadata_store_server) |
 | `ghcr.io/miramar-labs-org/kfp-metadata-writer:2.16.1-arm64` | [pkgs/container/kfp-metadata-writer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-writer) |
+
+### KFP components (built natively from KFP source; most need no patches)
+
+| Image | GHCR package | Patched? |
+| --- | --- | --- |
+| `ghcr.io/miramar-labs-org/kfp-api-server:2.16.1-arm64` | [pkgs/container/kfp-api-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-api-server) | No |
+| `ghcr.io/miramar-labs-org/kfp-frontend:2.16.1-arm64` | [pkgs/container/kfp-frontend](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-frontend) | No |
+| `ghcr.io/miramar-labs-org/kfp-persistence-agent:2.16.1-arm64` | [pkgs/container/kfp-persistence-agent](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-persistence-agent) | No |
+| `ghcr.io/miramar-labs-org/kfp-scheduled-workflow-controller:2.16.1-arm64` | [pkgs/container/kfp-scheduled-workflow-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-scheduled-workflow-controller) | No |
+| `ghcr.io/miramar-labs-org/kfp-cache-server:2.16.1-arm64` | [pkgs/container/kfp-cache-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-cache-server) | No |
+| `ghcr.io/miramar-labs-org/kfp-cache-deployer:2.16.1-arm64` | [pkgs/container/kfp-cache-deployer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-cache-deployer) | No (`google-cloud-cli:alpine` base is multi-arch) |
+| `ghcr.io/miramar-labs-org/kfp-viewer-crd-controller:2.16.1-arm64` | [pkgs/container/kfp-viewer-crd-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-viewer-crd-controller) | No |
+| `ghcr.io/miramar-labs-org/kfp-metadata-envoy:2.16.1-arm64` | [pkgs/container/kfp-metadata-envoy](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-envoy) | No (`envoyproxy/envoy` is multi-arch) |
+| `ghcr.io/miramar-labs-org/kfp-visualization-server:2.16.1-arm64` | [pkgs/container/kfp-visualization-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-visualization-server) | **Yes** — gcloud URL hardcoded to x86_64 |
+| `ghcr.io/miramar-labs-org/kfp-driver:2.16.1-arm64` | [pkgs/container/kfp-driver](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-driver) | No (CGO_ENABLED=0 static binary) |
+| `ghcr.io/miramar-labs-org/kfp-launcher:2.16.1-arm64` | [pkgs/container/kfp-launcher](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-launcher) | No (CGO_ENABLED=0 static binary) |
 
 ## Why arm64 Images Are Missing Upstream
 
