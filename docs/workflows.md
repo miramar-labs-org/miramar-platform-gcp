@@ -34,22 +34,22 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Minikube Install | `install-minikube.yaml` | Install/start minikube and update kubeconfig secret; writes `DGX_MINIKUBE_VERSION` or `AGX_MINIKUBE_VERSION`. Inputs: `runner` |
-| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster and purge minikube state. Inputs: `runner` |
+| Minikube Install | `install-minikube.yaml` | Install/start minikube and update kubeconfig secret; writes `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` |
+| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster and purge minikube state; clears `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` |
 | Minikube Toggle | `toggle-minikube.yaml` | Pause/resume minikube. Inputs: `action`, `runner` |
-| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices and Volcano; `nemo_version` input; auto-commits doc/SDK updates; writes `NEMO_VERSION`. Inputs: `runner`, `nemo_version` |
-| NeMo Undeploy | `undeploy-nemo.yaml` | Remove NeMo, Volcano, DNS entries, and postgres PVCs. Inputs: `runner` |
-| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into minikube; writes `MLFLOW_VERSION` or `MLFLOW_VERSION_AGX`. Inputs: `runner` |
-| MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow namespace. Inputs: `runner` |
+| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices and Volcano; `nemo_version` input; auto-commits doc/SDK updates; writes `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner`, `nemo_version` |
+| NeMo Undeploy | `undeploy-nemo.yaml` | Remove NeMo, Volcano, DNS entries, and postgres PVCs; clears `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner` |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into minikube; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
+| MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via NeMo API; swaps conflicting NIM; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` + `CURRENT_NIM_VRAM_GB[_AGX]`. Inputs: `runner` |
 | NIM Undeploy | `undeploy-nim.yaml` | Remove a NIM deployment; clears `CURRENT_NIM_MODEL[_AGX]` + `CURRENT_NIM_VRAM_GB[_AGX]`. Inputs: `runner` |
-| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing model, pull + load new one; NIM co-deployment allowed if free memory ≥ 15 GB; rollback on failure; writes `CURRENT_OLLAMA_MODEL[_AGX]` + `CURRENT_OLLAMA_VRAM_GB[_AGX]`. Inputs: `runner` |
-| Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model; clears `CURRENT_OLLAMA_MODEL[_AGX]` + `CURRENT_OLLAMA_VRAM_GB[_AGX]`. Inputs: `runner` |
+| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing model, pull + load new one; NIM co-deployment allowed if free memory ≥ 15 GB; rollback on failure; writes `CURRENT_OLLAMA_MODEL[_AGX]` + `CURRENT_OLLAMA_VRAM_GB[_AGX]` and `{MACHINE}_OLLAMA_ACTIVE` org var. Inputs: `runner` |
+| Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model; clears `CURRENT_OLLAMA_MODEL[_AGX]` + `CURRENT_OLLAMA_VRAM_GB[_AGX]` and `{MACHINE}_OLLAMA_ACTIVE` org var. Inputs: `runner` |
 | Ollama Update | `update-ollama.yaml` | Install or upgrade Ollama on target host; writes `OLLAMA_VERSION`. Inputs: `runner` |
 
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images on DGX; optional `component` input to rebuild one. Images are reusable on AGX (both `linux/arm64`). |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; writes `KFP_VERSION`. Inputs: `runner` |
-| Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources. Inputs: `runner` |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; writes `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
+| Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
 
 Stack deployment order (same for both machines):
 
@@ -57,13 +57,10 @@ Stack deployment order (same for both machines):
 Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy (or Ollama Deploy)
 ```
 
-**Platform state repo variables** written by workflows and displayed in the dashboard status bars:
+**Platform state repo variables** (NIM/Ollama current model + VRAM):
 
 | Variable | Written by | Cleared by | Default |
 | --- | --- | --- | --- |
-| `NEMO_VERSION` | NeMo Deploy | — | `25.12.1` |
-| `KFP_VERSION` | Kubeflow Deploy | — | `2.16.1` |
-| `OLLAMA_VERSION` | Ollama Update | — | set by workflow |
 | `CURRENT_NIM_MODEL` | NIM Deploy (dgx) | NIM Undeploy, rollback | `none` |
 | `CURRENT_OLLAMA_MODEL` | Ollama Deploy (dgx) | Ollama Undeploy, rollback | `none` |
 | `CURRENT_NIM_VRAM_GB` | NIM Deploy (dgx) | NIM Undeploy, rollback | `0` |
@@ -72,12 +69,23 @@ Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy (or Ollama Deploy
 | `CURRENT_OLLAMA_MODEL_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `none` |
 | `CURRENT_NIM_VRAM_GB_AGX` | NIM Deploy (agx) | NIM Undeploy (agx), rollback | `0` |
 | `CURRENT_OLLAMA_VRAM_GB_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `0` |
-| `DGX_MINIKUBE_VERSION` | Minikube Install (dgx) | — | `—` |
-| `AGX_MINIKUBE_VERSION` | Minikube Install (agx) | — | `—` |
-| `MLFLOW_VERSION` | MLflow Deploy (dgx) | — | `—` |
-| `MLFLOW_VERSION_AGX` | MLflow Deploy (agx) | — | `—` |
 
-Variables must exist before the dashboard reads them. On a fresh install, seed them via the GitHub UI (`Settings → Secrets and variables → Actions → Variables`) or with the PATCH→POST upsert pattern using `GITHUB_ORG_ADMIN_PAT`.
+**Active state org variables** (drive the green/red dashboard badges; seed with `gh api` on fresh install):
+
+| Variable | Set to `true` by | Set to `false` by |
+| --- | --- | --- |
+| `DGX_MINIKUBE_ACTIVE` | Minikube Install (dgx) | Minikube Uninstall (dgx) |
+| `AGX_MINIKUBE_ACTIVE` | Minikube Install (agx) | Minikube Uninstall (agx) |
+| `DGX_NEMO_ACTIVE` | NeMo Deploy (dgx) | NeMo Undeploy (dgx) |
+| `AGX_NEMO_ACTIVE` | NeMo Deploy (agx) | NeMo Undeploy (agx) |
+| `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx) | MLflow Undeploy (dgx) |
+| `AGX_MLFLOW_ACTIVE` | MLflow Deploy (agx) | MLflow Undeploy (agx) |
+| `DGX_KFP_ACTIVE` | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx) |
+| `AGX_KFP_ACTIVE` | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx) |
+| `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx) | Ollama Undeploy (dgx), rollback |
+| `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback |
+
+On a fresh install, seed the active state with `gh api` PATCH→POST upserts using `GITHUB_ORG_ADMIN_PAT` to reflect actual current state.
 
 See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 [../dgx/ollama/README.md](../dgx/ollama/README.md).

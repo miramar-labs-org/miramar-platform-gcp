@@ -250,7 +250,7 @@ cat > "$OUTPUT" <<HTMLEOF
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
-<p class="subtitle"><span>Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly.</span><a href="https://github.com/${ORG}/miramar-platform-gcp">Platform repo</a></p>
+<p class="subtitle"><span>Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly.</span><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></p>
 <div class="machine-section">
   <div class="machine-label">DGX Spark</div>
   <div class="platform-status">

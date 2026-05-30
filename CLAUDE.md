@@ -116,36 +116,33 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | GKE Expand GPU | `gke-expand-gpu.yaml` | Add transient GPU node pool via `terraform-gpu/` |
 | GKE Restore GPU | `gke-restore-gpu.yaml` | Remove GPU node pool via `terraform destroy` in `terraform-gpu/` |
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probe GPU availability; top 5 cheapest with [USE NOW] / [REQUEST QUOTA FIRST] |
-| Minikube Install | `install-minikube.yaml` | Install minikube and start cluster on target machine; update `<RUNNER>_MINIKUBE_KUBECONFIG` secret; writes `DGX_MINIKUBE_VERSION` or `AGX_MINIKUBE_VERSION`. Inputs: `runner` (dgx/agx) |
-| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove binary. Inputs: `runner` |
+| Minikube Install | `install-minikube.yaml` | Install minikube and start cluster on target machine; update `<RUNNER>_MINIKUBE_KUBECONFIG` secret; writes `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
+| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove binary; clears `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` |
 | Minikube Toggle | `toggle-minikube.yaml` | `minikube pause` / `unpause`. Inputs: `action`, `runner` (dgx/agx/wsl2) |
-| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; auto-commits hosts file + doc updates (DGX only); writes `NEMO_VERSION` repo var. Inputs: `runner`, `nemo_version` |
-| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift. Inputs: `runner` |
+| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; auto-commits hosts file + doc updates (DGX only); writes `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner`, `nemo_version` |
+| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift; clears `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner` |
 | NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` repo var. Inputs: `runner` |
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL[_AGX]`. Inputs: `runner` |
-| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; writes `MLFLOW_VERSION` or `MLFLOW_VERSION_AGX`. Inputs: `runner` |
-| MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace. Inputs: `runner` |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
+| MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. Images are reusable on AGX (both linux/arm64). |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `KFP_VERSION` repo var. Prerequisite: Build KFP arm64 Images. Inputs: `runner` |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `{MACHINE}_KFP_ACTIVE` org var. Prerequisite: Build KFP arm64 Images. Inputs: `runner` |
 | Create Project | `create-project.yaml` | Create a new repo under miramar-labs-org pre-wired for the platform. Three types: `default` (generic notebook + platform endpoint reference, new default), `kfp` (KFP v2 pipeline stub + deploy/undeploy workflows), `nemo` (NeMo training job + deploy/undeploy workflows). Defaults to public so the project appears in the dashboard. Tags repo with `miramar-project` + `miramar-<type>`. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Double-entry confirmation guard. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Reads platform state repo vars (see below). Runs hourly + on completion of any state-writing workflow (NeMo/KFP/Ollama/NIM deploy-undeploy). URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
-| Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources. Inputs: `runner` |
-| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing Ollama model, then pull + load new one; rollback on failure; writes `CURRENT_OLLAMA_MODEL[_AGX]` repo var. Inputs: `runner` (dgx/agx) |
-| Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank; clears `CURRENT_OLLAMA_MODEL[_AGX]`. Inputs: `runner` |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin, GCP. Service columns show green/red active-state badges driven by org-level `{MACHINE}_{SERVICE}_ACTIVE` variables. Runs hourly + on `workflow_run` completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
+| Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
+| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing Ollama model, then pull + load new one; rollback on failure; writes `CURRENT_OLLAMA_MODEL[_AGX]` repo var and `{MACHINE}_OLLAMA_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
+| Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank; clears `CURRENT_OLLAMA_MODEL[_AGX]` and `{MACHINE}_OLLAMA_ACTIVE` org var. Inputs: `runner` |
 | Ollama Update | `update-ollama.yaml` | Install/upgrade Ollama on target host; writes `OLLAMA_VERSION` repo var. Inputs: `runner` (dgx/agx/wsl2) |
 | Setup Shared SSH Store | `setup-shared-ssh.yaml` | One-time: wire DGX + Orin shared SSH store |
 | WSL2 Provision | `provision-wsl2.yaml` | Import distro, run firstboot, add to WSL2_DISTROS |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Test all SSH paths for active distros in WSL2_DISTROS |
 | WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister distro, remove from WSL2_DISTROS |
 
-**Platform state repo variables** (written by workflows, read by dashboard):
+**Platform state repo variables** (NIM/Ollama current model + VRAM, read by dashboard):
 
 | Variable | Set by | Cleared by | Default |
 |---|---|---|---|
-| `NEMO_VERSION` | NeMo Deploy | — | `25.12.1` |
-| `KFP_VERSION` | Kubeflow Deploy | — | `2.16.1` |
-| `OLLAMA_VERSION` | Ollama Update | — | set by `update-ollama.yaml` |
 | `CURRENT_NIM_MODEL` | NIM Deploy (dgx) | NIM Undeploy, NIM Deploy rollback | `none` |
 | `CURRENT_OLLAMA_MODEL` | Ollama Deploy (dgx) | Ollama Undeploy, Ollama Deploy rollback | `none` |
 | `CURRENT_NIM_VRAM_GB` | NIM Deploy (dgx) | NIM Undeploy, NIM Deploy rollback | `0` |
@@ -154,10 +151,21 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `CURRENT_OLLAMA_MODEL_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `none` |
 | `CURRENT_NIM_VRAM_GB_AGX` | NIM Deploy (agx) | NIM Undeploy (agx), rollback | `0` |
 | `CURRENT_OLLAMA_VRAM_GB_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `0` |
-| `DGX_MINIKUBE_VERSION` | Minikube Install (dgx) | — | `—` |
-| `AGX_MINIKUBE_VERSION` | Minikube Install (agx) | — | `—` |
-| `MLFLOW_VERSION` | MLflow Deploy (dgx) | — | `—` |
-| `MLFLOW_VERSION_AGX` | MLflow Deploy (agx) | — | `—` |
+
+**Active state org variables** (drive the green/red dashboard badges; seed with `gh api` on fresh install):
+
+| Variable | Set to `true` by | Set to `false` by |
+|---|---|---|
+| `DGX_MINIKUBE_ACTIVE` | Minikube Install (dgx) | Minikube Uninstall (dgx) |
+| `AGX_MINIKUBE_ACTIVE` | Minikube Install (agx) | Minikube Uninstall (agx) |
+| `DGX_NEMO_ACTIVE` | NeMo Deploy (dgx) | NeMo Undeploy (dgx) |
+| `AGX_NEMO_ACTIVE` | NeMo Deploy (agx) | NeMo Undeploy (agx) |
+| `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx) | MLflow Undeploy (dgx) |
+| `AGX_MLFLOW_ACTIVE` | MLflow Deploy (agx) | MLflow Undeploy (agx) |
+| `DGX_KFP_ACTIVE` | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx) |
+| `AGX_KFP_ACTIVE` | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx) |
+| `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx) | Ollama Undeploy (dgx), rollback |
+| `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback |
 
 **Org-level variables required for AGX:**
 
