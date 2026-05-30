@@ -84,7 +84,12 @@ while IFS= read -r repo_json; do
   <td><code>${sha}</code></td>
 </tr>
 "
-done < <(echo "$REPOS_JSON" | jq -c 'sort_by(.created_at) | reverse | .[]')
+done < <(echo "$REPOS_JSON" | jq -c '
+  sort_by(
+    (.topics // []) | map(select(test("^order-[0-9]+$"))) | .[0]
+    | if . then (ltrimstr("order-") | tonumber) else 9999 end
+  ) | .[]
+')
 
 GENERATED_AT=$(date -u '+%Y-%m-%d %H:%M UTC')
 
