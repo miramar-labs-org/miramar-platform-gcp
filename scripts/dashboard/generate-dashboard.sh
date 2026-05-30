@@ -194,7 +194,7 @@ cat > "$OUTPUT" <<HTMLEOF
     margin: 0; padding: 2rem;
   }
   h1 { color: #f0f6fc; font-size: 1.5rem; margin-bottom: 0.25rem; }
-  .subtitle { color: #8b949e; font-size: 0.875rem; margin-bottom: 2rem; }
+  .subtitle { color: #8b949e; font-size: 0.875rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: baseline; }
   table { width: 100%; border-collapse: collapse; }
   th {
     text-align: left; padding: 0.6rem 1rem;
@@ -250,7 +250,7 @@ cat > "$OUTPUT" <<HTMLEOF
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
-<p class="subtitle">Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly. &mdash; <a href="https://github.com/${ORG}/miramar-platform-gcp">Platform repo</a></p>
+<p class="subtitle"><span>Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly.</span><a href="https://github.com/${ORG}/miramar-platform-gcp">Platform repo</a></p>
 <div class="machine-section">
   <div class="machine-label">DGX Spark</div>
   <div class="platform-status">
