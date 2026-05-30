@@ -243,9 +243,9 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-warn { color: #d29922; }
   .ps-link { color: #8b949e; text-decoration: none; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
   .ps-link:hover { color: #58a6ff; text-decoration: underline; }
-  .ps-active { color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
+  .ps-active { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #1a4731; color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
   a.ps-active:hover { text-decoration: underline; }
-  .ps-inactive { color: #484f58; font-size: 0.75rem; font-weight: 600; }
+  .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
 </style>
 </head>
 <body>
