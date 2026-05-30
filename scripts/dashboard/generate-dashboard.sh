@@ -97,6 +97,13 @@ read_platform_var() {
     --jq '.value' 2>/dev/null) || val=""
   echo "${val}"
 }
+read_org_var() {
+  local val
+  val=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+    "orgs/${ORG}/actions/variables/${1}" \
+    --jq '.value' 2>/dev/null) || val=""
+  echo "${val}"
+}
 NEMO_VERSION=$(read_platform_var "NEMO_VERSION")
 KFP_VERSION=$(read_platform_var "KFP_VERSION")
 OLLAMA_VERSION=$(read_platform_var "OLLAMA_VERSION")
@@ -104,17 +111,21 @@ NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL")
 OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL")
 NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB")
 OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB")
-DGX_VRAM_USEABLE=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-  "orgs/${ORG}/actions/variables/DGX_VRAM_USEABLE" \
-  --jq '.value' 2>/dev/null || echo "100")
+DGX_MINIKUBE_VERSION=$(read_platform_var "DGX_MINIKUBE_VERSION")
+MLFLOW_VERSION=$(read_platform_var "MLFLOW_VERSION")
+DGX_VRAM_USEABLE=$(read_org_var "DGX_VRAM_USEABLE")
 
 AGX_OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL_AGX")
 AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
 AGX_NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL_AGX")
 AGX_NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB_AGX")
-AGX_VRAM_USEABLE=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-  "orgs/${ORG}/actions/variables/AGX_VRAM_USEABLE" \
-  --jq '.value' 2>/dev/null || echo "40")
+AGX_MINIKUBE_VERSION=$(read_platform_var "AGX_MINIKUBE_VERSION")
+MLFLOW_VERSION_AGX=$(read_platform_var "MLFLOW_VERSION_AGX")
+AGX_VRAM_USEABLE=$(read_org_var "AGX_VRAM_USEABLE")
+
+GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
+GCP_REGION=$(read_org_var "GCP_REGION")
+GAR_REPO=$(read_org_var "GAR_REPO")
 
 [[ -z "$NEMO_VERSION" ]]   && NEMO_VERSION="—"
 [[ -z "$KFP_VERSION" ]]    && KFP_VERSION="—"
@@ -123,12 +134,19 @@ AGX_VRAM_USEABLE=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
 [[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
 [[ -z "$NIM_VRAM_GB" || "$NIM_VRAM_GB" == "null" ]]       && NIM_VRAM_GB="0"
 [[ -z "$OLLAMA_VRAM_GB" || "$OLLAMA_VRAM_GB" == "null" ]] && OLLAMA_VRAM_GB="0"
+[[ -z "$DGX_MINIKUBE_VERSION" ]] && DGX_MINIKUBE_VERSION="—"
+[[ -z "$MLFLOW_VERSION" ]]       && MLFLOW_VERSION="—"
 [[ -z "$DGX_VRAM_USEABLE" || "$DGX_VRAM_USEABLE" == "null" ]] && DGX_VRAM_USEABLE="100"
 [[ -z "$AGX_OLLAMA_MODEL" ]]   && AGX_OLLAMA_MODEL="none"
 [[ -z "$AGX_OLLAMA_VRAM_GB" || "$AGX_OLLAMA_VRAM_GB" == "null" ]] && AGX_OLLAMA_VRAM_GB="0"
 [[ -z "$AGX_VRAM_USEABLE" || "$AGX_VRAM_USEABLE" == "null" ]] && AGX_VRAM_USEABLE="40"
 [[ -z "$AGX_NIM_MODEL" ]]      && AGX_NIM_MODEL="none"
 [[ -z "$AGX_NIM_VRAM_GB" || "$AGX_NIM_VRAM_GB" == "null" ]] && AGX_NIM_VRAM_GB="0"
+[[ -z "$AGX_MINIKUBE_VERSION" ]] && AGX_MINIKUBE_VERSION="—"
+[[ -z "$MLFLOW_VERSION_AGX" ]]   && MLFLOW_VERSION_AGX="—"
+[[ -z "$GCP_PROJECT_ID" ]] && GCP_PROJECT_ID="miramar-platform"
+[[ -z "$GCP_REGION" ]]     && GCP_REGION="us-central1"
+[[ -z "$GAR_REPO" ]]       && GAR_REPO="apps"
 
 VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
@@ -147,6 +165,13 @@ AGX_NIM_CLASS="ps-value";    [[ "$AGX_NIM_MODEL"    == "none" ]] && AGX_NIM_CLAS
 AGX_OLLAMA_CLASS="ps-value"; [[ "$AGX_OLLAMA_MODEL" == "none" ]] && AGX_OLLAMA_CLASS="ps-value ps-none"
 AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
+
+KFP_CLASS="ps-value"; [[ "$KFP_VERSION" == "—" ]] && KFP_CLASS="ps-value ps-none"
+DGX_MINIKUBE_CLASS="ps-value"; [[ "$DGX_MINIKUBE_VERSION" == "—" ]] && DGX_MINIKUBE_CLASS="ps-value ps-none"
+AGX_MINIKUBE_CLASS="ps-value"; [[ "$AGX_MINIKUBE_VERSION" == "—" ]] && AGX_MINIKUBE_CLASS="ps-value ps-none"
+MLFLOW_CLASS="ps-value";     [[ "$MLFLOW_VERSION"     == "—" ]] && MLFLOW_CLASS="ps-value ps-none"
+MLFLOW_AGX_CLASS="ps-value"; [[ "$MLFLOW_VERSION_AGX" == "—" ]] && MLFLOW_AGX_CLASS="ps-value ps-none"
+GAR_URL="https://console.cloud.google.com/artifacts/docker/${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}"
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -210,6 +235,8 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-value { font-size: 0.875rem; color: #e6edf3; background: transparent; }
   .ps-none { color: #484f58; }
   .ps-warn { color: #d29922; }
+  .ps-link { color: #8b949e; text-decoration: none; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .ps-link:hover { color: #58a6ff; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -237,6 +264,14 @@ cat > "$OUTPUT" <<HTMLEOF
     <div class="ps-item ps-wide">
       <div class="ps-label">Ollama model</div>
       <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label"><a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/" class="ps-link">Minikube</a></div>
+      <code class="${DGX_MINIKUBE_CLASS}">${DGX_MINIKUBE_VERSION}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label"><a href="http://localhost:5000" class="ps-link">MLflow</a></div>
+      <code class="${MLFLOW_CLASS}">${MLFLOW_VERSION}</code>
     </div>
     <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
@@ -272,12 +307,33 @@ cat > "$OUTPUT" <<HTMLEOF
       <code class="${AGX_OLLAMA_CLASS}">${AGX_OLLAMA_MODEL}</code>
     </div>
     <div class="ps-item">
+      <div class="ps-label"><a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/" class="ps-link">Minikube</a></div>
+      <code class="${AGX_MINIKUBE_CLASS}">${AGX_MINIKUBE_VERSION}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label"><a href="http://localhost:5001" class="ps-link">MLflow</a></div>
+      <code class="${MLFLOW_AGX_CLASS}">${MLFLOW_VERSION_AGX}</code>
+    </div>
+    <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
       <code class="ps-value">${AGX_VRAM_USED_GB} GB</code>
     </div>
     <div class="ps-item">
       <div class="ps-label">VRAM Available</div>
       <code class="${AGX_VRAM_AVAIL_CLASS}">${AGX_VRAM_AVAIL_GB} GB</code>
+    </div>
+  </div>
+</div>
+<div class="machine-section">
+  <div class="machine-label">GCP</div>
+  <div class="platform-status">
+    <div class="ps-item">
+      <div class="ps-label"><a href="http://localhost:8080" class="ps-link">KFP</a></div>
+      <code class="${KFP_CLASS}">${KFP_VERSION}</code>
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label"><a href="${GAR_URL}" target="_blank" class="ps-link">GAR</a></div>
+      <code class="ps-value">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</code>
     </div>
   </div>
 </div>
@@ -297,7 +353,7 @@ cat > "$OUTPUT" <<HTMLEOF
 ${ROWS}
 </tbody>
 </table>
-<p class="footer">Generated ${GENERATED_AT} &mdash; JupyterLab links require an active SSH tunnel on port 8888.</p>
+<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. Minikube: DGX 8001 / AGX 8002.</p>
 </body>
 </html>
 HTMLEOF
