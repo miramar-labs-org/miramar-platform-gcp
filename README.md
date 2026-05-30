@@ -10,6 +10,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 
 > **Platform Dashboard:** [miramar-labs-org.github.io/miramar-platform-gcp](https://miramar-labs-org.github.io/miramar-platform-gcp/) — live table of all platform projects.
 
+[![Platform Dashboard](docs/images/dashboard.png)](https://miramar-labs-org.github.io/miramar-platform-gcp/)
+
 ```mermaid
 flowchart LR
     Dev[Developer Workstation] --> GH[GitHub Repository]
