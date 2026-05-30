@@ -3,8 +3,8 @@
 DGX Spark runs the local AI stack: minikube, NeMo Microservices, MLflow, NIM,
 and Ollama. The runner label is `dgx`.
 
-AGX Orin runs the identical stack — see [agx.md](agx.md) for AGX-specific details
-and the separate SSH tunnel port assignments.
+AGX Orin runs the same stack minus NIM (no arm64 NIM images exist) — see
+[agx.md](agx.md) for AGX-specific details and SSH tunnel port assignments.
 
 ## Access
 

@@ -51,11 +51,14 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 | Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; writes `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
 
-Stack deployment order (same for both machines):
+Stack deployment order:
 
 ```text
-Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy (or Ollama Deploy)
+DGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
+AGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Kubeflow Deploy -> Ollama Deploy
 ```
+
+NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` images exist.
 
 **Platform state repo variables** (NIM/Ollama current model + VRAM):
 

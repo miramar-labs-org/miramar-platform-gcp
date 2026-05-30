@@ -32,7 +32,7 @@ dgx/               # DGX Spark host config and local tooling
   systemd/         # Systemd user service unit files + install/uninstall scripts
 agx/               # AGX Orin host config and local tooling (mirrors dgx/)
   minikube/        # NeMo hosts file and AGX-specific configs
-  ollama/          # Ollama deploy/undeploy scripts (no NIM conflict check — no minikube in Phase 1)
+  ollama/          # Ollama deploy/undeploy scripts (no NIM conflict check — NIM not available on AGX)
 wsl2/              # WSL2 host config and bootstrap scripts
   README.md           # Operator quickstart for WSL2 provisioning
   TECHNICAL.md        # Source of truth for template builds, lifecycle, on-demand SSH, and troubleshooting
@@ -245,12 +245,13 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
 
 **Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the host so cluster state persists.
 
-**Workload stack** (deployment order, same for both machines):
-Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy (or Ollama Deploy)
+**Workload stack** (deployment order):
+- DGX: Minikube Install → NeMo Deploy → MLflow Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
+- AGX: Minikube Install → NeMo Deploy → MLflow Deploy → Kubeflow Deploy → Ollama Deploy
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
-**NIM** — DGX default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). AGX requires an sm_87-compatible model. See `dgx/minikube/nim/NIM.md` for catalog.
+**NIM** — DGX only. Default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). Not available on AGX — all NIM LLM containers on NGC are `linux/amd64`; no `linux/arm64` images exist. See `dgx/minikube/nim/NIM.md` for catalog.
 
 **Ollama** — runs as a systemd service on the host (not in minikube).
 - DGX: ~28 GB reserved for platform, **~100 GB for models** (`DGX_VRAM_USEABLE`)

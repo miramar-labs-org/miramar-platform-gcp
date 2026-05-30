@@ -1,7 +1,11 @@
 # AGX Orin Operations
 
 AGX Orin runs the same local AI stack as the DGX Spark: minikube, NeMo
-Microservices, MLflow, NIM, and Ollama. The runner label is `agx`.
+Microservices, MLflow, and Ollama. The runner label is `agx`.
+
+> **NIM is not available on AGX.** All NIM LLM containers on NGC are
+> `linux/amd64` only — no `linux/arm64` images exist. Use Ollama for inference
+> on AGX instead.
 
 Hardware: 64 GB unified memory (Ampere sm_87, JetPack 6.x).
 Memory budget: ~24 GB OS/platform, **~40 GB for AI models** (`AGX_VRAM_USEABLE=40`).
@@ -45,7 +49,8 @@ Stack deployment order:
 Actions -> Minikube Install   (runner: agx)
 Actions -> NeMo Deploy        (runner: agx)
 Actions -> MLflow Deploy      (runner: agx)
-Actions -> NIM Deploy         (runner: agx)
+Actions -> Kubeflow Deploy    (runner: agx)
+Actions -> Ollama Deploy      (runner: agx)
 ```
 
 ## MLflow
@@ -94,12 +99,6 @@ Actions -> NeMo Undeploy  (runner: agx)
 
 ## NIM
 
-Same workflow as DGX. Note: the default NIM (`nvidia-nemotron-nano-9b-v2-dgx-spark`)
-is Blackwell-optimized — specify an sm_87-compatible model for AGX.
-
-```text
-Actions -> NIM Deploy    (runner: agx)
-Actions -> NIM Undeploy  (runner: agx)
-```
-
-State variables: `CURRENT_NIM_MODEL_AGX`, `CURRENT_NIM_VRAM_GB_AGX`.
+NIM is **not supported on AGX Orin**. All NIM LLM containers on NGC are
+`linux/amd64` only; there are no `linux/arm64` images. `CURRENT_NIM_MODEL_AGX`
+stays `none`. Use Ollama for GPU inference on AGX.
