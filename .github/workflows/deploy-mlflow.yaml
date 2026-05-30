@@ -1,22 +1,26 @@
 name: MLflow Deploy
 
-# Deploys MLflow + MinIO into the mlflow-system namespace on the DGX minikube
+# Deploys MLflow + MinIO into the mlflow-system namespace on the target minikube
 # cluster and integrates with an existing NeMo Microservices deployment.
 # MLflow uses NeMo's postgres as its backend store.
 #
-# Triggers automatically after a successful NeMo Deploy run, or manually
-# via workflow_dispatch (NeMo must already be deployed).
+# Prerequisites: NeMo must already be deployed on the target machine.
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["NeMo Deploy"]
-    types: [completed]
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

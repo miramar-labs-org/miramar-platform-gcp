@@ -30,6 +30,9 @@ dgx/               # DGX Spark host config and local tooling
   minikube/        # GHA workflows for minikube lifecycle + NeMo deployment
   ollama/          # Ollama deploy/undeploy scripts and model catalog
   systemd/         # Systemd user service unit files + install/uninstall scripts
+agx/               # AGX Orin host config and local tooling (mirrors dgx/)
+  minikube/        # NeMo hosts file and AGX-specific configs
+  ollama/          # Ollama deploy/undeploy scripts (no NIM conflict check — no minikube in Phase 1)
 wsl2/              # WSL2 host config and bootstrap scripts
   README.md           # Operator quickstart for WSL2 provisioning
   TECHNICAL.md        # Source of truth for template builds, lifecycle, on-demand SSH, and troubleshooting
@@ -113,24 +116,24 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | GKE Expand GPU | `gke-expand-gpu.yaml` | Add transient GPU node pool via `terraform-gpu/` |
 | GKE Restore GPU | `gke-restore-gpu.yaml` | Remove GPU node pool via `terraform destroy` in `terraform-gpu/` |
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probe GPU availability; top 5 cheapest with [USE NOW] / [REQUEST QUOTA FIRST] |
-| Minikube Install | `install-minikube.yaml` | Install minikube on DGX, start cluster, enable addons, update kubeconfig secret |
-| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove binary |
-| Minikube Toggle | `toggle-minikube.yaml` | `minikube pause` / `unpause`. Inputs: `action`, `runner` |
-| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; `nemo_version` input (default `25.12.1`); auto-commits doc/hosts/SDK updates; writes `NEMO_VERSION` repo var |
-| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift |
-| NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first; rollback on failure; writes `CURRENT_NIM_MODEL` repo var |
-| NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL` |
-| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system |
-| MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace |
-| Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `KFP_VERSION` repo var. Prerequisite: Build KFP arm64 Images. |
+| Minikube Install | `install-minikube.yaml` | Install minikube and start cluster on target machine; update `<RUNNER>_MINIKUBE_KUBECONFIG` secret. Inputs: `runner` (dgx/agx) |
+| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove binary. Inputs: `runner` |
+| Minikube Toggle | `toggle-minikube.yaml` | `minikube pause` / `unpause`. Inputs: `action`, `runner` (dgx/agx/wsl2) |
+| NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; auto-commits hosts file + doc updates (DGX only); writes `NEMO_VERSION` repo var. Inputs: `runner`, `nemo_version` |
+| NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift. Inputs: `runner` |
+| NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` repo var. Inputs: `runner` |
+| NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL[_AGX]`. Inputs: `runner` |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system. Inputs: `runner` |
+| MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace. Inputs: `runner` |
+| Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. Images are reusable on AGX (both linux/arm64). |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `KFP_VERSION` repo var. Prerequisite: Build KFP arm64 Images. Inputs: `runner` |
 | Create Project | `create-project.yaml` | Create a new repo under miramar-labs-org pre-wired for the platform. Three types: `default` (generic notebook + platform endpoint reference, new default), `kfp` (KFP v2 pipeline stub + deploy/undeploy workflows), `nemo` (NeMo training job + deploy/undeploy workflows). Defaults to public so the project appears in the dashboard. Tags repo with `miramar-project` + `miramar-<type>`. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Double-entry confirmation guard. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
 | Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Reads platform state repo vars (see below). Runs hourly + on completion of any state-writing workflow (NeMo/KFP/Ollama/NIM deploy-undeploy). URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
-| Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources |
-| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing Ollama model, then pull + load new one; rollback on failure; writes `CURRENT_OLLAMA_MODEL` repo var. Fails if NIM loaded or model > 100 GB. |
-| Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank; clears `CURRENT_OLLAMA_MODEL` |
-| Ollama Update | `update-ollama.yaml` | Install/upgrade Ollama on DGX or WSL2 host; writes `OLLAMA_VERSION` repo var |
+| Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources. Inputs: `runner` |
+| Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing Ollama model, then pull + load new one; rollback on failure; writes `CURRENT_OLLAMA_MODEL[_AGX]` repo var. Inputs: `runner` (dgx/agx) |
+| Ollama Undeploy | `undeploy-ollama.yaml` | Unload Ollama model from GPU memory; auto-detects if blank; clears `CURRENT_OLLAMA_MODEL[_AGX]`. Inputs: `runner` |
+| Ollama Update | `update-ollama.yaml` | Install/upgrade Ollama on target host; writes `OLLAMA_VERSION` repo var. Inputs: `runner` (dgx/agx/wsl2) |
 | Setup Shared SSH Store | `setup-shared-ssh.yaml` | One-time: wire DGX + Orin shared SSH store |
 | WSL2 Provision | `provision-wsl2.yaml` | Import distro, run firstboot, add to WSL2_DISTROS |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Test all SSH paths for active distros in WSL2_DISTROS |
@@ -143,10 +146,24 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `NEMO_VERSION` | NeMo Deploy | — | `25.12.1` |
 | `KFP_VERSION` | Kubeflow Deploy | — | `2.16.1` |
 | `OLLAMA_VERSION` | Ollama Update | — | set by `update-ollama.yaml` |
-| `CURRENT_NIM_MODEL` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `none` |
-| `CURRENT_OLLAMA_MODEL` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `none` |
-| `CURRENT_NIM_VRAM_GB` | NIM Deploy | NIM Undeploy, NIM Deploy rollback | `0` |
-| `CURRENT_OLLAMA_VRAM_GB` | Ollama Deploy | Ollama Undeploy, Ollama Deploy rollback | `0` |
+| `CURRENT_NIM_MODEL` | NIM Deploy (dgx) | NIM Undeploy, NIM Deploy rollback | `none` |
+| `CURRENT_OLLAMA_MODEL` | Ollama Deploy (dgx) | Ollama Undeploy, Ollama Deploy rollback | `none` |
+| `CURRENT_NIM_VRAM_GB` | NIM Deploy (dgx) | NIM Undeploy, NIM Deploy rollback | `0` |
+| `CURRENT_OLLAMA_VRAM_GB` | Ollama Deploy (dgx) | Ollama Undeploy, Ollama Deploy rollback | `0` |
+| `CURRENT_NIM_MODEL_AGX` | NIM Deploy (agx) | NIM Undeploy (agx), rollback | `none` |
+| `CURRENT_OLLAMA_MODEL_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `none` |
+| `CURRENT_NIM_VRAM_GB_AGX` | NIM Deploy (agx) | NIM Undeploy (agx), rollback | `0` |
+| `CURRENT_OLLAMA_VRAM_GB_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `0` |
+
+**Org-level variables required for AGX:**
+
+| Variable | Value | Notes |
+|---|---|---|
+| `AGX_HOST_IP` | `<orin IP>` | Parallel to `DGX_HOST_IP` |
+| `AGX_HOST_USER` | `aaron` | Parallel to `DGX_HOST_USER` |
+| `AGX_VRAM_USEABLE` | `40` | 64 GB total - 24 GB system |
+
+**Repo secret required for AGX:** `AGX_HOST_SSH_KEY` — same key as `DGX_HOST_SSH_KEY` (all machines share Spark's SSH identity).
 
 Variables must exist before the dashboard reads them. On a fresh install, create missing variables via the GitHub API (PATCH→POST upsert using `GITHUB_ORG_ADMIN_PAT`) or the GitHub UI (`Settings → Secrets and variables → Actions → Variables`).
 

@@ -5,10 +5,19 @@ name: MLflow Undeploy
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
 
 jobs:
   undeploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

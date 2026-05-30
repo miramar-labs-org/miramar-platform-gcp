@@ -1,6 +1,6 @@
 name: Kubeflow Undeploy
 
-# Removes Kubeflow Pipelines from the DGX minikube cluster and optionally
+# Removes Kubeflow Pipelines from the target minikube cluster and optionally
 # deletes the kubeflow namespace. Passes the same pipeline_version used at
 # deploy time so kustomize can find the exact resources to delete.
 #
@@ -9,6 +9,14 @@ name: Kubeflow Undeploy
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       pipeline_version:
         description: Kubeflow Pipelines version tag used at deploy time
         default: "2.16.1"
@@ -20,7 +28,7 @@ on:
 
 jobs:
   undeploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +60,7 @@ jobs:
             echo "## Kubeflow Pipelines Undeployed"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| Version | \`${{ inputs.pipeline_version || '2.16.1' }}\` |"
             echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

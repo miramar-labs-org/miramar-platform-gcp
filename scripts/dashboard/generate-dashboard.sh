@@ -97,6 +97,14 @@ DGX_VRAM_USEABLE=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
   "orgs/${ORG}/actions/variables/DGX_VRAM_USEABLE" \
   --jq '.value' 2>/dev/null || echo "100")
 
+AGX_OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL_AGX")
+AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
+AGX_NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL_AGX")
+AGX_NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB_AGX")
+AGX_VRAM_USEABLE=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+  "orgs/${ORG}/actions/variables/AGX_VRAM_USEABLE" \
+  --jq '.value' 2>/dev/null || echo "40")
+
 [[ -z "$NEMO_VERSION" ]]   && NEMO_VERSION="—"
 [[ -z "$KFP_VERSION" ]]    && KFP_VERSION="—"
 [[ -z "$OLLAMA_VERSION" ]] && OLLAMA_VERSION="—"
@@ -105,15 +113,29 @@ DGX_VRAM_USEABLE=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
 [[ -z "$NIM_VRAM_GB" || "$NIM_VRAM_GB" == "null" ]]       && NIM_VRAM_GB="0"
 [[ -z "$OLLAMA_VRAM_GB" || "$OLLAMA_VRAM_GB" == "null" ]] && OLLAMA_VRAM_GB="0"
 [[ -z "$DGX_VRAM_USEABLE" || "$DGX_VRAM_USEABLE" == "null" ]] && DGX_VRAM_USEABLE="100"
+[[ -z "$AGX_OLLAMA_MODEL" ]]   && AGX_OLLAMA_MODEL="none"
+[[ -z "$AGX_OLLAMA_VRAM_GB" || "$AGX_OLLAMA_VRAM_GB" == "null" ]] && AGX_OLLAMA_VRAM_GB="0"
+[[ -z "$AGX_VRAM_USEABLE" || "$AGX_VRAM_USEABLE" == "null" ]] && AGX_VRAM_USEABLE="40"
+[[ -z "$AGX_NIM_MODEL" ]]      && AGX_NIM_MODEL="none"
+[[ -z "$AGX_NIM_VRAM_GB" || "$AGX_NIM_VRAM_GB" == "null" ]] && AGX_NIM_VRAM_GB="0"
 
 VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
 (( VRAM_AVAIL_GB < 0 )) && VRAM_AVAIL_GB=0
 
+AGX_VRAM_USED_GB=$(( AGX_NIM_VRAM_GB + AGX_OLLAMA_VRAM_GB ))
+AGX_VRAM_AVAIL_GB=$(( AGX_VRAM_USEABLE - AGX_VRAM_USED_GB ))
+(( AGX_VRAM_AVAIL_GB < 0 )) && AGX_VRAM_AVAIL_GB=0
+
 NIM_CLASS="ps-value";    [[ "$NIM_MODEL"    == "none" ]] && NIM_CLASS="ps-value ps-none"
 OLLAMA_CLASS="ps-value"; [[ "$OLLAMA_MODEL" == "none" ]] && OLLAMA_CLASS="ps-value ps-none"
 VRAM_AVAIL_CLASS="ps-value"
 (( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
+
+AGX_NIM_CLASS="ps-value";    [[ "$AGX_NIM_MODEL"    == "none" ]] && AGX_NIM_CLASS="ps-value ps-none"
+AGX_OLLAMA_CLASS="ps-value"; [[ "$AGX_OLLAMA_MODEL" == "none" ]] && AGX_OLLAMA_CLASS="ps-value ps-none"
+AGX_VRAM_AVAIL_CLASS="ps-value"
+(( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -170,12 +192,15 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-value { font-size: 0.875rem; color: #e6edf3; background: transparent; }
   .ps-none { color: #484f58; }
   .ps-warn { color: #d29922; }
+  .ps-machine { flex-basis: 100%; font-size: 0.7rem; font-weight: 600; color: #58a6ff; padding-bottom: 0.1rem; border-bottom: 1px solid #21262d; margin-bottom: 0.25rem; }
+  .ps-machine:not(:first-child) { margin-top: 0.5rem; }
 </style>
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
 <p class="subtitle">Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly. &mdash; <a href="https://github.com/${ORG}/miramar-platform-gcp">Platform repo</a></p>
 <div class="platform-status">
+  <div class="ps-machine">DGX Spark</div>
   <div class="ps-item">
     <div class="ps-label">NeMo</div>
     <code class="ps-value">${NEMO_VERSION}</code>
@@ -203,6 +228,23 @@ cat > "$OUTPUT" <<HTMLEOF
   <div class="ps-item">
     <div class="ps-label">VRAM Available</div>
     <code class="${VRAM_AVAIL_CLASS}">${VRAM_AVAIL_GB} GB</code>
+  </div>
+  <div class="ps-machine">AGX Orin</div>
+  <div class="ps-item ps-wide">
+    <div class="ps-label">NIM model</div>
+    <code class="${AGX_NIM_CLASS}">${AGX_NIM_MODEL}</code>
+  </div>
+  <div class="ps-item ps-wide">
+    <div class="ps-label">Ollama model</div>
+    <code class="${AGX_OLLAMA_CLASS}">${AGX_OLLAMA_MODEL}</code>
+  </div>
+  <div class="ps-item">
+    <div class="ps-label">VRAM Used</div>
+    <code class="ps-value">${AGX_VRAM_USED_GB} GB</code>
+  </div>
+  <div class="ps-item">
+    <div class="ps-label">VRAM Available</div>
+    <code class="${AGX_VRAM_AVAIL_CLASS}">${AGX_VRAM_AVAIL_GB} GB</code>
   </div>
 </div>
 <table>

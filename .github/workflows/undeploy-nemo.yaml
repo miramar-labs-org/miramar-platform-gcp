@@ -1,6 +1,6 @@
 name: NeMo Undeploy
 
-# Removes the NeMo Microservices Helm release from the DGX minikube cluster
+# Removes the NeMo Microservices Helm release from the target minikube cluster
 # and optionally deletes the nemo-microservices namespace.
 #
 # Does NOT stop minikube or affect any other workloads.
@@ -8,6 +8,14 @@ name: NeMo Undeploy
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       delete_namespace:
         description: Delete nemo-microservices namespace after uninstall
         type: boolean
@@ -15,7 +23,7 @@ on:
 
 jobs:
   undeploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +93,7 @@ jobs:
             echo "## NeMo Microservices Undeployed"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
             echo "| Volcano removed | \`true\` |"
           } >> "$GITHUB_STEP_SUMMARY"

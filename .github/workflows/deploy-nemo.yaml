@@ -1,16 +1,24 @@
 name: NeMo Deploy
 
-# Installs NeMo Microservices into the nemo-microservices namespace on the DGX
+# Installs NeMo Microservices into the nemo-microservices namespace on the target
 # minikube cluster.
 #
 # Prerequisites:
-#   - minikube running on the DGX (Minikube Install workflow)
+#   - minikube running on the target machine (Minikube Install workflow)
 #   - NVIDIA_API_KEY org secret set
 #   - HF_TOKEN org secret set
 
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       nemo_version:
         description: "NeMo Microservices Helm chart version (e.g. 25.12.1)"
         required: false
@@ -21,12 +29,22 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve machine-specific paths
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOSTS_FILE=agx/minikube/nemo/hosts.agx" >> "$GITHUB_ENV"
+            echo "VALUES_FILE=dgx/minikube/nemo/install/values.yaml" >> "$GITHUB_ENV"
+          else
+            echo "HOSTS_FILE=dgx/minikube/nemo/hosts.dgx" >> "$GITHUB_ENV"
+            echo "VALUES_FILE=dgx/minikube/nemo/install/values.yaml" >> "$GITHUB_ENV"
+          fi
 
       - name: Set up kubeconfig
         run: |
@@ -111,56 +129,56 @@ jobs:
             --namespace nemo-microservices \
             --create-namespace \
             --version "${{ inputs.nemo_version }}" \
-            -f dgx/minikube/nemo/install/values.yaml \
+            -f "$VALUES_FILE" \
             --timeout 30m
 
-      - name: Update README doc links and hosts files
+      - name: Update hosts file and commit
         env:
           NEMO_VERSION: ${{ inputs.nemo_version }}
+          RUNNER: ${{ inputs.runner }}
         run: |
           set -euo pipefail
-          DOC_LABEL="${NEMO_VERSION%.*}"
           MINIKUBE_IP=$(minikube ip)
 
-          # Refresh hosts.dgx with current minikube IP (guards against IP drift after reinstall)
-          printf '%s nemo.test nim.test data-store.test\n' "${MINIKUBE_IP}" \
-            > dgx/minikube/nemo/hosts.dgx
+          printf '%s nemo.test nim.test data-store.test\n' "${MINIKUBE_IP}" > "$HOSTS_FILE"
 
-          # Update hardcoded IP in ENDPOINTS.md prose
-          sed -i "s|minikube cluster IP (\`[0-9][0-9.]*[0-9]\`)|minikube cluster IP (\`${MINIKUBE_IP}\`)|g" \
-            dgx/minikube/nemo/ENDPOINTS.md
+          if [[ "$RUNNER" == "dgx" ]]; then
+            # DGX: also refresh version-stamped docs
+            DOC_LABEL="${NEMO_VERSION%.*}"
 
-          # Update Swagger/doc links in nemo README
-          sed -i \
-            -e "s|/nemo/microservices/[0-9][0-9]\.[0-9][0-9]\.[0-9]*/|/nemo/microservices/${NEMO_VERSION}/|g" \
-            -e "s|(API reference ([0-9][0-9]\.[0-9][0-9]))|(API reference (${DOC_LABEL}))|g" \
-            dgx/minikube/nemo/README.md
+            sed -i "s|minikube cluster IP (\`[0-9][0-9.]*[0-9]\`)|minikube cluster IP (\`${MINIKUBE_IP}\`)|g" \
+              dgx/minikube/nemo/ENDPOINTS.md
 
-          # Update Swagger/doc links in new-project template
-          sed -i \
-            -e "s|/nemo/microservices/[0-9][0-9]\.[0-9][0-9]\.[0-9]*/|/nemo/microservices/${NEMO_VERSION}/|g" \
-            -e "s|\[NeMo [0-9][0-9]\.[0-9][0-9] Swagger\]|\[NeMo ${DOC_LABEL} Swagger\]|g" \
-            templates/new-project-nemo/README.md
+            sed -i \
+              -e "s|/nemo/microservices/[0-9][0-9]\.[0-9][0-9]\.[0-9]*/|/nemo/microservices/${NEMO_VERSION}/|g" \
+              -e "s|(API reference ([0-9][0-9]\.[0-9][0-9]))|(API reference (${DOC_LABEL}))|g" \
+              dgx/minikube/nemo/README.md
 
-          # Pin SDK version in requirements.txt (used by the JupyterLab pyNeMo env)
-          sed -i "s|^nemo-microservices.*$|nemo-microservices==${NEMO_VERSION}|" \
-            dgx/minikube/nemo/requirements.txt
+            sed -i \
+              -e "s|/nemo/microservices/[0-9][0-9]\.[0-9][0-9]\.[0-9]*/|/nemo/microservices/${NEMO_VERSION}/|g" \
+              -e "s|\[NeMo [0-9][0-9]\.[0-9][0-9] Swagger\]|\[NeMo ${DOC_LABEL} Swagger\]|g" \
+              templates/new-project-nemo/README.md
 
-          # Pin SDK version in notebook pip install comment
-          sed -i "s|nemo-microservices[^ ]*|nemo-microservices==${NEMO_VERSION}|g" \
-            templates/new-project-nemo/notebook.ipynb
+            sed -i "s|^nemo-microservices.*$|nemo-microservices==${NEMO_VERSION}|" \
+              dgx/minikube/nemo/requirements.txt
+
+            sed -i "s|nemo-microservices[^ ]*|nemo-microservices==${NEMO_VERSION}|g" \
+              templates/new-project-nemo/notebook.ipynb
+          fi
 
           if git diff --quiet; then
-            echo "No changes — already at ${NEMO_VERSION}, minikube IP already ${MINIKUBE_IP}."
+            echo "No changes to commit."
           else
             git config user.email "actions@github.com"
             git config user.name "Miramar Platform"
-            git add dgx/minikube/nemo/hosts.dgx \
-                    dgx/minikube/nemo/ENDPOINTS.md \
-                    dgx/minikube/nemo/README.md \
-                    dgx/minikube/nemo/requirements.txt \
-                    templates/new-project-nemo/README.md \
-                    templates/new-project-nemo/notebook.ipynb
+            git add "$HOSTS_FILE"
+            if [[ "$RUNNER" == "dgx" ]]; then
+              git add dgx/minikube/nemo/ENDPOINTS.md \
+                      dgx/minikube/nemo/README.md \
+                      dgx/minikube/nemo/requirements.txt \
+                      templates/new-project-nemo/README.md \
+                      templates/new-project-nemo/notebook.ipynb
+            fi
             git commit -m "docs: update NeMo doc links to ${NEMO_VERSION} [skip ci]"
             git push origin HEAD:main
             echo "Changes committed and pushed to main."
@@ -189,9 +207,9 @@ jobs:
           '
           kubectl get pods -n nemo-microservices
 
-      - name: Configure DNS on DGX host
+      - name: Configure DNS in runner container
         run: |
-          HOSTS_LINE=$(cat dgx/minikube/nemo/hosts.dgx)
+          HOSTS_LINE=$(cat "$HOSTS_FILE")
           docker run --rm \
             -e HOSTS_LINE="${HOSTS_LINE}" \
             -v /etc:/host-etc \
@@ -223,22 +241,19 @@ jobs:
         run: |
           POD_COUNT=$(kubectl get pods -n nemo-microservices --no-headers 2>/dev/null | grep -c . || echo 0)
           CHART_VER=$(helm list -n nemo-microservices -o json 2>/dev/null | jq -r '.[0].chart // "unknown"')
+          MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "unknown")
           {
             echo "## NeMo Microservices Deployed"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| Namespace | \`nemo-microservices\` |"
             echo "| Version | \`${{ inputs.nemo_version }}\` |"
             echo "| Helm chart | \`${CHART_VER}\` |"
             echo "| Pods | \`${POD_COUNT}\` |"
             echo ""
-            echo "### DGX /etc/hosts"
+            echo "### /etc/hosts entry"
             echo "\`\`\`"
-            cat dgx/minikube/nemo/hosts.dgx
-            echo "\`\`\`"
-            echo ""
-            echo "### Windows /etc/hosts (SSH tunnel, port 8082)"
-            echo "\`\`\`"
-            cat dgx/minikube/nemo/hosts.win
+            cat "$HOSTS_FILE"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"

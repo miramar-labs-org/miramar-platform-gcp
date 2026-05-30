@@ -1,41 +1,58 @@
 name: Minikube Install
 
-# Installs the minikube binary (if needed) and starts the cluster on the DGX
-# with GPU support, DGX Spark / NeMo settings, and required addons.
-# Safe to re-run — idempotent; skips start if cluster is already running.
+# Installs the minikube binary (if needed) and starts the cluster on the target
+# machine with GPU support and required addons. Safe to re-run — idempotent;
+# skips start if cluster is already running.
 #
-# After starting, updates the DGX_MINIKUBE_KUBECONFIG org secret with a fresh
-# self-contained kubeconfig (certs are rotated on every minikube delete+recreate).
+# After starting, updates the <RUNNER>_MINIKUBE_KUBECONFIG org secret with a
+# fresh self-contained kubeconfig (certs are rotated on every minikube delete+recreate).
 #
 # Prerequisites:
-#   - Docker running on the DGX host
+#   - Docker running on the host
 #   - mlabs-runner container launched via scripts/gha/launch-runner.sh
 #   - GITHUB_ORG_ADMIN_PAT env var set on the runner (injected by launch-runner.sh)
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
 
 jobs:
   install:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install minikube on DGX host
+      - name: Resolve kubeconfig secret name
         run: |
-          # /host-bin is mounted from the host's /usr/local/bin by launch-runner.sh (DGX-only).
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "KUBECONFIG_SECRET=AGX_MINIKUBE_KUBECONFIG" >> "$GITHUB_ENV"
+          else
+            echo "KUBECONFIG_SECRET=DGX_MINIKUBE_KUBECONFIG" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install minikube on host
+        run: |
+          # /host-bin is mounted from the host's /usr/local/bin by launch-runner.sh.
           if [[ -x /host-bin/minikube ]]; then
-            echo "==> minikube already on DGX host, skipping."
+            echo "==> minikube already on host, skipping."
           else
             ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-            echo "==> Downloading minikube for DGX host..."
+            echo "==> Downloading minikube for host..."
             curl -fsSL \
               "https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-${ARCH}" \
               -o /tmp/minikube-host
             sudo install -m 0755 /tmp/minikube-host /host-bin/minikube
             rm /tmp/minikube-host
-            echo "==> minikube installed on DGX host."
+            echo "==> minikube installed on host."
           fi
 
       - name: Start cluster and configure addons
@@ -48,7 +65,7 @@ jobs:
           minikube delete --all --purge 2>/dev/null || true
           echo "==> Cleanup done. Re-trigger this workflow to start fresh."
 
-      - name: Update DGX_MINIKUBE_KUBECONFIG org secret
+      - name: Update minikube kubeconfig org secret
         run: |
           set -o pipefail
           docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
@@ -59,7 +76,7 @@ jobs:
           KUBECONFIG_B64=$(KUBECONFIG="${TMP_KC}" kubectl config view \
             --raw --minify --flatten --context=minikube \
             | base64 -w0)
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set DGX_MINIKUBE_KUBECONFIG \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set "${KUBECONFIG_SECRET}" \
             --org miramar-labs-org \
             --body "${KUBECONFIG_B64}"
-          echo "==> DGX_MINIKUBE_KUBECONFIG updated"
+          echo "==> ${KUBECONFIG_SECRET} updated"

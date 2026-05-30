@@ -1,11 +1,19 @@
 name: NIM Undeploy
 
-# Undeploys a NIM from the DGX minikube cluster via the NeMo Microservices deployment API.
+# Undeploys a NIM from the target minikube cluster via the NeMo Microservices deployment API.
 # NeMo Microservices must be running. Safe to run if the NIM is already gone (404 → no-op).
 
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       nim_name:
         description: "NIM model name (e.g. nvidia-nemotron-nano-9b-v2-dgx-spark)"
         required: false
@@ -17,10 +25,20 @@ on:
 
 jobs:
   undeploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve state vars
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "STATE_NIM_MODEL_VAR=CURRENT_NIM_MODEL_AGX"  >> "$GITHUB_ENV"
+            echo "STATE_NIM_VRAM_VAR=CURRENT_NIM_VRAM_GB_AGX" >> "$GITHUB_ENV"
+          else
+            echo "STATE_NIM_MODEL_VAR=CURRENT_NIM_MODEL"       >> "$GITHUB_ENV"
+            echo "STATE_NIM_VRAM_VAR=CURRENT_NIM_VRAM_GB"      >> "$GITHUB_ENV"
+          fi
 
       - name: Set up kubeconfig
         run: |
@@ -57,7 +75,7 @@ jobs:
         if: success()
         run: |
           set -euo pipefail
-          for var_val in "CURRENT_NIM_MODEL=none" "CURRENT_NIM_VRAM_GB=0"; do
+          for var_val in "${STATE_NIM_MODEL_VAR}=none" "${STATE_NIM_VRAM_VAR}=0"; do
             var="${var_val%%=*}"; val="${var_val#*=}"
             GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
               -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
@@ -74,5 +92,6 @@ jobs:
             echo "## NIM Undeploy"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| NIM | \`${{ inputs.nim_org }}/${{ inputs.nim_name }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
