@@ -126,6 +126,7 @@ AGX_VRAM_USEABLE=$(read_org_var "AGX_VRAM_USEABLE")
 GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
 GCP_REGION=$(read_org_var "GCP_REGION")
 GAR_REPO=$(read_org_var "GAR_REPO")
+GKE_CLUSTER_NAME=$(read_org_var "GKE_CLUSTER_NAME")
 
 [[ -z "$NEMO_VERSION" ]]   && NEMO_VERSION="—"
 [[ -z "$KFP_VERSION" ]]    && KFP_VERSION="—"
@@ -144,9 +145,10 @@ GAR_REPO=$(read_org_var "GAR_REPO")
 [[ -z "$AGX_NIM_VRAM_GB" || "$AGX_NIM_VRAM_GB" == "null" ]] && AGX_NIM_VRAM_GB="0"
 [[ -z "$AGX_MINIKUBE_VERSION" ]] && AGX_MINIKUBE_VERSION="—"
 [[ -z "$MLFLOW_VERSION_AGX" ]]   && MLFLOW_VERSION_AGX="—"
-[[ -z "$GCP_PROJECT_ID" ]] && GCP_PROJECT_ID="miramar-platform"
-[[ -z "$GCP_REGION" ]]     && GCP_REGION="us-central1"
-[[ -z "$GAR_REPO" ]]       && GAR_REPO="apps"
+[[ -z "$GCP_PROJECT_ID" ]]   && GCP_PROJECT_ID="miramar-platform"
+[[ -z "$GCP_REGION" ]]       && GCP_REGION="us-central1"
+[[ -z "$GAR_REPO" ]]         && GAR_REPO="apps"
+[[ -z "$GKE_CLUSTER_NAME" ]] && GKE_CLUSTER_NAME="miramar-shared-gke"
 
 VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
@@ -166,7 +168,6 @@ AGX_OLLAMA_CLASS="ps-value"; [[ "$AGX_OLLAMA_MODEL" == "none" ]] && AGX_OLLAMA_C
 AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
-KFP_CLASS="ps-value"; [[ "$KFP_VERSION" == "—" ]] && KFP_CLASS="ps-value ps-none"
 DGX_MINIKUBE_CLASS="ps-value"; [[ "$DGX_MINIKUBE_VERSION" == "—" ]] && DGX_MINIKUBE_CLASS="ps-value ps-none"
 AGX_MINIKUBE_CLASS="ps-value"; [[ "$AGX_MINIKUBE_VERSION" == "—" ]] && AGX_MINIKUBE_CLASS="ps-value ps-none"
 MLFLOW_CLASS="ps-value";     [[ "$MLFLOW_VERSION"     == "—" ]] && MLFLOW_CLASS="ps-value ps-none"
@@ -327,9 +328,9 @@ cat > "$OUTPUT" <<HTMLEOF
 <div class="machine-section">
   <div class="machine-label">GCP</div>
   <div class="platform-status">
-    <div class="ps-item">
-      <div class="ps-label"><a href="http://localhost:8080" class="ps-link">KFP</a></div>
-      <code class="${KFP_CLASS}">${KFP_VERSION}</code>
+    <div class="ps-item ps-wide">
+      <div class="ps-label"><a href="https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}" target="_blank" class="ps-link">GKE</a></div>
+      <code class="ps-value">${GKE_CLUSTER_NAME}</code>
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label"><a href="${GAR_URL}" target="_blank" class="ps-link">GAR</a></div>
