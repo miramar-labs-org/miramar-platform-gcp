@@ -3,9 +3,10 @@
 DGX Spark runs the local AI stack: minikube, NeMo Microservices, MLflow, NIM,
 and Ollama. The runner label is `dgx`.
 
-## Access
+AGX Orin runs the identical stack — see [agx.md](agx.md) for AGX-specific details
+and the separate SSH tunnel port assignments.
 
-The DGX user services are reached through SSH tunnels:
+## Access
 
 ```sh
 ssh -L 8001:localhost:8001 \
@@ -15,10 +16,10 @@ ssh -L 8001:localhost:8001 \
     -L 8082:localhost:8082 \
     -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
-    <user>@spark-79b7.local
+    aaron@spark-79b7.local
 ```
 
-| Port | Service |
+| Local port | Service |
 | --- | --- |
 | `8001` | Kubernetes dashboard proxy |
 | `8888` | JupyterLab |

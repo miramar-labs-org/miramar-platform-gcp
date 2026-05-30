@@ -2,6 +2,8 @@
 
 Systemd user services for the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/). These start automatically on boot (via linger) and on login — no manual intervention needed after a reboot.
 
+AGX Orin runs the identical set of services — see [../../agx/systemd/README.md](../../agx/systemd/README.md) for AGX-specific tunnel port assignments.
+
 | Service | Port | Purpose |
 |---|---|---|
 | `minikube.service` | — | Starts/stops the [minikube](https://minikube.sigs.k8s.io/) cluster; other services depend on it |

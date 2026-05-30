@@ -193,31 +193,58 @@ Local env vars required: `GITHUB_ORG_GHCR_PAT` (`read:packages`), `GITHUB_ORG_AD
 
 To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`.
 
-## DGX local services
+## Local AI stack (DGX + AGX)
 
-Seven systemd user services start on boot (via linger) — managed via `dgx/systemd/`:
+Both DGX Spark and AGX Orin run the identical seven systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
 
-| Service | Port | Purpose |
+| Service | Host port | Purpose |
 |---|---|---|
 | `minikube` | — | Starts/stops minikube; other services depend on it |
 | `dashboard` | `8001` | `kubectl proxy --context minikube` |
-| `jupyterlab` | `8888` | JupyterLab in the pyJLab Python environment (see `dgx/jupyterlab/`) |
+| `jupyterlab` | `8888` | JupyterLab in the pyJLab Python environment |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` |
 | `kfp-api-portfwd` | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API) |
 | `nemo-portfwd` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
 
-**Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the DGX host so cluster state persists. The shared SSH store (`~/shared/ssh`) is also mounted, enabling workflows to SSH back to the DGX host as the local user (used by e.g. **Open in JupyterLab**).
+**SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop:
 
-**DGX workload stack** (deployment order): Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy (or Ollama Deploy)
+| Service | DGX local port | AGX local port |
+|---|---|---|
+| K8s dashboard | `8001` | `8002` |
+| JupyterLab | `8888` | `8887` |
+| MLflow | `5000` | `5001` |
+| KFP UI | `8080` | `8081` |
+| NeMo / NIM | `8082` | `8083` |
+| KFP API | `8890` | `8891` |
+| Ollama | `11434` | `11435` |
+
+```sh
+# DGX Spark (spark-79b7.local)
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
+    -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
+    -L 11434:localhost:11434 aaron@spark-79b7.local
+
+# AGX Orin (orin.local)
+ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
+    -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
+    -L 11435:localhost:11434 aaron@orin.local
+```
+
+**Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the host so cluster state persists.
+
+**Workload stack** (deployment order, same for both machines):
+Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy (or Ollama Deploy)
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
-**NIM** — default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark`. See `dgx/minikube/nim/NIM.md` for catalog. Available DGX Spark NIMs: https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html
+**NIM** — DGX default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). AGX requires an sm_87-compatible model. See `dgx/minikube/nim/NIM.md` for catalog.
 
-**Ollama** — runs as a systemd service on the DGX host (not in minikube). **NIM and Ollama share the 128 GB unified memory pool** — ~28 GB reserved for the platform, leaving **~100 GB for AI models**. No single deployed model may exceed this budget. See `dgx/ollama/README.md` for model catalog. Browse available models: https://ollama.com/library
+**Ollama** — runs as a systemd service on the host (not in minikube).
+- DGX: ~28 GB reserved for platform, **~100 GB for models** (`DGX_VRAM_USEABLE`)
+- AGX: ~24 GB reserved for platform, **~40 GB for models** (`AGX_VRAM_USEABLE`)
 
-**MLflow** (`mlflow-system` namespace) — port-forward binds to `0.0.0.0`; all other services bind to `127.0.0.1`.
+**MLflow** (`mlflow-system` namespace) — `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` works on both machines (resolves to the local host from inside the runner container).
 
 **Kubeflow Pipelines** (`kubeflow` namespace) — independent of NeMo/MLflow; can deploy on a fresh minikube cluster.
 
