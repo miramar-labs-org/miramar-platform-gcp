@@ -97,9 +97,11 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. Type `default` (generic notebook + endpoint reference, default), `kfp` (KFP v2 pipeline stub + deploy/undeploy), or `nemo` (NeMo training job + deploy/undeploy). `host` input (dgx/agx) sets affinity — clones repo on correct machine and writes `PROJECT_HOST` repo variable. Tags repo `miramar-project` + `miramar-<type>` so it appears in the dashboard. |
+| Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. Type `default` (generic notebook + endpoint reference, default), `kfp` (KFP v2 pipeline stub + deploy/undeploy), or `nemo` (NeMo training job + deploy/undeploy). `host` input (dgx/agx) sets affinity — clones repo on correct machine and writes `PROJECT_HOST` repo variable. Tags repo `miramar-project` + `miramar-<type>` so it appears in the dashboard. Also opens a draft blog post PR to `miramar-labs/miramar-labs.github.io`. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo (double-entry guard); triggers dashboard refresh |
 | Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM/Ollama model/VRAM/Minikube/MLflow), and GCP (GKE cluster link, GAR link). Project table includes Host column and JupyterLab links. Runs hourly + on completion of any state-writing workflow. |
+| List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs/miramar-labs.github.io`. Run before Delete Blog Post to get the exact filename. |
+| Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs/miramar-labs.github.io` by filename; closes any open draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
 
 ## WSL2 and SSH
 
