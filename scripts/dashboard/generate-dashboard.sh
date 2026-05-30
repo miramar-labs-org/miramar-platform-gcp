@@ -60,9 +60,11 @@ while IFS= read -r repo_json; do
   fi
 
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
-  host=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-    "repos/${ORG}/${name}/actions/variables/PROJECT_HOST" \
-    --jq '.value' 2>/dev/null || echo "dgx")
+  # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
+  # extract with jq separately to avoid concatenating error body with the fallback.
+  host_json=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+    "repos/${ORG}/${name}/actions/variables/PROJECT_HOST" 2>/dev/null) || host_json="{}"
+  host=$(printf '%s' "$host_json" | jq -r '.value // empty')
   [[ -z "$host" || "$host" == "null" ]] && host="dgx"
   host_html="<span class=\"badge badge-${host}\">${host}</span>"
 
