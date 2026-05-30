@@ -57,7 +57,7 @@ docs/              # Architecture and runbooks
 | `scripts/gha/sync-github-tf-vars.sh` | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Never edit GitHub vars directly — edit tfvars and re-sync. |
 | `scripts/gha/launch-runner.sh` / `stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. Idempotent. |
 | `scripts/gha/flush-queues.sh` | Cancel all in-progress, queued, and waiting workflow runs |
-| `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the five DGX systemd user services |
+| `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the seven systemd user services (used on both DGX and AGX) |
 | `wsl2/bootstrap.sh` | One-time setup for a fresh WSL2 template base. Run inside the clean template before exporting. |
 | `wsl2/rebuild-template.ps1` | Rebuild the configured template tarball. Params: `-SmbPassword` (required). Run after changing `bootstrap.sh` or rotating the Samba password. |
 | `wsl2/firstboot.sh` | One-shot provisioning inside a new distro via `wsl -d NAME --user root -- bash`. Sets hostname, sshd port, calls `setup-shared-ssh.sh`. |
@@ -116,14 +116,14 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | GKE Expand GPU | `gke-expand-gpu.yaml` | Add transient GPU node pool via `terraform-gpu/` |
 | GKE Restore GPU | `gke-restore-gpu.yaml` | Remove GPU node pool via `terraform destroy` in `terraform-gpu/` |
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probe GPU availability; top 5 cheapest with [USE NOW] / [REQUEST QUOTA FIRST] |
-| Minikube Install | `install-minikube.yaml` | Install minikube and start cluster on target machine; update `<RUNNER>_MINIKUBE_KUBECONFIG` secret. Inputs: `runner` (dgx/agx) |
+| Minikube Install | `install-minikube.yaml` | Install minikube and start cluster on target machine; update `<RUNNER>_MINIKUBE_KUBECONFIG` secret; writes `DGX_MINIKUBE_VERSION` or `AGX_MINIKUBE_VERSION`. Inputs: `runner` (dgx/agx) |
 | Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove binary. Inputs: `runner` |
 | Minikube Toggle | `toggle-minikube.yaml` | `minikube pause` / `unpause`. Inputs: `action`, `runner` (dgx/agx/wsl2) |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; auto-commits hosts file + doc updates (DGX only); writes `NEMO_VERSION` repo var. Inputs: `runner`, `nemo_version` |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift. Inputs: `runner` |
 | NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` repo var. Inputs: `runner` |
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL[_AGX]`. Inputs: `runner` |
-| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system. Inputs: `runner` |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; writes `MLFLOW_VERSION` or `MLFLOW_VERSION_AGX`. Inputs: `runner` |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace. Inputs: `runner` |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. Images are reusable on AGX (both linux/arm64). |
 | Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `KFP_VERSION` repo var. Prerequisite: Build KFP arm64 Images. Inputs: `runner` |
@@ -154,6 +154,10 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `CURRENT_OLLAMA_MODEL_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `none` |
 | `CURRENT_NIM_VRAM_GB_AGX` | NIM Deploy (agx) | NIM Undeploy (agx), rollback | `0` |
 | `CURRENT_OLLAMA_VRAM_GB_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback | `0` |
+| `DGX_MINIKUBE_VERSION` | Minikube Install (dgx) | — | `—` |
+| `AGX_MINIKUBE_VERSION` | Minikube Install (agx) | — | `—` |
+| `MLFLOW_VERSION` | MLflow Deploy (dgx) | — | `—` |
+| `MLFLOW_VERSION_AGX` | MLflow Deploy (agx) | — | `—` |
 
 **Org-level variables required for AGX:**
 
@@ -163,7 +167,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_HOST_USER` | `aaron` | Parallel to `DGX_HOST_USER` |
 | `AGX_VRAM_USEABLE` | `40` | 64 GB total - 24 GB system |
 
-**Repo secret required for AGX:** `AGX_HOST_SSH_KEY` — same key as `DGX_HOST_SSH_KEY` (all machines share Spark's SSH identity).
+**Org secret used for all SSH:** `HOST_SSH_KEY` — all machines share Spark's SSH identity; replaces the old per-machine `DGX_HOST_SSH_KEY` / `AGX_HOST_SSH_KEY` secrets.
 
 Variables must exist before the dashboard reads them. On a fresh install, create missing variables via the GitHub API (PATCH→POST upsert using `GITHUB_ORG_ADMIN_PAT`) or the GitHub UI (`Settings → Secrets and variables → Actions → Variables`).
 

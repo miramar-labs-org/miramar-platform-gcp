@@ -58,6 +58,13 @@ Sync GCP variables from Terraform after changing `gcp/terraform/terraform.tfvars
 | Variable | Initial value | Purpose |
 | --- | --- | --- |
 | `WSL2_DISTROS` | `NONE` | Active WSL2 distro names; updated by WSL2 Provision/Unprovision |
+| `NEMO_VERSION` | `—` | NeMo version deployed; written by NeMo Deploy |
+| `KFP_VERSION` | `—` | KFP version deployed; written by Kubeflow Deploy |
+| `OLLAMA_VERSION` | `—` | Ollama binary version; written by Ollama Update |
+| `DGX_MINIKUBE_VERSION` | `—` | Minikube version on DGX; written by Minikube Install (runner=dgx) |
+| `AGX_MINIKUBE_VERSION` | `—` | Minikube version on AGX; written by Minikube Install (runner=agx) |
+| `MLFLOW_VERSION` | `—` | MLflow version on DGX; written by MLflow Deploy (runner=dgx) |
+| `MLFLOW_VERSION_AGX` | `—` | MLflow version on AGX; written by MLflow Deploy (runner=agx) |
 | `CURRENT_NIM_MODEL` | `none` | NIM currently loaded on DGX |
 | `CURRENT_OLLAMA_MODEL` | `none` | Ollama model currently loaded on DGX |
 | `CURRENT_NIM_VRAM_GB` | `0` | VRAM used by NIM on DGX |
