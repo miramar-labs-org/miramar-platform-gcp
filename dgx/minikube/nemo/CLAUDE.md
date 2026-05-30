@@ -25,7 +25,7 @@ source ../nim/undeploy_nim.sh && undeploy_nim meta llama-3.1-8b-instruct-dgx-spa
 
 ## Systemd services
 
-Always running on the DGX — no manual start needed. Managed via `dgx/systemd/`.
+Same services run on both DGX and AGX — managed via `dgx/systemd/` and `agx/systemd/`.
 
 | Service | Port | What it does |
 |---|---|---|
@@ -37,10 +37,18 @@ Always running on the DGX — no manual start needed. Managed via `dgx/systemd/`
 | `kfp-api-portfwd` | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API) |
 | `nemo-portfwd` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` — exposes `nemo.test`, `nim.test`, `data-store.test` |
 
-Access from laptop via SSH tunnel:
+Access from laptop via SSH tunnel (DGX and AGX can run simultaneously on different local ports):
 
 ```bash
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 -L 11434:localhost:11434 <user>@spark-79b7.local
+# DGX Spark
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
+    -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
+    -L 11434:localhost:11434 aaron@spark-79b7.local
+
+# AGX Orin
+ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
+    -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
+    -L 11435:localhost:11434 aaron@orin.local
 ```
 
 Add to laptop `/etc/hosts`: `127.0.0.1 nemo.test nim.test data-store.test`

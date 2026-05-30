@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: Runner host that can SSH to the DGX
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin, wsl2 = SSH to DGX from laptop)"
         type: choice
         required: true
         default: dgx
         options:
           - dgx
+          - agx
           - wsl2
 
 jobs:
@@ -20,29 +21,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare SSH key for DGX host
+      - name: Resolve SSH target
+        shell: bash
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Prepare SSH key
         shell: bash
         run: |
           set -euo pipefail
-
           install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/host_key
+          chmod 600 /tmp/host_key
+          ssh-keyscan -H "$HOST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
-          chmod 600 /tmp/dgx_host
-
-          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Install / upgrade Ollama on DGX host
+      - name: Install / upgrade Ollama on host
         shell: bash
         run: |
           set -euo pipefail
-
-          ssh -i /tmp/dgx_host \
+          ssh -i /tmp/host_key \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             'sudo bash -s' < scripts/ubuntu/install-ollama.sh
 
       - name: Update platform state
@@ -50,12 +58,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          OLLAMA_VERSION=$(ssh -i /tmp/dgx_host \
+          OLLAMA_VERSION=$(ssh -i /tmp/host_key \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             'ollama --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "unknown"')
           echo "Ollama version: ${OLLAMA_VERSION}"
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \

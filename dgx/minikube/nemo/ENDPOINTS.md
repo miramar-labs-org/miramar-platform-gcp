@@ -1,8 +1,9 @@
-# DGX Spark — Endpoint Reference
+# DGX Spark / AGX Orin — Endpoint Reference
 
-All endpoints are reachable **from the DGX host** directly. To reach them **from your laptop**, open an SSH tunnel first:
+All endpoints are reachable **from the host** directly. To reach them **from your laptop**, open an SSH tunnel. Both machines can be tunnelled simultaneously — they use different local ports.
 
 ```bash
+# DGX Spark
 ssh -L 8001:localhost:8001 \
     -L 8888:localhost:8888 \
     -L 5000:localhost:5000 \
@@ -10,13 +11,23 @@ ssh -L 8001:localhost:8001 \
     -L 8082:localhost:8082 \
     -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
-    <user>@spark-79b7.local
+    aaron@spark-79b7.local
+
+# AGX Orin (offset ports — run alongside DGX tunnel)
+ssh -L 8002:localhost:8001 \
+    -L 8887:localhost:8888 \
+    -L 5001:localhost:5000 \
+    -L 8081:localhost:8080 \
+    -L 8083:localhost:8082 \
+    -L 8891:localhost:8890 \
+    -L 11435:localhost:11434 \
+    aaron@orin.local
 ```
 
 ## One-time laptop setup
 
-1. Open the SSH tunnel above.
-2. Add to your laptop's `/etc/hosts`:
+1. Open the SSH tunnel(s) above.
+2. Add to your laptop's `/etc/hosts` (works for both machines — port differentiates them):
    ```
    127.0.0.1 nemo.test nim.test data-store.test
    ```
@@ -33,7 +44,7 @@ ssh -L 8001:localhost:8001 \
 - [NeMo Data Store — `http://data-store.test`](#nemo-data-store----httpdata-storetest)
 - [Ollama — `http://localhost:11434`](#ollama----httplocalhost11434)
 - [Qwen3 32B standalone — `http://localhost:8000`](#qwen3-32b-standalone----httplocalhost8000)
-- [Kubeflow Pipelines — `http://localhost:8080` / `http://localhost:8890`](#kubeflow-pipelines----httplocalhost8080--httplocalhost8890)
+- [Kubeflow Pipelines — `http://localhost:8080` / `http://localhost:8890`](#kubeflow-pipelines----httplocalhost8080-httplocalhost8890)
 - [MLflow — `http://localhost:5000`](#mlflow----httplocalhost5000)
 - [UI services (SSH tunnel)](#ui-services-ssh-tunnel)
 
@@ -41,20 +52,19 @@ ssh -L 8001:localhost:8001 \
 
 ## Hosts at a glance
 
-| Host | DGX port | Laptop port | What it is | Requires |
-|---|---|---|---|---|
-| `nim.test` | 80 | 8082 | NIM inference gateway (OpenAI-compatible) | NeMo deployed + NIM deployed |
-| `nemo.test` | 80 | 8082 | NeMo microservices REST API | NeMo deployed |
-| `data-store.test` | 80 | 8082 | HuggingFace-compatible data/model store | NeMo deployed |
-| `localhost:11434` | 11434 | 11434 (via tunnel) | Ollama (host service, GPU-accelerated) | Ollama model loaded |
-| `localhost:8000` | 8000 | 8000 (via tunnel) | Qwen3 32B standalone Docker NIM | Running `docker run …` manually |
-| `localhost:8001` | 8001 | 8001 (via tunnel) | Kubernetes dashboard (via `kubectl proxy`) | minikube running |
-| `localhost:8888` | 8888 | 8888 (via tunnel) | JupyterLab | minikube running |
-| `localhost:5000` | 5000 | 5000 (via tunnel) | MLflow Tracking UI | NeMo + MLflow deployed |
-| `localhost:8080` | 8080 | 8080 (via tunnel) | Kubeflow Pipelines UI | KFP deployed |
-| `localhost:8890` | 8890 | 8890 (via tunnel) | KFP REST API (`/apis/v2beta1/...`) | KFP deployed |
+| Host | Host port | DGX laptop port | AGX laptop port | What it is | Requires |
+|---|---|---|---|---|---|
+| `nim.test` | 80 | 8082 | 8083 | NIM inference gateway (OpenAI-compatible) | NeMo deployed + NIM deployed |
+| `nemo.test` | 80 | 8082 | 8083 | NeMo microservices REST API | NeMo deployed |
+| `data-store.test` | 80 | 8082 | 8083 | HuggingFace-compatible data/model store | NeMo deployed |
+| `localhost:11434` | 11434 | 11434 | 11435 | Ollama (host service, GPU-accelerated) | Ollama model loaded |
+| `localhost:8001` | 8001 | 8001 | 8002 | Kubernetes dashboard (via `kubectl proxy`) | minikube running |
+| `localhost:8888` | 8888 | 8888 | 8887 | JupyterLab | minikube running |
+| `localhost:5000` | 5000 | 5000 | 5001 | MLflow Tracking UI | NeMo + MLflow deployed |
+| `localhost:8080` | 8080 | 8080 | 8081 | Kubeflow Pipelines UI | KFP deployed |
+| `localhost:8890` | 8890 | 8890 | 8891 | KFP REST API (`/apis/v2beta1/...`) | KFP deployed |
 
-DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the DGX host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.49.2`). Source files: [`hosts.dgx`](hosts.dgx) (DGX), [`hosts.win`](hosts.win) (Windows/WSL2, for use with SSH tunnel on port 8082).
+DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.49.2`). Source files: [`hosts.dgx`](hosts.dgx), [`agx/../../agx/minikube/nemo/hosts.agx`](../../../agx/minikube/nemo/hosts.agx).
 
 ---
 
@@ -535,30 +545,20 @@ export MLFLOW_TRACKING_URI=http://localhost:5000
 
 ## UI services (SSH tunnel)
 
-Always running via systemd on the DGX — no manual start needed.
+Always running via systemd on both hosts — no manual start needed.
+
+| Service | DGX URL | AGX URL |
+|---|---|---|
+| Kubernetes dashboard | `http://localhost:8001/...` | `http://localhost:8002/...` |
+| JupyterLab | `http://localhost:8888/lab` | `http://localhost:8887/lab` |
+| MLflow Tracking | `http://localhost:5000` | `http://localhost:5001` |
+| Kubeflow Pipelines UI | `http://localhost:8080` | `http://localhost:8081` |
+| KFP REST API | `http://localhost:8890/apis/v2beta1/healthz` | `http://localhost:8891/apis/v2beta1/healthz` |
+| NeMo / NIM / Data Store | `http://nemo.test:8082` | `http://nemo.test:8083` |
+| Ollama | `http://localhost:11434` | `http://localhost:11435` |
 
 ```bash
-# Open tunnel from your laptop
-ssh -L 8001:localhost:8001 \
-    -L 8888:localhost:8888 \
-    -L 5000:localhost:5000 \
-    -L 8080:localhost:8080 \
-    -L 8082:localhost:8082 \
-    -L 8890:localhost:8890 \
-    -L 11434:localhost:11434 \
-    <user>@spark-79b7.local
-```
-
-| Service | URL |
-|---|---|
-| Kubernetes dashboard | `http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/` |
-| JupyterLab | `http://localhost:8888/lab` |
-| MLflow Tracking | `http://localhost:5000` |
-| Kubeflow Pipelines UI | `http://localhost:8080` |
-| KFP REST API | `http://localhost:8890/apis/v2beta1/healthz` |
-
-```bash
-# Set MLflow tracking URI (from inside the mlabs-runner container or any host-networked process)
+# MLflow tracking URI inside runner containers (resolves to local host on both machines)
 export MLFLOW_TRACKING_URI=http://host.docker.internal:5000
 ```
 
@@ -570,6 +570,8 @@ export MLFLOW_TRACKING_URI=http://host.docker.internal:5000
 pip install nemo-microservices
 ```
 
+From the **host directly** (DGX or AGX — port 80 via nginx ingress, no tunnel needed):
+
 ```python
 from nemo_microservices import NeMoMicroservices
 
@@ -577,25 +579,41 @@ client = NeMoMicroservices(
     base_url="http://nemo.test",
     inference_base_url="http://nim.test"
 )
+```
 
-# List namespaces
-namespaces = client.namespaces.list()
+From a **laptop via SSH tunnel** — port must be explicit since `nemo.test` alone defaults to port 80:
 
-# Chat via NIM proxy
-response = client.inference.chat.completions.create(
-    model="nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark",
-    messages=[{"role": "user", "content": "Hello!"}]
+```python
+# DGX tunnel
+client = NeMoMicroservices(
+    base_url="http://nemo.test:8082",
+    inference_base_url="http://nim.test:8082"
+)
+
+# AGX tunnel
+client = NeMoMicroservices(
+    base_url="http://nemo.test:8083",
+    inference_base_url="http://nim.test:8083"
 )
 ```
 
-For the OpenAI SDK pointed at Ollama or NIM:
+OpenAI SDK pointed at NIM or Ollama:
 
 ```python
 from openai import OpenAI
 
-# NIM (via nim.test)
+# NIM — from host
 nim = OpenAI(base_url="http://nim.test/v1", api_key="unused")
 
-# Ollama
+# NIM — from laptop via DGX tunnel
+nim = OpenAI(base_url="http://nim.test:8082/v1", api_key="unused")
+
+# NIM — from laptop via AGX tunnel
+nim = OpenAI(base_url="http://nim.test:8083/v1", api_key="unused")
+
+# Ollama — DGX (host or tunnel)
 ollama = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+
+# Ollama — AGX via tunnel
+ollama = OpenAI(base_url="http://localhost:11435/v1", api_key="ollama")
 ```

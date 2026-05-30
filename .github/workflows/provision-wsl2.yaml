@@ -19,7 +19,7 @@ name: WSL2 Provision
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
 #   - .wslconfig (mirrored networking) set on Windows (see wsl2/README.md)
 #   - Template rebuilt with rebuild-template.ps1 (.smbcredentials baked in; no CIFS fstab)
-#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, HOST_SSH_KEY
 #     (DGX_SMB_PASSWORD is NOT needed — baked into template by rebuild-template.ps1)
 #   - Vars:    DGX_HOST_IP, DGX_HOST_USER
 
@@ -55,11 +55,11 @@ jobs:
       # ── Step 1: preflight Windows port state, then import distro ─────────
       - name: Import WSL2 distro from template
         env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_win_host
+          printf '%s\n' "${{ vars.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_win_host
           chmod 600 /tmp/wsl2_win_host
           ssh-keyscan -H "$WSL2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
@@ -102,8 +102,8 @@ jobs:
       # firstboot writes shared SSH config or registers the distro.
       - name: Preflight sshd port bindability
         env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
         run: |
           DISTRO='${{ inputs.distro_name }}'
           PORT='${{ inputs.ssh_port }}'
@@ -140,8 +140,8 @@ jobs:
       # by the time the verify job runs (sshd comes up via systemd on restart).
       - name: Wake up existing WSL2 distros
         env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
           DISTROS: ${{ vars.WSL2_DISTROS }}
         run: |
           if [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]]; then
@@ -170,8 +170,8 @@ jobs:
       # by distro powerdown. The DGX share is mounted later by a systemd timer.
       - name: Write provision config and open firewall
         env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
           DGX_HOST_IP: ${{ vars.DGX_HOST_IP }}
         run: |
@@ -205,8 +205,8 @@ jobs:
       # then runs firstboot.sh via wsl exec.
       - name: Run firstboot
         env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
         run: |
           DISTRO='${{ inputs.distro_name }}'
           # Push latest scripts to Windows home (accessible via /mnt/c/ in WSL)
@@ -247,10 +247,10 @@ jobs:
       # duplicate entries in the shared authorized_keys file.
       - name: Authorize DGX SSH key in distro
         env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
         run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/dgx_priv
           chmod 600 /tmp/dgx_priv
           DGX_PUBKEY=$(ssh-keygen -y -f /tmp/dgx_priv)
           rm -f /tmp/dgx_priv
@@ -267,7 +267,7 @@ jobs:
       # ── Step 5: verify sshd is reachable ─────────────────────────────────
       - name: Wait for sshd in distro
         env:
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
         run: |
           echo "Waiting for sshd on $WSL2_HOST:${{ inputs.ssh_port }}..."
           for i in $(seq 1 30); do
@@ -287,11 +287,11 @@ jobs:
       - name: Wait for systemd ready
         env:
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
         run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/wsl2_host
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/wsl2_host
           chmod 600 /tmp/wsl2_host
-          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" \
+          ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ vars.WSL2_HOST }}" \
             >> ~/.ssh/known_hosts 2>/dev/null || true
           for i in $(seq 1 24); do
             state=$(ssh -i /tmp/wsl2_host \
@@ -339,7 +339,7 @@ jobs:
             echo "| Distro | \`${{ inputs.distro_name }}\` |"
             echo "| SSH alias | \`wsl2-${{ inputs.distro_name }}\` |"
             echo "| Port | \`${{ inputs.ssh_port }}\` |"
-            echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
+            echo "| Host | \`${{ vars.WSL2_HOST }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   verify:

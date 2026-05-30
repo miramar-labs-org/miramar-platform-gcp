@@ -1,6 +1,6 @@
 name: Kubeflow Deploy
 
-# Deploys Kubeflow Pipelines standalone into the kubeflow namespace on the DGX
+# Deploys Kubeflow Pipelines standalone into the kubeflow namespace on the target
 # minikube cluster. The env/dev kustomize overlay creates the kubeflow namespace
 # automatically and includes built-in SeaweedFS and MySQL — no external dependencies.
 # arm64 image overrides applied post-apply:
@@ -19,12 +19,20 @@ name: Kubeflow Deploy
 #   systemctl --user restart kubeflow-portfwd kfp-api-portfwd
 #
 # Prerequisites:
-#   - minikube running on the DGX (Minikube Install workflow)
-#   - kubeflow-portfwd.service and kfp-api-portfwd.service installed (dgx/systemd/install.sh)
+#   - minikube running on the target machine (Minikube Install workflow)
+#   - kubeflow-portfwd.service and kfp-api-portfwd.service installed
 
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       pipeline_version:
         description: Kubeflow Pipelines version tag (e.g. 2.16.1)
         default: "2.16.1"
@@ -41,7 +49,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -130,14 +138,15 @@ jobs:
             echo "## Kubeflow Pipelines Deployed"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| Namespace | \`kubeflow\` |"
             echo "| Version | \`${{ inputs.pipeline_version || '2.16.1' }}\` |"
             echo "| Pods | \`${POD_COUNT}\` |"
             echo ""
-            echo "Restart port-forward services on DGX, then tunnel to access:"
+            echo "Restart port-forward services on the host, then tunnel to access:"
             echo "\`\`\`"
             echo "systemctl --user restart kubeflow-portfwd kfp-api-portfwd"
-            echo "ssh -L 8080:localhost:8080 -L 8890:localhost:8890 <user>@spark-79b7.local"
+            echo "ssh -L 8080:localhost:8080 -L 8890:localhost:8890 <user>@<host>"
             echo "# UI:  http://localhost:8080"
             echo "# API: http://localhost:8890/apis/v2beta1/healthz"
             echo "\`\`\`"

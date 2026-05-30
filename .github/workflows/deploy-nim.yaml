@@ -1,12 +1,23 @@
 name: NIM Deploy
 
-# Deploys a NIM on the DGX minikube cluster via the NeMo Microservices deployment API.
+# Deploys a NIM on the target minikube cluster via the NeMo Microservices deployment API.
 # If a different NIM is already deployed it is undeployed first.
 # NeMo Microservices must be running before triggering this workflow.
+#
+# Note: the default nim_name uses the -dgx-spark suffix (Blackwell-optimized).
+# For AGX Orin (Ampere sm_87), specify an sm_87-compatible NIM image tag.
 
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       nim_name:
         description: "NIM model name (e.g. nvidia-nemotron-nano-9b-v2-dgx-spark)"
         required: false
@@ -22,10 +33,25 @@ on:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve SSH target and state vars
+        shell: bash
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"             >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}"           >> "$GITHUB_ENV"
+            echo "STATE_NIM_MODEL_VAR=CURRENT_NIM_MODEL_AGX"   >> "$GITHUB_ENV"
+            echo "STATE_NIM_VRAM_VAR=CURRENT_NIM_VRAM_GB_AGX"  >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"             >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}"           >> "$GITHUB_ENV"
+            echo "STATE_NIM_MODEL_VAR=CURRENT_NIM_MODEL"        >> "$GITHUB_ENV"
+            echo "STATE_NIM_VRAM_VAR=CURRENT_NIM_VRAM_GB"       >> "$GITHUB_ENV"
+          fi
 
       - name: Set up kubeconfig
         run: |
@@ -54,19 +80,19 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
-          chmod 600 /tmp/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/host_key
+          chmod 600 /tmp/host_key
+          ssh-keyscan -H "$HOST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          # Ollama runs on the DGX host (not in this container), so SSH to check it
-          loaded=$(ssh -i /tmp/dgx_host \
+          # Ollama runs on the host (not in this container), so SSH to check it
+          loaded=$(ssh -i /tmp/host_key \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             'curl -s --connect-timeout 5 --max-time 10 http://localhost:11434/api/ps \
              | jq -r ".models[]?.name" 2>/dev/null || true')
 
@@ -123,8 +149,8 @@ jobs:
           echo "NIM deploy failed — submitting undeploy for ${NIM_ORG}/${NIM_NAME}..."
           ( source dgx/minikube/nim/undeploy_nim.sh
             undeploy_nim "$NIM_ORG" "$NIM_NAME" ) || echo "Undeploy attempt finished (404 = already gone)"
-          for var in CURRENT_NIM_MODEL CURRENT_NIM_VRAM_GB; do
-            val="none"; [[ "$var" == "CURRENT_NIM_VRAM_GB" ]] && val="0"
+          for var in "${STATE_NIM_MODEL_VAR}" "${STATE_NIM_VRAM_VAR}"; do
+            val="none"; [[ "$var" == *"VRAM"* ]] && val="0"
             GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
               -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
               -f value="${val}" 2>/dev/null || \
@@ -139,29 +165,29 @@ jobs:
           set -euo pipefail
           NIM_MODEL="${{ inputs.nim_org }}/${{ inputs.nim_name }}"
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_MODEL" \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_NIM_MODEL_VAR}" \
             -f value="${NIM_MODEL}" 2>/dev/null || \
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="CURRENT_NIM_MODEL" -f value="${NIM_MODEL}"
+            -f name="${STATE_NIM_MODEL_VAR}" -f value="${NIM_MODEL}"
 
       - name: Record NIM VRAM usage
         if: success()
         run: |
-          vram_gb=$(ssh -i /tmp/dgx_host \
+          vram_gb=$(ssh -i /tmp/host_key \
             -o BatchMode=yes -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             'nvidia-smi --query-compute-apps=used_memory --format=csv,noheader,nounits 2>/dev/null | jq -Rn "[inputs | tonumber] | add // 0 | . / 1024 | round"' \
             2>/dev/null || echo "0")
           vram_gb="${vram_gb:-0}"
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_NIM_VRAM_GB" \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_NIM_VRAM_VAR}" \
             -f value="${vram_gb}" 2>/dev/null || \
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="CURRENT_NIM_VRAM_GB" -f value="${vram_gb}"
+            -f name="${STATE_NIM_VRAM_VAR}" -f value="${vram_gb}"
 
       - name: Summary
         if: always()
@@ -170,6 +196,7 @@ jobs:
             echo "## NIM Deploy"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| NIM | \`${{ inputs.nim_org }}/${{ inputs.nim_name }}\` |"
             echo "| Image tag | \`${{ inputs.image_tag }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

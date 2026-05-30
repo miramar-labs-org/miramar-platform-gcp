@@ -1,12 +1,20 @@
 name: Ollama Deploy
 
-# Pulls an Ollama model and loads it into GPU memory on the DGX Spark.
-# Fails if a NIM or another Ollama model is already using the 128 GB GPU pool.
-# Requires minikube to be running for the NIM conflict check (skipped if not).
+# Pulls an Ollama model and loads it into GPU memory on the target machine.
+# Fails if another Ollama model is already loaded.
+# On DGX: also fails if a NIM is using the shared GPU pool.
 
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       model:
         description: "Ollama model tag (e.g. llama3.3:70b-instruct-q4_K_M)"
         required: false
@@ -14,20 +22,41 @@ on:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 360
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare SSH key for DGX host
+      - name: Resolve SSH target and state vars
+        shell: bash
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"             >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}"           >> "$GITHUB_ENV"
+            echo "VRAM_USEABLE=${{ vars.AGX_VRAM_USEABLE }}"   >> "$GITHUB_ENV"
+            echo "DEPLOY_SCRIPT=agx/ollama/deploy_ollama.sh"   >> "$GITHUB_ENV"
+            echo "UNDEPLOY_SCRIPT=agx/ollama/undeploy_ollama.sh" >> "$GITHUB_ENV"
+            echo "STATE_MODEL_VAR=CURRENT_OLLAMA_MODEL_AGX"    >> "$GITHUB_ENV"
+            echo "STATE_VRAM_VAR=CURRENT_OLLAMA_VRAM_GB_AGX"   >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"             >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}"           >> "$GITHUB_ENV"
+            echo "VRAM_USEABLE=${{ vars.DGX_VRAM_USEABLE }}"   >> "$GITHUB_ENV"
+            echo "DEPLOY_SCRIPT=dgx/ollama/deploy_ollama.sh"   >> "$GITHUB_ENV"
+            echo "UNDEPLOY_SCRIPT=dgx/ollama/undeploy_ollama.sh" >> "$GITHUB_ENV"
+            echo "STATE_MODEL_VAR=CURRENT_OLLAMA_MODEL"         >> "$GITHUB_ENV"
+            echo "STATE_VRAM_VAR=CURRENT_OLLAMA_VRAM_GB"        >> "$GITHUB_ENV"
+          fi
+
+      - name: Prepare SSH key
         shell: bash
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
-          chmod 600 /tmp/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/host_key
+          chmod 600 /tmp/host_key
+          ssh-keyscan -H "$HOST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Auto-undeploy existing Ollama model
         shell: bash
@@ -35,44 +64,44 @@ jobs:
           set -euo pipefail
           # Unload any currently loaded model before deploying the new one.
           # undeploy_ollama.sh with no args auto-detects the loaded model; exits 0 if none.
-          ssh -i /tmp/dgx_host \
+          ssh -i /tmp/host_key \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             'bash -s' \
-            < dgx/ollama/undeploy_ollama.sh
+            < "$UNDEPLOY_SCRIPT"
 
       - name: Check conflicts and deploy
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i /tmp/dgx_host \
+          ssh -i /tmp/host_key \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
-            bash -s -- "${{ inputs.model }}" "${{ vars.DGX_VRAM_USEABLE }}" \
-            < dgx/ollama/deploy_ollama.sh
+            "$HOST_USER@$HOST_IP" \
+            bash -s -- "${{ inputs.model }}" "$VRAM_USEABLE" \
+            < "$DEPLOY_SCRIPT"
 
       - name: Rollback on deploy failure
         if: failure()
         shell: bash
         run: |
           echo "Ollama deploy failed — unloading any partially loaded model..."
-          ssh -i /tmp/dgx_host \
+          ssh -i /tmp/host_key \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             'bash -s' \
-            < dgx/ollama/undeploy_ollama.sh || true
-          for var_val in "CURRENT_OLLAMA_MODEL=none" "CURRENT_OLLAMA_VRAM_GB=0"; do
+            < "$UNDEPLOY_SCRIPT" || true
+          for var_val in "${STATE_MODEL_VAR}=none" "${STATE_VRAM_VAR}=0"; do
             var="${var_val%%=*}"; val="${var_val#*=}"
             GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
               -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
@@ -88,30 +117,30 @@ jobs:
         run: |
           set -euo pipefail
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_OLLAMA_MODEL" \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_MODEL_VAR}" \
             -f value="${{ inputs.model }}" 2>/dev/null || \
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="CURRENT_OLLAMA_MODEL" -f value="${{ inputs.model }}"
+            -f name="${STATE_MODEL_VAR}" -f value="${{ inputs.model }}"
 
       - name: Record Ollama VRAM usage
         if: success()
         shell: bash
         run: |
-          vram_gb=$(ssh -i /tmp/dgx_host \
+          vram_gb=$(ssh -i /tmp/host_key \
             -o BatchMode=yes -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             'curl -s http://localhost:11434/api/ps | jq "[.models[].size_vram // 0] | add // 0 | . / 1073741824 | round"' \
             2>/dev/null || echo "0")
           vram_gb="${vram_gb:-0}"
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/CURRENT_OLLAMA_VRAM_GB" \
+            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_VRAM_VAR}" \
             -f value="${vram_gb}" 2>/dev/null || \
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="CURRENT_OLLAMA_VRAM_GB" -f value="${vram_gb}"
+            -f name="${STATE_VRAM_VAR}" -f value="${vram_gb}"
 
       - name: Summary
         if: always()
@@ -120,6 +149,7 @@ jobs:
             echo "## Ollama Deploy"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| Model | \`${{ inputs.model }}\` |"
-            echo "| Host | \`${{ vars.DGX_HOST_IP }}\` |"
+            echo "| Host | \`${HOST_IP}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

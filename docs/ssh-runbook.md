@@ -92,18 +92,14 @@ cp /home/aaron/.ssh/known_hosts.bak /home/aaron/.ssh/known_hosts 2>/dev/null || 
 chmod 600 /home/aaron/.ssh/authorized_keys /home/aaron/.ssh/config /home/aaron/.ssh/known_hosts 2>/dev/null || true
 ```
 
-Self-authorize Orin's own key so `ORIN_HOST_SSH_KEY` can SSH to localhost:
+Self-authorize Orin's own key so `HOST_SSH_KEY` can SSH to localhost:
 
 ```bash
 grep -qF "$(cat /home/aaron/.ssh/id_ed25519.pub)" /home/aaron/.ssh/authorized_keys \
   || cat /home/aaron/.ssh/id_ed25519.pub >> /home/aaron/.ssh/authorized_keys
 ```
 
-Then add Orin's private key as the `ORIN_HOST_SSH_KEY` GitHub secret:
-
-```bash
-cat /home/aaron/.ssh/id_ed25519
-```
+All machines share Spark's SSH identity via the shared store — `HOST_SSH_KEY` is already set as a GitHub secret from that key.
 
 ## Current Known-Good Commands
 

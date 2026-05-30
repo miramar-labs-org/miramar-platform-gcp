@@ -1,12 +1,20 @@
 name: Ollama Undeploy
 
-# Unloads the active Ollama model from GPU memory on the DGX Spark.
+# Unloads the active Ollama model from GPU memory on the target machine.
 # Auto-detects the loaded model from ollama ps if model input is not specified.
 # Safe to run if no model is loaded (no-op).
 
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
       model:
         description: "Ollama model tag to unload (leave blank to auto-detect from ollama ps)"
         required: false
@@ -19,20 +27,37 @@ on:
 
 jobs:
   undeploy:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare SSH key for DGX host
+      - name: Resolve SSH target and state vars
+        shell: bash
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"               >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}"             >> "$GITHUB_ENV"
+            echo "UNDEPLOY_SCRIPT=agx/ollama/undeploy_ollama.sh" >> "$GITHUB_ENV"
+            echo "STATE_MODEL_VAR=CURRENT_OLLAMA_MODEL_AGX"      >> "$GITHUB_ENV"
+            echo "STATE_VRAM_VAR=CURRENT_OLLAMA_VRAM_GB_AGX"     >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"               >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}"             >> "$GITHUB_ENV"
+            echo "UNDEPLOY_SCRIPT=dgx/ollama/undeploy_ollama.sh" >> "$GITHUB_ENV"
+            echo "STATE_MODEL_VAR=CURRENT_OLLAMA_MODEL"           >> "$GITHUB_ENV"
+            echo "STATE_VRAM_VAR=CURRENT_OLLAMA_VRAM_GB"          >> "$GITHUB_ENV"
+          fi
+
+      - name: Prepare SSH key
         shell: bash
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
-          chmod 600 /tmp/dgx_host
-          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/host_key
+          chmod 600 /tmp/host_key
+          ssh-keyscan -H "$HOST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Unload model
         shell: bash
@@ -40,21 +65,21 @@ jobs:
           set -euo pipefail
           # printf '%q' ensures empty model arg isn't dropped by SSH arg concatenation
           model=$(printf '%q' "${{ inputs.model }}")
-          ssh -i /tmp/dgx_host \
+          ssh -i /tmp/host_key \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            "$HOST_USER@$HOST_IP" \
             "bash -s -- ${model} ${{ inputs.delete_model }}" \
-            < dgx/ollama/undeploy_ollama.sh
+            < "$UNDEPLOY_SCRIPT"
 
       - name: Update platform state
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          for var_val in "CURRENT_OLLAMA_MODEL=none" "CURRENT_OLLAMA_VRAM_GB=0"; do
+          for var_val in "${STATE_MODEL_VAR}=none" "${STATE_VRAM_VAR}=0"; do
             var="${var_val%%=*}"; val="${var_val#*=}"
             GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
               -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
@@ -71,7 +96,8 @@ jobs:
             echo "## Ollama Undeploy"
             echo "| | |"
             echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| Model | \`${{ inputs.model || '(auto-detected)' }}\` |"
             echo "| Deleted from disk | \`${{ inputs.delete_model }}\` |"
-            echo "| Host | \`${{ vars.DGX_HOST_IP }}\` |"
+            echo "| Host | \`${HOST_IP}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-{{PROJECT_NAME}} — a Miramar platform project on the DGX Spark.
+{{PROJECT_NAME}} — a Miramar platform project on the DGX Spark / AGX Orin.
 
 <!-- Replace the line above with a one-sentence description. -->
 
@@ -14,10 +14,12 @@
 
 ## Platform endpoints
 
-SSH tunnel from your laptop:
+### DGX Spark
 
 ```sh
-ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 -L 11434:localhost:11434 <user>@spark-79b7.local
+ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
+    -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
+    -L 11434:localhost:11434 aaron@spark-79b7.local
 ```
 
 | Service | URL |
@@ -26,8 +28,27 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 -L 8080
 | KFP UI | http://localhost:8080 |
 | KFP API | http://localhost:8890/apis/v2beta1/healthz |
 | MLflow | http://localhost:5000 |
-| NeMo / NIM | http://nemo.test:8082 (requires /etc/hosts: 127.0.0.1 nemo.test nim.test) |
+| NeMo / NIM | http://nemo.test:8082 |
 | Ollama | http://localhost:11434 |
+
+### AGX Orin
+
+```sh
+ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
+    -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
+    -L 11435:localhost:11434 aaron@orin.local
+```
+
+| Service | URL |
+|---|---|
+| JupyterLab | http://localhost:8887 |
+| KFP UI | http://localhost:8081 |
+| KFP API | http://localhost:8891/apis/v2beta1/healthz |
+| MLflow | http://localhost:5001 |
+| NeMo / NIM | http://nemo.test:8083 |
+| Ollama | http://localhost:11435 |
+
+Add to laptop `/etc/hosts`: `127.0.0.1 nemo.test nim.test data-store.test`
 
 ## Platform repo
 

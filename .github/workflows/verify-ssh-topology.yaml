@@ -33,13 +33,11 @@ on:
         type: string
         default: ""
     secrets:
-      WSL2_HOST:
-        required: true
       WSL2_HOST_USER:
         required: true
       WSL2_HOST_SSH_KEY:
         required: true
-      DGX_HOST_SSH_KEY:
+      HOST_SSH_KEY:
         required: true
 
 jobs:
@@ -57,10 +55,10 @@ jobs:
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
-          DGX_HOST_SSH_KEY: ${{ secrets.DGX_HOST_SSH_KEY }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ vars.WSL2_HOST_SSH_KEY }}
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           setup_wsl_ssh() {
@@ -70,12 +68,12 @@ jobs:
             : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
             : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
             : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
-            : "${DGX_HOST_SSH_KEY:?DGX_HOST_SSH_KEY is required when WSL2 distros are active}"
+            : "${HOST_SSH_KEY:?HOST_SSH_KEY is required when WSL2 distros are active}"
 
             WSL_SSH_DIR="$(mktemp -d)"
             trap 'rm -rf "$WSL_SSH_DIR"' EXIT
             printf '%s\n' "$WSL2_HOST_SSH_KEY" > "$WSL_SSH_DIR/win_host"
-            printf '%s\n' "$DGX_HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
+            printf '%s\n' "$HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
             chmod 600 "$WSL_SSH_DIR/win_host" "$WSL_SSH_DIR/dgx_host"
 
             WSL_SSH_CONFIG="$WSL_SSH_DIR/config"
@@ -150,10 +148,10 @@ jobs:
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
-          DGX_HOST_SSH_KEY: ${{ secrets.DGX_HOST_SSH_KEY }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ vars.WSL2_HOST_SSH_KEY }}
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           setup_wsl_ssh() {
@@ -163,12 +161,12 @@ jobs:
             : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
             : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
             : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
-            : "${DGX_HOST_SSH_KEY:?DGX_HOST_SSH_KEY is required when WSL2 distros are active}"
+            : "${HOST_SSH_KEY:?HOST_SSH_KEY is required when WSL2 distros are active}"
 
             WSL_SSH_DIR="$(mktemp -d)"
             trap 'rm -rf "$WSL_SSH_DIR"' EXIT
             printf '%s\n' "$WSL2_HOST_SSH_KEY" > "$WSL_SSH_DIR/win_host"
-            printf '%s\n' "$DGX_HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
+            printf '%s\n' "$HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
             chmod 600 "$WSL_SSH_DIR/win_host" "$WSL_SSH_DIR/dgx_host"
 
             WSL_SSH_CONFIG="$WSL_SSH_DIR/config"
@@ -246,10 +244,10 @@ jobs:
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
-          DGX_HOST_SSH_KEY: ${{ secrets.DGX_HOST_SSH_KEY }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ vars.WSL2_HOST_SSH_KEY }}
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           setup_wsl_ssh() {
@@ -259,12 +257,12 @@ jobs:
             : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
             : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
             : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
-            : "${DGX_HOST_SSH_KEY:?DGX_HOST_SSH_KEY is required when WSL2 distros are active}"
+            : "${HOST_SSH_KEY:?HOST_SSH_KEY is required when WSL2 distros are active}"
 
             WSL_SSH_DIR="$(mktemp -d)"
             trap 'rm -rf "$WSL_SSH_DIR"' EXIT
             printf '%s\n' "$WSL2_HOST_SSH_KEY" > "$WSL_SSH_DIR/win_host"
-            printf '%s\n' "$DGX_HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
+            printf '%s\n' "$HOST_SSH_KEY" > "$WSL_SSH_DIR/dgx_host"
             chmod 600 "$WSL_SSH_DIR/win_host" "$WSL_SSH_DIR/dgx_host"
 
             WSL_SSH_CONFIG="$WSL_SSH_DIR/config"

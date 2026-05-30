@@ -2,7 +2,7 @@ name: WSL2 Unprovision
 
 # Unregisters a WSL2 distro on the Windows laptop (removes it from WSL; does not delete C:\wsl\<name> files).
 # Also removes the wsl2-<name> Host block from the shared SSH config on DGX.
-# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
+# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, HOST_SSH_KEY
 # Vars required:    DGX_HOST_IP, DGX_HOST_USER
 
 on:
@@ -40,9 +40,9 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_host
+          printf '%s\n' "${{ vars.WSL2_HOST_SSH_KEY }}" > /tmp/wsl2_host
           chmod 600 /tmp/wsl2_host
-          ssh-keyscan -H "${{ secrets.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${{ vars.WSL2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: List existing WSL distros
         shell: bash
@@ -52,7 +52,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "${{ vars.WSL2_HOST_USER }}@${{ vars.WSL2_HOST }}" \
             "wsl.exe --list --verbose" || true
 
       - name: Unregister WSL2 distro
@@ -63,7 +63,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "${{ vars.WSL2_HOST_USER }}@${{ vars.WSL2_HOST }}" \
             "wsl.exe --unregister ${{ inputs.distro_name || 'test' }}"
 
       - name: Delete distro folder
@@ -75,7 +75,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "${{ vars.WSL2_HOST_USER }}@${{ vars.WSL2_HOST }}" \
             "if exist \"C:\\wsl\\${{ inputs.distro_name }}\" rd /s /q \"C:\\wsl\\${{ inputs.distro_name }}\"" || true
 
       - name: Remove from shared SSH config
@@ -108,7 +108,7 @@ jobs:
                 print(f'wsl2-{distro} block not found in shared SSH config (already clean)')
         shell: bash
         run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/dgx_priv
           chmod 600 /tmp/dgx_priv
           printf '%s' "$PYCODE" | ssh -i /tmp/dgx_priv \
             -o BatchMode=yes -o IdentitiesOnly=yes \
@@ -126,7 +126,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
-            "${{ secrets.WSL2_HOST_USER }}@${{ secrets.WSL2_HOST }}" \
+            "${{ vars.WSL2_HOST_USER }}@${{ vars.WSL2_HOST }}" \
             "wsl.exe --list --verbose" || true
 
       - name: Deregister from WSL2_DISTROS
@@ -151,5 +151,5 @@ jobs:
             echo "|---|---|"
             echo "| Distro | \`${{ inputs.distro_name }}\` |"
             echo "| Files deleted | \`${{ inputs.delete_files }}\` |"
-            echo "| Host | \`${{ secrets.WSL2_HOST }}\` |"
+            echo "| Host | \`${{ vars.WSL2_HOST }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

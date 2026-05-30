@@ -13,17 +13,16 @@ host values are set manually.
 | `WIF_PROVIDER` | output of `bootstrap-miramar-platform.zsh` | WIF provider resource path shared by repos for GCP auth |
 | `HF_TOKEN` | Hugging Face API token | Injected into workflow steps; not set on individual machines |
 | `NVIDIA_API_KEY` | NVIDIA NGC API key | Required by NeMo Microservices and NIM workflows |
-| `DGX_HOST_SSH_KEY` | Private SSH key | SSH into the DGX host from runners |
-| `ORIN_HOST_SSH_KEY` | Private SSH key | SSH into Orin from the agx runner container via `localhost:22` |
+| `HOST_SSH_KEY` | Private SSH key | SSH into DGX, AGX, or WSL2 hosts from runners (all machines share Spark's identity) |
 | `DGX_SMB_PASSWORD` | Samba password for DGX `aaron` | Used by **Setup Shared SSH Store**; not needed by WSL2 Provision |
-| `DGX_MINIKUBE_KUBECONFIG` | base64 kubeconfig | Written by **Minikube Install** and used by minikube workflows |
+| `DGX_MINIKUBE_KUBECONFIG` | base64 kubeconfig | Written by **Minikube Install** (runner=dgx); used by minikube workflows |
+| `AGX_MINIKUBE_KUBECONFIG` | base64 kubeconfig | Written by **Minikube Install** (runner=agx) on first run |
 
 ### Repo-Level Secrets
 
 | Secret | Value | Purpose |
 | --- | --- | --- |
 | `GCP_SERVICE_ACCOUNT` | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops service account used by platform lifecycle workflows |
-| `WSL2_HOST` | Windows hostname or IP | SSH target for WSL2 workflows |
 | `WSL2_HOST_USER` | Windows SSH user | SSH login for WSL2 workflows |
 | `WSL2_HOST_SSH_KEY` | Private SSH key | SSH into Windows; public key must be authorized in Windows OpenSSH |
 
@@ -45,15 +44,28 @@ Sync GCP variables from Terraform after changing `gcp/terraform/terraform.tfvars
 | `GCP_REGION` | `us-central1` | synced from tfvars |
 | `GAR_REPO` | `apps` | synced from tfvars |
 | `GKE_STATE_BUCKET` | `miramar-platform-cluster-state` | set manually |
-| `DGX_HOST_IP` | `192.0.2.10` | static IP of DGX Spark |
+| `DGX_HOST_IP` | `192.168.1.200` | static IP of DGX Spark |
 | `DGX_HOST_USER` | `aaron` | SSH user on DGX |
-| `MLFLOW_TRACKING_URI` | `http://localhost:5000` | used by ML workflows |
+| `AGX_HOST_IP` | `192.168.1.202` | static IP of AGX Orin |
+| `AGX_HOST_USER` | `aaron` | SSH user on AGX |
+| `AGX_VRAM_USEABLE` | `40` | GB available for AI models on AGX (64 GB total − 24 GB system) |
+| `WSL2_HOST` | `192.168.1.201` | static IP of Windows (MSI) machine — shared by all WSL2 distros |
+| `MLFLOW_TRACKING_URI` | `http://host.docker.internal:5000` | MLflow endpoint inside runner containers (resolves to local host on both DGX and AGX) |
+| `DGX_VRAM_USEABLE` | `100` | GB available for AI models on DGX (128 GB total − ~28 GB platform) |
 
 ### Repo-Level Variables
 
 | Variable | Initial value | Purpose |
 | --- | --- | --- |
 | `WSL2_DISTROS` | `NONE` | Active WSL2 distro names; updated by WSL2 Provision/Unprovision |
+| `CURRENT_NIM_MODEL` | `none` | NIM currently loaded on DGX |
+| `CURRENT_OLLAMA_MODEL` | `none` | Ollama model currently loaded on DGX |
+| `CURRENT_NIM_VRAM_GB` | `0` | VRAM used by NIM on DGX |
+| `CURRENT_OLLAMA_VRAM_GB` | `0` | VRAM used by Ollama on DGX |
+| `CURRENT_NIM_MODEL_AGX` | `none` | NIM currently loaded on AGX |
+| `CURRENT_OLLAMA_MODEL_AGX` | `none` | Ollama model currently loaded on AGX |
+| `CURRENT_NIM_VRAM_GB_AGX` | `0` | VRAM used by NIM on AGX |
+| `CURRENT_OLLAMA_VRAM_GB_AGX` | `0` | VRAM used by Ollama on AGX |
 
 ## Host Environment Variables
 
