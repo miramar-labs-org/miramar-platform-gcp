@@ -231,14 +231,14 @@ cat > "$OUTPUT" <<HTMLEOF
     letter-spacing: 0.07em; color: #58a6ff; margin-bottom: 0.4rem;
   }
   .platform-status {
-    display: flex; flex-wrap: wrap; gap: 1.5rem;
+    display: flex; gap: 1.5rem;
     padding: 1rem 1.25rem;
     background: #161b22; border: 1px solid #21262d; border-radius: 6px;
   }
-  .ps-item { display: flex; flex-direction: column; gap: 0.2rem; min-width: 90px; }
-  .ps-item.ps-wide { min-width: 220px; }
+  .ps-item { display: flex; flex-direction: column; gap: 0.2rem; flex: 1 1 0; min-width: 0; }
+  .ps-item.ps-wide { flex: 2 1 0; }
   .ps-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8b949e; }
-  .ps-value { font-size: 0.875rem; color: #e6edf3; background: transparent; }
+  .ps-value { font-size: 0.875rem; color: #e6edf3; background: transparent; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ps-none { color: #484f58; }
   .ps-warn { color: #d29922; }
   .ps-link { color: #8b949e; text-decoration: none; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
