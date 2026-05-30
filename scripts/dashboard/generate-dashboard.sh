@@ -104,47 +104,43 @@ read_org_var() {
     --jq '.value' 2>/dev/null) || val=""
   echo "${val}"
 }
-NEMO_VERSION=$(read_platform_var "NEMO_VERSION")
-KFP_VERSION=$(read_platform_var "KFP_VERSION")
-OLLAMA_VERSION=$(read_platform_var "OLLAMA_VERSION")
 NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL")
 OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL")
 NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB")
 OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB")
-DGX_MINIKUBE_VERSION=$(read_platform_var "DGX_MINIKUBE_VERSION")
-MLFLOW_VERSION=$(read_platform_var "MLFLOW_VERSION")
 DGX_VRAM_USEABLE=$(read_org_var "DGX_VRAM_USEABLE")
+DGX_MINIKUBE_ACTIVE=$(read_org_var "DGX_MINIKUBE_ACTIVE")
+DGX_NEMO_ACTIVE=$(read_org_var "DGX_NEMO_ACTIVE")
+DGX_KFP_ACTIVE=$(read_org_var "DGX_KFP_ACTIVE")
+DGX_OLLAMA_ACTIVE=$(read_org_var "DGX_OLLAMA_ACTIVE")
+DGX_MLFLOW_ACTIVE=$(read_org_var "DGX_MLFLOW_ACTIVE")
 
 AGX_OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL_AGX")
 AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
 AGX_NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL_AGX")
 AGX_NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB_AGX")
-AGX_MINIKUBE_VERSION=$(read_platform_var "AGX_MINIKUBE_VERSION")
-MLFLOW_VERSION_AGX=$(read_platform_var "MLFLOW_VERSION_AGX")
 AGX_VRAM_USEABLE=$(read_org_var "AGX_VRAM_USEABLE")
+AGX_MINIKUBE_ACTIVE=$(read_org_var "AGX_MINIKUBE_ACTIVE")
+AGX_NEMO_ACTIVE=$(read_org_var "AGX_NEMO_ACTIVE")
+AGX_KFP_ACTIVE=$(read_org_var "AGX_KFP_ACTIVE")
+AGX_OLLAMA_ACTIVE=$(read_org_var "AGX_OLLAMA_ACTIVE")
+AGX_MLFLOW_ACTIVE=$(read_org_var "AGX_MLFLOW_ACTIVE")
 
 GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
 GCP_REGION=$(read_org_var "GCP_REGION")
 GAR_REPO=$(read_org_var "GAR_REPO")
 GKE_CLUSTER_NAME=$(read_org_var "GKE_CLUSTER_NAME")
 
-[[ -z "$NEMO_VERSION" ]]   && NEMO_VERSION="—"
-[[ -z "$KFP_VERSION" ]]    && KFP_VERSION="—"
-[[ -z "$OLLAMA_VERSION" ]] && OLLAMA_VERSION="—"
 [[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
 [[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
 [[ -z "$NIM_VRAM_GB" || "$NIM_VRAM_GB" == "null" ]]       && NIM_VRAM_GB="0"
 [[ -z "$OLLAMA_VRAM_GB" || "$OLLAMA_VRAM_GB" == "null" ]] && OLLAMA_VRAM_GB="0"
-[[ -z "$DGX_MINIKUBE_VERSION" ]] && DGX_MINIKUBE_VERSION="—"
-[[ -z "$MLFLOW_VERSION" ]]       && MLFLOW_VERSION="—"
 [[ -z "$DGX_VRAM_USEABLE" || "$DGX_VRAM_USEABLE" == "null" ]] && DGX_VRAM_USEABLE="100"
 [[ -z "$AGX_OLLAMA_MODEL" ]]   && AGX_OLLAMA_MODEL="none"
 [[ -z "$AGX_OLLAMA_VRAM_GB" || "$AGX_OLLAMA_VRAM_GB" == "null" ]] && AGX_OLLAMA_VRAM_GB="0"
 [[ -z "$AGX_VRAM_USEABLE" || "$AGX_VRAM_USEABLE" == "null" ]] && AGX_VRAM_USEABLE="40"
 [[ -z "$AGX_NIM_MODEL" ]]      && AGX_NIM_MODEL="none"
 [[ -z "$AGX_NIM_VRAM_GB" || "$AGX_NIM_VRAM_GB" == "null" ]] && AGX_NIM_VRAM_GB="0"
-[[ -z "$AGX_MINIKUBE_VERSION" ]] && AGX_MINIKUBE_VERSION="—"
-[[ -z "$MLFLOW_VERSION_AGX" ]]   && MLFLOW_VERSION_AGX="—"
 [[ -z "$GCP_PROJECT_ID" ]]   && GCP_PROJECT_ID="miramar-platform"
 [[ -z "$GCP_REGION" ]]       && GCP_REGION="us-central1"
 [[ -z "$GAR_REPO" ]]         && GAR_REPO="apps"
@@ -168,11 +164,20 @@ AGX_OLLAMA_CLASS="ps-value"; [[ "$AGX_OLLAMA_MODEL" == "none" ]] && AGX_OLLAMA_C
 AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
-DGX_MINIKUBE_CLASS="ps-value"; [[ "$DGX_MINIKUBE_VERSION" == "—" ]] && DGX_MINIKUBE_CLASS="ps-value ps-none"
-AGX_MINIKUBE_CLASS="ps-value"; [[ "$AGX_MINIKUBE_VERSION" == "—" ]] && AGX_MINIKUBE_CLASS="ps-value ps-none"
-MLFLOW_CLASS="ps-value";     [[ "$MLFLOW_VERSION"     == "—" ]] && MLFLOW_CLASS="ps-value ps-none"
-MLFLOW_AGX_CLASS="ps-value"; [[ "$MLFLOW_VERSION_AGX" == "—" ]] && MLFLOW_AGX_CLASS="ps-value ps-none"
 GAR_URL="https://console.cloud.google.com/artifacts/docker/${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}"
+
+# Active/inactive badge HTML (link only on active state)
+DGX_NEMO_BADGE=$([ "$DGX_NEMO_ACTIVE" = "true" ] && echo '<a href="http://localhost:8082" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+DGX_KFP_BADGE=$([ "$DGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8080" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+DGX_OLLAMA_BADGE=$([ "$DGX_OLLAMA_ACTIVE" = "true" ] && echo '<a href="http://localhost:11434" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+DGX_MINIKUBE_BADGE=$([ "$DGX_MINIKUBE_ACTIVE" = "true" ] && echo '<a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+DGX_MLFLOW_BADGE=$([ "$DGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5000" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+
+AGX_NEMO_BADGE=$([ "$AGX_NEMO_ACTIVE" = "true" ] && echo '<a href="http://localhost:8083" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_KFP_BADGE=$([ "$AGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8081" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_OLLAMA_BADGE=$([ "$AGX_OLLAMA_ACTIVE" = "true" ] && echo '<a href="http://localhost:11435" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_MINIKUBE_BADGE=$([ "$AGX_MINIKUBE_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_MLFLOW_BADGE=$([ "$AGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5001" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -238,6 +243,9 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-warn { color: #d29922; }
   .ps-link { color: #8b949e; text-decoration: none; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
   .ps-link:hover { color: #58a6ff; text-decoration: underline; }
+  .ps-active { color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
+  a.ps-active:hover { text-decoration: underline; }
+  .ps-inactive { color: #484f58; font-size: 0.75rem; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -248,15 +256,15 @@ cat > "$OUTPUT" <<HTMLEOF
   <div class="platform-status">
     <div class="ps-item">
       <div class="ps-label">NeMo</div>
-      <code class="ps-value">${NEMO_VERSION}</code>
+      ${DGX_NEMO_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">KFP</div>
-      <code class="ps-value">${KFP_VERSION}</code>
+      ${DGX_KFP_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">Ollama</div>
-      <code class="ps-value">${OLLAMA_VERSION}</code>
+      ${DGX_OLLAMA_BADGE}
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">NIM model</div>
@@ -267,12 +275,12 @@ cat > "$OUTPUT" <<HTMLEOF
       <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label"><a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/" class="ps-link">Minikube</a></div>
-      <code class="${DGX_MINIKUBE_CLASS}">${DGX_MINIKUBE_VERSION}</code>
+      <div class="ps-label">Minikube</div>
+      ${DGX_MINIKUBE_BADGE}
     </div>
     <div class="ps-item">
-      <div class="ps-label"><a href="http://localhost:5000" class="ps-link">MLflow</a></div>
-      <code class="${MLFLOW_CLASS}">${MLFLOW_VERSION}</code>
+      <div class="ps-label">MLflow</div>
+      ${DGX_MLFLOW_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
@@ -289,15 +297,15 @@ cat > "$OUTPUT" <<HTMLEOF
   <div class="platform-status">
     <div class="ps-item">
       <div class="ps-label">NeMo</div>
-      <code class="ps-value">${NEMO_VERSION}</code>
+      ${AGX_NEMO_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">KFP</div>
-      <code class="ps-value">${KFP_VERSION}</code>
+      ${AGX_KFP_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">Ollama</div>
-      <code class="ps-value">${OLLAMA_VERSION}</code>
+      ${AGX_OLLAMA_BADGE}
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">NIM model</div>
@@ -308,12 +316,12 @@ cat > "$OUTPUT" <<HTMLEOF
       <code class="${AGX_OLLAMA_CLASS}">${AGX_OLLAMA_MODEL}</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label"><a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/" class="ps-link">Minikube</a></div>
-      <code class="${AGX_MINIKUBE_CLASS}">${AGX_MINIKUBE_VERSION}</code>
+      <div class="ps-label">Minikube</div>
+      ${AGX_MINIKUBE_BADGE}
     </div>
     <div class="ps-item">
-      <div class="ps-label"><a href="http://localhost:5001" class="ps-link">MLflow</a></div>
-      <code class="${MLFLOW_AGX_CLASS}">${MLFLOW_VERSION_AGX}</code>
+      <div class="ps-label">MLflow</div>
+      ${AGX_MLFLOW_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
@@ -329,12 +337,12 @@ cat > "$OUTPUT" <<HTMLEOF
   <div class="machine-label">GCP</div>
   <div class="platform-status">
     <div class="ps-item ps-wide">
-      <div class="ps-label"><a href="https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}" target="_blank" class="ps-link">GKE</a></div>
-      <code class="ps-value">${GKE_CLUSTER_NAME}</code>
+      <div class="ps-label">GKE</div>
+      <a href="https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}" target="_blank" class="ps-value">${GKE_CLUSTER_NAME}</a>
     </div>
     <div class="ps-item ps-wide">
-      <div class="ps-label"><a href="${GAR_URL}" target="_blank" class="ps-link">GAR</a></div>
-      <code class="ps-value">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</code>
+      <div class="ps-label">GAR</div>
+      <a href="${GAR_URL}" target="_blank" class="ps-value">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</a>
     </div>
   </div>
 </div>

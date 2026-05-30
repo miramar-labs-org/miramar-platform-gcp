@@ -86,6 +86,17 @@ jobs:
           sudo sed -i '/data-store\.test/d' /etc/hosts || true
           sudo sed -i '/# Added by NeMo setup script/d' /etc/hosts || true
 
+      - name: Clear NeMo active state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_NEMO_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="false" -f visibility="all"
+
       - name: Summary
         if: always()
         run: |

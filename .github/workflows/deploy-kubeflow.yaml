@@ -118,17 +118,16 @@ jobs:
         continue-on-error: true
         run: bash dgx/minikube/kubeflow/verify-kfp-endpoints.sh
 
-      - name: Update platform state
-        if: success()
+      - name: Set KFP active state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
         run: |
-          set -euo pipefail
-          KFP_VERSION="${{ inputs.pipeline_version || '2.16.1' }}"
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/KFP_VERSION" \
-            -f value="${KFP_VERSION}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="KFP_VERSION" -f value="${KFP_VERSION}"
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_KFP_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
 
       - name: Summary
         if: always()

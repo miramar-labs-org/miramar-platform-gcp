@@ -110,6 +110,12 @@ jobs:
               -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
               -f name="${var}" -f value="${val}" || true
           done
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_OLLAMA_ACTIVE"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="false" -f visibility="all" \
+          || GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="false" -f visibility="all" || true
 
       - name: Update platform state
         if: success()
@@ -141,6 +147,12 @@ jobs:
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
             -f name="${STATE_VRAM_VAR}" -f value="${vram_gb}"
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_OLLAMA_ACTIVE"
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
 
       - name: Summary
         if: always()

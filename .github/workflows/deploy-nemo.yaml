@@ -220,16 +220,16 @@ jobs:
               grep -E "nemo\.test|nim\.test|data-store\.test" /host-etc/hosts
             '
 
-      - name: Update platform state
-        if: success()
+      - name: Set NeMo active state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
         run: |
-          set -euo pipefail
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/NEMO_VERSION" \
-            -f value="${{ inputs.nemo_version }}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="NEMO_VERSION" -f value="${{ inputs.nemo_version }}"
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_NEMO_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
 
       - name: Smoke-test endpoints
         continue-on-error: true

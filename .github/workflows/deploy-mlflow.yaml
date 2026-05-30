@@ -46,19 +46,13 @@ jobs:
         continue-on-error: true
         run: bash dgx/minikube/mlflow/verify-mlflow-endpoints.sh
 
-      - name: Write MLFLOW_VERSION repo variable
+      - name: Set MLflow active state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
         run: |
-          VERSION=$(helm list -n mlflow-system --output json \
-            | jq -r '.[0].app_version // "unknown"')
-          if [[ "${{ inputs.runner }}" == "agx" ]]; then
-            VAR_NAME="MLFLOW_VERSION_AGX"
-          else
-            VAR_NAME="MLFLOW_VERSION"
-          fi
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${VAR_NAME}" \
-            -f name="${VAR_NAME}" -f value="${VERSION}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="${VAR_NAME}" -f value="${VERSION}"
-          echo "==> ${VAR_NAME}=${VERSION}"
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_MLFLOW_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"

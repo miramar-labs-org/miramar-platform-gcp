@@ -40,3 +40,14 @@ jobs:
         env:
           DELETE_NS: "true"
         run: bash dgx/minikube/mlflow/destroy-mlflow.sh
+
+      - name: Clear MLflow active state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_MLFLOW_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="false" -f visibility="all"

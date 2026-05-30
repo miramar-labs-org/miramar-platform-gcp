@@ -65,21 +65,16 @@ jobs:
           minikube delete --all --purge 2>/dev/null || true
           echo "==> Cleanup done. Re-trigger this workflow to start fresh."
 
-      - name: Write MINIKUBE_VERSION repo variable
+      - name: Set minikube active state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
         run: |
-          VERSION=$(minikube version --short | sed 's/^v//')
-          if [[ "${{ inputs.runner }}" == "agx" ]]; then
-            VAR_NAME="AGX_MINIKUBE_VERSION"
-          else
-            VAR_NAME="DGX_MINIKUBE_VERSION"
-          fi
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${VAR_NAME}" \
-            -f name="${VAR_NAME}" -f value="${VERSION}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
-            -f name="${VAR_NAME}" -f value="${VERSION}"
-          echo "==> ${VAR_NAME}=${VERSION}"
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_MINIKUBE_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
 
       - name: Update minikube kubeconfig org secret
         run: |

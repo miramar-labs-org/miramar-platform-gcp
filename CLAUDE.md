@@ -252,5 +252,5 @@ Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy (or Ollama Dep
 
 **Kubeflow Pipelines** (`kubeflow` namespace) — independent of NeMo/MLflow; can deploy on a fresh minikube cluster.
 
-**DGX inotify limits** — the default `fs.inotify.max_user_instances=128` is too low for minikube. Pods like `nvidia-device-plugin` and `volcano-scheduler` will `CrashLoopBackOff` with "too many open files" when the limit is exhausted. Current values set in `/etc/sysctl.d/99-sysctl.conf`: `max_user_instances=1024`, `max_user_watches=1048576`. To diagnose: `docker exec minikube bash -c 'cat /proc/sys/fs/inotify/max_user_instances; find /proc/*/fd -lname "anon_inode:inotify" 2>/dev/null | wc -l'`.
+**inotify limits (DGX + AGX)** — the default `fs.inotify.max_user_instances=128` is too low for minikube. Pods like `nvidia-device-plugin` and `volcano-scheduler` will `CrashLoopBackOff` with "too many open files" when the limit is exhausted. Applied on both machines: `/etc/sysctl.d/99-sysctl.conf` with `max_user_instances=1024`, `max_user_watches=1048576`. To diagnose: `docker exec minikube bash -c 'cat /proc/sys/fs/inotify/max_user_instances; find /proc/*/fd -lname "anon_inode:inotify" 2>/dev/null | wc -l'`.
 
