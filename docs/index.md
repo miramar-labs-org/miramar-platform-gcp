@@ -21,6 +21,7 @@ operational procedure.
 | Self-hosted runners | [runners.md](runners.md) | `mlabs-runner/`, `scripts/gha/`, `.github/workflows/build-mlabs-runner.yml` |
 | DGX minikube, NeMo, MLflow, NIM, Ollama | [dgx.md](dgx.md) | [dgx.md](dgx.md), `dgx/`, `.github/workflows/*minikube*.yaml`, `.github/workflows/*nemo*.yaml`, `.github/workflows/*mlflow*.yaml`, `.github/workflows/*nim*.yaml`, `.github/workflows/*ollama*.yaml` |
 | AGX Orin (identical stack, separate tunnel ports) | [agx.md](agx.md) | [agx.md](agx.md), `agx/` |
+| Adding a new machine to the platform | [onboarding.md](onboarding.md) | [onboarding.md](onboarding.md) |
 | WSL2 operator flow | [wsl2/README.md](../wsl2/README.md) | [wsl2/README.md](../wsl2/README.md) |
 | WSL2 architecture and template details | [wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md) | [wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md) |
 | Windows OpenSSH for WSL2 workflows | [wsl2/ssh-win.md](../wsl2/ssh-win.md) | [wsl2/ssh-win.md](../wsl2/ssh-win.md) |
