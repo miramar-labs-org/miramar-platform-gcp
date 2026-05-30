@@ -44,7 +44,7 @@ ssh -L 8002:localhost:8001 \
 - [NeMo Data Store — `http://data-store.test`](#nemo-data-store----httpdata-storetest)
 - [Ollama — `http://localhost:11434`](#ollama----httplocalhost11434)
 - [Qwen3 32B standalone — `http://localhost:8000`](#qwen3-32b-standalone----httplocalhost8000)
-- [Kubeflow Pipelines — `http://localhost:8080` / `http://localhost:8890`](#kubeflow-pipelines----httplocalhost8080--httplocalhost8890)
+- [Kubeflow Pipelines — `http://localhost:8080` / `http://localhost:8890`](#kubeflow-pipelines----httplocalhost8080-httplocalhost8890)
 - [MLflow — `http://localhost:5000`](#mlflow----httplocalhost5000)
 - [UI services (SSH tunnel)](#ui-services-ssh-tunnel)
 
