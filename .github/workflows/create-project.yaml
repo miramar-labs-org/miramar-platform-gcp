@@ -171,6 +171,22 @@ jobs:
                 "${DEST}"
               echo "Cloned to: ${DEST}"
             fi
+
+            # Check out the draft blog branch so the post is ready to preview locally
+            BLOG_DIR="${HOME}/git-miramar-labs-org/miramar-labs-org.github.io"
+            DRAFT_BRANCH="draft-${PROJECT_NAME}"
+            if [ -d "${BLOG_DIR}/.git" ]; then
+              git -C "${BLOG_DIR}" fetch --quiet origin
+              if git -C "${BLOG_DIR}" ls-remote --exit-code --heads origin "${DRAFT_BRANCH}" > /dev/null 2>&1; then
+                git -C "${BLOG_DIR}" checkout "${DRAFT_BRANCH}" 2>/dev/null || \
+                  git -C "${BLOG_DIR}" checkout -b "${DRAFT_BRANCH}" --track "origin/${DRAFT_BRANCH}"
+                echo "Blog checked out: ${DRAFT_BRANCH}"
+              else
+                echo "Blog draft branch not yet available — skipping checkout"
+              fi
+            else
+              echo "Blog repo not on host — skipping checkout"
+            fi
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "WARNING: ~/.ssh/id_ed25519 not found — skipping host clone" >&2
