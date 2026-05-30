@@ -2,7 +2,7 @@ name: WSL2 Unprovision
 
 # Unregisters a WSL2 distro on the Windows laptop (removes it from WSL; does not delete C:\wsl\<name> files).
 # Also removes the wsl2-<name> Host block from the shared SSH config on DGX.
-# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
+# Secrets required: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, HOST_SSH_KEY
 # Vars required:    DGX_HOST_IP, DGX_HOST_USER
 
 on:
@@ -108,7 +108,7 @@ jobs:
                 print(f'wsl2-{distro} block not found in shared SSH config (already clean)')
         shell: bash
         run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/dgx_priv
           chmod 600 /tmp/dgx_priv
           printf '%s' "$PYCODE" | ssh -i /tmp/dgx_priv \
             -o BatchMode=yes -o IdentitiesOnly=yes \

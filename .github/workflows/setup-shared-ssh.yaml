@@ -18,7 +18,7 @@ name: Setup Shared SSH Store
 # Prerequisites:
 #   - DGX ~/shared Samba share configured and running
 #   - Vars:    DGX_HOST_IP, DGX_HOST_USER
-#   - Secrets: DGX_HOST_SSH_KEY, ORIN_HOST_SSH_KEY, DGX_SMB_PASSWORD
+#   - Secrets: HOST_SSH_KEY, HOST_SSH_KEY, DGX_SMB_PASSWORD
 
 on:
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
       - name: Set up SSH key for DGX host
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_host
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/dgx_host
           chmod 600 /tmp/dgx_host
           ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
@@ -166,7 +166,7 @@ jobs:
   # Container uses --network=host so localhost:22 IS the Orin host.
   # Mounts //DGX/shared at ~/shared/ and symlinks ~/.ssh/ → ~/shared/ssh/.
   # Orin uses Spark's SSH identity — no local keypair.
-  # Requires secret: ORIN_HOST_SSH_KEY (same pattern as DGX_HOST_SSH_KEY).
+  # Requires secret: HOST_SSH_KEY (same pattern as HOST_SSH_KEY).
   # -----------------------------------------------------------------------
 
   setup-orin:
@@ -178,7 +178,7 @@ jobs:
       - name: Set up SSH key for Orin host
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.ORIN_HOST_SSH_KEY }}" > /tmp/orin_host
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/orin_host
           chmod 600 /tmp/orin_host
 
       - name: Write .smbcredentials, mount DGX shared store, symlink SSH files

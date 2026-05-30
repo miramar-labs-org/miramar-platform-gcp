@@ -19,7 +19,7 @@ name: WSL2 Provision
 #   - Setup Shared SSH Store run at least once (DGX ~/shared/ssh/ initialised)
 #   - .wslconfig (mirrored networking) set on Windows (see wsl2/README.md)
 #   - Template rebuilt with rebuild-template.ps1 (.smbcredentials baked in; no CIFS fstab)
-#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, DGX_HOST_SSH_KEY
+#   - Secrets: WSL2_HOST, WSL2_HOST_USER, WSL2_HOST_SSH_KEY, HOST_SSH_KEY
 #     (DGX_SMB_PASSWORD is NOT needed — baked into template by rebuild-template.ps1)
 #   - Vars:    DGX_HOST_IP, DGX_HOST_USER
 
@@ -250,7 +250,7 @@ jobs:
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
           WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
         run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/dgx_priv
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/dgx_priv
           chmod 600 /tmp/dgx_priv
           DGX_PUBKEY=$(ssh-keygen -y -f /tmp/dgx_priv)
           rm -f /tmp/dgx_priv
@@ -289,7 +289,7 @@ jobs:
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
           WSL2_HOST: ${{ secrets.WSL2_HOST }}
         run: |
-          printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/wsl2_host
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/wsl2_host
           chmod 600 /tmp/wsl2_host
           ssh-keyscan -p "${{ inputs.ssh_port }}" -H "${{ secrets.WSL2_HOST }}" \
             >> ~/.ssh/known_hosts 2>/dev/null || true

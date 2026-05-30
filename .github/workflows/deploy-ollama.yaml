@@ -54,11 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          if [[ "${{ inputs.runner }}" == "agx" ]]; then
-            printf '%s\n' "${{ secrets.AGX_HOST_SSH_KEY }}" > /tmp/host_key
-          else
-            printf '%s\n' "${{ secrets.DGX_HOST_SSH_KEY }}" > /tmp/host_key
-          fi
+          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/host_key
           chmod 600 /tmp/host_key
           ssh-keyscan -H "$HOST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
