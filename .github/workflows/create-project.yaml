@@ -182,6 +182,96 @@ jobs:
                 env PROJECT_NAME="${PROJECT_NAME}" \
                     PAT="${GITHUB_ORG_ADMIN_PAT}" bash
 
+      - name: Draft blog post
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          BLOG_REPO="miramar-labs/miramar-labs.github.io"
+          POST_DATE=$(date +%Y-%m-%d)
+          PROJECT_NAME="${{ inputs.project_name }}"
+          PROJECT_TYPE="${{ inputs.project_type }}"
+          HOST="${{ inputs.host }}"
+          DESCRIPTION="${{ inputs.description }}"
+          BRANCH="draft-${PROJECT_NAME}"
+          POST_SLUG=$(echo "${PROJECT_NAME}" | tr '[:upper:]' '[:lower:]')
+          POST_PATH="_posts/${POST_DATE}-${POST_SLUG}.markdown"
+          POST_TITLE=$(echo "${PROJECT_NAME}" | sed 's/-/ /g;s/\b\w/\u&/g')
+          REPO_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
+          DASHBOARD_URL="https://miramar-labs-org.github.io/miramar-platform-gcp/"
+          if [ "${HOST}" = "agx" ]; then HW="AGX Orin"; else HW="DGX Spark"; fi
+
+          MAIN_SHA=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "repos/${BLOG_REPO}/git/refs/heads/main" --jq '.object.sha')
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X POST \
+            "repos/${BLOG_REPO}/git/refs" \
+            -f ref="refs/heads/${BRANCH}" -f sha="${MAIN_SHA}" 2>/dev/null \
+          || echo "Branch already exists, continuing."
+
+          if [ "${PROJECT_TYPE}" = "nemo" ]; then
+            CATS="miramar nemo fine-tuning"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** ${HW} via [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Training setup" "" "<!-- TODO: NeMo version, training framework -->" "" \
+              "## Model and dataset" "" \
+              "| Parameter | Value |" "|-----------|-------|" \
+              "| Base model | <!-- TODO --> |" "| Dataset | <!-- TODO --> |" \
+              "| Epochs | <!-- TODO --> |" "| Batch size | <!-- TODO --> |" "" \
+              "## LoRA configuration" "" "<!-- TODO: rank, alpha, target modules -->" "" \
+              "\`\`\`yaml" "# excerpt from job_config.yaml" "\`\`\`" "" \
+              "## Evaluation results" "" \
+              "| Metric | Base model | Fine-tuned |" "|--------|------------|------------|" \
+              "| <!-- TODO --> | | |" "" \
+              "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "kfp" ]; then
+            CATS="miramar kubeflow pipelines"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** ${HW} via [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Pipeline description" "" "<!-- TODO: inputs, outputs, purpose -->" "" \
+              "## Steps" "" \
+              "| Step | Input | Output |" "|------|-------|--------|" \
+              "| <!-- TODO --> | | |" "" \
+              "## Artifact lineage" "" "<!-- TODO: models, datasets, metrics produced -->" "" \
+              "\`\`\`python" "# TODO: pipeline.py excerpt" "\`\`\`" "" \
+              "## Results" "" "<!-- TODO: run results, metrics, KFP UI screenshots -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
+          else
+            CATS="miramar ml project"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** ${HW} via [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Overview" "" "<!-- TODO: problem, approach, why -->" "" \
+              "## Approach" "" "<!-- TODO: model, techniques, libraries -->" "" \
+              "## Dataset" "" "<!-- TODO: source, size, preprocessing -->" "" \
+              "## Results" "" \
+              "| Metric | Value |" "|--------|-------|" "| <!-- TODO --> | |" "" \
+              "## Next steps" "" "<!-- TODO -->")
+          fi
+
+          CONTENT_B64=$(printf '%s\n' \
+            "---" "layout: post" "title: \"${POST_TITLE}\"" \
+            "date: ${POST_DATE}" "categories: ${CATS}" "---" "" \
+            "${BODY}" | base64 -w0)
+
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X PUT \
+            "repos/${BLOG_REPO}/contents/${POST_PATH}" \
+            -f message="Draft: ${PROJECT_NAME} (${PROJECT_TYPE})" \
+            -f content="${CONTENT_B64}" -f branch="${BRANCH}"
+
+          PR_URL=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X POST \
+            "repos/${BLOG_REPO}/pulls" \
+            -f title="Draft: ${POST_TITLE} — ${PROJECT_TYPE}" \
+            -f head="${BRANCH}" -f base="main" \
+            -f body="Auto-generated draft for **${PROJECT_NAME}**. Edit the TODOs in \`${POST_PATH}\` then merge to publish.\n\n- Type: \`${PROJECT_TYPE}\`\n- Host: \`${HOST}\` (${HW})\n- Repo: ${REPO_URL}\n- Dashboard: ${DASHBOARD_URL}" \
+            --jq '.html_url')
+
+          echo "Blog PR: ${PR_URL}"
+          echo "BLOG_PR_URL=${PR_URL}" >> "$GITHUB_ENV"
+
       - name: Summary
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
@@ -216,5 +306,9 @@ jobs:
               echo "1. Edit \`job_config.yaml\` — set model, dataset path, hyperparameters"
               echo "2. Trigger **Deploy to NeMo** to submit the job"
               echo "3. Prerequisites: **NeMo Deploy** must be running on \`${HOST}\`"
+            fi
+            if [[ -n "${BLOG_PR_URL:-}" ]]; then
+              echo ""
+              echo "**Blog draft PR:** ${BLOG_PR_URL}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
