@@ -1,0 +1,84 @@
+name: Delete Blog Post
+
+# Deletes a post from miramar-labs/miramar-labs.github.io.
+# Also closes and deletes the corresponding draft-{slug} branch if it exists.
+# GitHub Pages rebuilds automatically — the post disappears within ~60 seconds.
+#
+# To find the filename: https://github.com/miramar-labs/miramar-labs.github.io/tree/main/_posts
+
+on:
+  workflow_dispatch:
+    inputs:
+      post_filename:
+        description: "Post filename (e.g. 2026-05-29-my-project.markdown)"
+        required: true
+        type: string
+
+jobs:
+  delete:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 5
+    steps:
+      - name: Delete post and clean up draft branch
+        run: |
+          set -euo pipefail
+          BLOG_REPO="miramar-labs/miramar-labs.github.io"
+          FILENAME="${{ inputs.post_filename }}"
+          POST_PATH="_posts/${FILENAME}"
+
+          # Derive slug: strip leading date (YYYY-MM-DD-) and extension
+          SLUG=$(echo "${FILENAME}" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//;s/\.[^.]*$//')
+          BRANCH="draft-${SLUG}"
+
+          # Get file SHA (required by GitHub contents API for deletion)
+          FILE_SHA=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "repos/${BLOG_REPO}/contents/${POST_PATH}" \
+            --jq '.sha' 2>/dev/null || true)
+
+          if [ -z "${FILE_SHA}" ]; then
+            echo "==> '${POST_PATH}' not found in ${BLOG_REPO} — nothing to delete."
+          else
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+              "repos/${BLOG_REPO}/contents/${POST_PATH}" \
+              -f message="Remove post: ${FILENAME}" \
+              -f sha="${FILE_SHA}"
+            echo "==> Deleted ${POST_PATH}"
+          fi
+
+          # Close any open PR from the draft branch
+          PR_NUMBER=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "repos/${BLOG_REPO}/pulls?head=miramar-labs:${BRANCH}&state=open" \
+            --jq '.[0].number // empty' 2>/dev/null || true)
+
+          if [ -n "${PR_NUMBER}" ]; then
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X PATCH \
+              "repos/${BLOG_REPO}/pulls/${PR_NUMBER}" \
+              -f state="closed"
+            echo "==> Closed PR #${PR_NUMBER} (${BRANCH})"
+          fi
+
+          # Delete draft branch if it exists
+          BRANCH_EXISTS=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}" \
+            --jq '.ref' 2>/dev/null || true)
+
+          if [ -n "${BRANCH_EXISTS}" ]; then
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+              "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}"
+            echo "==> Deleted branch ${BRANCH}"
+          fi
+
+          echo "==> Done."
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Blog Post Deleted"
+            echo ""
+            echo "**File:** \`_posts/${{ inputs.post_filename }}\`"
+            echo ""
+            echo "GitHub Pages will rebuild within ~60 seconds."
+            echo ""
+            echo "**Blog:** [blog.aaroncody.com](https://blog.aaroncody.com)"
+          } >> "$GITHUB_STEP_SUMMARY"
