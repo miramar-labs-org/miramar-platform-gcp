@@ -36,18 +36,20 @@ wait_pf_ready() {
 
 with_port_forward() {
   local svc="$1" svc_port="$2" fn="$3"; shift 3
-  local local_port logfile pid
+  local local_port logfile pid rc
   local_port="$(find_free_port)"
   logfile="/tmp/pf-kfp-${svc}.log"
   kubectl -n "$NS" port-forward "svc/${svc}" "${local_port}:${svc_port}" >"$logfile" 2>&1 &
   pid=$!
-  trap 'kill "$pid" >/dev/null 2>&1 || true' RETURN
   if ! wait_pf_ready "$logfile" "$local_port"; then
     echo "${RED}FAIL${RESET}  ${svc}: port-forward failed (port ${svc_port})"
     sed -n '1,20p' "$logfile" 2>/dev/null || true
+    kill "$pid" >/dev/null 2>&1 || true
     return 1
   fi
-  "$fn" "$local_port" "$@"
+  "$fn" "$local_port" "$@"; rc=$?
+  kill "$pid" >/dev/null 2>&1 || true
+  return $rc
 }
 
 probe_http() {
