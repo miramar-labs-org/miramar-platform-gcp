@@ -33,8 +33,6 @@ on:
         type: string
         default: ""
     secrets:
-      WSL2_HOST:
-        required: true
       WSL2_HOST_USER:
         required: true
       WSL2_HOST_SSH_KEY:
@@ -57,9 +55,9 @@ jobs:
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ vars.WSL2_HOST_SSH_KEY }}
           HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
@@ -150,9 +148,9 @@ jobs:
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ vars.WSL2_HOST_SSH_KEY }}
           HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
@@ -246,9 +244,9 @@ jobs:
         env:
           DISTROS: ${{ inputs.distros || vars.WSL2_DISTROS }}
           DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
-          WSL2_HOST: ${{ secrets.WSL2_HOST }}
-          WSL2_HOST_USER: ${{ secrets.WSL2_HOST_USER }}
-          WSL2_HOST_SSH_KEY: ${{ secrets.WSL2_HOST_SSH_KEY }}
+          WSL2_HOST: ${{ vars.WSL2_HOST }}
+          WSL2_HOST_USER: ${{ vars.WSL2_HOST_USER }}
+          WSL2_HOST_SSH_KEY: ${{ vars.WSL2_HOST_SSH_KEY }}
           HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
           SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
