@@ -59,9 +59,17 @@ while IFS= read -r repo_json; do
     status_html="<span class=\"badge badge-idle\">idle</span>"
   fi
 
-  # --- JupyterLab direct link (requires active SSH tunnel on port 8888) ---
+  # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
+  host=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+    "repos/${ORG}/${name}/actions/variables/PROJECT_HOST" \
+    --jq '.value' 2>/dev/null || echo "dgx")
+  [[ -z "$host" || "$host" == "null" ]] && host="dgx"
+  host_html="<span class=\"badge badge-${host}\">${host}</span>"
+
+  # --- JupyterLab direct link — port depends on host (DGX=8888, AGX=8887) ---
+  jl_port=8888; [[ "$host" == "agx" ]] && jl_port=8887
   jl_path="git-miramar-labs-org/projects/${name}/notebook.ipynb"
-  jl_url="http://localhost:8888/lab/tree/${jl_path}"
+  jl_url="http://localhost:${jl_port}/lab/tree/${jl_path}"
   jl_html="<a href=\"${jl_url}\" class=\"jl-link\" title=\"${jl_url}\">&#x1F9EA; Open</a>"
 
   ROWS+="<tr>
@@ -69,6 +77,7 @@ while IFS= read -r repo_json; do
   <td><span class=\"badge badge-${type}\">${type}</span></td>
   <td>${desc}</td>
   <td>${status_html}</td>
+  <td>${host_html}</td>
   <td>${jl_html}</td>
   <td><code>${sha}</code></td>
 </tr>
@@ -177,6 +186,8 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-default  { background: #2d2b00; color: #d29922; }
   .badge-deployed { background: #1a4731; color: #3fb950; }
   .badge-idle     { background: #21262d; color: #8b949e; }
+  .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
+  .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
   .jl-link:hover { color: #ffa657; }
   .count { color: #8b949e; font-weight: normal; font-size: 1rem; }
@@ -275,6 +286,7 @@ cat > "$OUTPUT" <<HTMLEOF
     <th>Type</th>
     <th>Description</th>
     <th>Status</th>
+    <th>Host</th>
     <th>JupyterLab</th>
     <th>SHA</th>
   </tr>

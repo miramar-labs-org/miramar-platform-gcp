@@ -1,15 +1,18 @@
 name: Open in JupyterLab
 
 # Clones or pulls this repo to ~/git-miramar-labs-org/projects/<repo-name>
-# on the DGX host and prints the direct JupyterLab URL.
+# on the host machine and prints the direct JupyterLab URL.
+#
+# The target machine (DGX or AGX) is set by the PROJECT_HOST repo variable,
+# written by the Create Project workflow. DGX uses port 8888, AGX uses 8887.
 #
 # Uses the SSH key already mounted in the runner at ~/.ssh/id_ed25519
 # (from the shared SSH store). No GitHub secrets required.
 #
 # Prerequisites:
-#   - Shared SSH store set up on the DGX (Setup Shared SSH Store workflow)
-#   - JupyterLab running on DGX (DGX systemd services installed and lingering)
-#   - SSH tunnel: ssh -L 8888:localhost:8888 <user>@spark-79b7.local
+#   - Shared SSH store set up on the host (Setup Shared SSH Store workflow)
+#   - JupyterLab running on host (systemd services installed and lingering)
+#   - SSH tunnel open from laptop (see README for port)
 
 on:
   workflow_dispatch:
@@ -19,15 +22,15 @@ permissions:
 
 jobs:
   open:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ vars.PROJECT_HOST || 'dgx' }}"]
     timeout-minutes: 5
 
     steps:
-      - name: Clone or pull repo on DGX host
+      - name: Clone or pull repo on host
         env:
           REPO: ${{ github.repository }}
           REPO_NAME: ${{ github.event.repository.name }}
-          DGX_USER: ${{ vars.DGX_HOST_USER }}
+          HOST_USER: ${{ vars.PROJECT_HOST == 'agx' && vars.AGX_HOST_USER || vars.DGX_HOST_USER }}
           SCRIPT: |
             set -euo pipefail
             mkdir -p "${HOME}/git-miramar-labs-org/projects"
@@ -35,7 +38,7 @@ jobs:
             if [ -d "${DEST}/.git" ]; then
               git -C "${DEST}" stash
               git -C "${DEST}" pull --ff-only
-              git -C "${DEST}" stash drop 2>/dev/null || true
+              git -C '${DEST}' stash drop 2>/dev/null || true
               echo "Pulled: ${DEST}"
             else
               git clone \
@@ -51,18 +54,21 @@ jobs:
           fi
           printf '%s' "${SCRIPT}" \
             | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
-                "${DGX_USER:-aaron}@localhost" \
+                "${HOST_USER:-aaron}@localhost" \
                 env REPO="${REPO}" REPO_NAME="${REPO_NAME}" \
                     PAT="${GITHUB_ORG_ADMIN_PAT}" bash
 
       - name: Summary
         env:
           REPO_NAME: ${{ github.event.repository.name }}
+          HOST: ${{ vars.PROJECT_HOST || 'dgx' }}
         run: |
+          JL_PORT=8888; [[ "${HOST}" == "agx" ]] && JL_PORT=8887
+          JL_URL="http://localhost:${JL_PORT}/lab/tree/git-miramar-labs-org/projects/${REPO_NAME}"
           {
             echo "## Open in JupyterLab"
             echo ""
-            echo "Repo synced to \`~/git-miramar-labs-org/projects/${REPO_NAME}\` on the DGX."
+            echo "Repo synced to \`~/git-miramar-labs-org/projects/${REPO_NAME}\` on \`${HOST}\`."
             echo ""
-            echo "**Open:** [http://localhost:8888/lab/tree/git-miramar-labs-org/projects/${REPO_NAME}](http://localhost:8888/lab/tree/git-miramar-labs-org/projects/${REPO_NAME})"
+            echo "**Open:** [${JL_URL}](${JL_URL})"
           } >> "$GITHUB_STEP_SUMMARY"

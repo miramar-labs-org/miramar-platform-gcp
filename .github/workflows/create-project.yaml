@@ -7,6 +7,10 @@ name: Create Project
 # kfp  — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
 # nemo — NeMo training job config, notebook, deploy/undeploy NeMo workflows
 #
+# The host input sets which machine (dgx/agx) the project lives on:
+#   - controls which runner clones the repo on creation
+#   - stored as PROJECT_HOST repo variable, read by open-jupyterlab.yaml and dashboard
+#
 # Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) for repo
 # creation and initial push. No GitHub secrets required.
 
@@ -22,6 +26,12 @@ on:
         options: [default, kfp, nemo]
         default: default
         required: true
+      host:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        options: [dgx, agx]
+        default: dgx
+        required: false
       description:
         description: Short repo description (optional)
         default: ""
@@ -38,11 +48,19 @@ permissions:
 
 jobs:
   create:
-    runs-on: [self-hosted, dgx]
+    runs-on: [self-hosted, "${{ inputs.host }}"]
     timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve host vars
+        run: |
+          if [[ "${{ inputs.host }}" == "agx" ]]; then
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
 
       - name: Create repository
         env:
@@ -68,10 +86,23 @@ jobs:
             -f "names[]=miramar-project" \
             -f "names[]=miramar-${PROJECT_TYPE}"
 
+      - name: Set PROJECT_HOST variable
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          HOST: ${{ inputs.host }}
+        run: |
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X PATCH "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
+            -f value="${HOST}" 2>/dev/null || \
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            -X POST "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables" \
+            -f name="PROJECT_HOST" -f value="${HOST}"
+
       - name: Initialise repository with template
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_TYPE: ${{ inputs.project_type }}
+          HOST: ${{ inputs.host }}
         run: |
           set -euo pipefail
 
@@ -93,6 +124,7 @@ jobs:
           find . -type f \( -name "*.md" -o -name "*.ipynb" -o -name "*.yaml" -o -name "*.py" -o -name "LICENSE" \) \
             -exec sed -i \
               -e "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" \
+              -e "s/{{PROJECT_HOST}}/${HOST}/g" \
               -e "s/{{YEAR}}/${YEAR}/g" \
             {} +
 
@@ -117,16 +149,15 @@ jobs:
 
           git add .
           git add -f .github/  # guarantee workflows are staged regardless of gitignore
-          git commit -m "Initial scaffold (type: ${PROJECT_TYPE}) from Miramar template"
+          git commit -m "Initial scaffold (type: ${PROJECT_TYPE}, host: ${HOST}) from Miramar template"
 
           git remote add origin \
             "https://x-access-token:${GITHUB_ORG_ADMIN_PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git"
           git push -u origin main
 
-      - name: Clone to DGX projects folder
+      - name: Clone to host projects folder
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
-          DGX_USER: ${{ vars.DGX_HOST_USER }}
           SCRIPT: |
             set -euo pipefail
             mkdir -p "${HOME}/git-miramar-labs-org/projects"
@@ -142,12 +173,12 @@ jobs:
             fi
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
-            echo "WARNING: ~/.ssh/id_ed25519 not found — skipping DGX clone" >&2
+            echo "WARNING: ~/.ssh/id_ed25519 not found — skipping host clone" >&2
             exit 0
           fi
           printf '%s' "${SCRIPT}" \
             | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
-                "${DGX_USER:-aaron}@localhost" \
+                "${HOST_USER:-aaron}@localhost" \
                 env PROJECT_NAME="${PROJECT_NAME}" \
                     PAT="${GITHUB_ORG_ADMIN_PAT}" bash
 
@@ -155,47 +186,35 @@ jobs:
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_TYPE: ${{ inputs.project_type }}
+          HOST: ${{ inputs.host }}
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
         run: |
           REPO_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
+          JL_PORT=8888; [[ "${HOST}" == "agx" ]] && JL_PORT=8887
+          JL_URL="http://localhost:${JL_PORT}/lab/tree/git-miramar-labs-org/projects/${PROJECT_NAME}"
           {
             echo "## New ${PROJECT_TYPE} Project Created"
             echo ""
             echo "**Repository:** [${REPO_URL}](${REPO_URL})"
             echo "**Type:** \`${PROJECT_TYPE}\`"
+            echo "**Host:** \`${HOST}\`"
             echo "**Visibility:** \`${REPO_VISIBILITY}\`"
+            echo "**JupyterLab:** [${JL_URL}](${JL_URL})"
             echo ""
             if [ "${PROJECT_TYPE}" = "default" ]; then
-              echo "### Files"
-              echo "- \`README.md\`, \`CLAUDE.md\`, \`notebook.ipynb\`"
-              echo ""
               echo "### Next steps"
               echo "1. Edit \`README.md\` — add a one-line description"
-              echo "2. Open \`notebook.ipynb\` in JupyterLab via the **Open in JupyterLab** workflow"
-              echo "3. SSH tunnel for platform endpoints: see README"
+              echo "2. Open \`notebook.ipynb\` via the **Open in JupyterLab** workflow"
+              echo "3. SSH tunnel: \`ssh -L ${JL_PORT}:localhost:8888 aaron@$([ "${HOST}" = "agx" ] && echo "orin.local" || echo "spark-79b7.local")\`"
             elif [ "${PROJECT_TYPE}" = "kfp" ]; then
-              echo "### Files"
-              echo "- \`README.md\`, \`CLAUDE.md\`"
-              echo "- \`pipeline.py\` — KFP v2 pipeline stub"
-              echo "- \`notebook.ipynb\` — compile, submit, monitor runs"
-              echo "- \`scripts/deploy_pipeline.py\`, \`scripts/terminate_pipeline.py\`"
-              echo "- \`.github/workflows/deploy-kfp.yaml\`, \`undeploy-kfp.yaml\`"
-              echo ""
               echo "### Next steps"
               echo "1. Edit \`pipeline.py\` to define your pipeline components"
               echo "2. Trigger **Deploy to KFP** to compile and submit a run"
-              echo "3. Prerequisites: **Kubeflow Deploy** must be running on DGX"
+              echo "3. Prerequisites: **Kubeflow Deploy** must be running on \`${HOST}\`"
             else
-              echo "### Files"
-              echo "- \`README.md\`, \`CLAUDE.md\`"
-              echo "- \`job_config.yaml\` — training job config"
-              echo "- \`notebook.ipynb\` — NeMo SDK + job monitoring"
-              echo "- \`scripts/submit_job.py\`, \`scripts/cancel_job.py\`"
-              echo "- \`.github/workflows/deploy-nemo.yaml\`, \`undeploy-nemo.yaml\`"
-              echo ""
               echo "### Next steps"
               echo "1. Edit \`job_config.yaml\` — set model, dataset path, hyperparameters"
               echo "2. Trigger **Deploy to NeMo** to submit the job"
-              echo "3. Prerequisites: **NeMo Deploy** must be running on DGX"
+              echo "3. Prerequisites: **NeMo Deploy** must be running on \`${HOST}\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
