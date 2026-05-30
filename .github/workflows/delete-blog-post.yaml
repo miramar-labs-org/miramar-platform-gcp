@@ -1,10 +1,10 @@
 name: Delete Blog Post
 
-# Deletes a post from miramar-labs/miramar-labs.github.io.
+# Deletes a post from miramar-labs-org/miramar-labs-org.github.io.
 # Also closes and deletes the corresponding draft-{slug} branch if it exists.
 # GitHub Pages rebuilds automatically — the post disappears within ~60 seconds.
 #
-# To find the filename: https://github.com/miramar-labs/miramar-labs.github.io/tree/main/_posts
+# To find the filename: https://github.com/miramar-labs-org/miramar-labs-org.github.io/tree/main/_posts
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
       - name: Delete post and clean up draft branch
         run: |
           set -euo pipefail
-          BLOG_REPO="miramar-labs/miramar-labs.github.io"
+          BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"
           FILENAME="${{ inputs.post_filename }}"
           POST_PATH="_posts/${FILENAME}"
 

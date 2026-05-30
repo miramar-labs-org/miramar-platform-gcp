@@ -186,7 +186,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          BLOG_REPO="miramar-labs/miramar-labs.github.io"
+          BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"
           POST_DATE=$(date +%Y-%m-%d)
           PROJECT_NAME="${{ inputs.project_name }}"
           PROJECT_TYPE="${{ inputs.project_type }}"
