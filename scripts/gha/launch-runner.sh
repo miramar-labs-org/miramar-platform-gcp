@@ -139,6 +139,7 @@ fi
 
 if [[ -n "${GITHUB_ORG_GHCR_PAT:-}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_PAT=${GITHUB_ORG_GHCR_PAT}")
+    DOCKER_ENV+=(-e "GITHUB_ORG_GHCR_PAT=${GITHUB_ORG_GHCR_PAT}")
 fi
 
 if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
