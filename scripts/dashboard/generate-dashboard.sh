@@ -181,9 +181,14 @@ cat > "$OUTPUT" <<HTMLEOF
   .jl-link:hover { color: #ffa657; }
   .count { color: #8b949e; font-weight: normal; font-size: 1rem; }
   .footer { margin-top: 2rem; color: #484f58; font-size: 0.75rem; }
+  .machine-section { margin-bottom: 1.25rem; }
+  .machine-label {
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.07em; color: #58a6ff; margin-bottom: 0.4rem;
+  }
   .platform-status {
     display: flex; flex-wrap: wrap; gap: 1.5rem;
-    margin-bottom: 2rem; padding: 1rem 1.25rem;
+    padding: 1rem 1.25rem;
     background: #161b22; border: 1px solid #21262d; border-radius: 6px;
   }
   .ps-item { display: flex; flex-direction: column; gap: 0.2rem; min-width: 90px; }
@@ -192,59 +197,75 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-value { font-size: 0.875rem; color: #e6edf3; background: transparent; }
   .ps-none { color: #484f58; }
   .ps-warn { color: #d29922; }
-  .ps-machine { flex-basis: 100%; font-size: 0.7rem; font-weight: 600; color: #58a6ff; padding-bottom: 0.1rem; border-bottom: 1px solid #21262d; margin-bottom: 0.25rem; }
-  .ps-machine:not(:first-child) { margin-top: 0.5rem; }
 </style>
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
 <p class="subtitle">Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. Refreshed hourly. &mdash; <a href="https://github.com/${ORG}/miramar-platform-gcp">Platform repo</a></p>
-<div class="platform-status">
-  <div class="ps-machine">DGX Spark</div>
-  <div class="ps-item">
-    <div class="ps-label">NeMo</div>
-    <code class="ps-value">${NEMO_VERSION}</code>
+<div class="machine-section">
+  <div class="machine-label">DGX Spark</div>
+  <div class="platform-status">
+    <div class="ps-item">
+      <div class="ps-label">NeMo</div>
+      <code class="ps-value">${NEMO_VERSION}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">KFP</div>
+      <code class="ps-value">${KFP_VERSION}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">Ollama</div>
+      <code class="ps-value">${OLLAMA_VERSION}</code>
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">NIM model</div>
+      <code class="${NIM_CLASS}">${NIM_MODEL}</code>
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">Ollama model</div>
+      <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">VRAM Used</div>
+      <code class="ps-value">${VRAM_USED_GB} GB</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">VRAM Available</div>
+      <code class="${VRAM_AVAIL_CLASS}">${VRAM_AVAIL_GB} GB</code>
+    </div>
   </div>
-  <div class="ps-item">
-    <div class="ps-label">KFP</div>
-    <code class="ps-value">${KFP_VERSION}</code>
-  </div>
-  <div class="ps-item">
-    <div class="ps-label">Ollama</div>
-    <code class="ps-value">${OLLAMA_VERSION}</code>
-  </div>
-  <div class="ps-item ps-wide">
-    <div class="ps-label">NIM model</div>
-    <code class="${NIM_CLASS}">${NIM_MODEL}</code>
-  </div>
-  <div class="ps-item ps-wide">
-    <div class="ps-label">Ollama model</div>
-    <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
-  </div>
-  <div class="ps-item">
-    <div class="ps-label">VRAM Used</div>
-    <code class="ps-value">${VRAM_USED_GB} GB</code>
-  </div>
-  <div class="ps-item">
-    <div class="ps-label">VRAM Available</div>
-    <code class="${VRAM_AVAIL_CLASS}">${VRAM_AVAIL_GB} GB</code>
-  </div>
-  <div class="ps-machine">AGX Orin</div>
-  <div class="ps-item ps-wide">
-    <div class="ps-label">NIM model</div>
-    <code class="${AGX_NIM_CLASS}">${AGX_NIM_MODEL}</code>
-  </div>
-  <div class="ps-item ps-wide">
-    <div class="ps-label">Ollama model</div>
-    <code class="${AGX_OLLAMA_CLASS}">${AGX_OLLAMA_MODEL}</code>
-  </div>
-  <div class="ps-item">
-    <div class="ps-label">VRAM Used</div>
-    <code class="ps-value">${AGX_VRAM_USED_GB} GB</code>
-  </div>
-  <div class="ps-item">
-    <div class="ps-label">VRAM Available</div>
-    <code class="${AGX_VRAM_AVAIL_CLASS}">${AGX_VRAM_AVAIL_GB} GB</code>
+</div>
+<div class="machine-section">
+  <div class="machine-label">AGX Orin</div>
+  <div class="platform-status">
+    <div class="ps-item">
+      <div class="ps-label">NeMo</div>
+      <code class="ps-value">${NEMO_VERSION}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">KFP</div>
+      <code class="ps-value">${KFP_VERSION}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">Ollama</div>
+      <code class="ps-value">${OLLAMA_VERSION}</code>
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">NIM model</div>
+      <code class="${AGX_NIM_CLASS}">${AGX_NIM_MODEL}</code>
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">Ollama model</div>
+      <code class="${AGX_OLLAMA_CLASS}">${AGX_OLLAMA_MODEL}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">VRAM Used</div>
+      <code class="ps-value">${AGX_VRAM_USED_GB} GB</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">VRAM Available</div>
+      <code class="${AGX_VRAM_AVAIL_CLASS}">${AGX_VRAM_AVAIL_GB} GB</code>
+    </div>
   </div>
 </div>
 <table>
