@@ -158,6 +158,36 @@ cd path\to\miramar-platform-gcp\wsl2
 .\probe-ssh-ports.ps1 -Distro dev -StartPort 2222 -EndPort 2299
 ```
 
+## Bitvise Tunnel Configuration
+
+Create one Bitvise SSH profile per machine. The SSH connection for both profiles uses port 22. The tunnel rows below go in the **C2S** (client-to-server) forwarding tab.
+
+### DGX (spark-79b7.local — 192.168.1.200)
+
+| Listen interface | Port | Destination host | Port | Comment |
+|---|---|---|---|---|
+| `127.0.0.1` | `8001` | `127.0.0.1` | `8001` | K8s dashboard |
+| `127.0.0.1` | `8888` | `127.0.0.1` | `8888` | JupyterLab |
+| `127.0.0.1` | `5000` | `127.0.0.1` | `5000` | MLflow |
+| `127.0.0.1` | `8080` | `127.0.0.1` | `8080` | KFP UI |
+| `127.0.0.1` | `8082` | `127.0.0.1` | `8082` | NeMo / NIM |
+| `127.0.0.1` | `8890` | `127.0.0.1` | `8890` | KFP API |
+| `127.0.0.1` | `11434` | `127.0.0.1` | `11434` | Ollama |
+
+### AGX (orin.local — 192.168.1.202)
+
+Local ports are offset so both profiles can run simultaneously without conflicts.
+
+| Listen interface | Port | Destination host | Port | Comment |
+|---|---|---|---|---|
+| `127.0.0.1` | `8002` | `127.0.0.1` | `8001` | K8s dashboard |
+| `127.0.0.1` | `8887` | `127.0.0.1` | `8888` | JupyterLab |
+| `127.0.0.1` | `5001` | `127.0.0.1` | `5000` | MLflow |
+| `127.0.0.1` | `8081` | `127.0.0.1` | `8080` | KFP UI |
+| `127.0.0.1` | `8083` | `127.0.0.1` | `8082` | NeMo / NIM |
+| `127.0.0.1` | `8891` | `127.0.0.1` | `8890` | KFP API |
+| `127.0.0.1` | `11435` | `127.0.0.1` | `11434` | Ollama |
+
 ## Troubleshooting
 
 ### `ssh wsl2` Opens the MSI Windows Shell
