@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Show status of all DGX user services.
 
-SERVICES=(minikube dashboard jupyterlab mlflow-portfwd)
+SERVICES=(minikube dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd)
 
 for svc in "${SERVICES[@]}"; do
     STATE=$(systemctl --user is-active "${svc}" 2>/dev/null || true)

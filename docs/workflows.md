@@ -25,8 +25,10 @@ Destroy has three guards: exact project name, `i_confirm`, and optional
 CPU and GPU expansion are independent. A typical heavy-workload sequence is:
 
 ```text
-GKE Expand -> GKE Expand GPU -> deploy workload -> GKE Restore GPU -> GKE Restore
+Find GPU Capacity -> GKE Expand -> GKE Expand GPU -> deploy workload -> GKE Restore GPU -> GKE Restore
 ```
+
+Run **Find GPU Capacity** first to confirm availability and get the recommended zone and accelerator type before expanding.
 
 ## Local AI Stack (DGX + AGX)
 

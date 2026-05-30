@@ -133,19 +133,12 @@ Workflows that create, destroy, resize, or restore infrastructure should include
 
 ## Recommended hardening backlog
 
-1. Add repository-wide quality/security workflow:
-   - `terraform fmt -check`
-   - `terraform validate`
-   - `tflint`
-   - `actionlint`
-   - `shellcheck`
-   - `hadolint`
-   - `trivy fs .`
+1. ✓ Repository-wide quality/security workflow — `repo-quality-manual.yaml` covers `actionlint`, `shellcheck`, `hadolint`, `terraform fmt -check`, `terraform validate`. Remaining: `tflint`, `checkov`, `trivy fs .`.
 2. Add image scanning and SBOM generation to runner image builds.
 3. Pin and checksum all downloaded CLI tools.
 4. Split cloud IAM into separate service accounts by workflow responsibility.
 5. Add GKE private networking and least-privilege node service account.
-6. Add branch protection and required status checks.
+6. ✓ Branch protection and required status checks — enabled; `pr-checks.yaml` runs on PRs.
 7. Add GitHub environments for apply/destroy workflows.
 8. Add signed container images with cosign.
 9. Add explicit policy for which workflows may run on self-hosted runners.

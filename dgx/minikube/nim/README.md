@@ -15,7 +15,7 @@ undeploy a NIM:
 
     source ./undeploy_nim.sh && undeploy_nim meta llama-3.1-8b-instruct-dgx-spark
 
-## Current (2/14/26) NIM's built for Spark:
+## NIMs built for Spark
 
 [Llama-3.1-8b-Instruct-DGX-Spark](https://docs.nvidia.com/nim/large-language-models/1.15.0/supported-models.html#llama-3-1-8b-instruct-dgx-spark)
 
