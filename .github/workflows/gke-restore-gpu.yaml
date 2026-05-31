@@ -92,3 +92,17 @@ jobs:
             echo "| Namespace | \`${{ inputs.namespace }}\` |"
             echo "| Quota | restored from snapshot |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clear GPU pool state vars
+        if: success()
+        run: |
+          upsert_org_var() {
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X PATCH "orgs/miramar-labs-org/actions/variables/${1}" \
+              -f value="${2}" 2>/dev/null || \
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              -X POST "orgs/miramar-labs-org/actions/variables" \
+              -f name="${1}" -f value="${2}"
+          }
+          upsert_org_var GKE_GPU_POOL_ACTIVE "false"
+          upsert_org_var GKE_GPU_TYPE "none"

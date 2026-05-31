@@ -135,6 +135,10 @@ GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
 GCP_REGION=$(read_org_var "GCP_REGION")
 GAR_REPO=$(read_org_var "GAR_REPO")
 GKE_CLUSTER_NAME=$(read_org_var "GKE_CLUSTER_NAME")
+GKE_ZONE=$(read_org_var "GKE_ZONE")
+GKE_STATE_BUCKET=$(read_org_var "GKE_STATE_BUCKET")
+GKE_GPU_POOL_ACTIVE=$(read_org_var "GKE_GPU_POOL_ACTIVE")
+GKE_GPU_TYPE=$(read_org_var "GKE_GPU_TYPE")
 
 [[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
 [[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
@@ -146,10 +150,14 @@ GKE_CLUSTER_NAME=$(read_org_var "GKE_CLUSTER_NAME")
 [[ -z "$AGX_VRAM_USEABLE" || "$AGX_VRAM_USEABLE" == "null" ]] && AGX_VRAM_USEABLE="40"
 [[ -z "$AGX_NIM_MODEL" ]]      && AGX_NIM_MODEL="none"
 [[ -z "$AGX_NIM_VRAM_GB" || "$AGX_NIM_VRAM_GB" == "null" ]] && AGX_NIM_VRAM_GB="0"
-[[ -z "$GCP_PROJECT_ID" ]]   && GCP_PROJECT_ID="miramar-platform"
-[[ -z "$GCP_REGION" ]]       && GCP_REGION="us-central1"
-[[ -z "$GAR_REPO" ]]         && GAR_REPO="apps"
-[[ -z "$GKE_CLUSTER_NAME" ]] && GKE_CLUSTER_NAME="miramar-shared-gke"
+[[ -z "$GCP_PROJECT_ID" ]]      && GCP_PROJECT_ID="miramar-platform"
+[[ -z "$GCP_REGION" ]]          && GCP_REGION="us-central1"
+[[ -z "$GAR_REPO" ]]            && GAR_REPO="apps"
+[[ -z "$GKE_CLUSTER_NAME" ]]    && GKE_CLUSTER_NAME="miramar-shared-gke"
+[[ -z "$GKE_ZONE" ]]            && GKE_ZONE="us-central1-b"
+[[ -z "$GKE_STATE_BUCKET" ]]    && GKE_STATE_BUCKET="miramar-platform-cluster-state"
+[[ -z "$GKE_GPU_POOL_ACTIVE" ]] && GKE_GPU_POOL_ACTIVE="false"
+[[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
 
 VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
@@ -170,6 +178,14 @@ AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 GAR_URL="https://console.cloud.google.com/artifacts/docker/${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}"
+GCS_BUCKET_URL="https://console.cloud.google.com/storage/browser/${GKE_STATE_BUCKET}?project=${GCP_PROJECT_ID}"
+
+if [ "$GKE_GPU_POOL_ACTIVE" = "true" ]; then
+  GPU_LABEL="${GKE_GPU_TYPE:-gpu}"
+  GKE_GPU_BADGE="<span class=\"ps-active\">${GPU_LABEL}</span>"
+else
+  GKE_GPU_BADGE='<span class="ps-inactive">none</span>'
+fi
 
 # Active/inactive badge HTML (link only on active state)
 DGX_NEMO_BADGE=$([ "$DGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
@@ -344,6 +360,22 @@ cat > "$OUTPUT" <<HTMLEOF
     <div class="ps-item ps-wide">
       <div class="ps-label">GKE</div>
       <a href="https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}" target="_blank" class="ps-value">${GKE_CLUSTER_NAME}</a>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">Zone</div>
+      <code class="ps-value">${GKE_ZONE}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">Node type</div>
+      <code class="ps-value">e2-medium</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">GPU pool</div>
+      ${GKE_GPU_BADGE}
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">State bucket</div>
+      <a href="${GCS_BUCKET_URL}" target="_blank" class="ps-value">${GKE_STATE_BUCKET}</a>
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">GAR</div>
