@@ -1,4 +1,4 @@
-# win/ — Windows laptop tooling
+# Windows laptop tooling
 
 Bitvise SSH Client profiles for forwarding local ports on the Windows laptop to the on-prem machines. Load a profile in Bitvise via **Profiles → Open profile**, then click **Log in** to bring up all tunnels at once.
 
