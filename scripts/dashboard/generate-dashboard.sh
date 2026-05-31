@@ -45,20 +45,6 @@ while IFS= read -r repo_json; do
     "repos/${ORG}/${name}/commits?per_page=1" 2>/dev/null \
     | jq -r 'if type == "array" then (.[0].sha // "")[:7] else "" end' 2>/dev/null || echo "")
 
-  # --- Deploy status: compare latest successful deploy vs undeploy run ---
-  deploy_ts=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-    "repos/${ORG}/${name}/actions/workflows/deploy-${type}.yaml/runs?status=success&per_page=1" \
-    --jq '.workflow_runs[0].updated_at // empty' 2>/dev/null || true)
-  undeploy_ts=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-    "repos/${ORG}/${name}/actions/workflows/undeploy-${type}.yaml/runs?status=success&per_page=1" \
-    --jq '.workflow_runs[0].updated_at // empty' 2>/dev/null || true)
-
-  if [[ -n "$deploy_ts" ]] && { [[ -z "$undeploy_ts" ]] || [[ "$deploy_ts" > "$undeploy_ts" ]]; }; then
-    status_html="<span class=\"badge badge-deployed\">deployed</span>"
-  else
-    status_html="<span class=\"badge badge-idle\">idle</span>"
-  fi
-
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
   # extract with jq separately to avoid concatenating error body with the fallback.
@@ -78,7 +64,6 @@ while IFS= read -r repo_json; do
   <td><a href=\"${url}\" target=\"_blank\">${name}</a></td>
   <td><span class=\"badge badge-${type}\">${type}</span></td>
   <td>${desc}</td>
-  <td>${status_html}</td>
   <td>${host_html}</td>
   <td>${jl_html}</td>
   <td><code>${sha}</code></td>
@@ -238,8 +223,6 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-nemo     { background: #0c2d6b; color: #79c0ff; }
   .badge-other    { background: #2d2b00; color: #d29922; }
   .badge-default  { background: #2d2b00; color: #d29922; }
-  .badge-deployed { background: #1a4731; color: #3fb950; }
-  .badge-idle     { background: #21262d; color: #8b949e; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
@@ -389,7 +372,6 @@ cat > "$OUTPUT" <<HTMLEOF
     <th>Project</th>
     <th>Type</th>
     <th>Description</th>
-    <th>Status</th>
     <th>Host</th>
     <th>JupyterLab</th>
     <th>SHA</th>
