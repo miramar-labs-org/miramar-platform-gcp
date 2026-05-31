@@ -50,3 +50,6 @@ secrets/
 # OS
 .DS_Store
 Thumbs.db
+
+# Per-project JupyterLab kernel venv
+.venv/

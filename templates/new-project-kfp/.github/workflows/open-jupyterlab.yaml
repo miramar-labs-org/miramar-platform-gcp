@@ -23,7 +23,7 @@ permissions:
 jobs:
   open:
     runs-on: [self-hosted, "${{ vars.PROJECT_HOST || 'dgx' }}"]
-    timeout-minutes: 5
+    timeout-minutes: 30
 
     steps:
       - name: Clone or pull repo on host
@@ -38,7 +38,7 @@ jobs:
             if [ -d "${DEST}/.git" ]; then
               git -C "${DEST}" stash
               git -C "${DEST}" pull --ff-only
-              git -C '${DEST}' stash drop 2>/dev/null || true
+              git -C "${DEST}" stash drop 2>/dev/null || true
               echo "Pulled: ${DEST}"
             else
               git clone \
@@ -46,6 +46,25 @@ jobs:
                 "${DEST}"
               echo "Cloned: ${DEST}"
             fi
+
+            # Create per-project venv and register as a named JupyterLab kernel.
+            # The venv is created once; pip install runs every time to pick up
+            # any new dependencies added to requirements.txt.
+            VENV="${DEST}/.venv"
+            if [ ! -d "${VENV}" ]; then
+              python3 -m venv "${VENV}"
+              echo "Created venv: ${VENV}"
+            fi
+            "${VENV}/bin/pip" install --quiet --upgrade pip
+            "${VENV}/bin/pip" install --quiet ipykernel
+            if [ -f "${DEST}/requirements.txt" ]; then
+              echo "Installing requirements.txt ..."
+              "${VENV}/bin/pip" install --quiet -r "${DEST}/requirements.txt"
+            fi
+            "${VENV}/bin/python" -m ipykernel install --user \
+              --name "${REPO_NAME}" \
+              --display-name "${REPO_NAME}"
+            echo "Kernel registered: ${REPO_NAME}"
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "ERROR: ~/.ssh/id_ed25519 not found." \
