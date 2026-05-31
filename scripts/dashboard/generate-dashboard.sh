@@ -268,8 +268,10 @@ cat > "$OUTPUT" <<HTMLEOF
   .modal h2 { color: #f85149; font-size: 1rem; margin: 0 0 0.75rem; }
   .modal p  { font-size: 0.875rem; color: #8b949e; margin: 0 0 0.75rem; line-height: 1.5; }
   .modal strong { color: #e6edf3; }
-  .modal input { width: 100%; padding: 0.5rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.875rem; margin-bottom: 1rem; outline: none; font-family: monospace; }
+  .modal input { width: 100%; padding: 0.5rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.875rem; margin-bottom: 1rem; outline: none; font-family: monospace; box-sizing: border-box; }
   .modal input:focus { border-color: #58a6ff; }
+  .modal code { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.8rem; color: #c9d1d9; }
+  #del-pat-section { display: none; }
   .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
   .btn-cancel { padding: 0.4rem 1rem; border-radius: 6px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; cursor: pointer; font-size: 0.875rem; }
   .btn-cancel:hover { background: #30363d; }
@@ -418,6 +420,10 @@ ${ROWS}
   <div class="modal">
     <h2>&#x26A0; Delete project</h2>
     <p>This will permanently delete <strong id="del-name"></strong> and clean up its blog draft, local clone, and JupyterLab kernel.</p>
+    <div id="del-pat-section">
+      <p>Enter a GitHub PAT with <code>delete_repo + workflow</code> scope (saved in browser storage for future use):</p>
+      <input id="del-pat" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+    </div>
     <p>Type the project name to confirm:</p>
     <input id="del-confirm" type="text" autocomplete="off" spellcheck="false" placeholder="">
     <div class="modal-actions">
@@ -434,18 +440,25 @@ ${ROWS}
   var WORKFLOW = 'delete-project.yaml';
   var pending = null;
 
-  var overlay = document.getElementById('del-modal');
-  var nameEl  = document.getElementById('del-name');
-  var inp     = document.getElementById('del-confirm');
-  var submit  = document.getElementById('del-submit');
+  var overlay    = document.getElementById('del-modal');
+  var nameEl     = document.getElementById('del-name');
+  var inp        = document.getElementById('del-confirm');
+  var submit     = document.getElementById('del-submit');
+  var patSection = document.getElementById('del-pat-section');
+  var patInp     = document.getElementById('del-pat');
 
   function getPat() {
-    var pat = localStorage.getItem('gh_pat');
-    if (!pat) {
-      pat = prompt('Enter a GitHub PAT with delete_repo + workflow scope.\nIt will be saved in localStorage for future use:');
-      if (pat) localStorage.setItem('gh_pat', pat.trim());
-    }
-    return pat ? pat.trim() : null;
+    var stored = localStorage.getItem('gh_pat');
+    if (stored) return stored.trim();
+    var entered = patInp.value.trim();
+    if (entered) { localStorage.setItem('gh_pat', entered); return entered; }
+    return null;
+  }
+
+  function checkSubmit() {
+    var nameOk = inp.value === pending;
+    var patOk  = patSection.style.display === 'none' || patInp.value.trim().length > 0;
+    submit.disabled = !(nameOk && patOk);
   }
 
   function openModal(repo) {
@@ -453,21 +466,23 @@ ${ROWS}
     nameEl.textContent = repo;
     inp.value = '';
     inp.placeholder = repo;
+    patInp.value = '';
+    patSection.style.display = localStorage.getItem('gh_pat') ? 'none' : 'block';
     submit.disabled = true;
     submit.textContent = 'Delete';
     overlay.classList.add('open');
-    setTimeout(function() { inp.focus(); }, 50);
+    setTimeout(function() { (patSection.style.display !== 'none' ? patInp : inp).focus(); }, 50);
   }
 
   function closeModal() {
     overlay.classList.remove('open');
     pending = null;
     inp.value = '';
+    patInp.value = '';
   }
 
-  inp.addEventListener('input', function() {
-    submit.disabled = inp.value !== pending;
-  });
+  inp.addEventListener('input', checkSubmit);
+  patInp.addEventListener('input', checkSubmit);
 
   document.getElementById('del-cancel').addEventListener('click', closeModal);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
@@ -494,7 +509,10 @@ ${ROWS}
         alert('Delete workflow triggered for "' + repo + '".\nDashboard will refresh when it completes.');
       } else if (resp.status === 401) {
         localStorage.removeItem('gh_pat');
-        alert('PAT rejected (401) — cleared from storage. Try again.');
+        patInp.value = '';
+        patSection.style.display = 'block';
+        patInp.focus();
+        alert('PAT rejected (401) — cleared. Enter a valid PAT and try again.');
         submit.disabled = false;
         submit.textContent = 'Delete';
       } else {
