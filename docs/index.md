@@ -17,6 +17,7 @@ operational procedure.
 | Configuration | [configuration.md](configuration.md) | [configuration.md](configuration.md) |
 | GCP lifecycle | [gcp.md](gcp.md) | `gcp/terraform/`, `gcp/terraform-gpu/`, `.github/workflows/miramar-platform-*.yaml` |
 | Workflow catalog | [workflows.md](workflows.md) | [workflows.md](workflows.md), `.github/workflows/` |
+| Adding a new project template | [adding-a-project-template.md](adding-a-project-template.md) | [adding-a-project-template.md](adding-a-project-template.md), `templates/`, `create-project.yaml`, `generate-dashboard.sh` |
 | GKE GPU quota and capacity | [gpu-quota-request.md](gpu-quota-request.md) | [gpu-quota-request.md](gpu-quota-request.md), `.github/workflows/find-gpu-capacity.yaml` |
 | Self-hosted runners | [runners.md](runners.md) | `mlabs-runner/`, `scripts/gha/`, `.github/workflows/build-mlabs-runner.yml` |
 | DGX minikube, NeMo, MLflow, NIM, Ollama | [dgx.md](dgx.md) | [dgx.md](dgx.md), `dgx/`, `.github/workflows/*minikube*.yaml`, `.github/workflows/*nemo*.yaml`, `.github/workflows/*mlflow*.yaml`, `.github/workflows/*nim*.yaml`, `.github/workflows/*ollama*.yaml` |
