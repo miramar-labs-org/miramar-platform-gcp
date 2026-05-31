@@ -1,7 +1,7 @@
 name: Delete Project
 
 # Permanently deletes a miramar-labs-org repository created by the Create Project workflow.
-# Triggers the Platform Dashboard to refresh immediately after deletion.
+# Also cleans up: blog draft PR/branch, local clone on host, JupyterLab kernel.
 #
 # Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) — requires
 # delete_repo scope which GITHUB_TOKEN does not have.
@@ -22,7 +22,7 @@ permissions:
 jobs:
   delete:
     runs-on: [self-hosted, dgx]
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Validate confirmation
@@ -37,6 +37,22 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve host
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: |
+          PROJECT_HOST=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
+            --jq '.value // "dgx"' 2>/dev/null || echo "dgx")
+          echo "PROJECT_HOST=${PROJECT_HOST}" >> "$GITHUB_ENV"
+          if [[ "${PROJECT_HOST}" == "agx" ]]; then
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+            echo "HOST_ADDR=${{ vars.AGX_HOST_IP }}"  >> "$GITHUB_ENV"
+          else
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+            echo "HOST_ADDR=localhost"                 >> "$GITHUB_ENV"
+          fi
+
       - name: Delete repository
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
@@ -46,6 +62,63 @@ jobs:
             --yes
           echo "Deleted miramar-labs-org/${PROJECT_NAME}"
 
+      - name: Clean up blog draft
+        continue-on-error: true
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: |
+          set -euo pipefail
+          BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"
+          BRANCH="draft-${PROJECT_NAME}"
+
+          PR_NUMBER=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "repos/${BLOG_REPO}/pulls?state=open" \
+            --jq "[.[] | select(.head.ref == \"${BRANCH}\")] | .[0].number // empty" \
+            2>/dev/null || true)
+          if [ -n "${PR_NUMBER}" ]; then
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X PATCH \
+              "repos/${BLOG_REPO}/pulls/${PR_NUMBER}" \
+              -f state="closed"
+            echo "Closed blog PR #${PR_NUMBER}"
+          fi
+
+          BRANCH_EXISTS=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}" \
+            --jq '.ref' 2>/dev/null || true)
+          if [ -n "${BRANCH_EXISTS}" ]; then
+            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+              "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}"
+            echo "Deleted blog draft branch ${BRANCH}"
+          fi
+
+          echo "Blog cleanup done"
+
+      - name: Clean up host
+        continue-on-error: true
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          SCRIPT: |
+            set -euo pipefail
+            DEST="${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
+            if [ -d "${DEST}" ]; then
+              rm -rf "${DEST}"
+              echo "Removed local clone: ${DEST}"
+            else
+              echo "No local clone found at ${DEST}"
+            fi
+            jupyter kernelspec uninstall "${PROJECT_NAME}" -y 2>/dev/null \
+              && echo "Unregistered kernel: ${PROJECT_NAME}" \
+              || echo "No kernel found for ${PROJECT_NAME}"
+        run: |
+          if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo "WARNING: no SSH key — skipping host cleanup" >&2
+            exit 0
+          fi
+          printf '%s' "${SCRIPT}" \
+            | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                "${HOST_USER:-aaron}@${HOST_ADDR:-localhost}" \
+                env PROJECT_NAME="${PROJECT_NAME}" bash
+
       - name: Summary
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
@@ -53,7 +126,13 @@ jobs:
           {
             echo "## Project Deleted"
             echo ""
-            echo "**Repository:** \`miramar-labs-org/${PROJECT_NAME}\`"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Repository | \`miramar-labs-org/${PROJECT_NAME}\` |"
+            echo "| Host | \`${PROJECT_HOST}\` |"
+            echo "| Blog draft | closed + branch deleted |"
+            echo "| Local clone | removed from \`~/git-miramar-labs-org/projects/${PROJECT_NAME}\` |"
+            echo "| Kernel | unregistered from JupyterLab |"
             echo ""
             echo "The platform dashboard will refresh within minutes."
           } >> "$GITHUB_STEP_SUMMARY"
