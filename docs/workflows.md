@@ -120,7 +120,7 @@ On creation, `requirements.txt` is generated from the `requirements` workflow in
 Default packages (pre-filled in the workflow input, edit freely):
 
 ```
-ipykernel numpy pandas matplotlib seaborn scikit-learn tqdm
+ipykernel ipywidgets numpy pandas matplotlib seaborn scikit-learn tqdm
 transformers datasets huggingface_hub evaluate accelerate
 openai anthropic mlflow pyyaml requests python-dotenv nvidia-ml-py
 ```
