@@ -263,7 +263,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-active { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #1a4731; color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
   a.ps-active:hover { text-decoration: underline; }
   .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
-  .del-btn { background: none; border: none; cursor: pointer; color: #8b1a1a; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #c0392b; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
   .del-btn:hover { color: #f85149; background: #3d1212; }
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
   .modal-overlay.open { display: flex; }
