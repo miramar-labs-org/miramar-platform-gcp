@@ -25,6 +25,7 @@ host values are set manually.
 | `GCP_SERVICE_ACCOUNT` | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops service account used by platform lifecycle workflows |
 | `WSL2_HOST_USER` | Windows SSH user | SSH login for WSL2 workflows |
 | `WSL2_HOST_SSH_KEY` | Private SSH key | SSH into Windows; public key must be authorized in Windows OpenSSH |
+| `DASHBOARD_DISPATCH_TOKEN` | Fine-grained PAT | Baked into the dashboard HTML at build time; used by the browser to trigger `delete-project.yaml` via workflow dispatch. Fine-grained PAT — **Actions: read and write** on `miramar-platform-gcp` only. No other permissions needed. Rotate by creating a new token at github.com/settings/personal-access-tokens and running `gh secret set DASHBOARD_DISPATCH_TOKEN --repo miramar-labs-org/miramar-platform-gcp`, then re-running **Deploy Platform Dashboard**. |
 
 ## GitHub Variables
 
@@ -95,7 +96,7 @@ environment:
 | `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull `mlabs-runner` from GHCR |
 | `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Manage self-hosted runners, update `WSL2_DISTROS`, push `.github/workflows/` files to new repos. The `workflow` scope is required by GitHub whenever a push includes files under `.github/workflows/` — e.g. the **Create Project** workflow. Also used by **Delete Project** (`delete_repo` scope required). |
 
-**Dashboard delete button PAT** — the 🗑 per-project delete button in the platform dashboard fires `delete-project.yaml` directly from the browser via the GitHub API. It requires a separate personal access token (classic) with `delete_repo` + `workflow` scopes. This token is entered once via a browser prompt and stored in `localStorage` under key `gh_pat` — it is not a workflow secret. To rotate it, open DevTools → Application → localStorage and remove the `gh_pat` entry, then click any 🗑 button to re-enter.
+**Dashboard dispatch token** — `DASHBOARD_DISPATCH_TOKEN` is injected into the dashboard HTML when **Deploy Platform Dashboard** runs, so the 🗑 delete button works without any browser input. It is a fine-grained PAT scoped to Actions write on this repo only — safe to embed in public HTML because it can only trigger workflow dispatches, not delete repos directly. The actual deletion is performed by `delete-project.yaml` using the runner's `GITHUB_ORG_ADMIN_PAT`.
 
 Example:
 
