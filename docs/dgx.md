@@ -32,6 +32,32 @@ ssh -L 8001:localhost:8001 \
 See [../dgx/README.md](../dgx/README.md) and
 [../dgx/systemd/README.md](../dgx/systemd/README.md).
 
+## JupyterLab
+
+JupyterLab runs on the DGX at port `8888` via the `jupyterlab.service` systemd unit. Access it through the SSH tunnel at [http://localhost:8888](http://localhost:8888).
+
+Project repos live at `~/git-miramar-labs-org/projects/<name>` on the DGX. The **Open in JupyterLab** workflow (available in every project repo) clones or pulls the repo to that path and prints a direct notebook URL.
+
+### Git integration
+
+`jupyterlab-git` (v0.53.0) is installed and active. It adds a **Git panel** in the left sidebar with full branch switching, staging, committing, and diff viewing — no terminal needed for routine git operations.
+
+To switch branches from JupyterLab without the extension, open a terminal (`File → New → Terminal`) and run:
+
+```sh
+cd ~/git-miramar-labs-org/projects/<project-name>
+git checkout <branch-name>
+```
+
+JupyterLab sees the filesystem live — files update immediately after a branch switch.
+
+### Working on a project
+
+1. Run **Open in JupyterLab** from the project repo on GitHub Actions
+2. Open the printed URL (e.g. `http://localhost:8888/lab/tree/git-miramar-labs-org/projects/<name>/notebook.ipynb`)
+3. Use the Git panel or terminal to switch to the relevant branch if needed
+4. Edit and run cells — MLflow at `http://localhost:5000` tracks experiments automatically
+
 ## minikube
 
 DGX minikube hosts NeMo Microservices, MLflow, MinIO, and NIM deployments.
