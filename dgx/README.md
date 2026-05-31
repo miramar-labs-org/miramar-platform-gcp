@@ -6,6 +6,7 @@
 
 | Folder | Purpose |
 |---|---|
+| [jupyterlab/](jupyterlab/) | JupyterLab environment setup, installed packages, and project workflow tips |
 | [minikube/](minikube/) | GHA workflows for minikube cluster lifecycle + NeMo deployment scripts |
 | [systemd/](systemd/) | Systemd user service unit files + install/uninstall scripts |
 

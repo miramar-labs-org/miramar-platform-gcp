@@ -36,6 +36,8 @@ See [../dgx/README.md](../dgx/README.md) and
 
 JupyterLab runs on the DGX at port `8888` via the `jupyterlab.service` systemd unit. Access it through the SSH tunnel at [http://localhost:8888](http://localhost:8888).
 
+Full environment details, installed packages, and project workflow tips: [../dgx/jupyterlab/README.md](../dgx/jupyterlab/README.md).
+
 Project repos live at `~/git-miramar-labs-org/projects/<name>` on the DGX. The **Open in JupyterLab** workflow (available in every project repo) clones or pulls the repo to that path and prints a direct notebook URL.
 
 ### Git integration
