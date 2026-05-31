@@ -49,7 +49,7 @@ permissions:
 jobs:
   create:
     runs-on: [self-hosted, "${{ inputs.host }}"]
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -187,6 +187,24 @@ jobs:
             else
               echo "Blog repo not on host — skipping checkout"
             fi
+
+            # Create per-project venv and register as a named JupyterLab kernel.
+            # Runs on first create; open-jupyterlab handles subsequent updates.
+            VENV="${DEST}/.venv"
+            if [ ! -d "${VENV}" ]; then
+              python3 -m venv "${VENV}"
+              echo "Created venv: ${VENV}"
+            fi
+            "${VENV}/bin/pip" install --quiet --upgrade pip
+            "${VENV}/bin/pip" install --quiet ipykernel
+            if [ -f "${DEST}/requirements.txt" ]; then
+              echo "Installing requirements.txt ..."
+              "${VENV}/bin/pip" install --quiet -r "${DEST}/requirements.txt"
+            fi
+            "${VENV}/bin/python" -m ipykernel install --user \
+              --name "${PROJECT_NAME}" \
+              --display-name "${PROJECT_NAME}"
+            echo "Kernel registered: ${PROJECT_NAME}"
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "WARNING: ~/.ssh/id_ed25519 not found — skipping host clone" >&2
@@ -310,8 +328,8 @@ jobs:
             if [ "${PROJECT_TYPE}" = "default" ]; then
               echo "### Next steps"
               echo "1. Edit \`README.md\` — add a one-line description"
-              echo "2. Open \`notebook.ipynb\` via the **Open in JupyterLab** workflow"
-              echo "3. SSH tunnel: \`ssh -L ${JL_PORT}:localhost:8888 aaron@$([ "${HOST}" = "agx" ] && echo "orin.local" || echo "spark-79b7.local")\`"
+              echo "2. Open SSH tunnel: \`ssh -L ${JL_PORT}:localhost:8888 aaron@$([ "${HOST}" = "agx" ] && echo "orin.local" || echo "spark-79b7.local")\`"
+              echo "3. Open \`notebook.ipynb\` — the \`${PROJECT_NAME}\` kernel is ready"
             elif [ "${PROJECT_TYPE}" = "kfp" ]; then
               echo "### Next steps"
               echo "1. Edit \`pipeline.py\` to define your pipeline components"
