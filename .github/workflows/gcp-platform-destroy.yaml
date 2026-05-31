@@ -1,4 +1,4 @@
-name: Miramar Platform Destroy
+name: GCP Platform Destroy
 
 # ⚠ DESTRUCTIVE — tears down the miramar-platform stack:
 #   1. terraform destroy — GKE cluster + node pool + Artifact Registry repo

@@ -6,8 +6,8 @@ All workflows are manually dispatchable unless noted otherwise.
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Miramar Platform Create | `miramar-platform-create.yaml` | Create state bucket, run Terraform, then apply Kubernetes setup |
-| Miramar Platform Destroy | `miramar-platform-destroy.yaml` | Destroy GKE/Artifact Registry/state bucket; optional project deletion |
+| GCP Platform Create | `gcp-platform-create.yaml` | Create state bucket, run Terraform, then apply Kubernetes setup |
+| GCP Platform Destroy | `gcp-platform-destroy.yaml` | Destroy GKE/Artifact Registry/state bucket; optional project deletion |
 
 Destroy has three guards: exact project name, `i_confirm`, and optional
 `delete_project`.

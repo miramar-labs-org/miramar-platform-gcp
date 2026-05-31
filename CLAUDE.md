@@ -66,7 +66,7 @@ docs/              # Architecture and runbooks
 
 GCP zsh scripts require `gcloud` on `$PATH` with an active authenticated session. `create-miramar-platform.zsh` additionally requires `kubectl`.
 
-Run order for a fresh environment: `bootstrap-miramar-platform.zsh` → set GitHub secrets → run **Miramar Platform Create** workflow.
+Run order for a fresh environment: `bootstrap-miramar-platform.zsh` → set GitHub secrets → run **GCP Platform Create** workflow.
 
 ## Terraform
 
@@ -109,8 +109,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 
 | Workflow | File | Purpose |
 |---|---|---|
-| Miramar Platform Create | `miramar-platform-create.yaml` | `terraform apply` (GKE + AR) then K8s namespaces + RBAC |
-| Miramar Platform Destroy | `miramar-platform-destroy.yaml` | `terraform destroy`, gcloud fallback, optionally delete project |
+| GCP Platform Create | `gcp-platform-create.yaml` | `terraform apply` (GKE + AR) then K8s namespaces + RBAC |
+| GCP Platform Destroy | `gcp-platform-destroy.yaml` | `terraform destroy`, gcloud fallback, optionally delete project |
 | GKE Expand | `gke-expand.yaml` | Snapshot pool state to GCS, scale up node count |
 | GKE Restore | `gke-restore.yaml` | Read saved state from GCS, restore node count |
 | GKE Expand GPU | `gke-expand-gpu.yaml` | Add transient GPU node pool via `terraform-gpu/` |
