@@ -43,7 +43,7 @@ on:
         default: public
         required: false
       requirements:
-        description: "Python packages for the project venv (space-separated). Edit to customise; leave blank to use DEFAULT_VENV_REQUIREMENTS org variable."
+        description: "Space-separated pip packages for the project venv. Edit the pre-filled defaults freely, or clear the field to fall back to the DEFAULT_VENV_REQUIREMENTS org variable."
         default: "ipykernel numpy pandas matplotlib seaborn scikit-learn tqdm transformers datasets huggingface_hub evaluate accelerate openai anthropic mlflow pyyaml requests python-dotenv nvidia-ml-py"
         required: false
 
