@@ -189,22 +189,6 @@ jobs:
               echo "Cloned to: ${DEST}"
             fi
 
-            # Check out the draft blog branch so the post is ready to preview locally
-            BLOG_DIR="${HOME}/git-miramar-labs-org/miramar-labs-org.github.io"
-            DRAFT_BRANCH="draft-${PROJECT_NAME}"
-            if [ -d "${BLOG_DIR}/.git" ]; then
-              git -C "${BLOG_DIR}" fetch --quiet origin
-              if git -C "${BLOG_DIR}" ls-remote --exit-code --heads origin "${DRAFT_BRANCH}" > /dev/null 2>&1; then
-                git -C "${BLOG_DIR}" checkout "${DRAFT_BRANCH}" 2>/dev/null || \
-                  git -C "${BLOG_DIR}" checkout -b "${DRAFT_BRANCH}" --track "origin/${DRAFT_BRANCH}"
-                echo "Blog checked out: ${DRAFT_BRANCH}"
-              else
-                echo "Blog draft branch not yet available — skipping checkout"
-              fi
-            else
-              echo "Blog repo not on host — skipping checkout"
-            fi
-
             # Create per-project venv and register as a named JupyterLab kernel.
             VENV="${DEST}/.venv"
             if [ ! -x "${VENV}/bin/pip" ]; then
@@ -343,6 +327,32 @@ jobs:
 
           echo "Blog PR: ${PR_URL}"
           echo "BLOG_PR_URL=${PR_URL}" >> "$GITHUB_ENV"
+
+      - name: Checkout blog draft on host
+        continue-on-error: true
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          SCRIPT: |
+            set -euo pipefail
+            BLOG_DIR="${HOME}/git-miramar-labs-org/miramar-labs-org.github.io"
+            DRAFT_BRANCH="draft-${PROJECT_NAME}"
+            if [ ! -d "${BLOG_DIR}/.git" ]; then
+              echo "Blog repo not on host — skipping"
+              exit 0
+            fi
+            git -C "${BLOG_DIR}" fetch --quiet origin
+            git -C "${BLOG_DIR}" checkout "${DRAFT_BRANCH}" 2>/dev/null || \
+              git -C "${BLOG_DIR}" checkout -b "${DRAFT_BRANCH}" --track "origin/${DRAFT_BRANCH}"
+            echo "Blog checked out: ${DRAFT_BRANCH}"
+        run: |
+          if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo "WARNING: no SSH key — skipping blog checkout" >&2
+            exit 0
+          fi
+          printf '%s' "${SCRIPT}" \
+            | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                "${HOST_USER:-aaron}@localhost" \
+                env PROJECT_NAME="${PROJECT_NAME}" bash
 
       - name: Summary
         env:
