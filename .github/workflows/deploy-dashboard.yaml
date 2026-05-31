@@ -21,6 +21,8 @@ on:
       - "NIM Undeploy"
       - "Ollama Deploy"
       - "Ollama Undeploy"
+      - "GKE Expand GPU"
+      - "GKE Restore GPU"
     types: [completed]
 
 permissions:

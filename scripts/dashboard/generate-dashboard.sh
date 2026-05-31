@@ -45,20 +45,6 @@ while IFS= read -r repo_json; do
     "repos/${ORG}/${name}/commits?per_page=1" 2>/dev/null \
     | jq -r 'if type == "array" then (.[0].sha // "")[:7] else "" end' 2>/dev/null || echo "")
 
-  # --- Deploy status: compare latest successful deploy vs undeploy run ---
-  deploy_ts=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-    "repos/${ORG}/${name}/actions/workflows/deploy-${type}.yaml/runs?status=success&per_page=1" \
-    --jq '.workflow_runs[0].updated_at // empty' 2>/dev/null || true)
-  undeploy_ts=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-    "repos/${ORG}/${name}/actions/workflows/undeploy-${type}.yaml/runs?status=success&per_page=1" \
-    --jq '.workflow_runs[0].updated_at // empty' 2>/dev/null || true)
-
-  if [[ -n "$deploy_ts" ]] && { [[ -z "$undeploy_ts" ]] || [[ "$deploy_ts" > "$undeploy_ts" ]]; }; then
-    status_html="<span class=\"badge badge-deployed\">deployed</span>"
-  else
-    status_html="<span class=\"badge badge-idle\">idle</span>"
-  fi
-
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
   # extract with jq separately to avoid concatenating error body with the fallback.
@@ -78,7 +64,6 @@ while IFS= read -r repo_json; do
   <td><a href=\"${url}\" target=\"_blank\">${name}</a></td>
   <td><span class=\"badge badge-${type}\">${type}</span></td>
   <td>${desc}</td>
-  <td>${status_html}</td>
   <td>${host_html}</td>
   <td>${jl_html}</td>
   <td><code>${sha}</code></td>
@@ -135,6 +120,10 @@ GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
 GCP_REGION=$(read_org_var "GCP_REGION")
 GAR_REPO=$(read_org_var "GAR_REPO")
 GKE_CLUSTER_NAME=$(read_org_var "GKE_CLUSTER_NAME")
+GKE_ZONE=$(read_org_var "GKE_ZONE")
+GKE_STATE_BUCKET=$(read_org_var "GKE_STATE_BUCKET")
+GKE_GPU_POOL_ACTIVE=$(read_org_var "GKE_GPU_POOL_ACTIVE")
+GKE_GPU_TYPE=$(read_org_var "GKE_GPU_TYPE")
 
 [[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
 [[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
@@ -146,10 +135,14 @@ GKE_CLUSTER_NAME=$(read_org_var "GKE_CLUSTER_NAME")
 [[ -z "$AGX_VRAM_USEABLE" || "$AGX_VRAM_USEABLE" == "null" ]] && AGX_VRAM_USEABLE="40"
 [[ -z "$AGX_NIM_MODEL" ]]      && AGX_NIM_MODEL="none"
 [[ -z "$AGX_NIM_VRAM_GB" || "$AGX_NIM_VRAM_GB" == "null" ]] && AGX_NIM_VRAM_GB="0"
-[[ -z "$GCP_PROJECT_ID" ]]   && GCP_PROJECT_ID="miramar-platform"
-[[ -z "$GCP_REGION" ]]       && GCP_REGION="us-central1"
-[[ -z "$GAR_REPO" ]]         && GAR_REPO="apps"
-[[ -z "$GKE_CLUSTER_NAME" ]] && GKE_CLUSTER_NAME="miramar-shared-gke"
+[[ -z "$GCP_PROJECT_ID" ]]      && GCP_PROJECT_ID="miramar-platform"
+[[ -z "$GCP_REGION" ]]          && GCP_REGION="us-central1"
+[[ -z "$GAR_REPO" ]]            && GAR_REPO="apps"
+[[ -z "$GKE_CLUSTER_NAME" ]]    && GKE_CLUSTER_NAME="miramar-shared-gke"
+[[ -z "$GKE_ZONE" ]]            && GKE_ZONE="us-central1-b"
+[[ -z "$GKE_STATE_BUCKET" ]]    && GKE_STATE_BUCKET="miramar-platform-cluster-state"
+[[ -z "$GKE_GPU_POOL_ACTIVE" ]] && GKE_GPU_POOL_ACTIVE="false"
+[[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
 
 VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
@@ -170,6 +163,14 @@ AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 GAR_URL="https://console.cloud.google.com/artifacts/docker/${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}"
+GCS_BUCKET_URL="https://console.cloud.google.com/storage/browser/${GKE_STATE_BUCKET}?project=${GCP_PROJECT_ID}"
+
+if [ "$GKE_GPU_POOL_ACTIVE" = "true" ]; then
+  GPU_LABEL="${GKE_GPU_TYPE:-gpu}"
+  GKE_GPU_BADGE="<span class=\"ps-active\">${GPU_LABEL}</span>"
+else
+  GKE_GPU_BADGE='<span class="ps-inactive">none</span>'
+fi
 
 # Active/inactive badge HTML (link only on active state)
 DGX_NEMO_BADGE=$([ "$DGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
@@ -222,8 +223,6 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-nemo     { background: #0c2d6b; color: #79c0ff; }
   .badge-other    { background: #2d2b00; color: #d29922; }
   .badge-default  { background: #2d2b00; color: #d29922; }
-  .badge-deployed { background: #1a4731; color: #3fb950; }
-  .badge-idle     { background: #21262d; color: #8b949e; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
@@ -345,6 +344,22 @@ cat > "$OUTPUT" <<HTMLEOF
       <div class="ps-label">GKE</div>
       <a href="https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}" target="_blank" class="ps-value">${GKE_CLUSTER_NAME}</a>
     </div>
+    <div class="ps-item">
+      <div class="ps-label">Zone</div>
+      <code class="ps-value">${GKE_ZONE}</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">Node type</div>
+      <code class="ps-value">e2-medium</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">GPU pool</div>
+      ${GKE_GPU_BADGE}
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">State bucket</div>
+      <a href="${GCS_BUCKET_URL}" target="_blank" class="ps-value">${GKE_STATE_BUCKET}</a>
+    </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">GAR</div>
       <a href="${GAR_URL}" target="_blank" class="ps-value">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</a>
@@ -357,7 +372,6 @@ cat > "$OUTPUT" <<HTMLEOF
     <th>Project</th>
     <th>Type</th>
     <th>Description</th>
-    <th>Status</th>
     <th>Host</th>
     <th>JupyterLab</th>
     <th>SHA</th>
