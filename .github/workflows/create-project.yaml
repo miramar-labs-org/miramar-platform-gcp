@@ -44,7 +44,7 @@ on:
         required: false
       requirements:
         description: "Python packages for the project venv (space-separated). Edit to customise; leave blank to use DEFAULT_VENV_REQUIREMENTS org variable."
-        default: "ipykernel numpy pandas matplotlib seaborn scikit-learn tqdm transformers datasets huggingface_hub evaluate accelerate openai anthropic mlflow pyyaml requests python-dotenv"
+        default: "ipykernel numpy pandas matplotlib seaborn scikit-learn tqdm transformers datasets huggingface_hub evaluate accelerate openai anthropic mlflow pyyaml requests python-dotenv nvidia-ml-py"
         required: false
 
 permissions:
@@ -153,12 +153,12 @@ jobs:
             mv README.tmp README.md
           fi
 
-          # Write requirements.txt from the workflow input (space-separated → one per line).
-          # Falls back to DEFAULT_VENV_REQUIREMENTS org variable if input is blank.
+          # Write requirements.txt: start from workflow input, then append
+          # type-specific packages (kfp or nemo-microservices).
           REQS="${{ inputs.requirements }}"
-          if [ -n "${REQS}" ]; then
-            printf '%s\n' ${REQS} > requirements.txt
-          fi
+          [[ "${PROJECT_TYPE}" = "kfp" ]]  && REQS="${REQS} kfp>=2.0.0"
+          [[ "${PROJECT_TYPE}" = "nemo" ]] && REQS="${REQS} nemo-microservices"
+          printf '%s\n' ${REQS} > requirements.txt
 
           git add .
           git add -f .github/  # guarantee workflows are staged regardless of gitignore
