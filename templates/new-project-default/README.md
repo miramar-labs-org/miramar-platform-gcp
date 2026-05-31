@@ -1,5 +1,7 @@
 # {{PROJECT_NAME}}
 
+[![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})
+
 <!-- One-line description of this project -->
 
 ## Platform endpoints
@@ -32,9 +34,3 @@ Add to your laptop's `/etc/hosts` (Windows: `C:\Windows\System32\drivers\etc\hos
 | MLflow | [http://localhost:5000](http://localhost:5000) | Experiment tracking |
 | NeMo / NIM | [http://nemo.test:8082](http://nemo.test:8082) | NeMo Microservices + NIM inference |
 | Ollama | [http://localhost:11434](http://localhost:11434) | Local LLM inference |
-
-## Workflows
-
-| Workflow | Effect |
-|---|---|
-| **Open in JupyterLab** | Clone/pull this repo to DGX `~/git-miramar-labs-org/projects/`, print direct URL |

@@ -1,5 +1,7 @@
 # {{PROJECT_NAME}}
 
+[![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})
+
 <!-- One-line description of this project -->
 
 **Type**: Kubeflow Pipelines
@@ -12,7 +14,6 @@ KFP running on DGX — trigger **Kubeflow Deploy** in [miramar-platform-gcp](htt
 
 | Workflow | Input | Effect |
 |---|---|---|
-| **Open in JupyterLab** | — | Clone/pull repo to DGX `~/git-miramar-labs-org/projects/`, print direct URL |
 | **Deploy to KFP** | `run_name` | Compile `pipeline.py` → upload → submit run; prints `run_id` |
 | **Undeploy from KFP** | `run_id` | Terminate a KFP run |
 
@@ -32,10 +33,7 @@ scripts/
 
 ### 1. Open in JupyterLab
 
-Trigger **Open in JupyterLab** from the Actions tab. It clones/pulls this repo to
-`~/git-miramar-labs-org/projects/{{PROJECT_NAME}}` on the DGX and prints a direct link in the workflow summary.
-
-Then open: [http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}}](http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}})
+Click the badge above or open: [{{JL_URL}}]({{JL_URL}})
 
 ### 2. Define your pipeline in `pipeline.py`
 

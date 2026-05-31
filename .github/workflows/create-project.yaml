@@ -121,31 +121,33 @@ jobs:
 
           # Replace placeholders in all text files
           YEAR=$(date +%Y)
+          JL_PORT=8888; [[ "${HOST}" == "agx" ]] && JL_PORT=8887
+          JL_URL="http://localhost:${JL_PORT}/lab/tree/git-miramar-labs-org/projects/${PROJECT_NAME}/notebook.ipynb"
           find . -type f \( -name "*.md" -o -name "*.ipynb" -o -name "*.yaml" -o -name "*.py" -o -name "LICENSE" \) \
             -exec sed -i \
               -e "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" \
               -e "s/{{PROJECT_HOST}}/${HOST}/g" \
               -e "s/{{YEAR}}/${YEAR}/g" \
+              -e "s|{{JL_URL}}|${JL_URL}|g" \
             {} +
 
-          # Inject workflow badges after the title line.
+          # Inject CI workflow badges after the title line for kfp and nemo types.
+          # (default type has no CI badges — the JupyterLab button is in the template itself.)
           # Each badge is a separate variable so no line falls to column 0
           # (which would break the YAML block scalar).
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           WF="${ORG_URL}/actions/workflows"
-          BADGE_JL="[![Open in JupyterLab](${WF}/open-jupyterlab.yaml/badge.svg)](${WF}/open-jupyterlab.yaml)"
-          if [ "${PROJECT_TYPE}" = "default" ]; then
-            { head -1 README.md; printf '\n%s\n' "${BADGE_JL}"; tail -n +2 README.md; } > README.tmp
-          elif [ "${PROJECT_TYPE}" = "kfp" ]; then
+          if [ "${PROJECT_TYPE}" = "kfp" ]; then
             BADGE_2="[![Deploy to KFP](${WF}/deploy-kfp.yaml/badge.svg)](${WF}/deploy-kfp.yaml)"
             BADGE_3="[![Undeploy from KFP](${WF}/undeploy-kfp.yaml/badge.svg)](${WF}/undeploy-kfp.yaml)"
-            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_JL}" "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
-          else
+            { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "nemo" ]; then
             BADGE_2="[![Deploy to NeMo](${WF}/deploy-nemo.yaml/badge.svg)](${WF}/deploy-nemo.yaml)"
             BADGE_3="[![Undeploy from NeMo](${WF}/undeploy-nemo.yaml/badge.svg)](${WF}/undeploy-nemo.yaml)"
-            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_JL}" "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
+            { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
           fi
-          mv README.tmp README.md
 
           git add .
           git add -f .github/  # guarantee workflows are staged regardless of gitignore
