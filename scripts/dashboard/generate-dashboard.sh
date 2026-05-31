@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Generate a self-contained dashboard.html listing all public Miramar platform repos.
-# Usage: GH_TOKEN=<token> [GH_ADMIN_TOKEN=<token>] bash generate-dashboard.sh --org <org> --output <path>
+# Usage: GH_TOKEN=<token> [GH_ADMIN_TOKEN=<token>] [GH_DISPATCH_TOKEN=<token>] bash generate-dashboard.sh --org <org> --output <path>
 #
-# GH_TOKEN      — GITHUB_TOKEN; used for org repo listing (read:public_repo)
-# GH_ADMIN_TOKEN — GITHUB_ORG_ADMIN_PAT; used for per-project workflow run queries
-#                  (falls back to GH_TOKEN if not set, but won't work for private runner data)
+# GH_TOKEN          — GITHUB_TOKEN; used for org repo listing (read:public_repo)
+# GH_ADMIN_TOKEN    — GITHUB_ORG_ADMIN_PAT; used for per-project workflow run queries
+#                     (falls back to GH_TOKEN if not set, but won't work for private runner data)
+# GH_DISPATCH_TOKEN — DASHBOARD_DISPATCH_TOKEN; embedded in HTML for browser → workflow dispatch
+#                     Fine-grained PAT: Actions write on miramar-platform-gcp only
 set -euo pipefail
 
 ORG=""
@@ -23,6 +25,7 @@ done
 [[ -z "${GH_TOKEN:-}" ]] && { echo "ERROR: GH_TOKEN not set" >&2; exit 1; }
 
 ADMIN_TOKEN="${GH_ADMIN_TOKEN:-$GH_TOKEN}"
+DISPATCH_TOKEN="${GH_DISPATCH_TOKEN:-}"
 
 mkdir -p "$(dirname "$OUTPUT")"
 
@@ -430,7 +433,7 @@ ${ROWS}
 <script>
 (function() {
   var ORG = '${ORG}';
-  var PAT = '${ADMIN_TOKEN}';
+  var PAT = '${DISPATCH_TOKEN}';
   var PLATFORM_REPO = 'miramar-platform-gcp';
   var WORKFLOW = 'delete-project.yaml';
   var pending = null;
