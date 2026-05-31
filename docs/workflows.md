@@ -109,8 +109,8 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 | Workflow | File | Purpose |
 | --- | --- | --- |
 | Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. `host` input (dgx/agx) sets which machine clones the repo and writes `PROJECT_HOST`. Tags repo `miramar-project` + `miramar-<type>` for the dashboard. Opens a draft blog post PR. See project types and Python environment below. |
-| Delete Project | `delete-project.yaml` | Permanently delete a platform repo (double-entry guard); triggers dashboard refresh |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Project table includes Host column and JupyterLab links. Runs hourly + on completion of any state-writing workflow. |
+| Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Verifies repo exists first (fails fast with a clear error). Double-entry confirmation guard. Cleans up blog draft PR/branch, local clone on host, and JupyterLab kernel. Triggers dashboard refresh on completion. |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Project table includes Host column, JupyterLab links, and a 🗑 delete button per row that fires `delete-project.yaml` via GitHub API using a localStorage PAT. Runs hourly + on completion of any state-writing workflow. |
 | List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs/miramar-labs.github.io`. Run before Delete Blog Post to get the exact filename. |
 | Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs/miramar-labs.github.io` by filename; closes any open draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
 
@@ -120,6 +120,7 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 | --- | --- | --- |
 | `default` | Notebook + platform endpoint reference | — |
 | `kfp` | KFP v2 pipeline stub, notebook, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges | `kfp>=2.0.0` |
+| `kfp-finetune` | KFP v2 fine-tuning pipeline: 7 named `@dsl.component` steps (prepare_data → train → merge_adapter → quantize → evaluate → push_to_gcs → deploy) with HuggingFace/LoRA/AWQ boilerplate, Build cell to regenerate `pipeline.py`, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges. Teal dashboard badge; topic tag `miramar-kfp-finetune`. | `kfp>=2.0.0` |
 | `nemo` | NeMo training config, notebook, `deploy-nemo.yaml` / `undeploy-nemo.yaml` workflows + CI badges | `nemo-microservices` |
 
 ### Python environment
