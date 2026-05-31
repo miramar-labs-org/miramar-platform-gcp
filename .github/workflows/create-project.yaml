@@ -42,6 +42,10 @@ on:
         options: [public, private]
         default: public
         required: false
+      requirements:
+        description: "Python packages for the project venv (space-separated). Edit to customise; leave blank to use DEFAULT_VENV_REQUIREMENTS org variable."
+        default: ${{ vars.DEFAULT_VENV_REQUIREMENTS }}
+        required: false
 
 permissions:
   contents: read
@@ -147,6 +151,13 @@ jobs:
             BADGE_3="[![Undeploy from NeMo](${WF}/undeploy-nemo.yaml/badge.svg)](${WF}/undeploy-nemo.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
+          fi
+
+          # Write requirements.txt from the workflow input (space-separated → one per line).
+          # Falls back to DEFAULT_VENV_REQUIREMENTS org variable if input is blank.
+          REQS="${{ inputs.requirements }}"
+          if [ -n "${REQS}" ]; then
+            printf '%s\n' ${REQS} > requirements.txt
           fi
 
           git add .
