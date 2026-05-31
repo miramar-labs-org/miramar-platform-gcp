@@ -1,5 +1,7 @@
 # {{PROJECT_NAME}}
 
+[![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})
+
 <!-- One-line description of this project -->
 
 **Type**: NeMo Microservices
@@ -12,7 +14,6 @@ NeMo running on DGX — trigger **NeMo Deploy** in [miramar-platform-gcp](https:
 
 | Workflow | Input | Effect |
 |---|---|---|
-| **Open in JupyterLab** | — | Clone/pull repo to DGX `~/git-miramar-labs-org/projects/`, print direct URL |
 | **Deploy to NeMo** | `job_name` (optional override) | Submit training job from `job_config.yaml` |
 | **Undeploy from NeMo** | `job_name` | Cancel a training job |
 
@@ -32,10 +33,7 @@ scripts/
 
 ### 1. Open in JupyterLab
 
-Trigger **Open in JupyterLab** from the Actions tab. It clones/pulls this repo to
-`~/git-miramar-labs-org/projects/{{PROJECT_NAME}}` on the DGX and prints a direct link in the workflow summary.
-
-Then open: [http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}}/notebook.ipynb](http://localhost:8888/lab/tree/git-miramar-labs-org/projects/{{PROJECT_NAME}}/notebook.ipynb)
+Click the badge above or open: [{{JL_URL}}]({{JL_URL}})
 
 ### 2. Set up NeMo access
 
@@ -50,8 +48,6 @@ Add to your laptop's `/etc/hosts` (Windows: `C:\Windows\System32\drivers\etc\hos
 ```
 127.0.0.1 nemo.test nim.test data-store.test
 ```
-
-Then open JupyterLab at [http://localhost:8888](http://localhost:8888).
 
 ### 3. Install the NeMo SDK
 
