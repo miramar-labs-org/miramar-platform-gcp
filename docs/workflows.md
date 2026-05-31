@@ -89,6 +89,15 @@ NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` i
 | `AGX_KFP_ACTIVE` | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx) |
 | `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx) | Ollama Undeploy (dgx), rollback |
 | `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback |
+| `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU |
+
+**GCP pool org variables** (drive the CPU/GPU pool badges on the dashboard):
+
+| Variable | Set by | Reset by | Default |
+| --- | --- | --- | --- |
+| `GKE_NODE_COUNT` | GKE Expand (expanded count) | GKE Restore (resets to `1`) | `1` |
+| `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU | `false` |
+| `GKE_GPU_TYPE` | GKE Expand GPU (e.g. `nvidia-l4`) | GKE Restore GPU | `none` |
 
 On a fresh install, seed the active state with `gh api` PATCH→POST upserts using `GITHUB_ORG_ADMIN_PAT` to reflect actual current state.
 
@@ -101,7 +110,7 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 | --- | --- | --- |
 | Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. `host` input (dgx/agx) sets which machine clones the repo and writes `PROJECT_HOST`. Tags repo `miramar-project` + `miramar-<type>` for the dashboard. Opens a draft blog post PR. See project types and Python environment below. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo (double-entry guard); triggers dashboard refresh |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM/Ollama model/VRAM/Minikube/MLflow), and GCP (GKE cluster link, GAR link). Project table includes Host column and JupyterLab links. Runs hourly + on completion of any state-writing workflow. |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Project table includes Host column and JupyterLab links. Runs hourly + on completion of any state-writing workflow. |
 | List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs/miramar-labs.github.io`. Run before Delete Blog Post to get the exact filename. |
 | Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs/miramar-labs.github.io` by filename; closes any open draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
 
