@@ -178,8 +178,9 @@ jobs:
             mkdir -p "${HOME}/git-miramar-labs-org/projects"
             DEST="${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
             if [ -d "${DEST}/.git" ]; then
-              git -C "${DEST}" pull --ff-only
-              echo "Pulled: ${DEST}"
+              git -C "${DEST}" fetch origin
+              git -C "${DEST}" reset --hard origin/main
+              echo "Reset to origin/main: ${DEST}"
             else
               git clone \
                 "https://x-access-token:${PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git" \
