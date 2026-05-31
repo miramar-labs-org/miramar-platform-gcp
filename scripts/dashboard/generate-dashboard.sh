@@ -279,11 +279,14 @@ cat > "$OUTPUT" <<HTMLEOF
   .btn-delete { padding: 0.4rem 1rem; border-radius: 6px; background: #b91c1c; border: none; color: #fff; cursor: pointer; font-size: 0.875rem; font-weight: 600; }
   .btn-delete:disabled { background: #3d1212; color: #6e7681; cursor: not-allowed; }
   .btn-delete:not(:disabled):hover { background: #dc2626; }
+  .btn-refresh { background: none; border: 1px solid #30363d; border-radius: 6px; color: #8b949e; cursor: pointer; font-size: 0.75rem; padding: 0.2rem 0.6rem; letter-spacing: 0.04em; }
+  .btn-refresh:hover { border-color: #58a6ff; color: #58a6ff; }
+  .btn-refresh:disabled { color: #484f58; border-color: #21262d; cursor: default; }
 </style>
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
-<p class="subtitle"><span>Platform Status and Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. (Refreshed hourly)</span><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></p>
+<p class="subtitle"><span>Platform Status and Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. (Refreshed hourly)</span><span style="display:flex;gap:0.5rem;align-items:center"><button class="btn-refresh" id="refresh-btn">&#x21BB; Refresh</button><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></span></p>
 <div class="machine-section">
   <div class="machine-label">DGX Spark</div>
   <div class="platform-status">
@@ -506,6 +509,37 @@ ${ROWS}
   document.querySelectorAll('.del-btn').forEach(function(btn) {
     btn.addEventListener('click', function() { openModal(btn.getAttribute('data-repo')); });
   });
+
+  (function() {
+    var refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.addEventListener('click', function() {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Triggering…';
+      var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/deploy-dashboard.yaml/dispatches';
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'token ' + PAT,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ref: 'main' })
+      }).then(function(resp) {
+        if (resp.status === 204) {
+          refreshBtn.textContent = 'Queued ✓';
+          setTimeout(function() { refreshBtn.disabled = false; refreshBtn.textContent = '↻ Refresh'; }, 5000);
+        } else {
+          resp.text().then(function(body) { alert('Error ' + resp.status + ': ' + body); });
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = '↻ Refresh';
+        }
+      }).catch(function(err) {
+        alert('Network error: ' + err.message);
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = '↻ Refresh';
+      });
+    });
+  })();
 })();
 </script>
 
