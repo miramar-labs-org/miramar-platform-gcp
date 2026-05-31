@@ -129,7 +129,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `{MACHINE}_KFP_ACTIVE` org var. Prerequisite: Build KFP arm64 Images. Inputs: `runner` |
 | Create Project | `create-project.yaml` | Create a new repo under miramar-labs-org pre-wired for the platform. Three types: `default` (generic notebook + platform endpoint reference, new default), `kfp` (KFP v2 pipeline stub + deploy/undeploy workflows), `nemo` (NeMo training job + deploy/undeploy workflows). Defaults to public so the project appears in the dashboard. Tags repo with `miramar-project` + `miramar-<type>`. Also opens a draft blog post PR to `miramar-labs/miramar-labs.github.io`. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Double-entry confirmation guard. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin, GCP. Service columns show green/red active-state badges driven by org-level `{MACHINE}_{SERVICE}_ACTIVE` variables. Runs hourly + on `workflow_run` completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin, GCP (GKE cluster, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR). Service columns show green/red active-state badges driven by org-level `{MACHINE}_{SERVICE}_ACTIVE` variables. Runs hourly + on `workflow_run` completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
 | List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs/miramar-labs.github.io`. Run before Delete Blog Post to get the exact filename. |
 | Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs/miramar-labs.github.io` by filename; closes the draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
@@ -140,6 +140,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | WSL2 Provision | `provision-wsl2.yaml` | Import distro, run firstboot, add to WSL2_DISTROS |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Test all SSH paths for active distros in WSL2_DISTROS |
 | WSL2 Unprovision | `unprovision-wsl2.yaml` | Unregister distro, remove from WSL2_DISTROS |
+| Build MLABS Runner | `build-mlabs-runner.yml` | Build + push multi-arch (`linux/amd64`, `linux/arm64`) mlabs-runner image to GHCR. Triggered on push to `main` when `mlabs-runner/` changes; also manually dispatchable with optional `runner_version` input. |
+| Repo Code Quality | `repo-quality-manual.yaml` | Run formatters/linters in check mode (or write mode with `fix_mode=true`). Manually dispatchable. |
 
 **Platform state repo variables** (NIM/Ollama current model + VRAM, read by dashboard):
 
@@ -170,10 +172,11 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback |
 | `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU |
 
-**GCP GPU pool org variables** (drive the GPU pool badge on the dashboard):
+**GCP pool org variables** (drive the CPU/GPU pool badges on the dashboard):
 
 | Variable | Set by | Cleared by | Default |
 |---|---|---|---|
+| `GKE_NODE_COUNT` | GKE Expand (value: target node count) | GKE Restore (resets to `1`) | `1` |
 | `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU | `false` |
 | `GKE_GPU_TYPE` | GKE Expand GPU (value: accelerator type, e.g. `nvidia-l4`) | GKE Restore GPU | `none` |
 

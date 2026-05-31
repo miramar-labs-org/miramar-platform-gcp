@@ -71,6 +71,14 @@ jobs:
             -var-file=terraform.tfvars \
             -var="node_pool_count=${{ steps.state.outputs.restore_count }}"
 
+      - name: Reset node count variable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+        run: |
+          gh variable set GKE_NODE_COUNT \
+            --body "1" \
+            --org miramar-labs-org
+
       - name: Summary
         run: |
           {
