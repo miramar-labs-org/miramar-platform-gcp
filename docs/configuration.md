@@ -93,7 +93,9 @@ environment:
 | Variable | Scope required | Purpose |
 | --- | --- | --- |
 | `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull `mlabs-runner` from GHCR |
-| `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Manage self-hosted runners, update `WSL2_DISTROS`, push `.github/workflows/` files to new repos. The `workflow` scope is required by GitHub whenever a push includes files under `.github/workflows/` — e.g. the **Create Project** workflow. |
+| `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Manage self-hosted runners, update `WSL2_DISTROS`, push `.github/workflows/` files to new repos. The `workflow` scope is required by GitHub whenever a push includes files under `.github/workflows/` — e.g. the **Create Project** workflow. Also used by **Delete Project** (`delete_repo` scope required). |
+
+**Dashboard delete button PAT** — the 🗑 per-project delete button in the platform dashboard fires `delete-project.yaml` directly from the browser via the GitHub API. It requires a separate personal access token (classic) with `delete_repo` + `workflow` scopes. This token is entered once via a browser prompt and stored in `localStorage` under key `gh_pat` — it is not a workflow secret. To rotate it, open DevTools → Application → localStorage and remove the `gh_pat` entry, then click any 🗑 button to re-enter.
 
 Example:
 
