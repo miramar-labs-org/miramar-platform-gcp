@@ -206,6 +206,7 @@ jobs:
             # Create per-project venv and register as a named JupyterLab kernel.
             VENV="${DEST}/.venv"
             if [ ! -d "${VENV}" ]; then
+              python3 -c "import ensurepip" 2>/dev/null || sudo apt-get install -y --no-install-recommends python3-venv
               python3 -m venv "${VENV}"
               echo "Created venv: ${VENV}"
             fi
