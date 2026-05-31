@@ -125,6 +125,7 @@ jobs:
 
           # Replace placeholders in all text files
           YEAR=$(date +%Y)
+          CHANGE_DATE="$((YEAR + 4))-01-01"
           JL_PORT=8888; [[ "${HOST}" == "agx" ]] && JL_PORT=8887
           JL_URL="http://localhost:${JL_PORT}/lab/tree/git-miramar-labs-org/projects/${PROJECT_NAME}/notebook.ipynb"
           find . -type f \( -name "*.md" -o -name "*.ipynb" -o -name "*.yaml" -o -name "*.py" -o -name "LICENSE" \) \
@@ -132,6 +133,7 @@ jobs:
               -e "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" \
               -e "s/{{PROJECT_HOST}}/${HOST}/g" \
               -e "s/{{YEAR}}/${YEAR}/g" \
+              -e "s/{{CHANGE_DATE}}/${CHANGE_DATE}/g" \
               -e "s|{{JL_URL}}|${JL_URL}|g" \
             {} +
 
