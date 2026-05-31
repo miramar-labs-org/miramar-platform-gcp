@@ -6,11 +6,9 @@
 
 <!-- Replace the line above with a one-sentence description. -->
 
-## Workflows
+## JupyterLab
 
-| Workflow | Effect |
-|---|---|
-| **Open in JupyterLab** | Sync repo to DGX and open in JupyterLab |
+Click the **Open in JupyterLab** badge in the README (requires SSH tunnel). The project repo is at `~/git-miramar-labs-org/projects/{{PROJECT_NAME}}` on the DGX.
 
 ## Platform endpoints
 

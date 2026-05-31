@@ -22,9 +22,10 @@ Require NeMo running on DGX (`nemo-microservices` namespace). Trigger **NeMo Dep
 
 | Workflow | Input | Effect |
 |---|---|---|
-| **Open in JupyterLab** | — | Sync repo to DGX and open in JupyterLab |
 | **Deploy to NeMo** | `job_name` (optional) | Submit training job from `job_config.yaml` |
 | **Undeploy from NeMo** | `job_name` | Cancel a job |
+
+Click the **Open in JupyterLab** badge in the README to open `notebook.ipynb` directly (requires SSH tunnel).
 
 ## Configuring the job
 

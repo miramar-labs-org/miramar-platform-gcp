@@ -64,7 +64,7 @@ cd dgx/systemd
 
 ## Working on projects
 
-Project repos live at `~/git-miramar-labs-org/projects/<name>` on the DGX. The **Open in JupyterLab** workflow (available in every project repo on GitHub Actions) clones or pulls the repo there and prints a direct notebook URL.
+Project repos live at `~/git-miramar-labs-org/projects/<name>` on the DGX. Each project README has an **Open in JupyterLab** badge that links directly to `http://localhost:8888/lab/tree/git-miramar-labs-org/projects/<name>/notebook.ipynb` — click it with an SSH tunnel active.
 
 ### Branch switching
 
@@ -81,8 +81,8 @@ JupyterLab sees the filesystem live — files update immediately after the switc
 
 ### Typical project workflow
 
-1. Trigger **Open in JupyterLab** from GitHub Actions
-2. Open the printed notebook URL (`http://localhost:8888/lab/tree/...`)
+1. Click the **Open in JupyterLab** badge in the project README
+2. The notebook opens at `http://localhost:8888/lab/tree/git-miramar-labs-org/projects/<name>/notebook.ipynb`
 3. Use the Git panel to switch to your feature/draft branch if needed
 4. Run cells — MLflow at `http://localhost:5000` tracks experiments automatically
 5. Commit and push from the Git panel when done; open a PR on GitHub to merge

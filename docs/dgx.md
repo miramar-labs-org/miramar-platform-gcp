@@ -38,7 +38,7 @@ JupyterLab runs on the DGX at port `8888` via the `jupyterlab.service` systemd u
 
 Full environment details, installed packages, and project workflow tips: [../dgx/jupyterlab/README.md](../dgx/jupyterlab/README.md).
 
-Project repos live at `~/git-miramar-labs-org/projects/<name>` on the DGX. The **Open in JupyterLab** workflow (available in every project repo) clones or pulls the repo to that path and prints a direct notebook URL.
+Project repos live at `~/git-miramar-labs-org/projects/<name>` on the DGX. Each project README has an **Open in JupyterLab** badge that links directly to `http://localhost:8888/lab/tree/git-miramar-labs-org/projects/<name>/notebook.ipynb` — click it with an SSH tunnel active.
 
 ### Git integration
 
@@ -55,8 +55,8 @@ JupyterLab sees the filesystem live — files update immediately after a branch 
 
 ### Working on a project
 
-1. Run **Open in JupyterLab** from the project repo on GitHub Actions
-2. Open the printed URL (e.g. `http://localhost:8888/lab/tree/git-miramar-labs-org/projects/<name>/notebook.ipynb`)
+1. Click the **Open in JupyterLab** badge in the project README
+2. The notebook opens at `http://localhost:8888/lab/tree/git-miramar-labs-org/projects/<name>/notebook.ipynb`
 3. Use the Git panel or terminal to switch to the relevant branch if needed
 4. Edit and run cells — MLflow at `http://localhost:5000` tracks experiments automatically
 
