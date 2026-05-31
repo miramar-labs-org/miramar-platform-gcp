@@ -109,6 +109,12 @@ jobs:
             jupyter kernelspec uninstall "${PROJECT_NAME}" -y 2>/dev/null \
               && echo "Unregistered kernel: ${PROJECT_NAME}" \
               || echo "No kernel found for ${PROJECT_NAME}"
+            BLOG_DIR="${HOME}/git-miramar-labs-org/miramar-labs-org.github.io"
+            if [ -d "${BLOG_DIR}/.git" ]; then
+              git -C "${BLOG_DIR}" checkout main 2>/dev/null || true
+              git -C "${BLOG_DIR}" pull --ff-only origin main 2>/dev/null || true
+              echo "Blog local clone reset to main"
+            fi
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "WARNING: no SSH key — skipping host cleanup" >&2
