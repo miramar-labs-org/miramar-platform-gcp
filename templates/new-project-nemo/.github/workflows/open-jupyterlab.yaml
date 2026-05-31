@@ -53,7 +53,7 @@ jobs:
             exit 1
           fi
           printf '%s' "${SCRIPT}" \
-            | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
                 "${HOST_USER:-aaron}@localhost" \
                 env REPO="${REPO}" REPO_NAME="${REPO_NAME}" \
                     PAT="${GITHUB_ORG_ADMIN_PAT}" bash
