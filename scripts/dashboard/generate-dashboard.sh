@@ -67,6 +67,7 @@ while IFS= read -r repo_json; do
   <td>${host_html}</td>
   <td>${jl_html}</td>
   <td><code>${sha}</code></td>
+  <td><button class=\"del-btn\" data-repo=\"${name}\" title=\"Delete ${name}\">&#x1F5D1;</button></td>
 </tr>
 "
 done < <(echo "$REPOS_JSON" | jq -c '
@@ -259,6 +260,22 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-active { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #1a4731; color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
   a.ps-active:hover { text-decoration: underline; }
   .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #484f58; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
+  .del-btn:hover { color: #f85149; background: #3d1212; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; width: 420px; max-width: 90vw; }
+  .modal h2 { color: #f85149; font-size: 1rem; margin: 0 0 0.75rem; }
+  .modal p  { font-size: 0.875rem; color: #8b949e; margin: 0 0 0.75rem; line-height: 1.5; }
+  .modal strong { color: #e6edf3; }
+  .modal input { width: 100%; padding: 0.5rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.875rem; margin-bottom: 1rem; outline: none; font-family: monospace; }
+  .modal input:focus { border-color: #58a6ff; }
+  .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+  .btn-cancel { padding: 0.4rem 1rem; border-radius: 6px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; cursor: pointer; font-size: 0.875rem; }
+  .btn-cancel:hover { background: #30363d; }
+  .btn-delete { padding: 0.4rem 1rem; border-radius: 6px; background: #b91c1c; border: none; color: #fff; cursor: pointer; font-size: 0.875rem; font-weight: 600; }
+  .btn-delete:disabled { background: #3d1212; color: #6e7681; cursor: not-allowed; }
+  .btn-delete:not(:disabled):hover { background: #dc2626; }
 </style>
 </head>
 <body>
@@ -388,6 +405,7 @@ cat > "$OUTPUT" <<HTMLEOF
     <th>Host</th>
     <th>JupyterLab</th>
     <th>SHA</th>
+    <th></th>
   </tr>
 </thead>
 <tbody>
@@ -395,6 +413,110 @@ ${ROWS}
 </tbody>
 </table>
 <p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. Minikube: DGX 8001 / AGX 8002.</p>
+
+<div class="modal-overlay" id="del-modal">
+  <div class="modal">
+    <h2>&#x26A0; Delete project</h2>
+    <p>This will permanently delete <strong id="del-name"></strong> and clean up its blog draft, local clone, and JupyterLab kernel.</p>
+    <p>Type the project name to confirm:</p>
+    <input id="del-confirm" type="text" autocomplete="off" spellcheck="false" placeholder="">
+    <div class="modal-actions">
+      <button class="btn-cancel" id="del-cancel">Cancel</button>
+      <button class="btn-delete" id="del-submit" disabled>Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var ORG = '${ORG}';
+  var PLATFORM_REPO = 'miramar-platform-gcp';
+  var WORKFLOW = 'delete-project.yaml';
+  var pending = null;
+
+  var overlay = document.getElementById('del-modal');
+  var nameEl  = document.getElementById('del-name');
+  var inp     = document.getElementById('del-confirm');
+  var submit  = document.getElementById('del-submit');
+
+  function getPat() {
+    var pat = localStorage.getItem('gh_pat');
+    if (!pat) {
+      pat = prompt('Enter a GitHub PAT with delete_repo + workflow scope.\nIt will be saved in localStorage for future use:');
+      if (pat) localStorage.setItem('gh_pat', pat.trim());
+    }
+    return pat ? pat.trim() : null;
+  }
+
+  function openModal(repo) {
+    pending = repo;
+    nameEl.textContent = repo;
+    inp.value = '';
+    inp.placeholder = repo;
+    submit.disabled = true;
+    submit.textContent = 'Delete';
+    overlay.classList.add('open');
+    setTimeout(function() { inp.focus(); }, 50);
+  }
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    pending = null;
+    inp.value = '';
+  }
+
+  inp.addEventListener('input', function() {
+    submit.disabled = inp.value !== pending;
+  });
+
+  document.getElementById('del-cancel').addEventListener('click', closeModal);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+  submit.addEventListener('click', function() {
+    var repo = pending;
+    var pat = getPat();
+    if (!pat) return;
+    submit.disabled = true;
+    submit.textContent = 'Deleting…';
+    var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/' + WORKFLOW + '/dispatches';
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'token ' + pat,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ ref: 'main', inputs: { project_name: repo, confirm: repo } })
+    }).then(function(resp) {
+      if (resp.status === 204) {
+        closeModal();
+        alert('Delete workflow triggered for "' + repo + '".\nDashboard will refresh when it completes.');
+      } else if (resp.status === 401) {
+        localStorage.removeItem('gh_pat');
+        alert('PAT rejected (401) — cleared from storage. Try again.');
+        submit.disabled = false;
+        submit.textContent = 'Delete';
+      } else {
+        resp.text().then(function(body) {
+          alert('Error ' + resp.status + ': ' + body);
+          submit.disabled = false;
+          submit.textContent = 'Delete';
+        });
+      }
+    }).catch(function(err) {
+      alert('Network error: ' + err.message);
+      submit.disabled = false;
+      submit.textContent = 'Delete';
+    });
+  });
+
+  document.querySelectorAll('.del-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { openModal(btn.getAttribute('data-repo')); });
+  });
+})();
+</script>
+
 </body>
 </html>
 HTMLEOF
