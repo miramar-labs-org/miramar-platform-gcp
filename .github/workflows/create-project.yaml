@@ -44,7 +44,7 @@ on:
         required: false
       requirements:
         description: "Default Python packages for the project venv (space-separated). Edit to customize."
-        default: "ipykernel numpy pandas matplotlib seaborn scikit-learn tqdm transformers datasets huggingface_hub evaluate accelerate openai anthropic mlflow pyyaml requests python-dotenv nvidia-ml-py"
+        default: "ipykernel ipywidgets numpy pandas matplotlib seaborn scikit-learn tqdm transformers datasets huggingface_hub evaluate accelerate openai anthropic mlflow pyyaml requests python-dotenv nvidia-ml-py"
         required: false
 
 permissions:
