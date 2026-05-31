@@ -4,6 +4,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 
 > **New here?** Read [SOWHAT.md](SOWHAT.md) — what this repo demonstrates and why it matters.
 
+> **Blog:** [miramar-labs-org.github.io](https://miramar-labs-org.github.io) — project write-ups and lab notes.
+
 > **Dev Workflow:** [DEVELOPER.md](DEVELOPER.md) — branch workflow, PR process, testing strategies, and gotchas.
 
 > **Docs Index:** [docs/index.md](docs/index.md) — source-of-truth map for architecture, workflows, WSL2, SSH, and runbooks.
