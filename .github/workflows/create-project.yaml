@@ -334,7 +334,7 @@ jobs:
           echo "Blog PR: ${PR_URL}"
           echo "BLOG_PR_URL=${PR_URL}" >> "$GITHUB_ENV"
 
-      - name: Checkout blog draft on host
+      - name: Fetch blog draft on host
         continue-on-error: true
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
@@ -347,9 +347,9 @@ jobs:
               exit 0
             fi
             git -C "${BLOG_DIR}" fetch --quiet origin
-            git -C "${BLOG_DIR}" checkout "${DRAFT_BRANCH}" 2>/dev/null || \
-              git -C "${BLOG_DIR}" checkout -b "${DRAFT_BRANCH}" --track "origin/${DRAFT_BRANCH}"
-            echo "Blog checked out: ${DRAFT_BRANCH}"
+            git -C "${BLOG_DIR}" checkout main
+            git -C "${BLOG_DIR}" pull --quiet origin main
+            echo "Blog on main; draft available at origin/${DRAFT_BRANCH}"
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "WARNING: no SSH key — skipping blog checkout" >&2
