@@ -32,14 +32,9 @@ options: [default, kfp, kfp-finetune, nemo, <type>]
 ```
 
 **b. CI badge injection** (line ~147) — add a branch for your type if it has
-deploy/undeploy workflows:
-
-```bash
-elif [ "${PROJECT_TYPE}" = "<type>" ]; then
-  BADGE_2="[![Deploy](${WF}/deploy-<type>.yaml/badge.svg)](${WF}/deploy-<type>.yaml)"
-  BADGE_3="[![Undeploy](${WF}/undeploy-<type>.yaml/badge.svg)](${WF}/undeploy-<type>.yaml)"
-fi
-```
+deploy/undeploy workflows. Follow the `kfp` or `nemo` branch as a model: set
+`BADGE_2` and `BADGE_3` to GitHub Actions badge markdown pointing at
+`deploy-<type>.yaml` and `undeploy-<type>.yaml` respectively.
 
 **c. Extra pip packages** (line ~162):
 
@@ -56,12 +51,14 @@ elif [ "${PROJECT_TYPE}" = "<type>" ]; then
   CATS="miramar <tag1> <tag2>"
   BODY=$(printf '%s\n' \
     "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
-    "**Platform:** ${HW} via [Miramar Platform](${DASHBOARD_URL})" \
-    "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
     "## Overview" "" "<!-- TODO -->" "" \
     "## Next steps" "" "<!-- TODO -->")
 fi
 ```
+
+Include the standard `**Platform:**` and `**Repo:**` header lines that reference
+`${HW}`, `${DASHBOARD_URL}`, `${PROJECT_NAME}`, and `${REPO_URL}` — copy them
+from the `kfp-finetune` branch in the same step.
 
 **e. Summary / next steps** (`Summary` step, line ~382):
 
