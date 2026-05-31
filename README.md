@@ -1,6 +1,6 @@
 # miramar-platform-gcp
 
-Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Platform.
+Hybrid on-prem + GCP AI platform for generating, deploying, and operating reproducible AI workload projects across local GPU systems and cloud infrastructure.
 
 > **New here?** Read [SOWHAT.md](SOWHAT.md) — what this repo demonstrates and why it matters.
 
@@ -11,6 +11,8 @@ Hybrid On-Prem+GCP infrastructure and CI/CD tooling for the Miramar Labs AI Plat
 > **Docs Index:** [docs/index.md](docs/index.md) — source-of-truth map for architecture, workflows, WSL2, SSH, and runbooks.
 
 > **Platform Dashboard:** [miramar-labs-org.github.io/miramar-platform-gcp](https://miramar-labs-org.github.io/miramar-platform-gcp/) — live table of all platform projects.
+
+The platform dashboard tracks generated projects, their repositories, blog write-ups, local paths, and operational actions.
 
 [![Platform Dashboard](docs/images/dashboard.png)](https://miramar-labs-org.github.io/miramar-platform-gcp/)
 
@@ -82,33 +84,54 @@ flowchart LR
 
 On-premises machines acting as self-hosted GitHub Actions runners and general compute:
 
-| Machine                     | OS                         | Arch            | CPU                                             | GPU                                                                              | VRAM           | [CUDA](https://developer.nvidia.com/cuda-toolkit) | Runner label |
-| --------------------------- | -------------------------- | --------------- | ----------------------------------------------- | -------------------------------------------------------------------------------- | -------------- | ---- | ------------ |
-| Windows laptop              | Ubuntu 22.04 ([WSL2](https://github.com/microsoft/WSL))        | x86_64 / amd64  | AMD                                             | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6     | 12.6 | `wsl2`       |
-| [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) 128GB | DGX OS (Ubuntu 24.04)      | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen)  | 128 GB unified | 12.6 | `dgx`        |
-| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) 64GB | Ubuntu 22.04 ([JetPack 6.x](https://developer.nvidia.com/embedded/jetpack)) | aarch64 / arm64 | 12-core Cortex-A78AE                            | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87)                                | 64 GB unified  | 12.6 | `agx`        |
+| Machine | OS | Arch | CPU | GPU | VRAM | [CUDA](https://developer.nvidia.com/cuda-toolkit) | Runner label |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Windows laptop | Ubuntu 22.04 ([WSL2](https://github.com/microsoft/WSL)) | x86_64 / amd64 | AMD | NVIDIA GeForce RTX 4060 — Ada Lovelace, 3072 CUDA cores, 96 Tensor Cores (sm_89) | 8 GB GDDR6 | 12.6 | `wsl2` |
+| [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) 128GB | DGX OS (Ubuntu 24.04) | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen) | 128 GB unified | 12.6 | `dgx` |
+| [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) 64GB | Ubuntu 22.04 ([JetPack 6.x](https://developer.nvidia.com/embedded/jetpack)) | aarch64 / arm64 | 12-core Cortex-A78AE | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87) | 64 GB unified | 12.6 | `agx` |
 
 All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`. GPU access works the same way on both arm64 machines via the NVIDIA container runtime.
 
 ### Cloud infrastructure (GCP)
 
-| Service                                     | Purpose                                                                       | Dashboard                                                                                                  |
-| ------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [GKE](https://cloud.google.com/kubernetes-engine) Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads                              | [console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) · [docs](https://cloud.google.com/kubernetes-engine/docs)                   |
-| [Artifact Registry](https://cloud.google.com/artifact-registry) (`apps`)                  | Docker image registry for built application images                            | [console](https://console.cloud.google.com/artifacts?project=miramar-platform) · [docs](https://cloud.google.com/artifact-registry/docs)                         |
-| GCS buckets                                 | [Terraform](https://www.terraform.io) state + GKE node pool snapshots (see [docs/gcp.md](docs/gcp.md))    | [console](https://console.cloud.google.com/storage/browser?project=miramar-platform)                   |
-| [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)                | Keyless auth from [GitHub Actions](https://github.com/features/actions) to GCP — no long-lived service account keys  | [console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
-| GCP project                                 | `miramar-platform` — single project for all resources                         | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform)                      |
+| Service | Purpose | Dashboard |
+| --- | --- | --- |
+| [GKE](https://cloud.google.com/kubernetes-engine) Standard cluster (`miramar-shared-gke`) | Shared Kubernetes cluster for platform workloads | [console](https://console.cloud.google.com/kubernetes/list?project=miramar-platform) · [docs](https://cloud.google.com/kubernetes-engine/docs) |
+| [Artifact Registry](https://cloud.google.com/artifact-registry) (`apps`) | Docker image registry for built application images | [console](https://console.cloud.google.com/artifacts?project=miramar-platform) · [docs](https://cloud.google.com/artifact-registry/docs) |
+| GCS buckets | [Terraform](https://www.terraform.io) state + GKE node pool snapshots (see [docs/gcp.md](docs/gcp.md)) | [console](https://console.cloud.google.com/storage/browser?project=miramar-platform) |
+| [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) | Keyless auth from [GitHub Actions](https://github.com/features/actions) to GCP — no long-lived service account keys | [console](https://console.cloud.google.com/iam-admin/workload-identity-pools?project=miramar-platform) |
+| GCP project | `miramar-platform` — single project for all resources | [Dashboard](https://console.cloud.google.com/home/dashboard?project=miramar-platform) |
 
 ### CI/CD
 
-| Service             | Role                                                                                    | Link                                                                                  |
-| ------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| GitHub Actions      | Workflow automation — build, test, deploy                                               | [Actions](https://github.com/miramar-labs-org/miramar-platform-gcp/actions)           |
-| GHCR                | Docker image hosting for the runner image and future app images                         | [Packages](https://github.com/orgs/miramar-labs-org/packages)                         |
+| Service | Role | Link |
+| --- | --- | --- |
+| GitHub Actions | Workflow automation — build, test, deploy | [Actions](https://github.com/miramar-labs-org/miramar-platform-gcp/actions) |
+| GHCR | Docker image hosting for the runner image and future app images | [Packages](https://github.com/orgs/miramar-labs-org/packages) |
 | Self-hosted runners | Jobs requiring GPU, local network access, or aarch64 run on the physical machines above | [Runners](https://github.com/organizations/miramar-labs-org/settings/actions/runners) |
 
 GitHub Actions workflows authenticate to GCP keylessly via Workload Identity Federation. Access is restricted to repos under the `miramar-labs-org` org.
+
+---
+
+## Project Factory
+
+Miramar Platform also acts as a template-based project factory for applied AI workloads.
+
+Project templates generate complete repos with:
+
+| Capability | Included |
+| --- | --- |
+| Notebook-first development | JupyterLab notebooks as the source of truth |
+| CI/CD workflows | GitHub Actions for deploy/undeploy operations |
+| Platform integration | Dashboard registration and project lifecycle automation |
+| Local execution | DGX/JupyterLab/kernel setup for on-prem development |
+| Documentation | README, `CLAUDE.md`, blog draft scaffolding |
+| Deployment hooks | Kubeflow, GCP, and local service integration patterns |
+
+The first production template is a **Kubeflow Pipelines fine-tuning project**. It supports on-prem fine-tuning and evaluation where PHI remains local, then promotes only approved PHI-free model artifacts to GCP for inference.
+
+Planned templates include RAG systems, evaluation harnesses, NeMo/NIM workflows, agentic AI projects, and additional clinical AI deployment patterns.
 
 ---
 
