@@ -227,8 +227,8 @@ cat > "$OUTPUT" <<HTMLEOF
     display: inline-block; padding: 0.2em 0.55em;
     border-radius: 2em; font-size: 0.75rem; font-weight: 600;
   }
-  .badge-kfp      { background: #1a4731; color: #3fb950; }
-  .badge-nemo     { background: #0c2d6b; color: #79c0ff; }
+  .badge-kfp      { background: #0c2d6b; color: #79c0ff; }
+  .badge-nemo     { background: #1a4731; color: #3fb950; }
   .badge-other    { background: #2d2b00; color: #d29922; }
   .badge-default  { background: #2d2b00; color: #d29922; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
