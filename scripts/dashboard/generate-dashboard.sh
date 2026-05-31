@@ -39,7 +39,7 @@ ROWS=""
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp-finetune") then "kfp-finetune" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   sha=$(GH_TOKEN="$GH_TOKEN" gh api \
     "repos/${ORG}/${name}/commits?per_page=1" 2>/dev/null \
@@ -227,7 +227,8 @@ cat > "$OUTPUT" <<HTMLEOF
     display: inline-block; padding: 0.2em 0.55em;
     border-radius: 2em; font-size: 0.75rem; font-weight: 600;
   }
-  .badge-kfp      { background: #0c2d6b; color: #79c0ff; }
+  .badge-kfp          { background: #0c2d6b; color: #79c0ff; }
+  .badge-kfp-finetune { background: #0c3340; color: #79d0f0; }
   .badge-nemo     { background: #1a4731; color: #3fb950; }
   .badge-other    { background: #2d2b00; color: #d29922; }
   .badge-default  { background: #2d2b00; color: #d29922; }

@@ -1,0 +1,51 @@
+name: Undeploy from KFP
+
+# Terminates a Kubeflow Pipelines run by ID.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: KFP run ID to terminate (shown in deploy-kfp summary or the KFP UI)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Port-forward KFP API
+        run: |
+          kubectl port-forward svc/ml-pipeline 8080:8080 -n kubeflow &
+          sleep 4
+
+      - name: Terminate run
+        env:
+          KFP_HOST: http://localhost:8080
+          RUN_ID: ${{ inputs.run_id }}
+        run: python3 scripts/terminate_pipeline.py
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## KFP Run Terminated"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Run ID | \`${{ inputs.run_id }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
