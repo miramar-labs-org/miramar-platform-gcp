@@ -283,7 +283,13 @@ jobs:
               "## Pipeline" "" "<!-- TODO: base model, dataset, fine-tuning approach -->" "" \
               "## Steps" "" \
               "| Step | Description |" "|------|-------------|" \
-              "| <!-- TODO --> | |" "" \
+              "| \`prepare_data\` | <!-- TODO --> |" \
+              "| \`train\` | <!-- TODO --> |" \
+              "| \`merge_adapter\` | <!-- TODO --> |" \
+              "| \`quantize\` | <!-- TODO --> |" \
+              "| \`evaluate\` | <!-- TODO --> |" \
+              "| \`push_to_gcs\` | <!-- TODO --> |" \
+              "| \`deploy\` | <!-- TODO --> |" "" \
               "## Training configuration" "" \
               "| Parameter | Value |" "|-----------|-------|" \
               "| Base model | <!-- TODO --> |" "| Dataset | <!-- TODO --> |" \

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Generate a self-contained dashboard.html listing all public Miramar platform repos.
-# Usage: GH_TOKEN=<token> [GH_ADMIN_TOKEN=<token>] bash generate-dashboard.sh --org <org> --output <path>
+# Usage: GH_TOKEN=<token> [GH_ADMIN_TOKEN=<token>] [GH_DISPATCH_TOKEN=<token>] bash generate-dashboard.sh --org <org> --output <path>
 #
-# GH_TOKEN      — GITHUB_TOKEN; used for org repo listing (read:public_repo)
-# GH_ADMIN_TOKEN — GITHUB_ORG_ADMIN_PAT; used for per-project workflow run queries
-#                  (falls back to GH_TOKEN if not set, but won't work for private runner data)
+# GH_TOKEN          — GITHUB_TOKEN; used for org repo listing (read:public_repo)
+# GH_ADMIN_TOKEN    — GITHUB_ORG_ADMIN_PAT; used for per-project workflow run queries
+#                     (falls back to GH_TOKEN if not set, but won't work for private runner data)
+# GH_DISPATCH_TOKEN — DASHBOARD_DISPATCH_TOKEN; embedded in HTML for browser → workflow dispatch
+#                     Fine-grained PAT: Actions write on miramar-platform-gcp only
 set -euo pipefail
 
 ORG=""
@@ -23,6 +25,7 @@ done
 [[ -z "${GH_TOKEN:-}" ]] && { echo "ERROR: GH_TOKEN not set" >&2; exit 1; }
 
 ADMIN_TOKEN="${GH_ADMIN_TOKEN:-$GH_TOKEN}"
+DISPATCH_TOKEN="${GH_DISPATCH_TOKEN:-}"
 
 mkdir -p "$(dirname "$OUTPUT")"
 
@@ -260,7 +263,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-active { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #1a4731; color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
   a.ps-active:hover { text-decoration: underline; }
   .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
-  .del-btn { background: none; border: none; cursor: pointer; color: #484f58; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #8b1a1a; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
   .del-btn:hover { color: #f85149; background: #3d1212; }
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
   .modal-overlay.open { display: flex; }
@@ -268,7 +271,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .modal h2 { color: #f85149; font-size: 1rem; margin: 0 0 0.75rem; }
   .modal p  { font-size: 0.875rem; color: #8b949e; margin: 0 0 0.75rem; line-height: 1.5; }
   .modal strong { color: #e6edf3; }
-  .modal input { width: 100%; padding: 0.5rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.875rem; margin-bottom: 1rem; outline: none; font-family: monospace; }
+  .modal input { width: 100%; padding: 0.5rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.875rem; margin-bottom: 1rem; outline: none; font-family: monospace; box-sizing: border-box; }
   .modal input:focus { border-color: #58a6ff; }
   .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
   .btn-cancel { padding: 0.4rem 1rem; border-radius: 6px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; cursor: pointer; font-size: 0.875rem; }
@@ -430,6 +433,7 @@ ${ROWS}
 <script>
 (function() {
   var ORG = '${ORG}';
+  var PAT = '${DISPATCH_TOKEN}';
   var PLATFORM_REPO = 'miramar-platform-gcp';
   var WORKFLOW = 'delete-project.yaml';
   var pending = null;
@@ -438,15 +442,6 @@ ${ROWS}
   var nameEl  = document.getElementById('del-name');
   var inp     = document.getElementById('del-confirm');
   var submit  = document.getElementById('del-submit');
-
-  function getPat() {
-    var pat = localStorage.getItem('gh_pat');
-    if (!pat) {
-      pat = prompt('Enter a GitHub PAT with delete_repo + workflow scope.\nIt will be saved in localStorage for future use:');
-      if (pat) localStorage.setItem('gh_pat', pat.trim());
-    }
-    return pat ? pat.trim() : null;
-  }
 
   function openModal(repo) {
     pending = repo;
@@ -475,15 +470,13 @@ ${ROWS}
 
   submit.addEventListener('click', function() {
     var repo = pending;
-    var pat = getPat();
-    if (!pat) return;
     submit.disabled = true;
     submit.textContent = 'Deleting…';
     var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/' + WORKFLOW + '/dispatches';
     fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': 'token ' + pat,
+        'Authorization': 'token ' + PAT,
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json'
       },
@@ -493,8 +486,7 @@ ${ROWS}
         closeModal();
         alert('Delete workflow triggered for "' + repo + '".\nDashboard will refresh when it completes.');
       } else if (resp.status === 401) {
-        localStorage.removeItem('gh_pat');
-        alert('PAT rejected (401) — cleared from storage. Try again.');
+        alert('PAT rejected (401) — check that GITHUB_ORG_ADMIN_PAT has delete_repo + workflow scope and re-deploy the dashboard.');
         submit.disabled = false;
         submit.textContent = 'Delete';
       } else {
