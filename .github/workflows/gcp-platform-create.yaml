@@ -1,4 +1,4 @@
-name: Miramar Platform Create
+name: GCP Platform Create
 
 # Provisions (or re-provisions) the miramar-platform GCP resources via Terraform:
 #   - GKE Standard cluster + node pool
