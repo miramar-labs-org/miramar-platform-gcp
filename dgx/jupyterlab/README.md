@@ -62,6 +62,31 @@ cd dgx/systemd
 | **Utilities** | `requests`, `httpx`, `pyyaml`, `python-dotenv`, `tqdm`, `rich` |
 | **Dev** | `pytest`, `pytest-asyncio` |
 
+## Working on projects
+
+Project repos live at `~/git-miramar-labs-org/projects/<name>` on the DGX. The **Open in JupyterLab** workflow (available in every project repo on GitHub Actions) clones or pulls the repo there and prints a direct notebook URL.
+
+### Branch switching
+
+`jupyterlab-git` is included in `requirements.txt` and active by default. It adds a **Git panel** in the left sidebar — use it to switch branches, stage files, commit, and view diffs without leaving the browser.
+
+To switch branches from the terminal instead (`File → New → Terminal`):
+
+```sh
+cd ~/git-miramar-labs-org/projects/<project-name>
+git checkout <branch-name>
+```
+
+JupyterLab sees the filesystem live — files update immediately after the switch.
+
+### Typical project workflow
+
+1. Trigger **Open in JupyterLab** from GitHub Actions
+2. Open the printed notebook URL (`http://localhost:8888/lab/tree/...`)
+3. Use the Git panel to switch to your feature/draft branch if needed
+4. Run cells — MLflow at `http://localhost:5000` tracks experiments automatically
+5. Commit and push from the Git panel when done; open a PR on GitHub to merge
+
 ## Notes
 
 - **`nemo-microservices` version** — the `NeMo Deploy` workflow pins this to the deployed NeMo chart version (e.g. `nemo-microservices==25.12.1`). After a NeMo upgrade, re-run `pip install nemo-microservices==<new-version>` in pyJLab to stay in sync.
