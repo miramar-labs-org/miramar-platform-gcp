@@ -6,12 +6,64 @@ from kfp.dsl import Input, Output, Dataset, Model, Artifact
 
 
 @dsl.component(base_image="python:3.11-slim")
-def step_1(output_data: Output[Dataset]):
+def prepare_data(output_data: Output[Dataset]):
     import pathlib
     pathlib.Path(output_data.path).write_text("placeholder")
-    print("step_1 done")
+    print("prepare_data done")
+
+
+@dsl.component(base_image="python:3.11-slim")
+def train(input_data: Input[Dataset], output_model: Output[Model]):
+    import pathlib
+    data = pathlib.Path(input_data.path).read_text()
+    pathlib.Path(output_model.path).write_text(data)
+    print("train done")
+
+
+@dsl.component(base_image="python:3.11-slim")
+def merge_adapter(input_model: Input[Model], output_model: Output[Model]):
+    import pathlib
+    data = pathlib.Path(input_model.path).read_text()
+    pathlib.Path(output_model.path).write_text(data)
+    print("merge_adapter done")
+
+
+@dsl.component(base_image="python:3.11-slim")
+def quantize(input_model: Input[Model], output_model: Output[Model]):
+    import pathlib
+    data = pathlib.Path(input_model.path).read_text()
+    pathlib.Path(output_model.path).write_text(data)
+    print("quantize done")
+
+
+@dsl.component(base_image="python:3.11-slim")
+def evaluate(input_model: Input[Model], output_model: Output[Model]):
+    import pathlib
+    data = pathlib.Path(input_model.path).read_text()
+    pathlib.Path(output_model.path).write_text(data)
+    print("evaluate done")
+
+
+@dsl.component(base_image="python:3.11-slim")
+def push_to_gcs(input_model: Input[Model], output_artifact: Output[Artifact]):
+    import pathlib
+    pathlib.Path(output_artifact.path).write_text("placeholder")
+    print("push_to_gcs done")
+
+
+@dsl.component(base_image="python:3.11-slim")
+def deploy(input_artifact: Input[Artifact]):
+    import pathlib
+    print(f"deploy: received artifact at {input_artifact.path}")
+    print("deploy done")
 
 
 @dsl.pipeline(name="{{PROJECT_NAME}}")
 def pipeline():
-    step_1()
+    t1 = prepare_data()
+    t2 = train(input_data=t1.outputs["output_data"])
+    t3 = merge_adapter(input_model=t2.outputs["output_model"])
+    t4 = quantize(input_model=t3.outputs["output_model"])
+    t5 = evaluate(input_model=t4.outputs["output_model"])
+    t6 = push_to_gcs(input_model=t5.outputs["output_model"])
+    deploy(input_artifact=t6.outputs["output_artifact"])
