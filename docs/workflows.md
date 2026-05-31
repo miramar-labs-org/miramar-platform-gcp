@@ -99,11 +99,31 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. Type `default` (generic notebook + endpoint reference, default), `kfp` (KFP v2 pipeline stub + deploy/undeploy), or `nemo` (NeMo training job + deploy/undeploy). `host` input (dgx/agx) sets affinity — clones repo on correct machine and writes `PROJECT_HOST` repo variable. Tags repo `miramar-project` + `miramar-<type>` so it appears in the dashboard. Also opens a draft blog post PR to `miramar-labs/miramar-labs.github.io`. |
+| Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. `host` input (dgx/agx) sets which machine clones the repo and writes `PROJECT_HOST`. Tags repo `miramar-project` + `miramar-<type>` for the dashboard. Opens a draft blog post PR. See project types and Python environment below. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo (double-entry guard); triggers dashboard refresh |
 | Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM/Ollama model/VRAM/Minikube/MLflow), and GCP (GKE cluster link, GAR link). Project table includes Host column and JupyterLab links. Runs hourly + on completion of any state-writing workflow. |
 | List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs/miramar-labs.github.io`. Run before Delete Blog Post to get the exact filename. |
 | Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs/miramar-labs.github.io` by filename; closes any open draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
+
+### Project types
+
+| Type | Template includes | Extra packages added to `requirements.txt` |
+| --- | --- | --- |
+| `default` | Notebook + platform endpoint reference | — |
+| `kfp` | KFP v2 pipeline stub, notebook, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges | `kfp>=2.0.0` |
+| `nemo` | NeMo training config, notebook, `deploy-nemo.yaml` / `undeploy-nemo.yaml` workflows + CI badges | `nemo-microservices` |
+
+### Python environment
+
+On creation, `requirements.txt` is generated from the `requirements` workflow input (space-separated pip package names), with type-specific packages appended automatically. After the repo is cloned to the target host, a per-project `.venv` is created inside the repo, packages are installed from `requirements.txt`, and the environment is registered as a named kernel in the shared JupyterLab instance — visible as `<project-name>` in the kernel selector.
+
+Default packages (pre-filled in the workflow input, edit freely):
+
+```
+ipykernel numpy pandas matplotlib seaborn scikit-learn tqdm
+transformers datasets huggingface_hub evaluate accelerate
+openai anthropic mlflow pyyaml requests python-dotenv nvidia-ml-py
+```
 
 ## WSL2 and SSH
 
