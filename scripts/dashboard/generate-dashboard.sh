@@ -260,7 +260,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-active { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #1a4731; color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
   a.ps-active:hover { text-decoration: underline; }
   .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
-  .del-btn { background: none; border: none; cursor: pointer; color: #484f58; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #8b1a1a; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
   .del-btn:hover { color: #f85149; background: #3d1212; }
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
   .modal-overlay.open { display: flex; }
@@ -270,8 +270,6 @@ cat > "$OUTPUT" <<HTMLEOF
   .modal strong { color: #e6edf3; }
   .modal input { width: 100%; padding: 0.5rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.875rem; margin-bottom: 1rem; outline: none; font-family: monospace; box-sizing: border-box; }
   .modal input:focus { border-color: #58a6ff; }
-  .modal code { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.8rem; color: #c9d1d9; }
-  #del-pat-section { display: none; }
   .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
   .btn-cancel { padding: 0.4rem 1rem; border-radius: 6px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; cursor: pointer; font-size: 0.875rem; }
   .btn-cancel:hover { background: #30363d; }
@@ -420,10 +418,6 @@ ${ROWS}
   <div class="modal">
     <h2>&#x26A0; Delete project</h2>
     <p>This will permanently delete <strong id="del-name"></strong> and clean up its blog draft, local clone, and JupyterLab kernel.</p>
-    <div id="del-pat-section">
-      <p>Enter a GitHub PAT with <code>delete_repo + workflow</code> scope (saved in browser storage for future use):</p>
-      <input id="del-pat" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
-    </div>
     <p>Type the project name to confirm:</p>
     <input id="del-confirm" type="text" autocomplete="off" spellcheck="false" placeholder="">
     <div class="modal-actions">
@@ -436,53 +430,36 @@ ${ROWS}
 <script>
 (function() {
   var ORG = '${ORG}';
+  var PAT = '${ADMIN_TOKEN}';
   var PLATFORM_REPO = 'miramar-platform-gcp';
   var WORKFLOW = 'delete-project.yaml';
   var pending = null;
 
-  var overlay    = document.getElementById('del-modal');
-  var nameEl     = document.getElementById('del-name');
-  var inp        = document.getElementById('del-confirm');
-  var submit     = document.getElementById('del-submit');
-  var patSection = document.getElementById('del-pat-section');
-  var patInp     = document.getElementById('del-pat');
-
-  function getPat() {
-    var stored = localStorage.getItem('gh_pat');
-    if (stored) return stored.trim();
-    var entered = patInp.value.trim();
-    if (entered) { localStorage.setItem('gh_pat', entered); return entered; }
-    return null;
-  }
-
-  function checkSubmit() {
-    var nameOk = inp.value === pending;
-    var patOk  = patSection.style.display === 'none' || patInp.value.trim().length > 0;
-    submit.disabled = !(nameOk && patOk);
-  }
+  var overlay = document.getElementById('del-modal');
+  var nameEl  = document.getElementById('del-name');
+  var inp     = document.getElementById('del-confirm');
+  var submit  = document.getElementById('del-submit');
 
   function openModal(repo) {
     pending = repo;
     nameEl.textContent = repo;
     inp.value = '';
     inp.placeholder = repo;
-    patInp.value = '';
-    patSection.style.display = localStorage.getItem('gh_pat') ? 'none' : 'block';
     submit.disabled = true;
     submit.textContent = 'Delete';
     overlay.classList.add('open');
-    setTimeout(function() { (patSection.style.display !== 'none' ? patInp : inp).focus(); }, 50);
+    setTimeout(function() { inp.focus(); }, 50);
   }
 
   function closeModal() {
     overlay.classList.remove('open');
     pending = null;
     inp.value = '';
-    patInp.value = '';
   }
 
-  inp.addEventListener('input', checkSubmit);
-  patInp.addEventListener('input', checkSubmit);
+  inp.addEventListener('input', function() {
+    submit.disabled = inp.value !== pending;
+  });
 
   document.getElementById('del-cancel').addEventListener('click', closeModal);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
@@ -490,15 +467,13 @@ ${ROWS}
 
   submit.addEventListener('click', function() {
     var repo = pending;
-    var pat = getPat();
-    if (!pat) return;
     submit.disabled = true;
     submit.textContent = 'Deleting…';
     var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/' + WORKFLOW + '/dispatches';
     fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': 'token ' + pat,
+        'Authorization': 'token ' + PAT,
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json'
       },
@@ -508,11 +483,7 @@ ${ROWS}
         closeModal();
         alert('Delete workflow triggered for "' + repo + '".\nDashboard will refresh when it completes.');
       } else if (resp.status === 401) {
-        localStorage.removeItem('gh_pat');
-        patInp.value = '';
-        patSection.style.display = 'block';
-        patInp.focus();
-        alert('PAT rejected (401) — cleared. Enter a valid PAT and try again.');
+        alert('PAT rejected (401) — check that GITHUB_ORG_ADMIN_PAT has delete_repo + workflow scope and re-deploy the dashboard.');
         submit.disabled = false;
         submit.textContent = 'Delete';
       } else {
