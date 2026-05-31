@@ -313,11 +313,13 @@ jobs:
             -f message="Draft: ${PROJECT_NAME} (${PROJECT_TYPE})" \
             -f content="${CONTENT_B64}" -f branch="${BRANCH}"
 
+          PR_BODY=$(printf 'Auto-generated draft for **%s**. Edit the TODOs in `%s` then merge to publish.\n\n- Type: `%s`\n- Host: `%s` (%s)\n- Repo: %s\n- Dashboard: %s' \
+            "${PROJECT_NAME}" "${POST_PATH}" "${PROJECT_TYPE}" "${HOST}" "${HW}" "${REPO_URL}" "${DASHBOARD_URL}")
           PR_URL=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X POST \
             "repos/${BLOG_REPO}/pulls" \
             -f title="Draft: ${POST_TITLE} — ${PROJECT_TYPE}" \
             -f head="${BRANCH}" -f base="main" \
-            -f body="Auto-generated draft for **${PROJECT_NAME}**. Edit the TODOs in \`${POST_PATH}\` then merge to publish.\n\n- Type: \`${PROJECT_TYPE}\`\n- Host: \`${HOST}\` (${HW})\n- Repo: ${REPO_URL}\n- Dashboard: ${DASHBOARD_URL}" \
+            -f body="${PR_BODY}" \
             --jq '.html_url')
 
           echo "Blog PR: ${PR_URL}"
