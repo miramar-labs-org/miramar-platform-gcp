@@ -37,13 +37,28 @@ jobs:
             exit 1
           fi
 
+      - name: Verify repository exists
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: |
+          if ! GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              "repos/miramar-labs-org/${PROJECT_NAME}" >/dev/null 2>&1; then
+            echo "ERROR: Repository miramar-labs-org/${PROJECT_NAME} does not exist." >&2
+            exit 1
+          fi
+          echo "Repository verified: miramar-labs-org/${PROJECT_NAME}"
+
       - name: Resolve host
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
         run: |
-          PROJECT_HOST=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
-            "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
-            --jq '.value // "dgx"' 2>/dev/null || echo "dgx")
+          if _val=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+              "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
+              --jq '.value' 2>/dev/null); then
+            PROJECT_HOST="${_val:-dgx}"
+          else
+            PROJECT_HOST="dgx"
+          fi
           echo "PROJECT_HOST=${PROJECT_HOST}" >> "$GITHUB_ENV"
           if [[ "${PROJECT_HOST}" == "agx" ]]; then
             echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
