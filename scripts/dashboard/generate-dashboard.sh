@@ -124,6 +124,7 @@ GKE_ZONE=$(read_org_var "GKE_ZONE")
 GKE_STATE_BUCKET=$(read_org_var "GKE_STATE_BUCKET")
 GKE_GPU_POOL_ACTIVE=$(read_org_var "GKE_GPU_POOL_ACTIVE")
 GKE_GPU_TYPE=$(read_org_var "GKE_GPU_TYPE")
+GKE_NODE_COUNT=$(read_org_var "GKE_NODE_COUNT")
 
 [[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
 [[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
@@ -143,6 +144,7 @@ GKE_GPU_TYPE=$(read_org_var "GKE_GPU_TYPE")
 [[ -z "$GKE_STATE_BUCKET" ]]    && GKE_STATE_BUCKET="miramar-platform-cluster-state"
 [[ -z "$GKE_GPU_POOL_ACTIVE" ]] && GKE_GPU_POOL_ACTIVE="false"
 [[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
+[[ -z "$GKE_NODE_COUNT" ]] && GKE_NODE_COUNT="1"
 
 VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
@@ -170,6 +172,12 @@ if [ "$GKE_GPU_POOL_ACTIVE" = "true" ]; then
   GKE_GPU_BADGE="<span class=\"ps-active\">${GPU_LABEL}</span>"
 else
   GKE_GPU_BADGE='<span class="ps-inactive">none</span>'
+fi
+
+if [ "$GKE_NODE_COUNT" -gt 1 ] 2>/dev/null; then
+  GKE_CPU_BADGE="<span class=\"ps-active\">${GKE_NODE_COUNT} nodes</span>"
+else
+  GKE_CPU_BADGE='<code class="ps-value">1 node</code>'
 fi
 
 # Active/inactive badge HTML (link only on active state)
@@ -351,6 +359,10 @@ cat > "$OUTPUT" <<HTMLEOF
     <div class="ps-item">
       <div class="ps-label">Node type</div>
       <code class="ps-value">e2-medium</code>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">CPU pool</div>
+      ${GKE_CPU_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">GPU pool</div>

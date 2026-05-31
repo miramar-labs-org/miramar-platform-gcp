@@ -87,6 +87,14 @@ jobs:
             -var-file=terraform.tfvars \
             -var="node_pool_count=${{ inputs.target_nodes }}"
 
+      - name: Update node count variable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+        run: |
+          gh variable set GKE_NODE_COUNT \
+            --body "${{ inputs.target_nodes }}" \
+            --org miramar-labs-org
+
       - name: Wait for nodes Ready
         run: |
           echo "Waiting for ${{ inputs.target_nodes }} node(s) to be Ready..."

@@ -170,10 +170,11 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback |
 | `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU |
 
-**GCP GPU pool org variables** (drive the GPU pool badge on the dashboard):
+**GCP pool org variables** (drive the CPU/GPU pool badges on the dashboard):
 
 | Variable | Set by | Cleared by | Default |
 |---|---|---|---|
+| `GKE_NODE_COUNT` | GKE Expand (value: target node count) | GKE Restore (resets to `1`) | `1` |
 | `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU | `false` |
 | `GKE_GPU_TYPE` | GKE Expand GPU (value: accelerator type, e.g. `nvidia-l4`) | GKE Restore GPU | `none` |
 
