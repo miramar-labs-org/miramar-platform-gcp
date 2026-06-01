@@ -20,7 +20,7 @@ operational procedure.
 | Adding a new project template | [adding-a-project-template.md](adding-a-project-template.md) | [adding-a-project-template.md](adding-a-project-template.md), `templates/`, `create-project.yaml`, `generate-dashboard.sh` |
 | GKE GPU quota and capacity | [gpu-quota-request.md](gpu-quota-request.md) | [gpu-quota-request.md](gpu-quota-request.md), `.github/workflows/find-gpu-capacity.yaml` |
 | Self-hosted runners | [runners.md](runners.md) | `mlabs-runner/`, `scripts/gha/`, `.github/workflows/build-mlabs-runner.yml` |
-| DGX minikube, NeMo, MLflow, NIM, Ollama | [dgx.md](dgx.md) | [dgx.md](dgx.md), `dgx/`, `.github/workflows/*minikube*.yaml`, `.github/workflows/*nemo*.yaml`, `.github/workflows/*mlflow*.yaml`, `.github/workflows/*nim*.yaml`, `.github/workflows/*ollama*.yaml` |
+| DGX minikube, NeMo, MLflow, NIM, Ollama, Qdrant | [dgx.md](dgx.md) | [dgx.md](dgx.md), `dgx/`, `.github/workflows/*minikube*.yaml`, `.github/workflows/*nemo*.yaml`, `.github/workflows/*mlflow*.yaml`, `.github/workflows/*nim*.yaml`, `.github/workflows/*ollama*.yaml`, `.github/workflows/*qdrant*.yaml` |
 | JupyterLab environment, packages, project workflow | [dgx/jupyterlab/README.md](../dgx/jupyterlab/README.md) | [dgx/jupyterlab/README.md](../dgx/jupyterlab/README.md), `dgx/jupyterlab/requirements.txt` |
 | AGX Orin (identical stack, separate tunnel ports) | [agx.md](agx.md) | [agx.md](agx.md), `agx/` |
 | Adding a new machine to the platform | [onboarding.md](onboarding.md) | [onboarding.md](onboarding.md) |
