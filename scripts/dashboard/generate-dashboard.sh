@@ -282,11 +282,21 @@ cat > "$OUTPUT" <<HTMLEOF
   .btn-refresh { background: none; border: 1px solid #30363d; border-radius: 6px; color: #8b949e; cursor: pointer; font-size: 0.75rem; padding: 0.2rem 0.6rem; letter-spacing: 0.04em; }
   .btn-refresh:hover { border-color: #58a6ff; color: #58a6ff; }
   .btn-refresh:disabled { color: #484f58; border-color: #21262d; cursor: default; }
+  .btn-new-project { background: #238636; border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.7rem; letter-spacing: 0.04em; }
+  .btn-new-project:hover { background: #2ea043; }
+  .btn-new-project:disabled { background: #1a4731; color: #6e7681; cursor: not-allowed; }
+  .modal-label { display: block; font-size: 0.75rem; color: #8b949e; margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  #new-proj-modal h2 { color: #3fb950; }
+  #new-proj-modal select { width: 100%; padding: 0.5rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.875rem; margin-bottom: 1rem; outline: none; box-sizing: border-box; }
+  #new-proj-modal select:focus { border-color: #58a6ff; }
+  .btn-create { padding: 0.4rem 1rem; border-radius: 6px; background: #238636; border: none; color: #fff; cursor: pointer; font-size: 0.875rem; font-weight: 600; }
+  .btn-create:disabled { background: #1a4731; color: #6e7681; cursor: not-allowed; }
+  .btn-create:not(:disabled):hover { background: #2ea043; }
 </style>
 </head>
 <body>
 <h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
-<p class="subtitle"><span>Platform Status and Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. (Refreshed hourly)</span><span style="display:flex;gap:0.5rem;align-items:center"><button class="btn-refresh" id="refresh-btn">&#x21BB; Refresh</button><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></span></p>
+<p class="subtitle"><span>Platform Status and Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. (Refreshed hourly)</span><span style="display:flex;gap:0.5rem;align-items:center"><button class="btn-refresh" id="refresh-btn">&#x21BB; Refresh</button><button class="btn-new-project" id="new-proj-btn">+ New Project</button><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></span></p>
 <div class="machine-section">
   <div class="machine-label">DGX Spark</div>
   <div class="platform-status">
@@ -420,6 +430,38 @@ ${ROWS}
 </table>
 <p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. Minikube: DGX 8001 / AGX 8002.</p>
 
+<div class="modal-overlay" id="new-proj-modal">
+  <div class="modal">
+    <h2>+ New Project</h2>
+    <p>Create a new Miramar project repository on GitHub and clone it to the target machine.</p>
+    <label class="modal-label" for="np-name">Project name *</label>
+    <input id="np-name" type="text" autocomplete="off" spellcheck="false" placeholder="my-llm-experiment">
+    <label class="modal-label" for="np-type">Project type *</label>
+    <select id="np-type">
+      <option value="default">default &mdash; generic notebook</option>
+      <option value="kfp">kfp &mdash; Kubeflow pipeline stub</option>
+      <option value="kfp-finetune">kfp-finetune &mdash; KFP fine-tuning pipeline</option>
+      <option value="nemo">nemo &mdash; NeMo training job</option>
+    </select>
+    <label class="modal-label" for="np-host">Host *</label>
+    <select id="np-host">
+      <option value="dgx">DGX Spark</option>
+      <option value="agx">AGX Orin</option>
+    </select>
+    <label class="modal-label" for="np-desc">Description</label>
+    <input id="np-desc" type="text" placeholder="Optional short description">
+    <label class="modal-label" for="np-vis">Visibility</label>
+    <select id="np-vis">
+      <option value="public">public</option>
+      <option value="private">private</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="np-cancel">Cancel</button>
+      <button class="btn-create" id="np-submit" disabled>Create</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="del-modal">
   <div class="modal">
     <h2>&#x26A0; Delete project</h2>
@@ -509,6 +551,77 @@ ${ROWS}
   document.querySelectorAll('.del-btn').forEach(function(btn) {
     btn.addEventListener('click', function() { openModal(btn.getAttribute('data-repo')); });
   });
+
+  (function() {
+    var npOverlay = document.getElementById('new-proj-modal');
+    var npName    = document.getElementById('np-name');
+    var npSubmit  = document.getElementById('np-submit');
+    var SLUG_RE   = /^[a-z0-9][a-z0-9-]*\$/i;
+
+    function npOpen() {
+      npName.value = '';
+      document.getElementById('np-type').value = 'default';
+      document.getElementById('np-host').value = 'dgx';
+      document.getElementById('np-desc').value = '';
+      document.getElementById('np-vis').value  = 'public';
+      npSubmit.disabled = true;
+      npSubmit.textContent = 'Create';
+      npOverlay.classList.add('open');
+      setTimeout(function() { npName.focus(); }, 50);
+    }
+
+    function npClose() { npOverlay.classList.remove('open'); }
+
+    npName.addEventListener('input', function() {
+      npSubmit.disabled = !SLUG_RE.test(npName.value.trim());
+    });
+
+    document.getElementById('np-cancel').addEventListener('click', npClose);
+    npOverlay.addEventListener('click', function(e) { if (e.target === npOverlay) npClose(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') npClose(); });
+    document.getElementById('new-proj-btn').addEventListener('click', npOpen);
+
+    npSubmit.addEventListener('click', function() {
+      var name = npName.value.trim();
+      npSubmit.disabled = true;
+      npSubmit.textContent = 'Creating…';
+      var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/create-project.yaml/dispatches';
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'token ' + PAT,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ref: 'main', inputs: {
+          project_name:    name,
+          project_type:    document.getElementById('np-type').value,
+          host:            document.getElementById('np-host').value,
+          description:     document.getElementById('np-desc').value.trim(),
+          repo_visibility: document.getElementById('np-vis').value
+        }})
+      }).then(function(resp) {
+        if (resp.status === 204) {
+          npClose();
+          alert('Create Project workflow triggered for "' + name + '".\nDashboard will refresh when it completes.');
+        } else if (resp.status === 401) {
+          alert('PAT rejected (401) — check DASHBOARD_DISPATCH_TOKEN has Actions write on miramar-platform-gcp and re-deploy the dashboard.');
+          npSubmit.disabled = false;
+          npSubmit.textContent = 'Create';
+        } else {
+          resp.text().then(function(body) {
+            alert('Error ' + resp.status + ': ' + body);
+            npSubmit.disabled = false;
+            npSubmit.textContent = 'Create';
+          });
+        }
+      }).catch(function(err) {
+        alert('Network error: ' + err.message);
+        npSubmit.disabled = false;
+        npSubmit.textContent = 'Create';
+      });
+    });
+  })();
 
   (function() {
     var refreshBtn = document.getElementById('refresh-btn');
