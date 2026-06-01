@@ -1,6 +1,6 @@
 # DGX Operations
 
-DGX Spark runs the local AI stack: minikube, NeMo Microservices, MLflow, NIM,
+DGX Spark runs the local AI stack: minikube, NeMo Microservices, MLflow, Qdrant, NIM,
 and Ollama. The runner label is `dgx`.
 
 AGX Orin runs the same stack minus NIM (no arm64 NIM images exist) — see
@@ -16,6 +16,8 @@ ssh -L 8001:localhost:8001 \
     -L 8082:localhost:8082 \
     -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
+    -L 6333:localhost:6333 \
+    -L 6334:localhost:6334 \
     aaron@spark-79b7.local
 ```
 
@@ -28,6 +30,8 @@ ssh -L 8001:localhost:8001 \
 | `8082` | NeMo / NIM / Data Store ingress |
 | `8890` | KFP REST API |
 | `11434` | Ollama API |
+| `6333` | Qdrant REST API + web UI (`/dashboard`) |
+| `6334` | Qdrant gRPC |
 
 See [../dgx/README.md](../dgx/README.md) and
 [../dgx/systemd/README.md](../dgx/systemd/README.md).
@@ -124,6 +128,32 @@ The deploy workflow runs a smoke test after deployment (`dgx/minikube/kubeflow/v
 
 All 13 KFP images are built natively on the DGX. Full image catalog and patch
 details: [../dgx/minikube/kubeflow/arm64/README.md](../dgx/minikube/kubeflow/arm64/README.md)
+
+## Qdrant
+
+Qdrant vector database runs in minikube namespace `qdrant-system` behind
+`svc/qdrant`. The `qdrant-portfwd.service` forwards REST (port `6333`) and
+gRPC (port `6334`) simultaneously. No auth configured — local dev only.
+
+```text
+Actions -> Qdrant Deploy
+Actions -> Qdrant Undeploy
+```
+
+Qdrant is independent of NeMo and MLflow — it can be deployed on a fresh minikube cluster.
+
+The deploy workflow runs a smoke test after deployment (`dgx/minikube/qdrant/verify-qdrant-endpoints.sh`):
+- `GET /health` — server up
+- `GET /collections` — API reachable
+
+Web UI (with SSH tunnel active): [http://localhost:6333/dashboard](http://localhost:6333/dashboard)
+
+Python client:
+
+```python
+from qdrant_client import QdrantClient
+client = QdrantClient(url="http://localhost:6333")
+```
 
 ## Ollama
 

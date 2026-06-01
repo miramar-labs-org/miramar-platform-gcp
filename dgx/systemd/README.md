@@ -13,6 +13,7 @@ AGX Orin runs the identical set of services — see [../../agx/systemd/README.md
 | `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace |
 | `kfp-api-portfwd.service` | `8890` | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace |
 | `nemo-portfwd.service` | `8082` | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
+| `qdrant-portfwd.service` | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334) |
 
 `dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
 services (`mlflow-portfwd`, `kubeflow-portfwd`) bind to `0.0.0.0` so the runner container can
@@ -26,6 +27,8 @@ ssh -L 8001:localhost:8001 \
     -L 8082:localhost:8082 \
     -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
+    -L 6333:localhost:6333 \
+    -L 6334:localhost:6334 \
     <user>@spark-79b7.local
 ```
 
@@ -78,6 +81,7 @@ journalctl --user -u mlflow-portfwd -f
 journalctl --user -u kubeflow-portfwd -f
 journalctl --user -u kfp-api-portfwd -f
 journalctl --user -u nemo-portfwd -f
+journalctl --user -u qdrant-portfwd -f
 ```
 
 ## Notes

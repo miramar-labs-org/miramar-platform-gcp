@@ -1,7 +1,7 @@
 # AGX Orin Operations
 
 AGX Orin runs the same local AI stack as the DGX Spark: minikube, NeMo
-Microservices, MLflow, and Ollama. The runner label is `agx`.
+Microservices, MLflow, Qdrant, and Ollama. The runner label is `agx`.
 
 > **NIM is not available on AGX.** All NIM LLM containers on NGC are
 > `linux/amd64` only — no `linux/arm64` images exist. Use Ollama for inference
@@ -23,6 +23,8 @@ ssh -L 8002:localhost:8001 \
     -L 8083:localhost:8082 \
     -L 8891:localhost:8890 \
     -L 11435:localhost:11434 \
+    -L 6335:localhost:6333 \
+    -L 6336:localhost:6334 \
     aaron@orin.local
 ```
 
@@ -35,6 +37,8 @@ ssh -L 8002:localhost:8001 \
 | `8083` | `8082` | NeMo / NIM / Data Store ingress |
 | `8891` | `8890` | KFP REST API |
 | `11435` | `11434` | Ollama API |
+| `6335` | `6333` | Qdrant REST API + web UI (`/dashboard`) |
+| `6336` | `6334` | Qdrant gRPC |
 
 See [../agx/systemd/README.md](../agx/systemd/README.md) for the service units.
 
@@ -49,6 +53,7 @@ Stack deployment order:
 Actions -> Minikube Install   (runner: agx)
 Actions -> NeMo Deploy        (runner: agx)
 Actions -> MLflow Deploy      (runner: agx)
+Actions -> Qdrant Deploy      (runner: agx)
 Actions -> Kubeflow Deploy    (runner: agx)
 Actions -> Ollama Deploy      (runner: agx)
 ```
@@ -62,6 +67,19 @@ host. Access via tunnel on local port `5001`.
 Actions -> MLflow Deploy    (runner: agx)
 Actions -> MLflow Undeploy  (runner: agx)
 ```
+
+## Qdrant
+
+Same setup as DGX — `qdrant-portfwd.service` forwards ports `6333` (REST) and
+`6334` (gRPC) on the AGX host. Access via tunnel on local ports `6335` (REST)
+and `6336` (gRPC).
+
+```text
+Actions -> Qdrant Deploy    (runner: agx)
+Actions -> Qdrant Undeploy  (runner: agx)
+```
+
+Web UI (with AGX SSH tunnel active): [http://localhost:6335/dashboard](http://localhost:6335/dashboard)
 
 ## Kubeflow Pipelines
 

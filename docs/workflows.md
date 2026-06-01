@@ -43,6 +43,8 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 | NeMo Undeploy | `undeploy-nemo.yaml` | Remove NeMo, Volcano, DNS entries, and postgres PVCs; clears `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner` |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into minikube; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
+| Qdrant Deploy | `deploy-qdrant.yaml` | Deploy Qdrant vector database into minikube `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
+| Qdrant Undeploy | `undeploy-qdrant.yaml` | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
 | NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via NeMo API; swaps conflicting NIM; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` + `CURRENT_NIM_VRAM_GB[_AGX]`. Inputs: `runner` |
 | NIM Undeploy | `undeploy-nim.yaml` | Remove a NIM deployment; clears `CURRENT_NIM_MODEL[_AGX]` + `CURRENT_NIM_VRAM_GB[_AGX]`. Inputs: `runner` |
 | Ollama Deploy | `deploy-ollama.yaml` | Auto-undeploy existing model, pull + load new one; NIM co-deployment allowed if free memory ≥ 15 GB; rollback on failure; writes `CURRENT_OLLAMA_MODEL[_AGX]` + `CURRENT_OLLAMA_VRAM_GB[_AGX]` and `{MACHINE}_OLLAMA_ACTIVE` org var. Inputs: `runner` |
@@ -56,8 +58,8 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 Stack deployment order:
 
 ```text
-DGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
-AGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Kubeflow Deploy -> Ollama Deploy
+DGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
+AGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> Ollama Deploy
 ```
 
 NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` images exist.
@@ -85,6 +87,8 @@ NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` i
 | `AGX_NEMO_ACTIVE` | NeMo Deploy (agx) | NeMo Undeploy (agx) |
 | `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx) | MLflow Undeploy (dgx) |
 | `AGX_MLFLOW_ACTIVE` | MLflow Deploy (agx) | MLflow Undeploy (agx) |
+| `DGX_QDRANT_ACTIVE` | Qdrant Deploy (dgx) | Qdrant Undeploy (dgx) |
+| `AGX_QDRANT_ACTIVE` | Qdrant Deploy (agx) | Qdrant Undeploy (agx) |
 | `DGX_KFP_ACTIVE` | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx) |
 | `AGX_KFP_ACTIVE` | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx) |
 | `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx) | Ollama Undeploy (dgx), rollback |

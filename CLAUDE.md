@@ -127,6 +127,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift; clears `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner` |
 | NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` repo var. Inputs: `runner` |
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL[_AGX]`. Inputs: `runner` |
+| Qdrant Deploy | `deploy-qdrant.yaml` | Deploy Qdrant vector database into minikube `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
+| Qdrant Undeploy | `undeploy-qdrant.yaml` | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. Images are reusable on AGX (both linux/arm64). |
@@ -170,6 +172,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_NEMO_ACTIVE` | NeMo Deploy (agx) | NeMo Undeploy (agx) |
 | `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx) | MLflow Undeploy (dgx) |
 | `AGX_MLFLOW_ACTIVE` | MLflow Deploy (agx) | MLflow Undeploy (agx) |
+| `DGX_QDRANT_ACTIVE` | Qdrant Deploy (dgx) | Qdrant Undeploy (dgx) |
+| `AGX_QDRANT_ACTIVE` | Qdrant Deploy (agx) | Qdrant Undeploy (agx) |
 | `DGX_KFP_ACTIVE` | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx) |
 | `AGX_KFP_ACTIVE` | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx) |
 | `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx) | Ollama Undeploy (dgx), rollback |
@@ -235,6 +239,7 @@ Both DGX Spark and AGX Orin run the identical seven systemd user services on boo
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` |
 | `kfp-api-portfwd` | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API) |
 | `nemo-portfwd` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
+| `qdrant-portfwd` | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC) |
 
 **SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop:
 
@@ -247,24 +252,28 @@ Both DGX Spark and AGX Orin run the identical seven systemd user services on boo
 | NeMo / NIM | `8082` | `8083` |
 | KFP API | `8890` | `8891` |
 | Ollama | `11434` | `11435` |
+| Qdrant REST | `6333` | `6335` |
+| Qdrant gRPC | `6334` | `6336` |
 
 ```sh
 # DGX Spark (spark-79b7.local)
 ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
-    -L 11434:localhost:11434 aaron@spark-79b7.local
+    -L 11434:localhost:11434 -L 6333:localhost:6333 -L 6334:localhost:6334 \
+    aaron@spark-79b7.local
 
 # AGX Orin (orin.local)
 ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
-    -L 11435:localhost:11434 aaron@orin.local
+    -L 11435:localhost:11434 -L 6335:localhost:6333 -L 6336:localhost:6334 \
+    aaron@orin.local
 ```
 
 **Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the host so cluster state persists.
 
 **Workload stack** (deployment order):
-- DGX: Minikube Install → NeMo Deploy → MLflow Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
-- AGX: Minikube Install → NeMo Deploy → MLflow Deploy → Kubeflow Deploy → Ollama Deploy
+- DGX: Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
+- AGX: Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 

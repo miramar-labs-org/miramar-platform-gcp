@@ -22,5 +22,7 @@ Both profiles connect as user `aaron` using the shared SSH key.
 | KFP UI | `8080` | `8081` | `8080` |
 | NeMo / NIM | `8082` | `8083` | `8082` |
 | KFP API | `8890` | `8891` | `8890` |
+| Qdrant REST | `6333` | `6335` | `6333` |
+| Qdrant gRPC | `6334` | `6336` | `6334` |
 
-AGX ports are offset by +1 (or -1 for JupyterLab) so both profiles can run simultaneously without conflicts.
+AGX ports are offset by +1 (or -1 for JupyterLab) so both profiles can run simultaneously without conflicts. Qdrant uses +2 offset on AGX since it occupies two consecutive ports.

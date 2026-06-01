@@ -1,0 +1,52 @@
+name: Qdrant Undeploy
+
+# Removes Qdrant from the qdrant-system namespace on the target minikube cluster.
+# The PVC (vector data) is deleted along with the namespace.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Destroy Qdrant
+        env:
+          DELETE_NS: "true"
+        run: bash dgx/minikube/qdrant/destroy-qdrant.sh
+
+      - name: Clear Qdrant active state
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+        run: |
+          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_QDRANT_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="false" -f visibility="all"

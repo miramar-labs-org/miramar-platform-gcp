@@ -108,6 +108,7 @@ DGX_NEMO_ACTIVE=$(read_org_var "DGX_NEMO_ACTIVE")
 DGX_KFP_ACTIVE=$(read_org_var "DGX_KFP_ACTIVE")
 DGX_OLLAMA_ACTIVE=$(read_org_var "DGX_OLLAMA_ACTIVE")
 DGX_MLFLOW_ACTIVE=$(read_org_var "DGX_MLFLOW_ACTIVE")
+DGX_QDRANT_ACTIVE=$(read_org_var "DGX_QDRANT_ACTIVE")
 
 AGX_OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL_AGX")
 AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
@@ -119,6 +120,7 @@ AGX_NEMO_ACTIVE=$(read_org_var "AGX_NEMO_ACTIVE")
 AGX_KFP_ACTIVE=$(read_org_var "AGX_KFP_ACTIVE")
 AGX_OLLAMA_ACTIVE=$(read_org_var "AGX_OLLAMA_ACTIVE")
 AGX_MLFLOW_ACTIVE=$(read_org_var "AGX_MLFLOW_ACTIVE")
+AGX_QDRANT_ACTIVE=$(read_org_var "AGX_QDRANT_ACTIVE")
 
 GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
 GCP_REGION=$(read_org_var "GCP_REGION")
@@ -190,12 +192,14 @@ DGX_KFP_BADGE=$([ "$DGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhos
 DGX_OLLAMA_BADGE=$([ "$DGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_MINIKUBE_BADGE=$([ "$DGX_MINIKUBE_ACTIVE" = "true" ] && echo '<a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_MLFLOW_BADGE=$([ "$DGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5000" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+DGX_QDRANT_BADGE=$([ "$DGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6333/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 AGX_NEMO_BADGE=$([ "$AGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_KFP_BADGE=$([ "$AGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8081/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_OLLAMA_BADGE=$([ "$AGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_MINIKUBE_BADGE=$([ "$AGX_MINIKUBE_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_MLFLOW_BADGE=$([ "$AGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5001" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_QDRANT_BADGE=$([ "$AGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6335/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -329,6 +333,10 @@ cat > "$OUTPUT" <<HTMLEOF
       ${DGX_MLFLOW_BADGE}
     </div>
     <div class="ps-item">
+      <div class="ps-label">Qdrant</div>
+      ${DGX_QDRANT_BADGE}
+    </div>
+    <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
       <code class="ps-value">${VRAM_USED_GB} GB</code>
     </div>
@@ -368,6 +376,10 @@ cat > "$OUTPUT" <<HTMLEOF
     <div class="ps-item">
       <div class="ps-label">MLflow</div>
       ${AGX_MLFLOW_BADGE}
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">Qdrant</div>
+      ${AGX_QDRANT_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
@@ -428,7 +440,7 @@ cat > "$OUTPUT" <<HTMLEOF
 ${ROWS}
 </tbody>
 </table>
-<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. Minikube: DGX 8001 / AGX 8002.</p>
+<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. Minikube: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335.</p>
 
 <div class="modal-overlay" id="new-proj-modal">
   <div class="modal">
