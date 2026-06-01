@@ -59,7 +59,7 @@ spec:
               mountPath: /qdrant/storage
           readinessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: 6333
             initialDelaySeconds: 5
             periodSeconds: 5
