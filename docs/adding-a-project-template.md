@@ -70,7 +70,7 @@ elif [ "${PROJECT_TYPE}" = "<type>" ]; then
 
 ---
 
-## 3. `generate-dashboard.sh` — two touch points
+## 3. `generate-dashboard.sh` — three touch points
 
 **a. Topic → type detection** (jq chain, line ~45) — add your topic **before**
 the generic `miramar-kfp` check if the type is a sub-variant of an existing family:
@@ -96,6 +96,13 @@ the `Set repository topics` step), so the topic name is always `miramar-<type>`.
 Pick a colour not already used: `kfp` = blue, `kfp-finetune` = teal,
 `nemo` = green, `default`/`other` = amber.
 
+**c. New Project modal dropdown** (`<select id="np-type">`) — add an option so
+the dashboard's "+ New Project" button exposes the new type:
+
+```html
+<option value="<type>"><type> &mdash; one-line description</option>
+```
+
 ---
 
 ## 4. `CLAUDE.md`
@@ -118,7 +125,7 @@ Update the Create Project entry there too (same one-liner).
 
 - [ ] `templates/new-project-<type>/` directory with all required files
 - [ ] `create-project.yaml` — input enum, badge, packages, blog body, summary
-- [ ] `generate-dashboard.sh` — topic detection, badge CSS
+- [ ] `generate-dashboard.sh` — topic detection, badge CSS, New Project modal option
 - [ ] `CLAUDE.md` — Create Project table row
 - [ ] `docs/workflows.md` — Create Project entry
 - [ ] Deploy dashboard after merge to pick up the new badge colour
