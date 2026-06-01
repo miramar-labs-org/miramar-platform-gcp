@@ -1,0 +1,13 @@
+miramar-platform-gcp
+Copyright (c) 2026 Aaron Cody
+
+License History
+---------------
+Commits up to and including a431bba (2026-05-30) were released under the
+MIT License. From commit a431bba onward, this work is licensed under the
+Business Source License 1.1 (see LICENSE).
+
+The Change Date is 2030-05-31, after which the current version converts to
+the Apache License, Version 2.0.
+
+For alternative licensing, contact aaron@aaroncody.com.
