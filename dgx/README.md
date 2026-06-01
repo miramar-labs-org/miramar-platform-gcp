@@ -12,7 +12,7 @@
 
 ## Systemd services
 
-Seven user services start automatically on boot (via linger) — see [systemd/](systemd/) for unit files and install instructions:
+Eight user services start automatically on boot (via linger) — see [systemd/](systemd/) for unit files and install instructions:
 
 | Service | Port | What it does |
 |---|---|---|
@@ -23,8 +23,9 @@ Seven user services start automatically on boot (via linger) — see [systemd/](
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward` → [Kubeflow Pipelines](https://www.kubeflow.org/) UI (`svc/ml-pipeline-ui` in minikube) |
 | `kfp-api-portfwd` | `8890` | `kubectl port-forward` → KFP REST API (`svc/ml-pipeline:8888` in minikube) |
 | `nemo-portfwd` | `8082` | `kubectl port-forward` → NeMo ingress (`nemo.test`, `nim.test`, `data-store.test`) |
+| `qdrant-portfwd` | `6333/6334` | `kubectl port-forward` → [Qdrant](https://qdrant.tech) (`svc/qdrant` in minikube, REST + gRPC) |
 
-`dashboard` and `jupyterlab` bind to `127.0.0.1`; the port-forward services bind to `0.0.0.0` so the runner container can reach them. Access from your laptop via SSH tunnel:
+`dashboard` and `jupyterlab` bind to `127.0.0.1`; the port-forward services (`mlflow-portfwd`, `kubeflow-portfwd`, `kfp-api-portfwd`, `nemo-portfwd`, `qdrant-portfwd`) bind to `0.0.0.0` so the runner container can reach them. Access from your laptop via SSH tunnel:
 
 ```sh
 ssh -L 8001:localhost:8001 \
@@ -34,6 +35,8 @@ ssh -L 8001:localhost:8001 \
     -L 8082:localhost:8082 \
     -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
+    -L 6333:localhost:6333 \
+    -L 6334:localhost:6334 \
     <user>@spark-79b7.local
 ```
 
@@ -46,6 +49,8 @@ ssh -L 8001:localhost:8001 \
 | `8082` | NeMo / NIM / Data Store ingress |
 | `8890` | KFP REST API |
 | `11434` | Ollama API |
+| `6333` | Qdrant REST API + web UI (`/dashboard`) |
+| `6334` | Qdrant gRPC |
 
 [Ollama](https://ollama.com) (`port 11434`) is installed via `scripts/ubuntu/install-ollama.sh` and runs as a native systemd service — not in the table above as it is not a user service managed by `dgx/systemd/`.
 
@@ -59,5 +64,6 @@ On Windows, [Bitvise SSH Client](https://www.bitvise.com/ssh-client) is used to 
 | [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
 | [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
+| [Qdrant](https://qdrant.tech) | [qdrant/qdrant](https://github.com/qdrant/qdrant) | [docs](https://qdrant.tech/documentation/) |
 | [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines) | [docs](https://www.kubeflow.org/docs/components/pipelines/) |
 | [Ollama](https://ollama.com) | [ollama/ollama](https://github.com/ollama/ollama) | [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md) |

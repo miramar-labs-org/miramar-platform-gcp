@@ -105,7 +105,8 @@ NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` i
 
 On a fresh install, seed the active state with `gh api` PATCH→POST upserts using `GITHUB_ORG_ADMIN_PAT` to reflect actual current state.
 
-See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
+See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/),
+[../dgx/minikube/qdrant/README.md](../dgx/minikube/qdrant/README.md), and
 [../dgx/ollama/README.md](../dgx/ollama/README.md).
 
 ## Projects and Dashboard
@@ -114,7 +115,7 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/), and
 | --- | --- | --- |
 | Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. `host` input (dgx/agx) sets which machine clones the repo and writes `PROJECT_HOST`. Tags repo `miramar-project` + `miramar-<type>` for the dashboard. Opens a draft blog post PR. See project types and Python environment below. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Verifies repo exists first (fails fast with a clear error). Double-entry confirmation guard. Cleans up blog draft PR/branch, local clone on host, and JupyterLab kernel. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Header includes a + New Project button that opens a form modal and dispatches `create-project.yaml`. Project table includes Host column, JupyterLab links, and a 🗑 delete button per row that fires `delete-project.yaml` via GitHub API using `DASHBOARD_DISPATCH_TOKEN` (fine-grained PAT baked into HTML at generation time — no browser input required). Runs hourly + on completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow/Qdrant), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Header includes a + New Project button that opens a form modal and dispatches `create-project.yaml`. Project table includes Host column, JupyterLab links, and a 🗑 delete button per row that fires `delete-project.yaml` via GitHub API using `DASHBOARD_DISPATCH_TOKEN` (fine-grained PAT baked into HTML at generation time — no browser input required). Runs hourly + on completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
 | List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs-org/miramar-labs-org.github.io`. Run before Delete Blog Post to get the exact filename. |
 | Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs-org/miramar-labs-org.github.io` by filename; closes any open draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
 
@@ -136,7 +137,7 @@ Default packages (pre-filled in the workflow input, edit freely):
 ```
 ipykernel ipywidgets numpy pandas matplotlib seaborn scikit-learn tqdm
 transformers datasets huggingface_hub evaluate accelerate
-openai anthropic mlflow pyyaml requests python-dotenv nvidia-ml-py
+openai anthropic mlflow qdrant-client pyyaml requests python-dotenv nvidia-ml-py
 ```
 
 ## WSL2 and SSH

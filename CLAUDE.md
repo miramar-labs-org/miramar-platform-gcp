@@ -38,7 +38,7 @@ wsl2/              # WSL2 host config and bootstrap scripts
   TECHNICAL.md        # Source of truth for template builds, lifecycle, on-demand SSH, and troubleshooting
 win/               # Windows SSH tunnel profiles (Bitvise)
   README.md           # How to import and use the tunnel profiles
-  dgx.tlp            # Bitvise profile: DGX Spark tunnels (ports 8001/8080/8082/8888/5000/8890/11434)
+  dgx.tlp            # Bitvise profile: DGX Spark tunnels (ports 8001/8080/8082/8888/5000/8890/11434/6333/6334)
   agx.tlp            # Bitvise profile: AGX Orin tunnels (+1 offset ports)
 
 docs/              # Architecture and runbooks
@@ -61,7 +61,7 @@ docs/              # Architecture and runbooks
 | `scripts/gha/sync-github-tf-vars.sh` | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Never edit GitHub vars directly — edit tfvars and re-sync. |
 | `scripts/gha/launch-runner.sh` / `stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. Idempotent. |
 | `scripts/gha/flush-queues.sh` | Cancel all in-progress, queued, and waiting workflow runs |
-| `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the seven systemd user services (used on both DGX and AGX) |
+| `dgx/systemd/install.sh` / `uninstall.sh` | Install or remove the eight systemd user services (used on both DGX and AGX) |
 | `wsl2/bootstrap.sh` | One-time setup for a fresh WSL2 template base. Run inside the clean template before exporting. |
 | `wsl2/rebuild-template.ps1` | Rebuild the configured template tarball. Params: `-SmbPassword` (required). Run after changing `bootstrap.sh` or rotating the Samba password. |
 | `wsl2/firstboot.sh` | One-shot provisioning inside a new distro via `wsl -d NAME --user root -- bash`. Sets hostname, sshd port, calls `setup-shared-ssh.sh`. |
@@ -135,7 +135,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone; patches all 13 deployments with native arm64 images; writes `{MACHINE}_KFP_ACTIVE` org var. Prerequisite: Build KFP arm64 Images. Inputs: `runner` |
 | Create Project | `create-project.yaml` | Create a new repo under miramar-labs-org pre-wired for the platform. Four types: `default` (generic notebook + platform endpoint reference, new default), `kfp` (KFP v2 pipeline stub + deploy/undeploy workflows), `kfp-finetune` (KFP v2 fine-tuning pipeline — 7 named steps: prepare_data → train → merge_adapter → quantize → evaluate → push_to_gcs → deploy; teal badge; topic tag `miramar-kfp-finetune`), `nemo` (NeMo training job + deploy/undeploy workflows). Defaults to public so the project appears in the dashboard. Tags repo with `miramar-project` + `miramar-<type>`. `host` input (dgx/agx) sets which machine clones the repo and writes `PROJECT_HOST`. Also opens a draft blog post PR to `miramar-labs-org/miramar-labs-org.github.io`. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Verifies repo exists first (fails fast with clear error if not). Double-entry confirmation guard. Cleans up blog draft PR/branch, local clone on host, and JupyterLab kernel. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Service columns show green/red active-state badges driven by org-level `{MACHINE}_{SERVICE}_ACTIVE` variables. Header includes a + New Project button that opens a form modal and dispatches `create-project.yaml`. Project table includes Host column, JupyterLab links, and a 🗑 delete button per row — clicking opens a confirmation modal that fires `delete-project.yaml` via the GitHub API using `DASHBOARD_DISPATCH_TOKEN` (fine-grained PAT: Actions write on `miramar-platform-gcp` only; baked into HTML at generation time, no browser input required). Runs hourly + on `workflow_run` completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and deploy the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow/Qdrant), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Service columns show green/red active-state badges driven by org-level `{MACHINE}_{SERVICE}_ACTIVE` variables. Header includes a + New Project button that opens a form modal and dispatches `create-project.yaml`. Project table includes Host column, JupyterLab links, and a 🗑 delete button per row — clicking opens a confirmation modal that fires `delete-project.yaml` via the GitHub API using `DASHBOARD_DISPATCH_TOKEN` (fine-grained PAT: Actions write on `miramar-platform-gcp` only; baked into HTML at generation time, no browser input required). Runs hourly + on `workflow_run` completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
 | List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs-org/miramar-labs-org.github.io`. Run before Delete Blog Post to get the exact filename. |
 | Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs-org/miramar-labs-org.github.io` by filename; closes any open draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
@@ -228,7 +228,7 @@ To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`
 
 ## Local AI stack (DGX + AGX)
 
-Both DGX Spark and AGX Orin run the identical seven systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
+Both DGX Spark and AGX Orin run the identical eight systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
 
 | Service | Host port | Purpose |
 |---|---|---|
@@ -284,6 +284,8 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
 - AGX: ~24 GB reserved for platform, **~40 GB for models** (`AGX_VRAM_USEABLE`)
 
 **MLflow** (`mlflow-system` namespace) — `MLFLOW_TRACKING_URI=http://host.docker.internal:5000` works on both machines (resolves to the local host from inside the runner container).
+
+**Qdrant** (`qdrant-system` namespace) — REST API at `http://localhost:6333`, gRPC at `localhost:6334`. Web UI at `http://localhost:6333/dashboard`. `QDRANT_URL=http://host.docker.internal:6333` works from inside the runner container.
 
 **Kubeflow Pipelines** (`kubeflow` namespace) — independent of NeMo/MLflow; can deploy on a fresh minikube cluster.
 

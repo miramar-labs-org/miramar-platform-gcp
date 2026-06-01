@@ -52,6 +52,7 @@ Sync GCP variables from Terraform after changing `gcp/terraform/terraform.tfvars
 | `AGX_VRAM_USEABLE` | `40` | GB available for AI models on AGX (64 GB total − 24 GB system) |
 | `WSL2_HOST` | `192.168.1.201` | static IP of Windows (MSI) machine — shared by all WSL2 distros |
 | `MLFLOW_TRACKING_URI` | `http://host.docker.internal:5000` | MLflow endpoint inside runner containers (resolves to local host on both DGX and AGX) |
+| `QDRANT_URL` | `http://host.docker.internal:6333` | Qdrant REST endpoint inside runner containers (resolves to local host on both DGX and AGX) |
 | `DGX_VRAM_USEABLE` | `100` | GB available for AI models on DGX (128 GB total − ~28 GB platform) |
 
 ### Org-Level Active State Variables

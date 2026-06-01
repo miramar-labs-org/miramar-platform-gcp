@@ -68,6 +68,8 @@ Actions -> MLflow Deploy    (runner: agx)
 Actions -> MLflow Undeploy  (runner: agx)
 ```
 
+Web UI (with AGX SSH tunnel active): [http://localhost:5001](http://localhost:5001)
+
 ## Qdrant
 
 Same setup as DGX — `qdrant-portfwd.service` forwards ports `6333` (REST) and

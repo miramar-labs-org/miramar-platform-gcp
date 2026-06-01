@@ -55,8 +55,9 @@ The service unit files are symlinked from `dgx/systemd/` — the AGX stack is id
 
 ```sh
 systemctl --user status  minikube
-systemctl --user restart mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd
+systemctl --user restart mlflow-portfwd qdrant-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd
 journalctl --user -u mlflow-portfwd -f
+journalctl --user -u qdrant-portfwd -f
 ```
 
 See [../dgx/systemd/README.md](../dgx/systemd/README.md) for full notes on service behaviour and dependencies.

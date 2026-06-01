@@ -16,7 +16,7 @@ AGX Orin runs the identical set of services — see [../../agx/systemd/README.md
 | `qdrant-portfwd.service` | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334) |
 
 `dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
-services (`mlflow-portfwd`, `kubeflow-portfwd`) bind to `0.0.0.0` so the runner container can
+services (`mlflow-portfwd`, `kubeflow-portfwd`, `nemo-portfwd`, `qdrant-portfwd`) bind to `0.0.0.0` so the runner container can
 reach them. Access from a laptop via SSH tunnel:
 
 ```sh
@@ -89,13 +89,13 @@ journalctl --user -u qdrant-portfwd -f
 - `minikube.service` is `Type=oneshot RemainAfterExit` — systemd considers it active once
   `minikube start` returns, and runs `minikube stop` on shutdown. `TimeoutStartSec=300` gives it
   up to 5 minutes to start (first boot after a reboot may pull images).
-- `dashboard.service` and `mlflow-portfwd.service` have `After=minikube.service` so systemd
-  starts minikube first and stops it last on shutdown.
-- `mlflow-portfwd.service`, `kubeflow-portfwd.service`, and `kfp-api-portfwd.service` wait for
-  their respective services to have a ready endpoint before starting the port-forward, so they
-  won't crash-loop on boot if pods are still coming up. If the workload is not deployed they hit
-  `StartLimitBurst=3` quickly and stop retrying — expected behavior when MLflow or Kubeflow is
-  not installed.
+- All port-forward services have `After=minikube.service` so systemd starts minikube first and
+  stops it last on shutdown.
+- `mlflow-portfwd.service`, `kubeflow-portfwd.service`, `kfp-api-portfwd.service`, and
+  `qdrant-portfwd.service` wait for their respective services to have a ready endpoint before
+  starting the port-forward, so they won't crash-loop on boot if pods are still coming up. If the
+  workload is not deployed they hit `StartLimitBurst` quickly and stop retrying — expected
+  behavior when MLflow, Kubeflow, or Qdrant is not installed.
 - Services are user-scoped (`WantedBy=default.target`) and do not require `sudo`.
 - Linger (`loginctl enable-linger`) is set by `install.sh` — this is what makes the services
   start on boot rather than only on interactive login.
@@ -107,4 +107,5 @@ journalctl --user -u qdrant-portfwd -f
 | [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
 | [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
+| [Qdrant](https://qdrant.tech) | [qdrant/qdrant](https://github.com/qdrant/qdrant) | [docs](https://qdrant.tech/documentation/) |
 | [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines) | [docs](https://www.kubeflow.org/docs/components/pipelines/) |

@@ -51,6 +51,7 @@ flowchart LR
     DGX --> Mini[minikube on DGX]
     Mini --> Nemo[NeMo Microservices]
     Mini --> MLflow[MLflow + MinIO]
+    Mini --> Qdrant[Qdrant]
     Mini --> NIM[NVIDIA NIM]
     Mini --> KFP[Kubeflow Pipelines]
 ```
@@ -69,6 +70,8 @@ flowchart LR
 [![Ollama Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml)
 [![Ollama Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-ollama.yaml)
 [![Build KFP arm64 Images](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-kfp-arm64.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-kfp-arm64.yaml)
+[![Qdrant Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-qdrant.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-qdrant.yaml)
+[![Qdrant Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-qdrant.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-qdrant.yaml)
 [![Kubeflow Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-kubeflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-kubeflow.yaml)
 [![Kubeflow Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-kubeflow.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-kubeflow.yaml)
 [![Create Project](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/create-project.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/create-project.yaml)
@@ -137,7 +140,7 @@ Planned templates include RAG systems, evaluation harnesses, NeMo/NIM workflows,
 
 ## Local DGX Stack
 
-DGX Spark runs the local AI stack: [minikube](https://minikube.sigs.k8s.io/), [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/), [MLflow](https://mlflow.org), [Kubeflow Pipelines](https://www.kubeflow.org/), [NIM](https://developer.nvidia.com/nim), and [Ollama](https://ollama.com). See [docs/dgx.md](docs/dgx.md) for workflow details and [dgx/README.md](dgx/README.md) for host-level service notes.
+DGX Spark runs the local AI stack: [minikube](https://minikube.sigs.k8s.io/), [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/), [MLflow](https://mlflow.org), [Qdrant](https://qdrant.tech), [Kubeflow Pipelines](https://www.kubeflow.org/), [NIM](https://developer.nvidia.com/nim), and [Ollama](https://ollama.com). See [docs/dgx.md](docs/dgx.md) for workflow details and [dgx/README.md](dgx/README.md) for host-level service notes.
 
 Common tunnel:
 
@@ -147,10 +150,12 @@ ssh -L 8001:localhost:8001 \
     -L 5000:localhost:5000 \
     -L 8080:localhost:8080 \
     -L 11434:localhost:11434 \
+    -L 6333:localhost:6333 \
+    -L 6334:localhost:6334 \
     <user>@spark-79b7.local
 ```
 
-Stack order: **Minikube Install → NeMo Deploy → MLflow Deploy → NIM Deploy**. Kubeflow Deploy is standalone.
+Stack order: **Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy**. Ollama is independent of minikube.
 
 ---
 
@@ -188,6 +193,7 @@ Common entry points:
 | [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
 | [Ollama](https://ollama.com) | [ollama/ollama](https://github.com/ollama/ollama) | [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md) |
 | [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
+| [Qdrant](https://qdrant.tech) | [qdrant/qdrant](https://github.com/qdrant/qdrant) | [docs](https://qdrant.tech/documentation/) |
 | [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines) | [docs](https://www.kubeflow.org/docs/components/pipelines/) |
 | [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) | — | [docs](https://docs.nvidia.com/nemo/microservices/latest/) |
 | [NIM](https://developer.nvidia.com/nim) | — | [docs](https://docs.nvidia.com/nim/) |

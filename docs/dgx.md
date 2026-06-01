@@ -62,11 +62,11 @@ JupyterLab sees the filesystem live — files update immediately after a branch 
 1. Click the **Open in JupyterLab** badge in the project README
 2. The notebook opens at `http://localhost:8888/lab/tree/git-miramar-labs-org/projects/<name>/notebook.ipynb`
 3. Use the Git panel or terminal to switch to the relevant branch if needed
-4. Edit and run cells — MLflow at `http://localhost:5000` tracks experiments automatically
+4. Edit and run cells — MLflow at `http://localhost:5000` tracks experiments automatically; Qdrant at `http://localhost:6333` is available as a vector store
 
 ## minikube
 
-DGX minikube hosts NeMo Microservices, MLflow, MinIO, and NIM deployments.
+DGX minikube hosts NeMo Microservices, MLflow, MinIO, Qdrant, and NIM deployments.
 
 Lifecycle workflows:
 
@@ -79,7 +79,7 @@ Actions -> Minikube Uninstall
 Stack deployment order:
 
 ```text
-Minikube Install -> NeMo Deploy -> MLflow Deploy -> NIM Deploy
+Minikube Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
 ```
 
 See [../dgx/minikube/](../dgx/minikube/).
@@ -140,7 +140,7 @@ Actions -> Qdrant Deploy
 Actions -> Qdrant Undeploy
 ```
 
-Qdrant is independent of NeMo and MLflow — it can be deployed on a fresh minikube cluster.
+Qdrant is independent of NeMo and MLflow — it can be deployed on a fresh minikube cluster. Conventional position: after MLflow Deploy, before Kubeflow Deploy.
 
 The deploy workflow runs a smoke test after deployment (`dgx/minikube/qdrant/verify-qdrant-endpoints.sh`):
 - `GET /health` — server up
