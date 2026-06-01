@@ -164,7 +164,7 @@ jobs:
           printf '%s\n' ${REQS} > requirements.txt
 
           git add .
-          git add -f .github/  # guarantee workflows are staged regardless of gitignore
+          [ -d .github ] && git add -f .github/  # force-add workflows if present (not in default template)
           git commit -m "Initial scaffold (type: ${PROJECT_TYPE}, host: ${HOST}) from Miramar template"
 
           git remote add origin \
