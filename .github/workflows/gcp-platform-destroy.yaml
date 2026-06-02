@@ -44,7 +44,7 @@ env:
 
 jobs:
   destroy:
-    runs-on: [self-hosted, wsl2]
+    runs-on: [self-hosted, dgx]
     steps:
       - name: Validate confirmation
         run: |

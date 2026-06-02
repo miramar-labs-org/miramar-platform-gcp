@@ -46,7 +46,7 @@ jobs:
   # spark → wsl2-<name>   (all distros)
 
   dgx-tests:
-    runs-on: dgx
+    runs-on: [self-hosted, dgx]
     outputs:
       results: ${{ steps.run.outputs.results }}
     steps:
@@ -139,7 +139,7 @@ jobs:
   # Runs in parallel with dgx-tests (different runner).
 
   agx-tests:
-    runs-on: agx
+    runs-on: [self-hosted, agx]
     outputs:
       results: ${{ steps.run.outputs.results }}
     steps:
@@ -235,7 +235,7 @@ jobs:
   wsl2-tests:
     needs: [dgx-tests]
     if: always()
-    runs-on: dgx
+    runs-on: [self-hosted, dgx]
     outputs:
       results: ${{ steps.run.outputs.results }}
     steps:
@@ -329,7 +329,7 @@ jobs:
   summary:
     needs: [dgx-tests, agx-tests, wsl2-tests]
     if: always()
-    runs-on: dgx
+    runs-on: [self-hosted, dgx]
     steps:
       - name: Render summary
         env:

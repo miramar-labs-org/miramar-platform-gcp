@@ -29,7 +29,7 @@ jobs:
   # -----------------------------------------------------------------------
 
   setup-dgx:
-    runs-on: agx
+    runs-on: [self-hosted, agx]
     steps:
       - uses: actions/checkout@v4
 
@@ -171,7 +171,7 @@ jobs:
 
   setup-orin:
     needs: setup-dgx
-    runs-on: agx
+    runs-on: [self-hosted, agx]
     steps:
       - uses: actions/checkout@v4
 
@@ -276,7 +276,7 @@ jobs:
   summary:
     needs: [setup-dgx, setup-orin]
     if: always()
-    runs-on: agx
+    runs-on: [self-hosted, agx]
     steps:
       - name: Summary
         run: |

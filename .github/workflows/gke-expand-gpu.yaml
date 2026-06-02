@@ -42,7 +42,7 @@ env:
 
 jobs:
   expand:
-    runs-on: [self-hosted, wsl2]
+    runs-on: [self-hosted, dgx]
     steps:
       - uses: actions/checkout@v4
 

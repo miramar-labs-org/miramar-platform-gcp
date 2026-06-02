@@ -18,7 +18,7 @@ permissions:
 jobs:
   repo-quality:
     name: Repo quality checks
-    runs-on: [self-hosted, Linux, X64, wsl2]
+    runs-on: [self-hosted, dgx]
     
     steps:
       - name: Checkout
