@@ -25,6 +25,8 @@ on:
       - "GKE Restore GPU"
       - "GCP Platform Create"
       - "GCP Platform Destroy"
+      - "Qdrant Deploy"
+      - "Qdrant Undeploy"
     types: [completed]
 
 permissions:
