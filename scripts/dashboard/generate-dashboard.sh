@@ -128,6 +128,7 @@ GAR_REPO=$(read_org_var "GAR_REPO")
 GKE_CLUSTER_NAME=$(read_org_var "GKE_CLUSTER_NAME")
 GKE_ZONE=$(read_org_var "GKE_ZONE")
 GKE_STATE_BUCKET=$(read_org_var "GKE_STATE_BUCKET")
+GKE_CLUSTER_ACTIVE=$(read_org_var "GKE_CLUSTER_ACTIVE")
 GKE_GPU_POOL_ACTIVE=$(read_org_var "GKE_GPU_POOL_ACTIVE")
 GKE_GPU_TYPE=$(read_org_var "GKE_GPU_TYPE")
 GKE_NODE_COUNT=$(read_org_var "GKE_NODE_COUNT")
@@ -148,6 +149,7 @@ GKE_NODE_COUNT=$(read_org_var "GKE_NODE_COUNT")
 [[ -z "$GKE_CLUSTER_NAME" ]]    && GKE_CLUSTER_NAME="miramar-shared-gke"
 [[ -z "$GKE_ZONE" ]]            && GKE_ZONE="us-central1-b"
 [[ -z "$GKE_STATE_BUCKET" ]]    && GKE_STATE_BUCKET="miramar-platform-cluster-state"
+[[ -z "$GKE_CLUSTER_ACTIVE" ]] && GKE_CLUSTER_ACTIVE="false"
 [[ -z "$GKE_GPU_POOL_ACTIVE" ]] && GKE_GPU_POOL_ACTIVE="false"
 [[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
 [[ -z "$GKE_NODE_COUNT" ]] && GKE_NODE_COUNT="1"
@@ -173,17 +175,31 @@ AGX_VRAM_AVAIL_CLASS="ps-value"
 GAR_URL="https://console.cloud.google.com/artifacts/docker/${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}"
 GCS_BUCKET_URL="https://console.cloud.google.com/storage/browser/${GKE_STATE_BUCKET}?project=${GCP_PROJECT_ID}"
 
-if [ "$GKE_GPU_POOL_ACTIVE" = "true" ]; then
-  GPU_LABEL="${GKE_GPU_TYPE:-gpu}"
-  GKE_GPU_BADGE="<span class=\"ps-active\">${GPU_LABEL}</span>"
+if [ "$GKE_CLUSTER_ACTIVE" = "true" ]; then
+  GKE_CLUSTER_BADGE="<a href=\"https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}\" target=\"_blank\" class=\"ps-active\">${GKE_CLUSTER_NAME}</a>"
+  GKE_ZONE_HTML="<code class=\"ps-value\">${GKE_ZONE}</code>"
+  GKE_NODE_TYPE_HTML='<code class="ps-value">e2-medium</code>'
+  GKE_BUCKET_HTML="<a href=\"${GCS_BUCKET_URL}\" target=\"_blank\" class=\"ps-value\">${GKE_STATE_BUCKET}</a>"
+  GKE_GAR_HTML="<a href=\"${GAR_URL}\" target=\"_blank\" class=\"ps-value\">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</a>"
+  if [ "$GKE_GPU_POOL_ACTIVE" = "true" ]; then
+    GPU_LABEL="${GKE_GPU_TYPE:-gpu}"
+    GKE_GPU_BADGE="<span class=\"ps-active\">${GPU_LABEL}</span>"
+  else
+    GKE_GPU_BADGE='<span class="ps-inactive">none</span>'
+  fi
+  if [ "$GKE_NODE_COUNT" -gt 1 ] 2>/dev/null; then
+    GKE_CPU_BADGE="<span class=\"ps-active\">${GKE_NODE_COUNT} nodes</span>"
+  else
+    GKE_CPU_BADGE='<code class="ps-value">1 node</code>'
+  fi
 else
+  GKE_CLUSTER_BADGE='<span class="ps-inactive">INACTIVE</span>'
+  GKE_ZONE_HTML='<span class="ps-inactive">none</span>'
+  GKE_NODE_TYPE_HTML='<span class="ps-inactive">none</span>'
+  GKE_CPU_BADGE='<span class="ps-inactive">none</span>'
   GKE_GPU_BADGE='<span class="ps-inactive">none</span>'
-fi
-
-if [ "$GKE_NODE_COUNT" -gt 1 ] 2>/dev/null; then
-  GKE_CPU_BADGE="<span class=\"ps-active\">${GKE_NODE_COUNT} nodes</span>"
-else
-  GKE_CPU_BADGE='<code class="ps-value">1 node</code>'
+  GKE_BUCKET_HTML='<span class="ps-inactive">none</span>'
+  GKE_GAR_HTML='<span class="ps-inactive">none</span>'
 fi
 
 # Active/inactive badge HTML (link only on active state)
@@ -396,15 +412,15 @@ cat > "$OUTPUT" <<HTMLEOF
   <div class="platform-status">
     <div class="ps-item ps-wide">
       <div class="ps-label">GKE</div>
-      <a href="https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}" target="_blank" class="ps-value">${GKE_CLUSTER_NAME}</a>
+      ${GKE_CLUSTER_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">Zone</div>
-      <code class="ps-value">${GKE_ZONE}</code>
+      ${GKE_ZONE_HTML}
     </div>
     <div class="ps-item">
       <div class="ps-label">Node type</div>
-      <code class="ps-value">e2-medium</code>
+      ${GKE_NODE_TYPE_HTML}
     </div>
     <div class="ps-item">
       <div class="ps-label">CPU pool</div>
@@ -416,11 +432,11 @@ cat > "$OUTPUT" <<HTMLEOF
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">State bucket</div>
-      <a href="${GCS_BUCKET_URL}" target="_blank" class="ps-value">${GKE_STATE_BUCKET}</a>
+      ${GKE_BUCKET_HTML}
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">GAR</div>
-      <a href="${GAR_URL}" target="_blank" class="ps-value">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</a>
+      ${GKE_GAR_HTML}
     </div>
   </div>
 </div>

@@ -140,6 +140,26 @@ jobs:
           gcloud projects delete "$PROJECT_ID" --quiet
           echo "Project $PROJECT_ID deleted."
 
+      - name: Mark cluster inactive
+        run: |
+          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
+          for var_name in GKE_CLUSTER_ACTIVE GKE_GPU_POOL_ACTIVE; do
+            gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var_name}" \
+              -f name="${var_name}" -f value="false" -f visibility="all" \
+            || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+              -f name="${var_name}" -f value="false" -f visibility="all"
+          done
+          for var_name in GKE_GPU_TYPE; do
+            gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var_name}" \
+              -f name="${var_name}" -f value="none" -f visibility="all" \
+            || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+              -f name="${var_name}" -f value="none" -f visibility="all"
+          done
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_NODE_COUNT" \
+            -f name="GKE_NODE_COUNT" -f value="1" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_NODE_COUNT" -f value="1" -f visibility="all"
+
       - name: Summary
         run: |
           {

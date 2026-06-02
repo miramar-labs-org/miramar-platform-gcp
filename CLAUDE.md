@@ -184,9 +184,10 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 
 | Variable | Set by | Cleared by | Default |
 |---|---|---|---|
-| `GKE_NODE_COUNT` | GKE Expand (value: target node count) | GKE Restore (resets to `1`) | `1` |
-| `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU | `false` |
-| `GKE_GPU_TYPE` | GKE Expand GPU (value: accelerator type, e.g. `nvidia-l4`) | GKE Restore GPU | `none` |
+| `GKE_CLUSTER_ACTIVE` | GCP Platform Create | GCP Platform Destroy (resets to `false`) | `false` |
+| `GKE_NODE_COUNT` | GKE Expand (value: target node count) | GKE Restore (resets to `1`), GCP Platform Destroy | `1` |
+| `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU, GCP Platform Destroy | `false` |
+| `GKE_GPU_TYPE` | GKE Expand GPU (value: accelerator type, e.g. `nvidia-l4`) | GKE Restore GPU, GCP Platform Destroy | `none` |
 
 **Org-level variables required for AGX:**
 

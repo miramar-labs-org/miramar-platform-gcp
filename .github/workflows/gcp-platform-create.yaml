@@ -133,6 +133,14 @@ jobs:
           fi
           GH_TOKEN="$GITHUB_ORG_ADMIN_PAT" ./scripts/gha/sync-github-tf-vars.sh
 
+      - name: Mark cluster active
+        run: |
+          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_CLUSTER_ACTIVE" \
+            -f name="GKE_CLUSTER_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_CLUSTER_ACTIVE" -f value="true" -f visibility="all"
+
       - name: Summary
         run: |
           NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | grep -c . || echo 0)
