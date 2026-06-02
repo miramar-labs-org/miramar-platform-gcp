@@ -84,7 +84,16 @@ jobs:
       - name: Terraform Apply
         working-directory: gcp/terraform
         run: |
-          terraform apply -auto-approve -var-file=terraform.tfvars
+          for attempt in 1 2 3; do
+            terraform apply -auto-approve -var-file=terraform.tfvars && break
+            if [[ $attempt -lt 3 ]]; then
+              echo "Attempt $attempt failed — retrying in 60s..."
+              sleep 60
+            else
+              echo "All 3 attempts failed."
+              exit 1
+            fi
+          done
 
       - name: Get GKE credentials (WIF)
         if: steps.wif_auth.outcome == 'success'
