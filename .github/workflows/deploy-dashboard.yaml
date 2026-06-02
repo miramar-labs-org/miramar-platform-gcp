@@ -23,6 +23,8 @@ on:
       - "Ollama Undeploy"
       - "GKE Expand GPU"
       - "GKE Restore GPU"
+      - "GCP Platform Create"
+      - "GCP Platform Destroy"
     types: [completed]
 
 permissions:
