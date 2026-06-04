@@ -13,7 +13,7 @@ helm repo update >/dev/null
 helm upgrade "${MLFLOW_RELEASE}" community-charts/mlflow \
   -n "${MLFLOW_NS}" \
   --reuse-values \
-  --set "extraEnvVars.MLFLOW_DISABLE_DNS_REBIND_PROTECTION=true" \
+  --set "extraEnvVars.MLFLOW_SERVER_ALLOWED_HOSTS=*" \
   --wait --timeout 5m
 
 echo "MLflow redeployed"
