@@ -6,6 +6,7 @@ name: Create Project
 # default      — generic notebook + platform endpoint reference
 # kfp          — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
 # kfp-finetune — KFP v2 fine-tuning pipeline, notebook-first 7-step scaffold
+# kfp-ft-eval  — KFP v2 eval-first fine-tuning pipeline, config-driven 6-step scaffold
 # nemo         — NeMo training job config, notebook, deploy/undeploy NeMo workflows
 #
 # The host input sets which machine (dgx/agx) the project lives on:
@@ -24,7 +25,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, kfp-finetune, nemo]
+        options: [default, kfp, kfp-finetune, kfp-ft-eval, nemo]
         default: default
         required: true
       host:
@@ -144,7 +145,7 @@ jobs:
           # (which would break the YAML block scalar).
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           WF="${ORG_URL}/actions/workflows"
-          if [ "${PROJECT_TYPE}" = "kfp" ] || [ "${PROJECT_TYPE}" = "kfp-finetune" ]; then
+          if [ "${PROJECT_TYPE}" = "kfp" ] || [ "${PROJECT_TYPE}" = "kfp-finetune" ] || [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
             BADGE_2="[![Deploy to KFP](${WF}/deploy-kfp.yaml/badge.svg)](${WF}/deploy-kfp.yaml)"
             BADGE_3="[![Undeploy from KFP](${WF}/undeploy-kfp.yaml/badge.svg)](${WF}/undeploy-kfp.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
@@ -160,6 +161,7 @@ jobs:
           # type-specific packages (kfp or nemo-microservices).
           REQS="${{ inputs.requirements }}"
           [[ "${PROJECT_TYPE}" = "kfp" || "${PROJECT_TYPE}" = "kfp-finetune" ]] && REQS="${REQS} kfp>=2.0.0"
+          [[ "${PROJECT_TYPE}" = "kfp-ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes"
           [[ "${PROJECT_TYPE}" = "nemo" ]] && REQS="${REQS} nemo-microservices"
           printf '%s\n' ${REQS} > requirements.txt
 
@@ -298,6 +300,29 @@ jobs:
               "| Metric | Base | Fine-tuned |" "|--------|------|------------|" \
               "| <!-- TODO --> | | |" "" \
               "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
+            CATS="miramar kubeflow fine-tuning"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** ${HW} via [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Pipeline" "" "<!-- TODO: base model, dataset, fine-tuning approach -->" "" \
+              "## Steps" "" \
+              "| Step | Description |" "|------|-------------|" \
+              "| \`prepare_dataset\` | <!-- TODO --> |" \
+              "| \`baseline_eval\` | <!-- TODO --> |" \
+              "| \`fine_tune\` | <!-- TODO --> |" \
+              "| \`post_finetune_eval\` | <!-- TODO --> |" \
+              "| \`safety_eval\` | <!-- TODO --> |" \
+              "| \`deployment_gate\` | <!-- TODO --> |" "" \
+              "## Configuration" "" \
+              "| Parameter | Value |" "|-----------|-------|" \
+              "| Base model | <!-- TODO --> |" "| Dataset(s) | <!-- TODO --> |" \
+              "| LoRA rank | <!-- TODO --> |" "| Epochs | <!-- TODO --> |" "" \
+              "## Evaluation results" "" \
+              "| Metric | Base | Fine-tuned |" "|--------|------|------------|" \
+              "| Accuracy | | |" "| Safety score | | |" "" \
+              "## Next steps" "" "<!-- TODO -->")
           else
             CATS="miramar ml project"
             BODY=$(printf '%s\n' \
@@ -395,6 +420,14 @@ jobs:
               echo "2. Run the **Build → pipeline.py** cell to generate the pipeline file"
               echo "3. Trigger **Deploy to KFP** to compile and submit a run"
               echo "4. Prerequisites: **Kubeflow Deploy** must be running on \`${HOST}\`"
+            elif [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
+              echo "### Next steps"
+              echo "1. Edit \`config.yaml\` — set model ID, datasets, thresholds, and judge prompt"
+              echo "2. Edit \`formatters.py\` — add one formatter per dataset, register in \`FORMATTERS\`"
+              echo "3. Open \`notebook.ipynb\` and implement the \`TODO\` logic in each component cell"
+              echo "4. Run the **Build → \`pipeline.py\`** cell"
+              echo "5. Trigger **Deploy to KFP** to compile and submit a run"
+              echo "6. Prerequisites: **Kubeflow Deploy** must be running on \`${HOST}\`"
             else
               echo "### Next steps"
               echo "1. Edit \`job_config.yaml\` — set model, dataset path, hyperparameters"
