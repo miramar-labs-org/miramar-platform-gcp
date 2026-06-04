@@ -42,7 +42,10 @@ jobs:
         run: kubectl get nodes
 
       - name: Install kfp SDK
-        run: pip install kfp kfp-kubernetes pyyaml --quiet
+        run: pip install kfp kfp-kubernetes pyyaml pytest --quiet
+
+      - name: Smoke-test formatters
+        run: pytest tests/ -q
 
       - name: Compile and submit pipeline
         id: submit
