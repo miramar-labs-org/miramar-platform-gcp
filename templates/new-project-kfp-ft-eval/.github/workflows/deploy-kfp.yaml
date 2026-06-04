@@ -43,7 +43,7 @@ jobs:
 
       - name: Port-forward KFP API
         run: |
-          kubectl port-forward svc/ml-pipeline 8080:8080 -n kubeflow &
+          kubectl port-forward svc/ml-pipeline 8080:8888 -n kubeflow &
           sleep 4
 
       - name: Install kfp SDK
