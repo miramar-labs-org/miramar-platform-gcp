@@ -94,10 +94,18 @@ Drive the green/red dashboard badges. Set by deploy workflows, cleared by undepl
 | `CURRENT_NIM_VRAM_GB_AGX` | `0` | VRAM used by NIM on AGX |
 | `CURRENT_OLLAMA_VRAM_GB_AGX` | `0` | VRAM used by Ollama on AGX |
 
+## GitHub Actions Org Secrets (PATs)
+
+The two platform PATs are registered as org-level GitHub Actions secrets (visible to all repos). Used by workflows running on hosted runners (e.g. `deploy-dashboard.yaml`):
+
+| Secret | Scope | Purpose |
+| --- | --- | --- |
+| `MIRAMAR_ORG_GHCR_PAT` | `read:packages` | Pull `mlabs-runner` from GHCR on hosted runners |
+| `MIRAMAR_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Read org variables, manage repos, write workflow files |
+
 ## Host Environment Variables
 
-Each self-hosted runner machine needs classic GitHub PATs in its shell
-environment:
+Each self-hosted runner machine also needs the same PATs as local shell env vars so `launch-runner.sh` can pull the runner image and inject them into the container:
 
 | Variable | Scope required | Purpose |
 | --- | --- | --- |

@@ -223,7 +223,7 @@ The cluster is intentionally minimized. These constraints must be preserved:
 
 **Network:** containers run with `--network=host` so `.local` mDNS names (`spark-79b7.local`, `orin.local`, `msi.local`) resolve correctly.
 
-Local env vars required: `GITHUB_ORG_GHCR_PAT` (`read:packages`), `GITHUB_ORG_ADMIN_PAT` (`admin:org`, `repo`).
+Local env vars required: `GITHUB_ORG_GHCR_PAT` (`read:packages`), `GITHUB_ORG_ADMIN_PAT` (`admin:org`, `repo`). Both are also registered as org-level GitHub Actions secrets (`MIRAMAR_ORG_GHCR_PAT`, `MIRAMAR_ORG_ADMIN_PAT`) for use by hosted runners.
 
 To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`.
 

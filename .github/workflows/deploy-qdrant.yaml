@@ -58,7 +58,7 @@ jobs:
 
       - name: Set Qdrant active state
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')

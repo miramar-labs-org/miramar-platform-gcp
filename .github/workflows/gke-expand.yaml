@@ -89,7 +89,7 @@ jobs:
 
       - name: Update node count variable
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           gh variable set GKE_NODE_COUNT \
             --body "${{ inputs.target_nodes }}" \
