@@ -118,6 +118,26 @@ jobs:
         continue-on-error: true
         run: bash dgx/minikube/kubeflow/verify-kfp-endpoints.sh
 
+      - name: Sync API keys to cluster
+        env:
+          OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
+          HF_TOKEN:          ${{ secrets.HF_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WANDB_API_KEY:     ${{ secrets.WANDB_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          NGC_API_KEY:       ${{ secrets.NGC_API_KEY }}
+          NVIDIA_API_KEY:    ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          kubectl create secret generic mlabs-api-keys \
+            --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+            --from-literal=HF_TOKEN="$HF_TOKEN" \
+            --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+            --from-literal=WANDB_API_KEY="$WANDB_API_KEY" \
+            --from-literal=LANGCHAIN_API_KEY="$LANGCHAIN_API_KEY" \
+            --from-literal=NGC_API_KEY="$NGC_API_KEY" \
+            --from-literal=NVIDIA_API_KEY="$NVIDIA_API_KEY" \
+            -n kubeflow --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Set KFP active state
         run: |
           export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"

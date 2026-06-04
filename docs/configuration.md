@@ -11,8 +11,13 @@ host values are set manually.
 | Secret | Value | Purpose |
 | --- | --- | --- |
 | `WIF_PROVIDER` | output of `bootstrap-miramar-platform.zsh` | WIF provider resource path shared by repos for GCP auth |
-| `HF_TOKEN` | Hugging Face API token | Injected into workflow steps; not set on individual machines |
-| `NVIDIA_API_KEY` | NVIDIA NGC API key | Required by NeMo Microservices and NIM workflows |
+| `HF_TOKEN` | Hugging Face API token | Injected into KFP pods via `mlabs-api-keys` K8s secret; also used directly in workflow steps |
+| `NVIDIA_API_KEY` | NVIDIA NGC API key | Required by NeMo Microservices and NIM workflows; also injected into KFP pods via `mlabs-api-keys` |
+| `NGC_API_KEY` | NVIDIA NGC API key (pipeline use) | Injected into KFP pods via `mlabs-api-keys` K8s secret |
+| `OPENAI_API_KEY` | OpenAI API key | Injected into KFP pods via `mlabs-api-keys` K8s secret (e.g. GPT-4o judge in clinical pipelines) |
+| `ANTHROPIC_API_KEY` | Anthropic API key | Injected into KFP pods via `mlabs-api-keys` K8s secret |
+| `WANDB_API_KEY` | Weights & Biases API key | Injected into KFP pods via `mlabs-api-keys` K8s secret |
+| `LANGCHAIN_API_KEY` | LangChain / LangSmith API key | Injected into KFP pods via `mlabs-api-keys` K8s secret |
 | `HOST_SSH_KEY` | Private SSH key | SSH into DGX, AGX, or WSL2 hosts from runners (all machines share Spark's identity) |
 | `DGX_SMB_PASSWORD` | Samba password for DGX `aaron` | Used by **Setup Shared SSH Store**; not needed by WSL2 Provision |
 | `DGX_MINIKUBE_KUBECONFIG` | base64 kubeconfig | Written by **Minikube Install** (runner=dgx); used by minikube workflows |
@@ -108,5 +113,43 @@ export GITHUB_ORG_GHCR_PAT=ghp_...
 export GITHUB_ORG_ADMIN_PAT=ghp_...
 ```
 
-`HF_TOKEN` is a GitHub org secret and does not need to be set on individual
-machines.
+`HF_TOKEN` and all other API keys are GitHub org secrets and do not need to be
+set on individual machines — they are synced into the cluster automatically.
+
+## Kubernetes Secret — `mlabs-api-keys`
+
+The **Kubeflow Deploy** workflow creates (or updates) a Kubernetes Secret named
+`mlabs-api-keys` in the `kubeflow` namespace immediately after the smoke-test
+passes. This secret is the bridge from GHA org secrets into KFP component pods.
+
+| Key in secret | Source GHA secret |
+| --- | --- |
+| `OPENAI_API_KEY` | `OPENAI_API_KEY` |
+| `HF_TOKEN` | `HF_TOKEN` |
+| `ANTHROPIC_API_KEY` | `ANTHROPIC_API_KEY` |
+| `WANDB_API_KEY` | `WANDB_API_KEY` |
+| `LANGCHAIN_API_KEY` | `LANGCHAIN_API_KEY` |
+| `NGC_API_KEY` | `NGC_API_KEY` |
+| `NVIDIA_API_KEY` | `NVIDIA_API_KEY` |
+
+**To use in a KFP pipeline**, install `kfp-kubernetes` and add to the pipeline
+function (after each task is constructed):
+
+```python
+from kfp import kubernetes as k8s_ext
+
+SECRET = "mlabs-api-keys"
+SECRET_KEYS = [
+    "OPENAI_API_KEY", "HF_TOKEN", "ANTHROPIC_API_KEY",
+    "WANDB_API_KEY", "LANGCHAIN_API_KEY", "NGC_API_KEY", "NVIDIA_API_KEY",
+]
+for task in [task1, task2, ...]:
+    k8s_ext.use_secret_as_env(task, SECRET, {k: k for k in SECRET_KEYS})
+```
+
+The secret is idempotent — re-running **Kubeflow Deploy** updates it with the
+current secret values. To verify on DGX:
+
+```sh
+kubectl get secret mlabs-api-keys -n kubeflow
+```
