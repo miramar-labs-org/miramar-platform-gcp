@@ -37,18 +37,13 @@ jobs:
       - name: Verify cluster access
         run: kubectl get nodes
 
-      - name: Port-forward KFP API
-        run: |
-          kubectl port-forward svc/ml-pipeline 8080:8080 -n kubeflow &
-          sleep 4
-
       - name: Install kfp SDK
         run: pip install kfp --quiet
 
       - name: Compile and submit pipeline
         id: submit
         env:
-          KFP_HOST: http://localhost:8080
+          KFP_HOST: http://localhost:8890
           RUN_NAME: ${{ inputs.run_name }}
         run: python3 scripts/deploy_pipeline.py
 
