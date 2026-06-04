@@ -188,7 +188,10 @@ RUN pip3 install --no-cache-dir --upgrade \
     boto3 \
     s3fs \
     dill \
-    pytest
+    pytest \
+    kfp>=2.0.0 \
+    kfp-kubernetes \
+    pyyaml
 
 RUN useradd -m -s /bin/bash runner \
     && echo "runner ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
