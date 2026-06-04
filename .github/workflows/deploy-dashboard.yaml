@@ -42,7 +42,7 @@ jobs:
   build:
     name: Generate dashboard
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    runs-on: [self-hosted, dgx]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +50,7 @@ jobs:
         run: |
           mkdir -p /tmp/pages
           GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-          GH_ADMIN_TOKEN="${GITHUB_ORG_ADMIN_PAT}" \
+          GH_ADMIN_TOKEN="${{ secrets.GITHUB_ORG_ADMIN_PAT }}" \
           GH_DISPATCH_TOKEN="${{ secrets.DASHBOARD_DISPATCH_TOKEN }}" \
           bash scripts/dashboard/generate-dashboard.sh \
             --org miramar-labs-org \
@@ -64,7 +64,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    runs-on: [self-hosted, dgx]
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
