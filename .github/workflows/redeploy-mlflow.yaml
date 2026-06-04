@@ -1,0 +1,52 @@
+name: Redeploy MLflow
+
+# Lightweight MLflow config update — helm upgrade --reuse-values.
+# Use for config-only changes that don't require re-running the full
+# NeMo integration in deploy-mlflow.yaml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Target machine (dgx / agx)
+        required: true
+        default: dgx
+        type: choice
+        options: [dgx, agx]
+
+permissions:
+  contents: read
+
+jobs:
+  redeploy:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          cp ~/.kube/config-minikube ~/.kube/config 2>/dev/null || \
+          minikube -p minikube kubectl -- config view --raw > ~/.kube/config
+
+      - name: Redeploy MLflow
+        run: bash dgx/minikube/mlflow/redeploy-mlflow.sh
+
+      - name: Verify
+        run: |
+          kubectl rollout status deployment/mlflow-tracking -n mlflow-system --timeout=3m
+          echo "MLflow pod env:"
+          kubectl get deployment mlflow-tracking -n mlflow-system \
+            -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' | tr ' ' '\n' | grep -i mlflow || true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## MLflow Redeployed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
