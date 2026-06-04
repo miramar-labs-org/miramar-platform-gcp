@@ -27,9 +27,12 @@ jobs:
 
       - name: Set up kubeconfig
         run: |
-          mkdir -p ~/.kube
-          cp ~/.kube/config-minikube ~/.kube/config 2>/dev/null || \
-          minikube -p minikube kubectl -- config view --raw > ~/.kube/config
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
 
       - name: Redeploy MLflow
         run: bash dgx/minikube/mlflow/redeploy-mlflow.sh
