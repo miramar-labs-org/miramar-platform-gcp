@@ -80,7 +80,7 @@ def prepare_dataset(
 
 
 @dsl.component(
-    base_image="pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel",
+    base_image="nvcr.io/nvidia/pytorch:25.03-py3",
     packages_to_install=[
         "transformers>=4.45",
         "accelerate",
@@ -112,7 +112,7 @@ def baseline_eval(
 
 
 @dsl.component(
-    base_image="pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel",
+    base_image="nvcr.io/nvidia/pytorch:25.03-py3",
     packages_to_install=[
         "transformers>=4.45",
         "peft>=0.13",
@@ -160,7 +160,7 @@ def fine_tune(
 
 
 @dsl.component(
-    base_image="pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel",
+    base_image="nvcr.io/nvidia/pytorch:25.03-py3",
     packages_to_install=[
         "transformers>=4.45",
         "peft>=0.13",
@@ -194,7 +194,7 @@ def post_finetune_eval(
 
 
 @dsl.component(
-    base_image="pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel",
+    base_image="nvcr.io/nvidia/pytorch:25.03-py3",
     packages_to_install=[
         "transformers>=4.45",
         "peft>=0.13",
