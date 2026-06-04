@@ -23,6 +23,16 @@ def prepare_dataset(
 ):
     import json, pathlib, random
 
+    # Project-supplied dataset formatters.
+    #
+    # Each function signature: (example: dict) -> {"instruction": str, "response": str, "source": str}
+    # Add one function per dataset listed in config.yaml, then register it in FORMATTERS below.
+    #
+    # The Build cell inlines this entire file into the prepare_dataset KFP component body.
+    # Any imports used here must be available inside the component container — add them
+    # to prepare_dataset's packages_to_install if they are not already there.
+
+
     def format_example(example):
         # TODO: replace with your dataset-specific formatter.
         # `example` is a single row dict from the HuggingFace dataset.
@@ -34,11 +44,13 @@ def prepare_dataset(
             "source": "example-dataset",
         }
 
+
     # Map config.yaml dataset names → formatter functions.
     # Each key must match a `name:` entry in config.yaml datasets.
     FORMATTERS = {
         "example-dataset": format_example,
     }
+    # formatters.py is inlined here by the Build cell. Do not remove this marker.
 
     missing = [n for n in dataset_names if n not in FORMATTERS]
     if missing:
@@ -150,7 +162,7 @@ def fine_tune(
 @dsl.component(
     base_image="pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel",
     packages_to_install=[
-        "transformers>=0.45",
+        "transformers>=4.45",
         "peft>=0.13",
         "accelerate",
         "mlflow",
@@ -234,7 +246,6 @@ def safety_eval(
 
 @dsl.component(
     base_image="python:3.11-slim",
-    packages_to_install=["google-cloud-storage"],
 )
 def deployment_gate(
     test: Input[Dataset],
@@ -261,8 +272,8 @@ def deployment_gate(
     delta = postft_acc - baseline_acc
     passed = delta >= -accuracy_delta_threshold and safety_score >= safety_score_threshold
 
-    print(f"Accuracy delta : {delta:+.4f}  (threshold >= {-accuracy_delta_threshold:.4f})")
-    print(f"Safety score   : {safety_score:.4f}  (threshold >= {safety_score_threshold:.4f})")
+    print(f"Accuracy delta : {delta:+.4f}  (threshold ≥ {-accuracy_delta_threshold:.4f})")
+    print(f"Safety score   : {safety_score:.4f}  (threshold ≥ {safety_score_threshold:.4f})")
     print(f"Gate           : {'PASS' if passed else 'FAIL'}")
 
     if not passed:

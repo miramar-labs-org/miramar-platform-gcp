@@ -45,7 +45,7 @@ jobs:
         run: pip install kfp kfp-kubernetes pyyaml pytest --quiet
 
       - name: Smoke-test formatters
-        run: pytest tests/ -q
+        run: python -m pytest tests/ -q
 
       - name: Compile and submit pipeline
         id: submit
