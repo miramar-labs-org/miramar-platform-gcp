@@ -42,7 +42,7 @@ ROWS=""
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp-finetune") then "kfp-finetune" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp-ft-eval") then "kfp-ft-eval" elif index("miramar-kfp-finetune") then "kfp-finetune" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   sha=$(GH_TOKEN="$GH_TOKEN" gh api \
     "repos/${ORG}/${name}/commits?per_page=1" 2>/dev/null \
@@ -253,6 +253,7 @@ cat > "$OUTPUT" <<HTMLEOF
   }
   .badge-kfp          { background: #0c2d6b; color: #79c0ff; }
   .badge-kfp-finetune { background: #0c3340; color: #79d0f0; }
+  .badge-kfp-ft-eval  { background: #1a1a4f; color: #a78bfa; }
   .badge-nemo     { background: #1a4731; color: #3fb950; }
   .badge-other    { background: #2d2b00; color: #d29922; }
   .badge-default  { background: #2d2b00; color: #d29922; }
@@ -469,6 +470,7 @@ ${ROWS}
       <option value="default">default &mdash; generic notebook</option>
       <option value="kfp">kfp &mdash; Kubeflow pipeline stub</option>
       <option value="kfp-finetune">kfp-finetune &mdash; KFP fine-tuning pipeline</option>
+      <option value="kfp-ft-eval">kfp-ft-eval &mdash; KFP eval-first fine-tuning pipeline</option>
       <option value="nemo">nemo &mdash; NeMo training job</option>
     </select>
     <label class="modal-label" for="np-host">Host *</label>
