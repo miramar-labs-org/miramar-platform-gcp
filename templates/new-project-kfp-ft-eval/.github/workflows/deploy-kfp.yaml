@@ -44,6 +44,9 @@ jobs:
       - name: Install kfp SDK
         run: pip install kfp kfp-kubernetes pyyaml pytest --quiet
 
+      - name: Build pipeline.py from notebook
+        run: python3 scripts/build_pipeline.py
+
       - name: Smoke-test formatters
         run: python -m pytest tests/ -q
 
