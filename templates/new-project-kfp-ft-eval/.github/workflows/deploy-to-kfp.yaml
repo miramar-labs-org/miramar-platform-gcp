@@ -50,6 +50,9 @@ jobs:
       - name: Smoke-test formatters
         run: python -m pytest tests/ -q
 
+      - name: Pip dry-run check
+        run: python3 scripts/check_packages.py
+
       - name: Compile and submit pipeline
         id: submit
         env:
