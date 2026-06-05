@@ -1,0 +1,15 @@
+[Unit]
+Description=minikube mount — HuggingFace model cache (/home/aaron/shared/huggingface-kfp → /hf-cache)
+After=network-online.target minikube.service
+Wants=network-online.target minikube.service
+
+[Service]
+Type=simple
+Environment=HOME=%h
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/minikube mount %h/shared/huggingface-kfp:/hf-cache
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
