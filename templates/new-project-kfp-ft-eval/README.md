@@ -106,8 +106,8 @@ FORMATTERS = {
 | Step | Inputs | Outputs | Notes |
 |---|---|---|---|
 | `prepare_dataset` | `dataset_names`, `val_size`, `test_size` | `train_out`, `val_out`, `test_out` | Formatters inlined from `formatters.py` |
-| `baseline_eval` | `val_out`, `base_model_id` | `metrics` | Runs in parallel with `fine_tune` |
-| `fine_tune` | `train_out`, `val_out`, `base_model_id`, LoRA params | `ft_model` | Runs in parallel with `baseline_eval` |
+| `baseline_eval` | `val_out`, `base_model_id` | `metrics` | Runs before `fine_tune` (sequential to avoid OOM on single-node) |
+| `fine_tune` | `train_out`, `val_out`, `base_model_id`, LoRA params | `ft_model` | Runs after `baseline_eval` completes (`ft.after(base_eval)`) |
 | `post_finetune_eval` | `val_out`, `ft_model` | `metrics` | After `fine_tune` |
 | `safety_eval` | `val_out`, `ft_model`, judge params | `metrics` | After `fine_tune`; uses `OPENAI_API_KEY` |
 | `deployment_gate` | `test_out`, `ft_model`, all metrics, thresholds | — | Fails pipeline on regression |
