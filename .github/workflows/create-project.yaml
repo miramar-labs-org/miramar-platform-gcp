@@ -145,8 +145,8 @@ jobs:
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           WF="${ORG_URL}/actions/workflows"
           if [ "${PROJECT_TYPE}" = "kfp" ] || [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
-            BADGE_2="[![Deploy to KFP](${WF}/deploy-kfp.yaml/badge.svg)](${WF}/deploy-kfp.yaml)"
-            BADGE_3="[![Undeploy from KFP](${WF}/undeploy-kfp.yaml/badge.svg)](${WF}/undeploy-kfp.yaml)"
+            BADGE_2="[![Deploy to KFP](${WF}/deploy-to-kfp.yaml/badge.svg)](${WF}/deploy-to-kfp.yaml)"
+            BADGE_3="[![Undeploy from KFP](${WF}/undeploy-from-kfp.yaml/badge.svg)](${WF}/undeploy-from-kfp.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
           elif [ "${PROJECT_TYPE}" = "nemo" ]; then
