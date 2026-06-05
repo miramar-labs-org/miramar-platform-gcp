@@ -16,14 +16,15 @@ safety pass, then gates deployment on the results.
 
 **DAG:**
 ```
-prepare_dataset ─┬─► baseline_eval ──────────────────────────────►─┐
-                 │                                                   │
-                 └─► fine_tune ─┬─► post_finetune_eval ───────────►─┤
-                                │                                   │
-                                └─► safety_eval ──────────────────►─┤
-                                                                    │
-                                                            deployment_gate
+prepare_dataset ──► baseline_eval ──► fine_tune ─┬─► post_finetune_eval ──►─┐
+                                                 │                          │
+                                                 └─► safety_eval ──────────►┤
+                                                                            │
+                                                                   deployment_gate
 ```
+
+> `fine_tune` runs after `baseline_eval` (not parallel) — on single-node minikube, both steps
+> need GPU memory simultaneously and will exceed the allocatable limit if run together.
 
 To start a new project with this template, run **Create Project** in
 [miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) with type `kfp-ft-eval`.
