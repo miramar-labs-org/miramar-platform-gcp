@@ -2,10 +2,14 @@
 """
 Compile pipeline.py, register it in KFP (best-effort), and submit a run.
 
-Required env vars:
+Usage:
+  python3 scripts/deploy_pipeline.py --run-name run-001
+
+Env vars (override CLI):
   KFP_HOST   - KFP API server URL  (default: http://localhost:8080)
-  RUN_NAME   - display name for the run
+  RUN_NAME   - display name for the run (default: pipeline-run)
 """
+import argparse
 import os
 import sys
 
@@ -16,8 +20,13 @@ import kfp
 
 from pipeline import pipeline
 
-host = os.environ.get("KFP_HOST", "http://localhost:8080")
-run_name = os.environ.get("RUN_NAME", "pipeline-run")
+parser = argparse.ArgumentParser()
+parser.add_argument("--run-name", default=None, help="KFP run display name (also sets run_id pipeline param)")
+parser.add_argument("--host", default=None, help="KFP API server URL")
+args = parser.parse_args()
+
+host = args.host or os.environ.get("KFP_HOST", "http://localhost:8080")
+run_name = args.run_name or os.environ.get("RUN_NAME", "pipeline-run")
 pipeline_yaml = "/tmp/compiled-pipeline.yaml"
 
 # Derive pipeline name from the project directory
@@ -40,7 +49,7 @@ except Exception as e:
 
 run_response = client.create_run_from_pipeline_package(
     pipeline_file=pipeline_yaml,
-    arguments={},
+    arguments={"run_id": run_name},
     run_name=run_name,
 )
 run_id = run_response.run_id
