@@ -32,16 +32,16 @@ TODO
 
 ---
 
-## prepare_dataset (notebook cell)
+## prepare_dataset
 
-**Template default:** a `for name in dataset_names: pass` loop with a TODO comment.
+**Template default:** fully implemented — calls each loader from `loaders.py`, pools rows,
+shuffles, and splits into train/val/test using `val_size` and `test_size` from config.
 
-**What was filled in:**
+**What was filled in:** dataset-specific work lives in `formatters.py` and `loaders.py` above.
+No changes to the `prepare_dataset` component body should be needed unless you require custom
+split logic or preprocessing beyond the formatter.
 
-<!-- Describe: how datasets are loaded (HuggingFace paths, configs, splits), any
-     preprocessing beyond the formatter, and the train/val/test split strategy. -->
-
-TODO
+<!-- If you did change prepare_dataset beyond the template default, describe it here. -->
 
 ---
 
@@ -58,14 +58,74 @@ TODO
 
 ---
 
-## Step implementations (baseline_eval, fine_tune, post_finetune_eval, safety_eval)
+## baseline_eval
 
-**Template default:** placeholder `accuracy = 0.0` / `avg_score = 0.0` bodies with TODO comments.
+**Template default:** `accuracy = 0.0` placeholder, logs to MLflow.
 
 **What was filled in:**
 
-<!-- For each step implemented beyond the placeholder: describe the model loading strategy
-     (full precision vs. quantized, device_map, etc.), inference approach, metric computation,
-     and any performance or memory tradeoffs made. -->
+<!-- Model loading strategy: full precision vs. quantized? device_map? torch_dtype?
+     Inference approach: greedy decode, beam search, batch size?
+     Metric: what does "accuracy" mean for this domain — exact match, F1, ROUGE, custom?
+     MLflow metric key logged (must match what deployment_gate reads: "baseline_accuracy"). -->
+
+TODO
+
+---
+
+## fine_tune
+
+**Template default:** logs hyperparams to MLflow, no training.
+
+**What was filled in:**
+
+<!-- LoRA config: r, lora_alpha, target_modules, task_type.
+     Training: batch size, gradient accumulation, scheduler, any memory optimizations (gradient checkpointing, fp16/bf16).
+     How adapter is saved to ft_model.path.
+     MLflow: what params and metrics are logged. -->
+
+TODO
+
+---
+
+## post_finetune_eval
+
+**Template default:** `accuracy = 0.0` placeholder, logs to MLflow.
+
+**What was filled in:**
+
+<!-- How the PEFT adapter is loaded on top of the base model.
+     Same inference approach as baseline_eval? Any differences?
+     MLflow metric key logged (must match deployment_gate: "postft_accuracy"). -->
+
+TODO
+
+---
+
+## safety_eval
+
+**Template default:** `avg_score = 0.0` placeholder, logs to MLflow.
+
+**What was filled in:**
+
+<!-- Judge model used (judge_model_id from config.yaml).
+     Judge prompt design: what criteria, what scoring scale.
+     How responses are generated from the fine-tuned model.
+     How judge output is parsed into a numeric score.
+     MLflow metric key logged (must match deployment_gate: "safety_avg_score"). -->
+
+TODO
+
+---
+
+## deployment_gate
+
+**Template default:** fully implemented — compares accuracy delta and safety score against
+thresholds from config.yaml, raises RuntimeError on failure.
+
+**What was updated:**
+
+<!-- Were the metric keys changed from the defaults (baseline_accuracy, postft_accuracy,
+     safety_avg_score)? Were the thresholds tuned from config.yaml defaults? -->
 
 TODO
