@@ -58,7 +58,6 @@ Each loader in `loaders.py` is a zero-argument lambda that returns a mapped Hugg
 
 ```python
 from datasets import load_dataset
-from formatters import format_my_dataset
 
 LOADERS = {
     "my-dataset": lambda: load_dataset("org/repo", split="train").map(format_my_dataset),
@@ -66,8 +65,9 @@ LOADERS = {
 ```
 
 Register it with the same key as the `name:` in `config.yaml`. The Build cell inlines the entire
-`loaders.py` file into the `prepare_dataset` component body alongside `formatters.py`. Imports
-used in loaders (e.g. `load_dataset`) must be in `prepare_dataset`'s `packages_to_install`.
+`loaders.py` file after `formatters.py` into the `prepare_dataset` component body — formatter
+functions are already in scope, so no import is needed. Imports like `load_dataset` must be in
+`prepare_dataset`'s `packages_to_install`.
 
 ## Adding a new dataset
 
