@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: KFP run ID to terminate (shown in deploy-kfp summary or the KFP UI)
+        description: KFP run ID to terminate (shown in deploy-to-kfp summary or the KFP UI)
         required: true
 
 permissions:
