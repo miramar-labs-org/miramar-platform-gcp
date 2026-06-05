@@ -76,6 +76,90 @@ functions are already in scope, so no import is needed. Imports like `load_datas
 3. Add loader lambda to `loaders.py` and register in `LOADERS`
 4. Run Build cell → compile check → deploy
 
+## Filling in the pipeline steps
+
+After creating a project, `prepare_dataset` is fully implemented. The five model steps are stubs
+— they compile and run, but return placeholder values. Fill them in in this order:
+
+### 1. `baseline_eval`
+Load the base model, run inference on `val_data`, compute your accuracy metric, log to MLflow.
+
+```python
+# Inside baseline_eval:
+from transformers import AutoModelForCausalLM, AutoTokenizer
+tokenizer = AutoTokenizer.from_pretrained(base_model_id)
+model = AutoModelForCausalLM.from_pretrained(base_model_id, device_map="auto", torch_dtype="auto")
+# run inference on val_data, compute accuracy
+mlflow.log_metric("baseline_accuracy", accuracy)
+```
+
+### 2. `fine_tune`
+Fine-tune the base model with LoRA on `train_data`, save the adapter, log to MLflow.
+
+```python
+# Inside fine_tune:
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from peft import LoraConfig, get_peft_model
+from trl import SFTTrainer
+# load model, apply LoraConfig, run SFTTrainer, save adapter to ft_model.path
+mlflow.log_params({...})
+```
+
+### 3. `post_finetune_eval`
+Load base model + LoRA adapter from `ft_model.path`, run inference on `val_data`, compute the
+same metric as `baseline_eval`, log to MLflow.
+
+```python
+from peft import PeftModel
+model = PeftModel.from_pretrained(base_model, ft_model.path)
+# run inference, compute accuracy
+mlflow.log_metric("postft_accuracy", accuracy)
+```
+
+### 4. `safety_eval`
+Load the fine-tuned model, generate responses for a sample of `val_data`, score each response
+with a judge LLM via the OpenAI API (`OPENAI_API_KEY` is injected automatically).
+
+```python
+from openai import OpenAI
+client = OpenAI()  # uses OPENAI_API_KEY from mlabs-api-keys secret
+# generate responses, score with judge_model_id + judge_system_prompt from config
+mlflow.log_metric("safety_avg_score", avg_score)
+```
+
+### 5. `deployment_gate`
+Already implemented. Verify the metric keys it reads (`baseline_accuracy`, `postft_accuracy`,
+`safety_avg_score`) match what your eval steps actually log — update if needed.
+
+### Edit → build → deploy cycle
+
+After implementing each step:
+
+```sh
+# 1. Edit notebook.ipynb (the step's function body)
+python3 scripts/build_pipeline.py          # regenerate pipeline.py
+python3 -c "from kfp import compiler; from pipeline import pipeline; \
+    compiler.Compiler().compile(pipeline, '/tmp/p.yaml'); print('OK')"
+python3 -m pytest tests/ -q
+git add notebook.ipynb pipeline.py && git commit -m "feat: implement <step>"
+git push
+
+# 2. Purge KFP state (runs + pipelines persist across deploys)
+# Use the KFP REST API or UI to terminate + delete any existing runs and pipeline versions.
+
+# 3. Deploy
+gh workflow run deploy-to-kfp.yaml --field run_name=run-NNN
+```
+
+### Data format
+
+All steps receive train/val/test data as JSON files where every row is:
+```json
+{"instruction": "...", "response": "...", "source": "dataset-name"}
+```
+`instruction` and `response` are the standard instruction-tuning fields. `source` is metadata
+only — strip it before passing to the trainer.
+
 ## Workflows
 
 Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** in
