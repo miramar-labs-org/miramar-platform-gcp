@@ -1,6 +1,7 @@
 """
-Re-generate pipeline.py by inlining formatters.py into the prepare_dataset
-component body. Mirrors the Build cell in notebook.ipynb — run either one.
+Re-generate pipeline.py by inlining formatters.py and loaders.py into the
+prepare_dataset component body. Mirrors the Build cell in notebook.ipynb — run
+either one.
 """
 import json, pathlib, re, textwrap
 
@@ -8,9 +9,12 @@ import json, pathlib, re, textwrap
 def build_pipeline(
     notebook_path="notebook.ipynb",
     formatters_path="formatters.py",
+    loaders_path="loaders.py",
 ):
+    base_dir = pathlib.Path(notebook_path).parent
     nb = json.loads(pathlib.Path(notebook_path).read_text())
-    formatters_src = pathlib.Path(formatters_path).read_text().rstrip("\n")
+    formatters_src = (base_dir / formatters_path).read_text().rstrip("\n")
+    loaders_src = (base_dir / loaders_path).read_text().rstrip("\n")
 
     step_srcs, pipeline_src = [], None
     for cell in nb["cells"]:
@@ -22,6 +26,9 @@ def build_pipeline(
             if "# <<< FORMATTERS_INJECT >>>" in src:
                 indented = textwrap.indent(formatters_src, "    ")
                 src = src.replace("    # <<< FORMATTERS_INJECT >>>", indented)
+            if "# <<< LOADERS_INJECT >>>" in src:
+                indented = textwrap.indent(loaders_src, "    ")
+                src = src.replace("    # <<< LOADERS_INJECT >>>", indented)
             step_srcs.append(src)
         elif "kfp_pipeline" in tags:
             pipeline_src = src

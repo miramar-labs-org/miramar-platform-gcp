@@ -12,6 +12,7 @@
 |---|---|
 | `config.yaml` | Project config — model ID, datasets, LoRA params, eval thresholds, judge prompt |
 | `formatters.py` | Dataset formatters — one function per dataset, registered in `FORMATTERS` dict |
+| `loaders.py` | Dataset loaders — one lambda per dataset, registered in `LOADERS` dict |
 | `notebook.ipynb` | Source of truth — develop step logic here, run the Build cell to regenerate `pipeline.py` |
 | `pipeline.py` | Generated from notebook — **do not edit manually** |
 | `scripts/deploy_pipeline.py` | Compile, register, and submit a run (called by Deploy to KFP workflow) |
@@ -51,11 +52,28 @@ The Build cell inlines the entire `formatters.py` file into the `prepare_dataset
 Any imports used by the formatters must be available in the component container — add them to
 `prepare_dataset`'s `packages_to_install`.
 
+## Writing loaders
+
+Each loader in `loaders.py` is a zero-argument lambda that returns a mapped HuggingFace Dataset:
+
+```python
+from datasets import load_dataset
+from formatters import format_my_dataset
+
+LOADERS = {
+    "my-dataset": lambda: load_dataset("org/repo", split="train").map(format_my_dataset),
+}
+```
+
+Register it with the same key as the `name:` in `config.yaml`. The Build cell inlines the entire
+`loaders.py` file into the `prepare_dataset` component body alongside `formatters.py`. Imports
+used in loaders (e.g. `load_dataset`) must be in `prepare_dataset`'s `packages_to_install`.
+
 ## Adding a new dataset
 
 1. Add entry to `config.yaml` under `datasets:`
 2. Add formatter to `formatters.py` and register in `FORMATTERS`
-3. Implement the load logic in `prepare_dataset` (find the `TODO` in that cell)
+3. Add loader lambda to `loaders.py` and register in `LOADERS`
 4. Run Build cell → compile check → deploy
 
 ## Workflows
