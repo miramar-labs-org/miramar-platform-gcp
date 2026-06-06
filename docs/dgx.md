@@ -227,8 +227,11 @@ Profiling uses a dedicated PVC (`nsight-cache`) mounted at `/nsight-cache/` insi
 component pod, backed by a minikube 9p mount from the DGX host.
 
 ```bash
-# 1. Create host directory
+# 1. Create host directory with world-writable permissions
+#    IMPORTANT: must be 777 — minikube 9p does not map container UIDs to the
+#    host user, so pods (running as root) cannot write into 755 directories.
 mkdir -p /home/aaron/shared/nsight
+chmod 777 /home/aaron/shared/nsight
 
 # 2. Start the minikube mount (must stay running during pipeline runs)
 minikube mount /home/aaron/shared/nsight:/nsight-cache &
