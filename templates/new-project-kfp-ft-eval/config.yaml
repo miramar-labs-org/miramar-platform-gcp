@@ -12,6 +12,8 @@ lora:
   alpha: 32
   dropout: 0.05
   target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  bias: "none"
+  task_type: "CAUSAL_LM"
 
 training:
   num_epochs: 3
@@ -19,12 +21,20 @@ training:
   batch_size: 2
   gradient_accumulation_steps: 8
   max_seq_length: 2048
+  bf16: true
+  gradient_checkpointing: true
+  eval_strategy: "epoch"
+  logging_steps: 10
   val_size: 0.1
   test_size: 0.1
 
 eval:
   sample_size: 200
   safety_sample_size: 100
+  max_new_tokens: 1024
+  safety_max_new_tokens: 256
+  do_sample: false
+  system_message: "You are a helpful medical assistant."  # TODO: update for your domain
   accuracy_delta_threshold: 0.02
   safety_score_threshold: 4.0
 
