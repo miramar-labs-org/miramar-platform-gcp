@@ -14,7 +14,8 @@
 | `formatters.py` | Dataset formatters — one function per dataset, registered in `FORMATTERS` dict |
 | `loaders.py` | Dataset loaders — one lambda per dataset, registered in `LOADERS` dict |
 | `notebook.ipynb` | Source of truth — develop step logic here, run the Build cell to regenerate `pipeline.py` |
-| `pipeline.py` | Generated from notebook — **do not edit manually** |
+| `pipeline.py` | Generated from notebook — **do not edit manually** (gitignored) |
+| `WORKBOOK.md` | Implementation checklist — every `USER CODE BLOCK` and helper file to fill in, with order and snippets |
 | `scripts/deploy_pipeline.py` | Compile, register, and submit a run (called by Deploy to KFP workflow) |
 | `scripts/terminate_pipeline.py` | Terminate a run by ID (called by Undeploy from KFP workflow) |
 | `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run (git-ignored) |
@@ -156,7 +157,7 @@ python3 scripts/build_pipeline.py          # regenerate pipeline.py
 python3 -c "from kfp import compiler; from pipeline import pipeline; \
     compiler.Compiler().compile(pipeline, '/tmp/p.yaml'); print('OK')"
 python3 -m pytest tests/ -q
-git add notebook.ipynb pipeline.py && git commit -m "feat: implement <step>"
+git add notebook.ipynb && git commit -m "feat: implement <step>"  # pipeline.py is gitignored (regenerated on deploy)
 git push
 
 # 2. Purge KFP state (runs + pipelines persist across deploys)

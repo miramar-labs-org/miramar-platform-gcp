@@ -35,7 +35,7 @@ To start a new project with this template, run **Create Project** in
 
 1. Edit `config.yaml` — set `model.id`, the `datasets` list, LoRA params, eval thresholds, and judge prompt
 2. Edit `formatters.py` — add one function per dataset that maps a raw HF row to `{instruction, response, source}`; register in `FORMATTERS`
-3. Open `notebook.ipynb` in JupyterLab and implement the `TODO` logic in each `@dsl.component` cell
+3. Open `notebook.ipynb` in JupyterLab and fill in every `# ---- USER CODE BLOCK ----` section (see `WORKBOOK.md` for the full checklist)
 4. Save (`Ctrl+S`), run the **Build → `pipeline.py`** cell
 5. Run the compile check:
    ```sh
@@ -149,7 +149,7 @@ Use **ML** experiment type (not *GenAI apps & agents*). Logged values:
      hf_path: org/my-dataset
    ```
 2. Add a formatter to `formatters.py` and register it in `FORMATTERS`
-3. Add the load logic in the `prepare_dataset` cell (find the `TODO`)
+3. Add a loader lambda to `loaders.py` and register it in `LOADERS`
 4. Save, run Build cell, compile check, trigger **Deploy to KFP**
 
 ---

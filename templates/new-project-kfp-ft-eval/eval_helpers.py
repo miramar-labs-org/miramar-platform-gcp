@@ -13,6 +13,13 @@ def extract_answer(text):
     return text.strip().lower().split()[0] if text.strip() else ""
 
 
+def make_infer_fn(tokenizer, model, system_message, max_new_tokens, do_sample):
+    # TODO: implement for your model's chat template and generation config.
+    def _infer(row):
+        return ""  # TODO: apply chat template, generate, decode
+    return _infer
+
+
 def _make_user_content(row):
     # TODO: format the user-turn content for inference.
     # row has keys: instruction, response, source
