@@ -1,7 +1,14 @@
-# KFP Slash Commands
+# Platform Slash Commands
 
-Two Claude Code slash commands cover the full run lifecycle for any project scaffolded from the
-`kfp-ft-eval` template. Both auto-detect the project from the current directory.
+Claude Code slash commands for the Miramar platform. All commands live in `~/.claude/commands/`
+on the DGX and auto-detect the project from the current directory unless otherwise noted.
+
+---
+
+## KFP Run Lifecycle
+
+Two commands cover the full run lifecycle for any project scaffolded from the `kfp-ft-eval`
+template. Both auto-detect the project from the current directory.
 
 ---
 
@@ -171,6 +178,100 @@ What it does:
 
 **Prerequisites:** `nsys` must be installed and on `PATH`; the `.nsys-rep` file must
 be readable from the current machine (not inside a pod).
+
+---
+
+## Handoff & Session Skills
+
+Three commands manage context handoffs between Claude Code sessions. They work in any repo
+(not just KFP projects). Handoffs are written to the Obsidian vault at
+`/home/aaron/shared/VAULT/handoffs/<repo-name>/HANDOFF_<timestamp>.md`.
+
+---
+
+### `/handoff [note]`
+
+**Write a handoff if work has progressed since the last one; skip if it's still current.**
+
+```bash
+# Auto-check and write if stale
+/handoff
+
+# Include a note about focus or next step
+/handoff finishing the deployment gate fix
+```
+
+What it does:
+1. Checks age and staleness of the last handoff (< 30 min, 0 new commits, clean tree → skips)
+2. Gathers repo state: branch, status, recent commits, staged/unstaged diffs
+3. Writes a structured handoff document with: Goal, Current state, Failed approaches, Key
+   decisions, Next steps, Gotchas & environment
+4. Reports the file path
+
+The global `CLAUDE.md` rule also triggers this proactively at ~60% context usage — you should
+not need to call it manually unless you want a checkpoint at a specific moment.
+
+---
+
+### `/resume-handoff [filename]`
+
+**Orient before starting: load the latest (or named) handoff, check for drift, then wait for
+confirmation before doing any work.**
+
+```bash
+# Load the latest handoff for this repo
+/resume-handoff
+
+# Load a specific handoff file
+/resume-handoff HANDOFF_20260606_1316.md
+```
+
+What it does:
+1. Locates the latest handoff for the current repo (or the named file if given)
+2. Reads it in full, then checks `git status` and `git log -5` for drift
+3. Reports: where we left off, any drift from the handoff, proposed first step
+4. **Waits for you to say "go"** before executing anything
+
+Use this at the start of a new session to re-orient without immediately triggering actions.
+
+---
+
+### `/continue-handoff [filename]`
+
+**Like `/resume-handoff` but skips the confirmation — loads the handoff and continues executing
+immediately.**
+
+```bash
+# Load latest and keep going
+/continue-handoff
+
+# Load a specific file and keep going
+/continue-handoff HANDOFF_20260606_1316.md
+```
+
+What it does:
+1. Same locate + load as `/resume-handoff`
+2. Checks `git status` / `git log -5` for drift
+3. Reports which handoff was loaded and the next step it's taking, then **executes immediately**
+4. Only pauses if the repo has drifted in a way that makes the plan unsafe, or if a step is
+   destructive / irreversible
+
+Use this when you trust the handoff and want to resume without a confirmation round-trip.
+
+---
+
+### Typical handoff workflow
+
+```bash
+# During a session — write checkpoint (or let the global rule trigger it at 60% context)
+/handoff
+
+# Next session — start fresh, review before acting
+/resume-handoff    # reads, drifts, proposes step → "go"
+
+# Next session — already familiar, just keep going
+/continue-handoff  # reads, executes
+```
 
 ---
 
