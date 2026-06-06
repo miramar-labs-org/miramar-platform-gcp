@@ -2,7 +2,5 @@
 # Each value: () -> HuggingFace Dataset (train split, mapped through formatter)
 # Key must match a `name:` entry in config.yaml datasets.
 LOADERS = {
-    # ---- USER CODE BLOCK ----
     "example-dataset": lambda: [],  # TODO: replace with real loader
-    # ---- END USER CODE BLOCK ----
 }
