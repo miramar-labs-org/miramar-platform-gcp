@@ -132,6 +132,48 @@ settings — then offers the full card on request.
 
 ---
 
+## `/nsight-interpret [report | run-NNN] [--ollama model]`
+
+**Extracts Nsight Systems profiling summaries and sends them to an LLM for bottleneck
+analysis — no manual reading of `.nsys-rep` files required.**
+
+```bash
+# Auto-detect latest report in the project's nsight-reports directory
+/nsight-interpret
+
+# Report from a specific run
+/nsight-interpret run-021
+
+# Direct path
+/nsight-interpret /nsight-reports/my-project/run-021/baseline.nsys-rep
+
+# Use a local Ollama model instead of Claude API
+/nsight-interpret run-021 --ollama llama3
+```
+
+What it does:
+1. Locates the `.nsys-rep` file (argument → run name → latest auto-detected)
+2. Runs `nsys stats` for five report types: `cuda_gpu_kern_sum`, `cuda_api_sum`,
+   `cuda_gpu_mem_time_sum`, `cuda_gpu_mem_size_sum`, `nvtx_sum`
+3. Sends the extracted tables to an LLM with a GPU optimization system prompt
+4. Returns a structured analysis covering:
+   - Top 3 bottlenecks (ranked by % of total time)
+   - GPU idle / underutilization gaps
+   - Memory transfer overhead vs compute time
+   - NVTX stage breakdown (if annotations present)
+   - Prioritized recommended next steps
+   - What's already well-optimized
+
+**LLM backends:**
+- Claude Code skill (`/nsight-interpret`): uses `claude-opus-4-8` by default
+- Codex skill (`/nsight-interpret`): uses `gpt-4o` by default
+- Both accept `--ollama <model>` to use a local model via Ollama instead
+
+**Prerequisites:** `nsys` must be installed and on `PATH`; the `.nsys-rep` file must
+be readable from the current machine (not inside a pod).
+
+---
+
 ## Prerequisites
 
 - KFP running on DGX (`kubeflow` namespace) — deploy via `deploy-kubeflow.yaml` workflow

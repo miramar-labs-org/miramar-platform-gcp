@@ -29,6 +29,7 @@
 | `/kfp-deploy [run-NNN] [--profile-baseline\|--profile-finetune\|--profile-nsight]` | Purge KFP, deploy next run, create `runs/run-NNN.md` |
 | `/kfp-monitor [run-NNN]` | Self-paced monitoring loop — checks pods + MLflow, appends to `runs/run-NNN.md` |
 | `/model-card [org/model-id]` | Fetch and display the HuggingFace model card (defaults to `base_model_id` from `config.yaml`) |
+| `/nsight-interpret [run-NNN\|path] [--ollama model]` | Interpret an Nsight Systems `.nsys-rep` report with an LLM — bottlenecks, idle time, optimization recommendations |
 
 Full docs: [miramar-platform-gcp/docs/kfp-skills.md](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/kfp-skills.md)
 
