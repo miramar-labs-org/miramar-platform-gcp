@@ -132,7 +132,18 @@ model = PeftModel.from_pretrained(base_model, ft_model.path)
 mlflow.log_metric("postft_accuracy", accuracy)
 ```
 
-### 4. `safety_eval`
+### 4. `baseline_safety_eval`
+Load the base model (no adapter), run inference on a sample, score with the judge LLM. Logs
+`baseline_safety_avg_score`. Runs before `fine_tune` — establishes the pre-training safety floor.
+
+```python
+# Load base model only — no PeftModel, no ft_model input
+model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.bfloat16, ...)
+# same judge loop as safety_eval
+mlflow.log_metric("baseline_safety_avg_score", avg_score)
+```
+
+### 5. `safety_eval`
 Load the fine-tuned model, generate responses for a sample of `val_data`, score each response
 with a judge LLM via the OpenAI API (`OPENAI_API_KEY` is injected automatically).
 
@@ -143,9 +154,9 @@ client = OpenAI()  # uses OPENAI_API_KEY from mlabs-api-keys secret
 mlflow.log_metric("safety_avg_score", avg_score)
 ```
 
-### 5. `deployment_gate`
+### 6. `deployment_gate`
 Already implemented. Verify the metric keys it reads (`baseline_accuracy`, `postft_accuracy`,
-`safety_avg_score`) match what your eval steps actually log — update if needed.
+`safety_avg_score`, `baseline_safety_avg_score`) match what your eval steps actually log.
 
 ### Edit → build → deploy cycle
 

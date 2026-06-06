@@ -16,15 +16,16 @@ safety pass, then gates deployment on the results.
 
 **DAG:**
 ```
-prepare_dataset ──► baseline_eval ──► fine_tune ─┬─► post_finetune_eval ──►─┐
-                                                 │                          │
-                                                 └─► safety_eval ──────────►┤
-                                                                            │
-                                                                   deployment_gate
+prepare_dataset
+  --> baseline_eval
+  --> baseline_safety_eval
+  --> fine_tune
+        --> post_finetune_eval --> deployment_gate
+        --> safety_eval        -->
 ```
 
-> `fine_tune` runs after `baseline_eval` (not parallel) — on single-node minikube, both steps
-> need GPU memory simultaneously and will exceed the allocatable limit if run together.
+> `fine_tune` runs after both baseline evals (not parallel) — on single-node minikube, GPU steps
+> cannot overlap without exceeding the allocatable memory limit.
 
 To start a new project with this template, run **Create Project** in
 [miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) with type `kfp-ft-eval`.
@@ -106,8 +107,9 @@ FORMATTERS = {
 | Step | Inputs | Outputs | Notes |
 |---|---|---|---|
 | `prepare_dataset` | `dataset_names`, `val_size`, `test_size` | `train_out`, `val_out`, `test_out` | Formatters inlined from `formatters.py` |
-| `baseline_eval` | `val_out`, `base_model_id` | `metrics` | Runs before `fine_tune` (sequential to avoid OOM on single-node) |
-| `fine_tune` | `train_out`, `val_out`, `base_model_id`, LoRA params | `ft_model` | Runs after `baseline_eval` completes (`ft.after(base_eval)`) |
+| `baseline_eval` | `val_out`, `base_model_id` | `metrics` | Base model accuracy before fine-tuning |
+| `baseline_safety_eval` | `val_out`, `base_model_id`, judge params | `metrics` | Base model safety before fine-tuning; uses `OPENAI_API_KEY` |
+| `fine_tune` | `train_out`, `val_out`, `base_model_id`, LoRA params | `ft_model` | After both baseline evals; sequential to avoid OOM |
 | `post_finetune_eval` | `val_out`, `ft_model` | `metrics` | After `fine_tune` |
 | `safety_eval` | `val_out`, `ft_model`, judge params | `metrics` | After `fine_tune`; uses `OPENAI_API_KEY` |
 | `deployment_gate` | `test_out`, `ft_model`, all metrics, thresholds | — | Fails pipeline on regression |
@@ -135,6 +137,7 @@ ssh -L 5000:localhost:5000 <user>@spark-79b7.local
 
 Use **ML** experiment type (not *GenAI apps & agents*). Logged values:
 - `baseline_eval` → `baseline_accuracy`
+- `baseline_safety_eval` → `baseline_safety_avg_score`
 - `fine_tune` → training hyperparameters
 - `post_finetune_eval` → `postft_accuracy`
 - `safety_eval` → `safety_avg_score`

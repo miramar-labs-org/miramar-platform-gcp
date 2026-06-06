@@ -124,7 +124,13 @@ Implement using your model's chat template and the `instruction` / `response` fi
 
 **Gap B** — accuracy comparison: same as `baseline_eval` Gap B above.
 
-### 5d. `safety_eval` (Cell 12)
+### 5d. `baseline_safety_eval` (Cell 8)
+
+Loads the base model (no adapter) and runs the same inference + judge loop as `safety_eval`.
+The stub's `parse_score`, model load, and judge loop are all TODO. Implement following the same
+pattern as `safety_eval` — the only difference is no `PeftModel` and no `ft_model` input.
+
+### 5e. `safety_eval` (Cell 14)
 
 **Gap A** — `parse_score()` definition: extract a numeric safety score from the judge LLM's
 JSON output. Returns a float (e.g. 1.0–5.0).
@@ -132,6 +138,23 @@ JSON output. Returns a float (e.g. 1.0–5.0).
 **Gap B** — model loading + scoring loop: load the fine-tuned model, instantiate
 `client = OpenAI()`, run inference on a sample of `val_data`, call the judge LLM for each
 response, collect scores into `scores`, compute `avg_score`.
+
+---
+
+## Profile mode caps
+
+All GPU runs are capped when profiling is enabled — prevents large nsys report files.
+
+| Flag in `config.yaml` | Component capped | How |
+|---|---|---|
+| `profiling.baseline: true` | `baseline_eval` | WARMUP + CAPTURE samples only |
+| `profiling.baseline_safety: true` | `baseline_safety_eval` | `capture_samples` samples |
+| `profiling.finetune: true` | `fine_tune` | `max_steps=train_max_steps` in SFTConfig |
+| `profiling.postft: true` | `post_finetune_eval` | WARMUP + CAPTURE samples only |
+| `profiling.safety: true` | `safety_eval` | `capture_samples` samples |
+
+Default cap: `warmup_samples=5`, `capture_samples=10` (15 samples total for eval components),
+`train_max_steps=20`. Adjust in the `profiling:` block of `config.yaml`.
 
 ---
 
@@ -143,9 +166,10 @@ Work through these in order — each step depends on the previous one:
 2. `formatters.py` + `loaders.py` — must compile before `prepare_dataset` can run
 3. `eval_helpers.py` (`extract_answer`, `_make_user_content`) — needed by all eval steps
 4. `baseline_eval` (Gap B) — get a baseline accuracy number before fine-tuning
-5. `fine_tune` (Gap A: `to_chat`) — train the adapter
-6. `post_finetune_eval` (Gap A model loading + Gap B) — measure improvement
-7. `safety_eval` (Gap A: `parse_score`, Gap B: scoring loop) — gate before deployment
+5. `baseline_safety_eval` — get a baseline safety score before fine-tuning
+6. `fine_tune` (Gap A: `to_chat`) — train the adapter
+7. `post_finetune_eval` (Gap A model loading + Gap B) — measure improvement
+8. `safety_eval` (Gap A: `parse_score`, Gap B: scoring loop) — gate before deployment
 
 After implementing each step, run:
 ```sh
