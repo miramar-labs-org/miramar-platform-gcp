@@ -33,6 +33,7 @@ def _make_profiled_variant(func_name, src, profiled_image):
             "                correct_p += 1\n"
             "        profiling_accuracy = correct_p / TOTAL_P if TOTAL_P else 0.0\n"
             "        mlflow.log_metric(\"profiling_accuracy\", profiling_accuracy)\n"
+            "        correct = correct_p\n"
             "        accuracy = profiling_accuracy\n"
             "\n"
         )
