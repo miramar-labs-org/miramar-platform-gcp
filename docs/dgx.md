@@ -213,3 +213,100 @@ curl http://nim.test/v1/models
 ```
 
 Available DGX Spark NIMs: [NVIDIA NIM supported models](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html) · [NGC DGX Spark containers](https://catalog.ngc.nvidia.com/orgs/nim/containers?filters=&orderBy=scoreDESC&query=dgx-spark).
+
+## GPU Profiling
+
+KFP pipeline projects can optionally profile individual GPU stages with **NVIDIA Nsight Systems**
+(`nsys`). When enabled, a stage re-runs its GPU-heavy work as a subprocess under `nsys profile`
+and writes a `.nsys-rep` report to a shared host directory, organized by project, run ID, and
+stage name.
+
+### Infrastructure (one-time setup per fresh minikube)
+
+Profiling uses a dedicated PVC (`nsight-cache`) mounted at `/nsight-cache/` inside each GPU
+component pod, backed by a minikube 9p mount from the DGX host.
+
+```bash
+# 1. Create host directory
+mkdir -p /home/aaron/shared/nsight
+
+# 2. Start the minikube mount (must stay running during pipeline runs)
+minikube mount /home/aaron/shared/nsight:/nsight-cache &
+
+# 3. Apply the PV and PVC
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nsight-cache
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /nsight-cache
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nsight-cache
+  namespace: kubeflow
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: ""
+  volumeName: nsight-cache
+EOF
+```
+
+Verify:
+
+```bash
+minikube ssh "ls /nsight-cache"
+kubectl get pvc nsight-cache -n kubeflow
+```
+
+### Enabling profiling in a pipeline run
+
+Projects built from the `kfp-ft-eval` template expose `--profile-*` flags on `deploy_pipeline.py`:
+
+```bash
+python3 scripts/deploy_pipeline.py \
+    --run-name run-019 \
+    --profile-baseline \
+    --profile-finetune \
+    --profile-postft \
+    --profile-safety
+```
+
+All flags default to off — a run with no flags set behaves identically to a run before the feature
+existed (no subprocess, no file writes, the PVC mount is unused).
+
+### Output location
+
+```
+/home/aaron/shared/nsight/
+  <project-name>/
+    <run-id>/
+      baseline-eval/profile.nsys-rep
+      fine-tune/profile.nsys-rep
+      post-finetune-eval/profile.nsys-rep
+      safety-eval/profile.nsys-rep
+```
+
+### Viewing reports
+
+```bash
+nsys-ui /home/aaron/shared/nsight/<project>/<run-id>/baseline-eval/profile.nsys-rep
+```
+
+Or copy any `.nsys-rep` file to any machine with the Nsight Systems desktop GUI installed. The
+timeline shows CUDA kernels, memory transfers, CPU threads, and NVTX ranges.
+
+See `NSIGHT.md` in each project repo for stage-specific notes (capture duration limits,
+expected report sizes, fine_tune vs eval differences) and troubleshooting.
