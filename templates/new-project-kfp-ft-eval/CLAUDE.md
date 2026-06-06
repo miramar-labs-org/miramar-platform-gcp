@@ -17,6 +17,19 @@
 | `pipeline.py` | Generated from notebook — **do not edit manually** |
 | `scripts/deploy_pipeline.py` | Compile, register, and submit a run (called by Deploy to KFP workflow) |
 | `scripts/terminate_pipeline.py` | Terminate a run by ID (called by Undeploy from KFP workflow) |
+| `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run (git-ignored) |
+| `runs/run-NNN.md` | Periodic status log for run NNN, written by the monitoring loop (git-ignored) |
+| `NSIGHT.md` | Nsight Systems GPU profiling — how to enable, output paths, viewing reports |
+| `TROUBLESHOOTING.md` | Known issues and fixes for platform-specific problems on DGX Spark |
+
+## Slash commands
+
+| Command | What it does |
+|---|---|
+| `/kfp-deploy [run-NNN] [--profile-baseline\|--profile-finetune\|--profile-nsight]` | Purge KFP, deploy next run, create `runs/run-NNN.md` |
+| `/kfp-monitor [run-NNN]` | Self-paced monitoring loop — checks pods + MLflow, appends to `runs/run-NNN.md` |
+
+Full docs: [miramar-platform-gcp/docs/kfp-skills.md](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/kfp-skills.md)
 
 ## Editing config.yaml
 
