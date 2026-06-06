@@ -114,6 +114,96 @@ jobs:
           '
           kubectl get pods -n kubeflow
 
+      - name: Create KFP shared storage
+        run: |
+          # --- Host directories ---
+          # World-writable (777): minikube 9p does not map container UIDs to the
+          # host user, so pods (root/UID 0) cannot write into 755 directories.
+          mkdir -p "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
+          chmod 777 "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
+
+          # --- minikube 9p mounts (idempotent) ---
+          # umask 000 on the subshell ensures the 9p server inherits umask 0,
+          # so all directories created through the mount get 777 permissions
+          # (not 755, which pods cannot write into via this mount).
+          if ! minikube ssh "mount 2>/dev/null | grep -q '/hf-cache'" 2>/dev/null; then
+            echo "==> Starting hf-cache minikube mount..."
+            (umask 000; nohup minikube mount "${HOME}/shared/huggingface-kfp:/hf-cache" \
+              > /tmp/minikube-mount-hf.log 2>&1) &
+            disown $!
+          else
+            echo "==> hf-cache already mounted in VM."
+          fi
+          if ! minikube ssh "mount 2>/dev/null | grep -q '/nsight-reports'" 2>/dev/null; then
+            echo "==> Starting nsight-reports minikube mount..."
+            (umask 000; nohup minikube mount "${HOME}/shared/nsight:/nsight-reports" \
+              > /tmp/minikube-mount-nsight.log 2>&1) &
+            disown $!
+          else
+            echo "==> nsight-reports already mounted in VM."
+          fi
+          sleep 5
+
+          # --- PV + PVC manifests (idempotent — kubectl apply is safe to re-run) ---
+          kubectl apply -f - <<'MANIFESTS'
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: hf-model-cache
+          spec:
+            capacity:
+              storage: 200Gi
+            accessModes: [ReadWriteMany]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            hostPath:
+              path: /hf-cache
+              type: DirectoryOrCreate
+          ---
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: hf-model-cache
+            namespace: kubeflow
+          spec:
+            accessModes: [ReadWriteMany]
+            resources:
+              requests:
+                storage: 200Gi
+            storageClassName: ""
+            volumeName: hf-model-cache
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nsight-reports
+          spec:
+            capacity:
+              storage: 50Gi
+            accessModes: [ReadWriteMany]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            hostPath:
+              path: /nsight-reports
+              type: DirectoryOrCreate
+          ---
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: nsight-reports
+            namespace: kubeflow
+          spec:
+            accessModes: [ReadWriteMany]
+            resources:
+              requests:
+                storage: 50Gi
+            storageClassName: ""
+            volumeName: nsight-reports
+          MANIFESTS
+
+          kubectl get pv hf-model-cache nsight-reports 2>/dev/null || true
+          kubectl get pvc hf-model-cache nsight-reports -n kubeflow 2>/dev/null || true
+
       - name: Smoke-test endpoints
         continue-on-error: true
         run: bash dgx/minikube/kubeflow/verify-kfp-endpoints.sh

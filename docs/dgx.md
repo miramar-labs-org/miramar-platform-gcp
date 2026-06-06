@@ -223,7 +223,7 @@ stage name.
 
 ### Infrastructure (one-time setup per fresh minikube)
 
-Profiling uses a dedicated PVC (`nsight-cache`) mounted at `/nsight-cache/` inside each GPU
+Profiling uses a dedicated PVC (`nsight-reports`) mounted at `/nsight-reports/` inside each GPU
 component pod, backed by a minikube 9p mount from the DGX host.
 
 ```bash
@@ -234,14 +234,14 @@ mkdir -p /home/aaron/shared/nsight
 chmod 777 /home/aaron/shared/nsight
 
 # 2. Start the minikube mount (must stay running during pipeline runs)
-minikube mount /home/aaron/shared/nsight:/nsight-cache &
+minikube mount /home/aaron/shared/nsight:/nsight-reports &
 
 # 3. Apply the PV and PVC
 kubectl apply -f - <<'EOF'
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: nsight-cache
+  name: nsight-reports
 spec:
   capacity:
     storage: 50Gi
@@ -249,13 +249,13 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
   hostPath:
-    path: /nsight-cache
+    path: /nsight-reports
     type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: nsight-cache
+  name: nsight-reports
   namespace: kubeflow
 spec:
   accessModes: [ReadWriteMany]
@@ -263,15 +263,15 @@ spec:
     requests:
       storage: 50Gi
   storageClassName: ""
-  volumeName: nsight-cache
+  volumeName: nsight-reports
 EOF
 ```
 
 Verify:
 
 ```bash
-minikube ssh "ls /nsight-cache"
-kubectl get pvc nsight-cache -n kubeflow
+minikube ssh "ls /nsight-reports"
+kubectl get pvc nsight-reports -n kubeflow
 ```
 
 ### Enabling profiling in a pipeline run

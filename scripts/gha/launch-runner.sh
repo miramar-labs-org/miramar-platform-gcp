@@ -199,10 +199,18 @@ if [[ "${DEFAULT_LABELS}" == *"dgx"* || "${DEFAULT_LABELS}" == *"agx"* ]]; then
     # user (different uid). Make .minikube and .kube world-readable so kubectl
     # inside the container can read cert files referenced in the kubeconfig.
     chmod -R a+rX "${HOME}/.minikube" "${HOME}/.kube" 2>/dev/null || true
+    # Pipeline backing storage: minikube 9p mounts serve these host directories
+    # into the cluster as PVs. World-writable (777): minikube 9p does not map
+    # container UIDs to the host user, so pods (root/UID 0) cannot write into
+    # 755 directories via the mount.
+    mkdir -p "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
+    chmod 777 "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
     DOCKER_VOLS+=(
         -v "${HOME}/.minikube:/home/runner/.minikube"
         -v "${HOME}/.kube:/home/runner/.kube"
         -v /usr/local/bin:/host-bin
+        -v "${HOME}/shared/huggingface-kfp:/home/runner/shared/huggingface-kfp"
+        -v "${HOME}/shared/nsight:/home/runner/shared/nsight"
     )
 fi
 
