@@ -9,6 +9,7 @@
 
 
 def format_example(example):
+    # ---- USER CODE BLOCK ----
     # TODO: replace with your dataset-specific formatter.
     # `example` is a single row dict from the HuggingFace dataset.
     instruction = example.get("question", "")
@@ -18,6 +19,7 @@ def format_example(example):
         "response": response,
         "source": "example-dataset",
     }
+    # ---- END USER CODE BLOCK ----
 
 
 # Map config.yaml dataset names → formatter functions.

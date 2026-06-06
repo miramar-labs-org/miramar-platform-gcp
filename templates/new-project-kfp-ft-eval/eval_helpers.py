@@ -7,13 +7,17 @@ import re as _re
 
 
 def extract_answer(text):
+    # ---- USER CODE BLOCK ----
     # TODO: implement for your dataset's answer format.
     # For multiple-choice: return the letter (a/b/c/d).
     # For yes/no: return 'yes' or 'no'.
     return text.strip().lower().split()[0] if text.strip() else ""
+    # ---- END USER CODE BLOCK ----
 
 
 def _make_user_content(row):
+    # ---- USER CODE BLOCK ----
     # TODO: format the user-turn content for inference.
     # row has keys: instruction, response, source
     return row["instruction"]
+    # ---- END USER CODE BLOCK ----
