@@ -113,6 +113,25 @@ run completes with outcome, accuracy, and any notable changes.
 
 ---
 
+## `/model-card [org/model-id]`
+
+**Fetches and displays the HuggingFace model card for the project's base model.**
+
+```bash
+# Show card for the model in config.yaml
+/model-card
+
+# Look up any model directly
+/model-card google/medgemma-27b-it
+/model-card meta-llama/Llama-3.1-70B-Instruct
+```
+
+Reads `base_model_id` from `config.yaml` when no argument is given. For long cards
+(>300 lines), shows a summary first — description, benchmarks table, inference
+settings — then offers the full card on request.
+
+---
+
 ## Prerequisites
 
 - KFP running on DGX (`kubeflow` namespace) — deploy via `deploy-kubeflow.yaml` workflow
