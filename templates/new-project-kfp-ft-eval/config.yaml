@@ -44,3 +44,9 @@ judge:
 
 deployment:
   gcs_bucket: miramar-platform-ft-adapters
+
+profiling:
+  baseline: false
+  finetune: false
+  postft: false
+  safety: false

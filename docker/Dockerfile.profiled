@@ -1,0 +1,4 @@
+FROM nvcr.io/nvidia/pytorch:25.03-py3
+COPY profile_entrypoint.sh /usr/local/bin/profile_entrypoint.sh
+RUN chmod +x /usr/local/bin/profile_entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/profile_entrypoint.sh"]
