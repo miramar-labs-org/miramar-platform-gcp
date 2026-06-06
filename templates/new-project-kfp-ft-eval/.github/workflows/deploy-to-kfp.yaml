@@ -15,6 +15,21 @@ on:
         description: MLflow tracking server URL (leave blank to use the in-cluster default)
         default: ""
         required: false
+      profile_baseline:
+        description: Enable Nsight Systems profiling for the baseline_eval step
+        type: boolean
+        default: false
+        required: false
+      profile_finetune:
+        description: Enable Nsight Systems profiling for the fine_tune step
+        type: boolean
+        default: false
+        required: false
+      profile_nsight:
+        description: "Shorthand: enable Nsight profiling for both baseline_eval and fine_tune"
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -59,7 +74,15 @@ jobs:
           KFP_HOST: http://localhost:8890
           RUN_NAME: ${{ inputs.run_name }}
           MLFLOW_TRACKING_URI: ${{ inputs.mlflow_tracking_uri }}
-        run: python3 scripts/deploy_pipeline.py
+        run: |
+          FLAGS=""
+          if [[ "${{ inputs.profile_nsight }}" == "true" || "${{ inputs.profile_baseline }}" == "true" ]]; then
+            FLAGS="$FLAGS --profile-baseline"
+          fi
+          if [[ "${{ inputs.profile_nsight }}" == "true" || "${{ inputs.profile_finetune }}" == "true" ]]; then
+            FLAGS="$FLAGS --profile-finetune"
+          fi
+          python3 scripts/deploy_pipeline.py $FLAGS
 
       - name: Summary
         if: always()
@@ -70,6 +93,7 @@ jobs:
             echo "|---|---|"
             echo "| Run name | \`${{ inputs.run_name }}\` |"
             echo "| Run ID | \`${{ steps.submit.outputs.run_id }}\` |"
+            echo "| Nsight profiling | baseline=${{ inputs.profile_baseline || inputs.profile_nsight }} finetune=${{ inputs.profile_finetune || inputs.profile_nsight }} |"
             echo ""
             echo "Open the UI: \`ssh -L 8080:localhost:8080 <user>@spark-79b7.local\` → http://localhost:8080"
           } >> "$GITHUB_STEP_SUMMARY"
