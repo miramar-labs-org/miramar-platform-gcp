@@ -52,7 +52,7 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 | Ollama Update | `update-ollama.yaml` | Install or upgrade Ollama on target host; writes `OLLAMA_VERSION`. Inputs: `runner` |
 
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images on DGX; optional `component` input to rebuild one. Images are reusable on AGX (both `linux/arm64`). |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; writes `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; creates `hf-model-cache` (200 Gi) and `nsight-reports` (50 Gi) PVs + PVCs in the `kubeflow` namespace and starts the backing minikube 9p mounts; writes `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
 
 Stack deployment order:

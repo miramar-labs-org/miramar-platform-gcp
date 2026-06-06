@@ -233,8 +233,10 @@ component pod, backed by a minikube 9p mount from the DGX host.
 mkdir -p /home/aaron/shared/nsight
 chmod 777 /home/aaron/shared/nsight
 
-# 2. Start the minikube mount (must stay running during pipeline runs)
-minikube mount /home/aaron/shared/nsight:/nsight-reports &
+# 2. Start the minikube mount with umask 0 so the 9p server creates dirs
+#    with 777 permissions (default umask 022 would give 755, which pods
+#    cannot write into via the mount).
+(umask 000; minikube mount /home/aaron/shared/nsight:/nsight-reports) &
 
 # 3. Apply the PV and PVC
 kubectl apply -f - <<'EOF'
