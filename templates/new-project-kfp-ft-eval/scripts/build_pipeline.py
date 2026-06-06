@@ -42,11 +42,15 @@ def build_pipeline(
     notebook_path="notebook.ipynb",
     formatters_path="formatters.py",
     loaders_path="loaders.py",
+    eval_helpers_path="eval_helpers.py",
+    utils_path="utils.py",
 ):
     base_dir = pathlib.Path(notebook_path).parent
     nb = json.loads(pathlib.Path(notebook_path).read_text())
-    formatters_src = (base_dir / formatters_path).read_text().rstrip("\n")
-    loaders_src = (base_dir / loaders_path).read_text().rstrip("\n")
+    formatters_src    = (base_dir / formatters_path).read_text().rstrip("\n")
+    loaders_src       = (base_dir / loaders_path).read_text().rstrip("\n")
+    eval_helpers_src  = (base_dir / eval_helpers_path).read_text().rstrip("\n")
+    utils_src         = (base_dir / utils_path).read_text().rstrip("\n")
 
     step_srcs, pipeline_src = [], None
     for cell in nb["cells"]:
@@ -62,6 +66,12 @@ def build_pipeline(
             if "# <<< LOADERS_INJECT >>>" in src:
                 indented = textwrap.indent(loaders_src, "    ")
                 src = src.replace("    # <<< LOADERS_INJECT >>>", indented)
+            if "# <<< EVAL_HELPERS_INJECT >>>" in src:
+                indented = textwrap.indent(eval_helpers_src, "    ")
+                src = src.replace("    # <<< EVAL_HELPERS_INJECT >>>", indented)
+            if "# <<< UTILS_INJECT >>>" in src:
+                indented = textwrap.indent(utils_src, "    ")
+                src = src.replace("    # <<< UTILS_INJECT >>>", indented)
             step_srcs.append(src)
             profiled_image = meta.get("profiled_image")
             if profiled_image:
