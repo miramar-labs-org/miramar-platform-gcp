@@ -89,9 +89,10 @@ def prepare_dataset(
 @dsl.component(
     base_image="nvcr.io/nvidia/pytorch:25.03-py3",
     packages_to_install=[
-        "transformers>=4.45",
+        "transformers>=4.45,<5.0",
         "accelerate",
         "mlflow",
+        "nvtx",
     ],
 )
 def baseline_eval(
@@ -101,17 +102,90 @@ def baseline_eval(
     run_id: str,
     mlflow_tracking_uri: str,
     metrics: Output[Metrics],
+    max_new_tokens: int = 1024,
+    system_message: str = "You are a helpful assistant.",
+    do_sample: bool = False,
 ):
-    import json, pathlib, mlflow
+    import json, pathlib, time, mlflow, nvtx, torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+
+    pathlib.Path("/tmp/nsys_run_id").write_text(run_id)
+    pathlib.Path("/tmp/nsys_stage").write_text("baseline-eval")
 
     val_data = json.loads(pathlib.Path(val.path).read_text())[:eval_sample_size]
 
-    # TODO: load base model and run inference on val_data
-    # TODO: compute accuracy (or your relevant metric) against val_data ground truth
-    accuracy = 0.0  # placeholder
+    # Shared utility functions — inlined into model-loading components
+    # by scripts/build_pipeline.py at the # <<< UTILS_INJECT >>> marker.
+    # Do not add imports here that aren't available in the component container.
+
+
+    def _local_model_path(model_id):
+        # IMPORTANT: always use this instead of passing model_id to from_pretrained().
+        # The hf-model-cache PVC is read-only; passing model_id triggers hf_hub_download
+        # which tries to write .locks/ and fails with PermissionError.
+        import pathlib
+        cache = pathlib.Path("/root/.cache/huggingface/hub")
+        key = model_id.replace("/", "--")
+        commit = (cache / f"models--{key}" / "refs" / "main").read_text().strip()
+        return str(cache / f"models--{key}" / "snapshots" / commit)
+
+    model_path = _local_model_path(base_model_id)
+
+    # Eval helper functions — inlined into baseline_eval and post_finetune_eval
+    # by scripts/build_pipeline.py at the # <<< EVAL_HELPERS_INJECT >>> marker.
+    # Customize extract_answer and _make_user_content for your dataset.
+    # Do not add imports here that aren't available in the component container.
+
+    import re as _re
+
+
+    def extract_answer(text):
+        # TODO: implement for your dataset's answer format.
+        # For multiple-choice: return the letter (a/b/c/d).
+        # For yes/no: return 'yes' or 'no'.
+        return text.strip().lower().split()[0] if text.strip() else ""
+
+
+    def _make_user_content(row):
+        # TODO: format the user-turn content for inference.
+        # row has keys: instruction, response, source
+        return row["instruction"]
+
+    # TODO: implement _infer — load model and run inference for one val row
+    def _infer(row):
+        pass  # returns generated string
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path, dtype=torch.bfloat16, device_map="auto", max_memory={0: "100GiB"})
+    model.eval()
 
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     with mlflow.start_run(run_name=f"{run_id}-baseline"):
+        mlflow.log_param("eval_sample_size", len(val_data))
+        _t0 = time.perf_counter()
+
+        # Warmup — not captured by --capture-range=nvtx; primes GPU caches
+        WARMUP = min(5, len(val_data))
+        for row in val_data[:WARMUP]:
+            _infer(row)
+        torch.cuda.synchronize()
+
+        # Captured region — nsys records only this window
+        with nvtx.annotate("baseline_eval_inference"):
+            CAPTURE = min(10, len(val_data) - WARMUP)
+            for row in val_data[WARMUP:WARMUP + CAPTURE]:
+                _infer(row)
+            torch.cuda.synchronize()
+
+        # <<< PROFILED_STOP >>>
+
+        correct = 0
+        for i, row in enumerate(val_data):
+            generated = _infer(row)
+            # TODO: compare generated answer to ground truth using extract_answer
+            # if extract_answer(generated) == extract_answer(row["response"]): correct += 1
+        accuracy = correct / len(val_data) if val_data else 0.0
         mlflow.log_metric("baseline_accuracy", accuracy)
 
     pathlib.Path(metrics.path).write_text(json.dumps({"baseline_accuracy": accuracy}))
@@ -119,13 +193,113 @@ def baseline_eval(
 
 
 @dsl.component(
-    base_image="nvcr.io/nvidia/pytorch:25.03-py3",
+    base_image="mlabs/pytorch-profiled:25.03",
     packages_to_install=[
-        "peft>=0.14.0",
-        "trl>=0.14.0",
-        "accelerate>=0.27.0",
+        "transformers>=4.45,<5.0",
+        "accelerate",
         "mlflow",
+        "nvtx",
     ],
+)
+def baseline_eval_profiled(
+    val: Input[Dataset],
+    base_model_id: str,
+    eval_sample_size: int,
+    run_id: str,
+    mlflow_tracking_uri: str,
+    metrics: Output[Metrics],
+    max_new_tokens: int = 1024,
+    system_message: str = "You are a helpful assistant.",
+    do_sample: bool = False,
+):
+    import json, pathlib, time, mlflow, nvtx, torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+
+    pathlib.Path("/tmp/nsys_run_id").write_text(run_id)
+    pathlib.Path("/tmp/nsys_stage").write_text("baseline-eval")
+
+    val_data = json.loads(pathlib.Path(val.path).read_text())[:eval_sample_size]
+
+    # Shared utility functions — inlined into model-loading components
+    # by scripts/build_pipeline.py at the # <<< UTILS_INJECT >>> marker.
+    # Do not add imports here that aren't available in the component container.
+
+
+    def _local_model_path(model_id):
+        # IMPORTANT: always use this instead of passing model_id to from_pretrained().
+        # The hf-model-cache PVC is read-only; passing model_id triggers hf_hub_download
+        # which tries to write .locks/ and fails with PermissionError.
+        import pathlib
+        cache = pathlib.Path("/root/.cache/huggingface/hub")
+        key = model_id.replace("/", "--")
+        commit = (cache / f"models--{key}" / "refs" / "main").read_text().strip()
+        return str(cache / f"models--{key}" / "snapshots" / commit)
+
+    model_path = _local_model_path(base_model_id)
+
+    # Eval helper functions — inlined into baseline_eval and post_finetune_eval
+    # by scripts/build_pipeline.py at the # <<< EVAL_HELPERS_INJECT >>> marker.
+    # Customize extract_answer and _make_user_content for your dataset.
+    # Do not add imports here that aren't available in the component container.
+
+    import re as _re
+
+
+    def extract_answer(text):
+        # TODO: implement for your dataset's answer format.
+        # For multiple-choice: return the letter (a/b/c/d).
+        # For yes/no: return 'yes' or 'no'.
+        return text.strip().lower().split()[0] if text.strip() else ""
+
+
+    def _make_user_content(row):
+        # TODO: format the user-turn content for inference.
+        # row has keys: instruction, response, source
+        return row["instruction"]
+
+    # TODO: implement _infer — load model and run inference for one val row
+    def _infer(row):
+        pass  # returns generated string
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path, dtype=torch.bfloat16, device_map="auto", max_memory={0: "100GiB"})
+    model.eval()
+
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    with mlflow.start_run(run_name=f"{run_id}-baseline"):
+        mlflow.log_param("eval_sample_size", len(val_data))
+        _t0 = time.perf_counter()
+
+        # Warmup — not captured by --capture-range=nvtx; primes GPU caches
+        WARMUP = min(5, len(val_data))
+        for row in val_data[:WARMUP]:
+            _infer(row)
+        torch.cuda.synchronize()
+
+        # Captured region — nsys records only this window
+        with nvtx.annotate("baseline_eval_inference"):
+            CAPTURE = min(10, len(val_data) - WARMUP)
+            for row in val_data[WARMUP:WARMUP + CAPTURE]:
+                _infer(row)
+            torch.cuda.synchronize()
+
+
+        TOTAL_P = WARMUP + CAPTURE
+        profiling_accuracy = sum(
+            1 for r in val_data[:TOTAL_P]
+            if extract_answer(_infer(r)) == extract_answer(r["response"])
+        ) / TOTAL_P if TOTAL_P else 0.0
+        mlflow.log_metric("profiling_accuracy", profiling_accuracy)
+        accuracy = profiling_accuracy
+
+    pathlib.Path(metrics.path).write_text(json.dumps({"baseline_accuracy": accuracy}))
+    print(f"Baseline accuracy: {accuracy:.4f}")
+
+
+@dsl.component(
+    base_image="nvcr.io/nvidia/pytorch:25.03-py3",
+    packages_to_install=[],
 )
 def fine_tune(
     train: Input[Dataset],
@@ -135,42 +309,109 @@ def fine_tune(
     num_epochs: int,
     lora_r: int,
     lora_alpha: int,
+    lora_dropout: float,
+    target_modules: list,
+    lora_bias: str,
+    lora_task_type: str,
+    batch_size: int,
+    gradient_accumulation_steps: int,
+    max_seq_length: int,
+    bf16: bool,
+    gradient_checkpointing: bool,
+    eval_strategy: str,
+    logging_steps: int,
     run_id: str,
     mlflow_tracking_uri: str,
     ft_model: Output[Model],
 ):
+    import subprocess, sys, os
+    # NGC containers set PIP_CONSTRAINT=/etc/pip/constraint.txt which pins pyarrow==19.0.1.
+    # Clear it so pip can upgrade pyarrow to satisfy trl's datasets dependency.
+    env = {**os.environ, "PIP_CONSTRAINT": ""}
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install",
+         "pyarrow>=21.0.0", "transformers>=4.45,<5.0", "peft>=0.15.0", "trl>=0.14.0,<1.0", "accelerate>=0.27.0", "mlflow"],
+        check=True, env=env,
+    )
     import json, pathlib, mlflow
 
     train_data = json.loads(pathlib.Path(train.path).read_text())
     val_data   = json.loads(pathlib.Path(val.path).read_text())
 
-    # TODO: implement fine-tuning with LoRA.
-    # Suggested pattern:
-    #   from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
-    #   from peft import LoraConfig, get_peft_model
-    #   from trl import SFTTrainer
-    #   tokenizer = AutoTokenizer.from_pretrained(base_model_id)
-    #   model     = AutoModelForCausalLM.from_pretrained(base_model_id, ...)
-    #   lora_cfg  = LoraConfig(r=lora_r, lora_alpha=lora_alpha, ...)
-    #   model     = get_peft_model(model, lora_cfg)
-    #   trainer   = SFTTrainer(model=model, args=TrainingArguments(...), ...)
-    #   trainer.train()
-    #   model.save_pretrained(ft_model.path)
+    # IMPORTANT: always resolve a local snapshot path before calling from_pretrained().
+    # Passing `base_model_id` triggers hf_hub_download → PermissionError on .locks/ PVC dir.
+    # Shared utility functions — inlined into model-loading components
+    # by scripts/build_pipeline.py at the # <<< UTILS_INJECT >>> marker.
+    # Do not add imports here that aren't available in the component container.
+
+
+    def _local_model_path(model_id):
+        # IMPORTANT: always use this instead of passing model_id to from_pretrained().
+        # The hf-model-cache PVC is read-only; passing model_id triggers hf_hub_download
+        # which tries to write .locks/ and fails with PermissionError.
+        import pathlib
+        cache = pathlib.Path("/root/.cache/huggingface/hub")
+        key = model_id.replace("/", "--")
+        commit = (cache / f"models--{key}" / "refs" / "main").read_text().strip()
+        return str(cache / f"models--{key}" / "snapshots" / commit)
+
+    model_path = _local_model_path(base_model_id)
+
+    # TODO: implement to_chat — dataset-specific conversation formatter
+    def to_chat(rows):
+        pass  # returns HFDataset with "messages" column: [{role, content}, ...]
+
+    # Working scaffold — fill in to_chat above, then this runs as-is
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from peft import LoraConfig, get_peft_model
+    from trl import SFTTrainer, SFTConfig
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path, dtype=torch.bfloat16, device_map="auto", max_memory={0: "100GiB"})
+    lora_cfg = LoraConfig(r=lora_r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
+        target_modules=target_modules, bias=lora_bias, task_type=lora_task_type)
+    model = get_peft_model(model, lora_cfg)
+    training_args = SFTConfig(
+        output_dir="/tmp/ft_checkpoints", num_train_epochs=num_epochs,
+        per_device_train_batch_size=batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        max_seq_length=max_seq_length, learning_rate=learning_rate,
+        bf16=bf16, gradient_checkpointing=gradient_checkpointing,
+        eval_strategy=eval_strategy, logging_steps=logging_steps,
+        save_strategy="no", report_to="mlflow", dataloader_num_workers=0)
+    trainer = SFTTrainer(model=model, processing_class=tokenizer, args=training_args,
+        train_dataset=to_chat(train_data), eval_dataset=to_chat(val_data))
 
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     with mlflow.start_run(run_name=f"{run_id}-finetune"):
         mlflow.log_params({"learning_rate": learning_rate, "num_epochs": num_epochs,
                            "lora_r": lora_r, "lora_alpha": lora_alpha})
-    print(f"Fine-tuning complete. Model saved to: {ft_model.path}")
+        trainer.train()
+        history = trainer.state.log_history
+        train_loss = next((e["loss"]      for e in reversed(history) if "loss"      in e), None)
+        eval_loss  = next((e["eval_loss"] for e in reversed(history) if "eval_loss" in e), None)
+        if train_loss is not None: mlflow.log_metric("train_loss", train_loss)
+        if eval_loss  is not None: mlflow.log_metric("eval_loss",  eval_loss)
+
+    pathlib.Path(ft_model.path).mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(ft_model.path)
+    tokenizer.save_pretrained(ft_model.path)
+    print(f"Fine-tuning complete. Adapter saved to: {ft_model.path}")
 
 
 @dsl.component(
     base_image="nvcr.io/nvidia/pytorch:25.03-py3",
     packages_to_install=[
-        "transformers>=4.45",
+        "transformers>=4.45,<5.0",
         "peft>=0.13",
         "accelerate",
         "mlflow",
+        "nvtx",
     ],
 )
 def post_finetune_eval(
@@ -181,18 +422,186 @@ def post_finetune_eval(
     run_id: str,
     mlflow_tracking_uri: str,
     metrics: Output[Metrics],
+    max_new_tokens: int = 1024,
+    system_message: str = "You are a helpful assistant.",
+    do_sample: bool = False,
 ):
-    import json, pathlib, mlflow
+    import json, pathlib, time, mlflow, nvtx, torch
+
+    pathlib.Path("/tmp/nsys_run_id").write_text(run_id)
+    pathlib.Path("/tmp/nsys_stage").write_text("post-finetune-eval")
 
     val_data = json.loads(pathlib.Path(val.path).read_text())[:eval_sample_size]
 
-    # TODO: load fine-tuned model (PEFT adapter on top of base_model_id)
-    # TODO: run inference on val_data and compute accuracy
-    accuracy = 0.0  # placeholder
+    # Shared utility functions — inlined into model-loading components
+    # by scripts/build_pipeline.py at the # <<< UTILS_INJECT >>> marker.
+    # Do not add imports here that aren't available in the component container.
+
+
+    def _local_model_path(model_id):
+        # IMPORTANT: always use this instead of passing model_id to from_pretrained().
+        # The hf-model-cache PVC is read-only; passing model_id triggers hf_hub_download
+        # which tries to write .locks/ and fails with PermissionError.
+        import pathlib
+        cache = pathlib.Path("/root/.cache/huggingface/hub")
+        key = model_id.replace("/", "--")
+        commit = (cache / f"models--{key}" / "refs" / "main").read_text().strip()
+        return str(cache / f"models--{key}" / "snapshots" / commit)
+
+    model_path = _local_model_path(base_model_id)
+
+    # Eval helper functions — inlined into baseline_eval and post_finetune_eval
+    # by scripts/build_pipeline.py at the # <<< EVAL_HELPERS_INJECT >>> marker.
+    # Customize extract_answer and _make_user_content for your dataset.
+    # Do not add imports here that aren't available in the component container.
+
+    import re as _re
+
+
+    def extract_answer(text):
+        # TODO: implement for your dataset's answer format.
+        # For multiple-choice: return the letter (a/b/c/d).
+        # For yes/no: return 'yes' or 'no'.
+        return text.strip().lower().split()[0] if text.strip() else ""
+
+
+    def _make_user_content(row):
+        # TODO: format the user-turn content for inference.
+        # row has keys: instruction, response, source
+        return row["instruction"]
+
+    # TODO: implement _infer — load base model + PeftModel adapter, run inference
+    def _infer(row):
+        pass  # returns generated string
 
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     with mlflow.start_run(run_name=f"{run_id}-postft-eval"):
+        mlflow.log_param("eval_sample_size", len(val_data))
+        _t0 = time.perf_counter()
+
+        # Warmup — not captured by --capture-range=nvtx; primes GPU caches
+        WARMUP = min(5, len(val_data))
+        for row in val_data[:WARMUP]:
+            _infer(row)
+        torch.cuda.synchronize()
+
+        # Captured region — nsys records only this window
+        with nvtx.annotate("post_finetune_eval_inference"):
+            CAPTURE = min(10, len(val_data) - WARMUP)
+            for row in val_data[WARMUP:WARMUP + CAPTURE]:
+                _infer(row)
+            torch.cuda.synchronize()
+
+        # <<< PROFILED_STOP >>>
+
+        correct = 0
+        for i, row in enumerate(val_data):
+            generated = _infer(row)
+            # TODO: compare generated answer to ground truth using extract_answer
+            # if extract_answer(generated) == extract_answer(row["response"]): correct += 1
+        accuracy = correct / len(val_data) if val_data else 0.0
         mlflow.log_metric("postft_accuracy", accuracy)
+
+    pathlib.Path(metrics.path).write_text(json.dumps({"postft_accuracy": accuracy}))
+    print(f"Post-FT accuracy: {accuracy:.4f}")
+
+
+@dsl.component(
+    base_image="mlabs/pytorch-profiled:25.03",
+    packages_to_install=[
+        "transformers>=4.45,<5.0",
+        "peft>=0.13",
+        "accelerate",
+        "mlflow",
+        "nvtx",
+    ],
+)
+def post_finetune_eval_profiled(
+    val: Input[Dataset],
+    ft_model: Input[Model],
+    base_model_id: str,
+    eval_sample_size: int,
+    run_id: str,
+    mlflow_tracking_uri: str,
+    metrics: Output[Metrics],
+    max_new_tokens: int = 1024,
+    system_message: str = "You are a helpful assistant.",
+    do_sample: bool = False,
+):
+    import json, pathlib, time, mlflow, nvtx, torch
+
+    pathlib.Path("/tmp/nsys_run_id").write_text(run_id)
+    pathlib.Path("/tmp/nsys_stage").write_text("post-finetune-eval")
+
+    val_data = json.loads(pathlib.Path(val.path).read_text())[:eval_sample_size]
+
+    # Shared utility functions — inlined into model-loading components
+    # by scripts/build_pipeline.py at the # <<< UTILS_INJECT >>> marker.
+    # Do not add imports here that aren't available in the component container.
+
+
+    def _local_model_path(model_id):
+        # IMPORTANT: always use this instead of passing model_id to from_pretrained().
+        # The hf-model-cache PVC is read-only; passing model_id triggers hf_hub_download
+        # which tries to write .locks/ and fails with PermissionError.
+        import pathlib
+        cache = pathlib.Path("/root/.cache/huggingface/hub")
+        key = model_id.replace("/", "--")
+        commit = (cache / f"models--{key}" / "refs" / "main").read_text().strip()
+        return str(cache / f"models--{key}" / "snapshots" / commit)
+
+    model_path = _local_model_path(base_model_id)
+
+    # Eval helper functions — inlined into baseline_eval and post_finetune_eval
+    # by scripts/build_pipeline.py at the # <<< EVAL_HELPERS_INJECT >>> marker.
+    # Customize extract_answer and _make_user_content for your dataset.
+    # Do not add imports here that aren't available in the component container.
+
+    import re as _re
+
+
+    def extract_answer(text):
+        # TODO: implement for your dataset's answer format.
+        # For multiple-choice: return the letter (a/b/c/d).
+        # For yes/no: return 'yes' or 'no'.
+        return text.strip().lower().split()[0] if text.strip() else ""
+
+
+    def _make_user_content(row):
+        # TODO: format the user-turn content for inference.
+        # row has keys: instruction, response, source
+        return row["instruction"]
+
+    # TODO: implement _infer — load base model + PeftModel adapter, run inference
+    def _infer(row):
+        pass  # returns generated string
+
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    with mlflow.start_run(run_name=f"{run_id}-postft-eval"):
+        mlflow.log_param("eval_sample_size", len(val_data))
+        _t0 = time.perf_counter()
+
+        # Warmup — not captured by --capture-range=nvtx; primes GPU caches
+        WARMUP = min(5, len(val_data))
+        for row in val_data[:WARMUP]:
+            _infer(row)
+        torch.cuda.synchronize()
+
+        # Captured region — nsys records only this window
+        with nvtx.annotate("post_finetune_eval_inference"):
+            CAPTURE = min(10, len(val_data) - WARMUP)
+            for row in val_data[WARMUP:WARMUP + CAPTURE]:
+                _infer(row)
+            torch.cuda.synchronize()
+
+
+        TOTAL_P = WARMUP + CAPTURE
+        profiling_accuracy = sum(
+            1 for r in val_data[:TOTAL_P]
+            if extract_answer(_infer(r)) == extract_answer(r["response"])
+        ) / TOTAL_P if TOTAL_P else 0.0
+        mlflow.log_metric("profiling_accuracy", profiling_accuracy)
+        accuracy = profiling_accuracy
 
     pathlib.Path(metrics.path).write_text(json.dumps({"postft_accuracy": accuracy}))
     print(f"Post-FT accuracy: {accuracy:.4f}")
@@ -201,11 +610,12 @@ def post_finetune_eval(
 @dsl.component(
     base_image="nvcr.io/nvidia/pytorch:25.03-py3",
     packages_to_install=[
-        "transformers>=4.45",
+        "transformers>=4.45,<5.0",
         "peft>=0.13",
         "accelerate",
         "openai",
         "mlflow",
+        "nvtx",
     ],
 )
 def safety_eval(
@@ -218,28 +628,62 @@ def safety_eval(
     run_id: str,
     mlflow_tracking_uri: str,
     metrics: Output[Metrics],
+    max_new_tokens: int = 256,
+    system_message: str = "You are a helpful assistant.",
+    do_sample: bool = False,
 ):
-    import json, pathlib, mlflow
+    import json, pathlib, mlflow, nvtx, torch
     from openai import OpenAI
+
+    pathlib.Path("/tmp/nsys_run_id").write_text(run_id)
+    pathlib.Path("/tmp/nsys_stage").write_text("safety-eval")
 
     val_data = json.loads(pathlib.Path(val.path).read_text())[:sample_size]
 
-    # TODO: load fine-tuned model and generate responses for val_data samples.
-    # Then score each response with the judge LLM.
-    # Suggested pattern:
-    #   client = OpenAI()  # uses OPENAI_API_KEY env var (injected from mlabs-api-keys)
-    #   for example in val_data:
-    #       response = model.generate(example["instruction"])
-    #       result = client.chat.completions.create(
-    #           model=judge_model_id,
-    #           messages=[
-    #               {"role": "system", "content": judge_system_prompt},
-    #               {"role": "user", "content": f"Response: {response}"},
-    #           ],
-    #           temperature=0.0,
-    #       )
-    #       # Parse result.choices[0].message.content (JSON) and accumulate scores
+    # IMPORTANT: always resolve a local snapshot path before calling from_pretrained().
+    # Passing `base_model_id` triggers hf_hub_download → PermissionError on .locks/ PVC dir.
+    # Shared utility functions — inlined into model-loading components
+    # by scripts/build_pipeline.py at the # <<< UTILS_INJECT >>> marker.
+    # Do not add imports here that aren't available in the component container.
+
+
+    def _local_model_path(model_id):
+        # IMPORTANT: always use this instead of passing model_id to from_pretrained().
+        # The hf-model-cache PVC is read-only; passing model_id triggers hf_hub_download
+        # which tries to write .locks/ and fails with PermissionError.
+        import pathlib
+        cache = pathlib.Path("/root/.cache/huggingface/hub")
+        key = model_id.replace("/", "--")
+        commit = (cache / f"models--{key}" / "refs" / "main").read_text().strip()
+        return str(cache / f"models--{key}" / "snapshots" / commit)
+
+    model_path = _local_model_path(base_model_id)
+
+    # TODO: implement parse_score — extract numeric safety score from judge JSON output
+    def parse_score(content):
+        pass  # returns float
+
+    # TODO: load fine-tuned model and generate responses, then score with judge LLM
+    # import torch
+    # from transformers import AutoTokenizer, AutoModelForCausalLM
+    # from peft import PeftModel
+    # tokenizer = AutoTokenizer.from_pretrained(ft_model.path)
+    # base = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.bfloat16,
+    #     device_map="auto", max_memory={0: "100GiB"})
+    # model = PeftModel.from_pretrained(base, ft_model.path)
+    # client = OpenAI()  # uses OPENAI_API_KEY env var (injected from mlabs-api-keys)
+
+    scores = []
     avg_score = 0.0  # placeholder
+
+    # TODO: generate responses and score
+    # for row in val_data:
+    #     with nvtx.annotate("safety_eval_inference"):
+    #         # run GPU inference here
+    #         generated = ...
+    #     result = client.chat.completions.create(...)
+    #     scores.append(parse_score(result.choices[0].message.content))
+    # avg_score = sum(scores) / len(scores) if scores else 0.0
 
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     with mlflow.start_run(run_name=f"{run_id}-safety-eval"):
@@ -299,6 +743,10 @@ import yaml as _yaml, pathlib as _pathlib
 
 _cfg = _yaml.safe_load(_pathlib.Path("config.yaml").read_text())
 _dataset_names = [d["name"] for d in _cfg["datasets"]]
+_PROFILE_BASELINE = _cfg.get("profiling", {}).get("baseline", False)
+_PROFILE_FINETUNE  = _cfg.get("profiling", {}).get("finetune", False)
+_PROFILE_POSTFT    = _cfg.get("profiling", {}).get("postft", False)
+_PROFILE_SAFETY    = _cfg.get("profiling", {}).get("safety", False)
 
 from kfp import kubernetes as k8s_ext
 
@@ -313,10 +761,25 @@ def pipeline(
     num_epochs: int = _cfg["training"]["num_epochs"],
     lora_r: int = _cfg["lora"]["r"],
     lora_alpha: int = _cfg["lora"]["alpha"],
+    lora_dropout: float = _cfg["lora"]["dropout"],
+    target_modules: list = _cfg["lora"]["target_modules"],
+    lora_bias: str = _cfg["lora"]["bias"],
+    lora_task_type: str = _cfg["lora"]["task_type"],
+    batch_size: int = _cfg["training"]["batch_size"],
+    gradient_accumulation_steps: int = _cfg["training"]["gradient_accumulation_steps"],
+    max_seq_length: int = _cfg["training"]["max_seq_length"],
+    bf16: bool = _cfg["training"]["bf16"],
+    gradient_checkpointing: bool = _cfg["training"]["gradient_checkpointing"],
+    eval_strategy: str = _cfg["training"]["eval_strategy"],
+    logging_steps: int = _cfg["training"]["logging_steps"],
     val_size: float = _cfg["training"]["val_size"],
     test_size: float = _cfg["training"]["test_size"],
     eval_sample_size: int = _cfg["eval"]["sample_size"],
     safety_sample_size: int = _cfg["eval"]["safety_sample_size"],
+    max_new_tokens: int = _cfg["eval"]["max_new_tokens"],
+    safety_max_new_tokens: int = _cfg["eval"]["safety_max_new_tokens"],
+    do_sample: bool = _cfg["eval"]["do_sample"],
+    system_message: str = _cfg["eval"]["system_message"],
     accuracy_delta_threshold: float = _cfg["eval"]["accuracy_delta_threshold"],
     safety_score_threshold: float = _cfg["eval"]["safety_score_threshold"],
     gcs_bucket: str = _cfg["deployment"]["gcs_bucket"],
@@ -329,13 +792,16 @@ def pipeline(
         test_size=test_size,
     )
 
-    # baseline_eval and fine_tune both start as soon as prep finishes (parallel)
-    base_eval = baseline_eval(
+    _base_eval_fn = baseline_eval_profiled if _PROFILE_BASELINE else baseline_eval
+    base_eval = _base_eval_fn(
         val=prep.outputs["val_out"],
         base_model_id=base_model_id,
         eval_sample_size=eval_sample_size,
         run_id=run_id,
         mlflow_tracking_uri=mlflow_tracking_uri,
+        max_new_tokens=max_new_tokens,
+        system_message=system_message,
+        do_sample=do_sample,
     )
     base_eval.set_gpu_limit(1).set_memory_limit("64G")
 
@@ -347,18 +813,36 @@ def pipeline(
         num_epochs=num_epochs,
         lora_r=lora_r,
         lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+        target_modules=target_modules,
+        lora_bias=lora_bias,
+        lora_task_type=lora_task_type,
+        batch_size=batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        max_seq_length=max_seq_length,
+        bf16=bf16,
+        gradient_checkpointing=gradient_checkpointing,
+        eval_strategy=eval_strategy,
+        logging_steps=logging_steps,
         run_id=run_id,
         mlflow_tracking_uri=mlflow_tracking_uri,
     )
+    # fine_tune runs after baseline_eval — on single-node minikube, both steps need GPU
+    # memory simultaneously and will exceed the allocatable limit if scheduled in parallel.
+    ft.after(base_eval)
     ft.set_gpu_limit(1).set_memory_limit("96G")
 
-    post_eval = post_finetune_eval(
+    _post_eval_fn = post_finetune_eval_profiled if _PROFILE_POSTFT else post_finetune_eval
+    post_eval = _post_eval_fn(
         val=prep.outputs["val_out"],
         ft_model=ft.outputs["ft_model"],
         base_model_id=base_model_id,
         eval_sample_size=eval_sample_size,
         run_id=run_id,
         mlflow_tracking_uri=mlflow_tracking_uri,
+        max_new_tokens=max_new_tokens,
+        system_message=system_message,
+        do_sample=do_sample,
     )
     post_eval.set_gpu_limit(1).set_memory_limit("64G")
 
@@ -371,6 +855,9 @@ def pipeline(
         sample_size=safety_sample_size,
         run_id=run_id,
         mlflow_tracking_uri=mlflow_tracking_uri,
+        max_new_tokens=safety_max_new_tokens,
+        system_message=system_message,
+        do_sample=do_sample,
     )
     safety.set_gpu_limit(1).set_memory_limit("64G")
 
@@ -392,5 +879,11 @@ def pipeline(
         "WANDB_API_KEY", "LANGCHAIN_API_KEY", "NGC_API_KEY", "NVIDIA_API_KEY",
     ]
     _key_map = {k: k for k in _SECRET_KEYS}
+    _HF_CACHE_PVC = "hf-model-cache"
+    _NSIGHT_PVC = "nsight-reports"
+    for _task in [base_eval, ft, post_eval, safety]:
+        k8s_ext.mount_pvc(_task, pvc_name=_HF_CACHE_PVC, mount_path="/root/.cache/huggingface")
+        k8s_ext.mount_pvc(_task, pvc_name=_NSIGHT_PVC, mount_path="/nsight-reports")
+
     for _task in [prep, base_eval, ft, post_eval, safety, gate]:
         k8s_ext.use_secret_as_env(_task, _SECRET, _key_map)
