@@ -75,7 +75,7 @@ def main():
         import yaml, pathlib, stat
         cfg_data = yaml.safe_load(pathlib.Path("config.yaml").read_text())
         nsys_project = cfg_data.get("nsys_project", os.path.basename(os.getcwd()))
-        nsight_host_base = pathlib.Path("/home/aaron/shared/nsight") / nsys_project / run_name
+        nsight_host_base = pathlib.Path.home() / "shared/nsight" / nsys_project / run_name
         _STAGE_MAP = {
             "baseline":        "baseline-eval",
             "finetune":        "fine-tune",
