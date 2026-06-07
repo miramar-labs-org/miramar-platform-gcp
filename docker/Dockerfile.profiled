@@ -1,4 +1,15 @@
 FROM nvcr.io/nvidia/pytorch:25.03-py3
-COPY profile_entrypoint.sh /usr/local/bin/profile_entrypoint.sh
-RUN chmod +x /usr/local/bin/profile_entrypoint.sh
-ENTRYPOINT ["/usr/local/bin/profile_entrypoint.sh"]
+
+ENV PIP_CONSTRAINT=""
+RUN pip install --no-cache-dir \
+    "transformers>=4.45,<5.0" \
+    "peft>=0.14" \
+    accelerate \
+    mlflow \
+    nvtx \
+    "openai>=1.40.2" \
+    datasets \
+    "trl>=0.14.0,<1.0"
+
+COPY nsys_*.py /usr/local/bin/
+RUN chmod +x /usr/local/bin/nsys_*.py 2>/dev/null || true
