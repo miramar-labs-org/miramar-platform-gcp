@@ -178,3 +178,48 @@ Runs appear in the **Runs** tab. After the first submission, the pipeline also a
 Prerequisites: **Kubeflow Deploy** must be running. Trigger it in
 [miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) if the KFP UI
 is unreachable.
+
+---
+
+## 11. GPU profiling (Nsight Systems)
+
+Optional Nsight Systems profiling on individual pipeline stages. Enable per-stage flags when submitting a run:
+
+```bash
+python3 scripts/deploy_pipeline.py --run-name run-001 \
+    --profile-baseline \
+    --profile-finetune
+```
+
+| Flag | Stage profiled |
+|---|---|
+| `--profile-baseline` | `baseline_eval` |
+| `--profile-finetune` | `fine_tune` |
+| `--profile-postft` | `post_finetune_eval` |
+| `--profile-safety` | `safety_eval` |
+| `--profile-baseline-safety` | `baseline_safety_eval` |
+
+All flags default to off. Unprofiled runs behave identically to runs before this feature existed.
+
+**Output** — reports are written to the host at:
+```
+/home/aaron/shared/nsight/
+  {{PROJECT_NAME}}/
+    {run_id}/
+      baseline-eval/profile.nsys-rep
+      fine-tune/profile.nsys-rep
+      ...
+```
+
+**Viewing** — open any `.nsys-rep` in NVIDIA Nsight Systems desktop GUI:
+```bash
+nsys-ui /home/aaron/shared/nsight/{{PROJECT_NAME}}/{run_id}/baseline-eval/profile.nsys-rep
+```
+
+**9p permissions** — before the first profiling run, ensure the host directory is world-writable so the pod (runs as root) can write through the 9p mount:
+```bash
+chmod -R 777 /home/aaron/shared/nsight/
+```
+Repeat any time a subdirectory is manually created on the host. Symptom if missing: `PermissionError: [Errno 13] ... '/nsight-reports/{{PROJECT_NAME}}/<run-id>'`
+
+**Infrastructure** — profiling uses the `nsight-reports` PVC (50 Gi, `ReadWriteMany`) mounted at `/nsight-reports/` in each GPU component pod. The PVC is provisioned by **Kubeflow Deploy**.
