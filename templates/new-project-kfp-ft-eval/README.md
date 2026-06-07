@@ -148,9 +148,4 @@ All flags default to off. Unprofiled runs behave identically to runs before this
 nsys-ui /home/aaron/shared/nsight/{{PROJECT_NAME}}/{run_id}/baseline-eval/profile.nsys-rep
 ```
 
-**9p permissions** — before the first profiling run, ensure the host directory is world-writable:
-```bash
-chmod -R 777 /home/aaron/shared/nsight/
-```
-
-**Infrastructure** — profiling uses the `nsight-reports` PVC (50 Gi, `ReadWriteMany`) mounted at `/nsight-reports/` in each GPU component pod. The PVC is provisioned by **Kubeflow Deploy**.
+**Setup** — host directory and PVC are provisioned automatically by **Kubeflow Deploy**. No manual setup required.
