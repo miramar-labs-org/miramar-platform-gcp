@@ -426,6 +426,11 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
 
     shell_script = (
         "set -euo pipefail\n"
+        # umask 000 ensures all dirs created by mkdir -p are world-writable (777).
+        # Required because the pod runs as UID 65532 but the minikube 9p mount presents
+        # ownership relative to the host UID (1000/aaron), so without 777 the pod
+        # cannot write into directories it created on the shared hostPath volume.
+        + "umask 000\n"
         + "\n".join(shell_lines) + "\n"
         + f'PROFILE_DIR="/nsight-reports/{nsys_project}/${{RUN_ID}}/{stage_name}"\n'
         + 'mkdir -p "${PROFILE_DIR}"\n'
