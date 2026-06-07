@@ -199,7 +199,12 @@ def _inject_helpers(body, utils_src, eval_helpers_src):
 
 def _inject_cuda_profiler(body, func_name):
     """
-    Insert cudaProfilerStart/Stop calls into the function body string.
+    Wrap the capture window with nvtx.push_range("nsys_capture") / nvtx.pop_range().
+
+    nsys uses NVTX interception (via LD_PRELOAD of libnvtx) which is reliable.
+    The previous approach used torch.cuda.cudart().cudaProfilerStart/Stop(), which
+    calls into PyTorch's compiled-in _C._cudart module — bypassing nsys's
+    LD_PRELOAD / CUDA injection interception — so nsys never saw the signal.
 
     Three strategies:
       A. Has '# <<< PROFILED_STOP >>>'  → wrap the 'with nvtx.annotate(' block
@@ -225,10 +230,10 @@ def _inject_cuda_profiler(body, func_name):
         result = []
         for i, ln in enumerate(lines):
             if i == nvtx_idx:
-                result.append(f"{indent}torch.cuda.cudart().cudaProfilerStart()")
+                result.append(f"{indent}nvtx.push_range('nsys_capture')")
             result.append(ln)
             if sync_idx is not None and i == sync_idx:
-                result.append(f"{indent}torch.cuda.cudart().cudaProfilerStop()")
+                result.append(f"{indent}nvtx.pop_range()")
         return "\n".join(result)
 
     # ── Strategy B ──────────────────────────────────────────────────────────
@@ -242,11 +247,11 @@ def _inject_cuda_profiler(body, func_name):
         result = []
         for i, ln in enumerate(lines):
             if i == train_idx:
-                result.append(f"{indent}torch.cuda.cudart().cudaProfilerStart()")
+                result.append(f"{indent}nvtx.push_range('nsys_capture')")
                 result.append(f"{indent}with nvtx.annotate('finetune_training'):")
                 result.append(f"{indent}    {ln.lstrip()}")
                 result.append(f"{indent}torch.cuda.synchronize()")
-                result.append(f"{indent}torch.cuda.cudart().cudaProfilerStop()")
+                result.append(f"{indent}nvtx.pop_range()")
             else:
                 result.append(ln)
         return "\n".join(result)
@@ -272,10 +277,10 @@ def _inject_cuda_profiler(body, func_name):
     result = []
     for i, ln in enumerate(lines):
         if i == loop_idx:
-            result.append(f"{indent}torch.cuda.cudart().cudaProfilerStart()")
+            result.append(f"{indent}nvtx.push_range('nsys_capture')")
         result.append(ln)
         if i == loop_end_idx - 1:
-            result.append(f"{indent}torch.cuda.cudart().cudaProfilerStop()")
+            result.append(f"{indent}nvtx.pop_range()")
     return "\n".join(result)
 
 
@@ -358,7 +363,7 @@ def _generate_nsys_script(
     # Now inline helpers
     body = _inject_helpers(body, utils_src, eval_helpers_src)
 
-    # Inject cudaProfilerStart/Stop
+    # Inject nvtx.push_range/pop_range capture window
     body = _inject_cuda_profiler(body, func_name)
 
     # Trim body to profiling section and compute accuracy block
@@ -439,8 +444,8 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         + f'PROFILE_DIR="/nsight-reports/{nsys_project}/${{RUN_ID}}/{stage_name}"\n'
         + 'mkdir -p "${PROFILE_DIR}"\n'
         + "nsys profile \\\n"
-        + "  --capture-range=cudaProfilerApi \\\n"
-        + "  --trace=cuda,nvtx,osrt,cublas,cudnn \\\n"
+        + "  --capture-range=nvtx --nvtx-capture=nsys_capture \\\n"
+        + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "${PROFILE_DIR}/profile" \\\n'
         + f"  python3 /usr/local/bin/nsys_{func_name}.py \\\n"
