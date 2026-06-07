@@ -21,7 +21,6 @@
 | `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run (git-ignored) |
 | `runs/run-NNN.md` | Periodic status log for run NNN, written by the monitoring loop (git-ignored) |
 | `NSIGHT.md` | Nsight Systems GPU profiling — how to enable, output paths, viewing reports |
-| `TROUBLESHOOTING.md` | Known issues and fixes for platform-specific problems on DGX Spark |
 
 ## Slash commands
 
