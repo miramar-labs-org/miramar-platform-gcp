@@ -74,17 +74,7 @@ prepare_dataset
 
 ---
 
-## 4. Secrets
-
-All API keys (`HF_TOKEN`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WANDB_API_KEY`, etc.) are injected
-automatically into every component pod from the `mlabs-api-keys` K8s secret in the `kubeflow` namespace.
-
-**No manual setup required** — the secret is provisioned by the **Kubeflow Deploy** workflow in
-[miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp).
-
----
-
-## 5. MLflow
+## 4. MLflow
 
 Each component logs metrics to MLflow automatically. Access the UI:
 
@@ -97,7 +87,7 @@ Use **ML** experiment type (not *GenAI apps & agents*).
 
 ---
 
-## 6. KFP UI
+## 5. KFP UI
 
 ```sh
 ssh -L 8080:localhost:8080 <user>@spark-79b7.local
@@ -113,7 +103,7 @@ is unreachable.
 
 ---
 
-## 7. GPU profiling (Nsight Systems)
+## 6. GPU profiling (Nsight Systems)
 
 Optional Nsight Systems profiling on individual pipeline stages. Enable per-stage flags when submitting a run:
 
