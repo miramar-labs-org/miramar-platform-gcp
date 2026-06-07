@@ -19,7 +19,6 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, "${{ inputs.runner }}"]
-    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
