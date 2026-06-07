@@ -121,7 +121,6 @@ python3 scripts/deploy_pipeline.py --run-name run-001 \
 | `--profile-safety` | `safety_eval` |
 | `--profile-baseline-safety` | `baseline_safety_eval` |
 
-All flags default to off. Unprofiled runs behave identically to runs before this feature existed.
 
 **Output** — reports are written to the host at:
 ```
