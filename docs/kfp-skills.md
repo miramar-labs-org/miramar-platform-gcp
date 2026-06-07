@@ -16,13 +16,22 @@ Two Claude Code slash commands cover the full run lifecycle for any project scaf
 # Explicit run name
 /kfp-deploy run-021
 
-# Profile baseline eval step only
+# Profile baseline eval only
 /kfp-deploy run-021 --profile-baseline
 
-# Profile fine-tune step only
+# Profile fine-tune only
 /kfp-deploy run-021 --profile-finetune
 
-# Profile both steps (shorthand)
+# Profile post-fine-tune eval only
+/kfp-deploy run-021 --profile-postft
+
+# Profile safety eval only
+/kfp-deploy run-021 --profile-safety
+
+# Profile baseline safety eval only
+/kfp-deploy run-021 --profile-baseline-safety
+
+# Profile baseline + fine-tune (shorthand)
 /kfp-deploy run-021 --profile-nsight
 ```
 

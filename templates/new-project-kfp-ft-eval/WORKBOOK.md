@@ -10,14 +10,12 @@ Each item is a `# ---- USER CODE BLOCK ----` marker in the notebook or a file yo
 Edit the top section to match your model and dataset:
 
 ```yaml
-base_model_id: google/medgemma-4b-it   # HuggingFace model ID (must be cached on DGX)
+model:
+  id: google/medgemma-4b-it   # HuggingFace model ID (must be cached on DGX)
 datasets:
-  - name: my-dataset                   # must match keys in formatters.py and loaders.py
-    train_split: train
-    val_split: validation
-    test_split: test
-    train_sample_size: 2000
-    val_sample_size: 500
+  - name: my-dataset          # must match keys in formatters.py and loaders.py
+    hf_path: org/repo
+    hf_config: null
 ```
 
 Also review LoRA params, eval thresholds, and `judge_system_prompt` in `safety_eval`.
@@ -153,7 +151,7 @@ All GPU runs are capped when profiling is enabled — prevents large nsys report
 | `profiling.postft: true` | `post_finetune_eval` | WARMUP + CAPTURE samples only |
 | `profiling.safety: true` | `safety_eval` | `capture_samples` samples |
 
-Default cap: `warmup_samples=5`, `capture_samples=10` (15 samples total for eval components),
+Default cap: `warmup_samples=2`, `capture_samples=3` (5 samples total for eval components),
 `train_max_steps=20`. Adjust in the `profiling:` block of `config.yaml`.
 
 ---
