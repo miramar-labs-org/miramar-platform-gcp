@@ -142,6 +142,7 @@ All flags default to off. Unprofiled runs behave identically to runs before this
       fine-tune/profile.nsys-rep
       ...
 ```
+`{run_id}` is the value you passed as `--run-name` (e.g., `run-001`).
 
 **Viewing** — open any `.nsys-rep` in NVIDIA Nsight Systems desktop GUI:
 ```bash
