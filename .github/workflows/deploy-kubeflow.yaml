@@ -159,7 +159,6 @@ jobs:
             storageClassName: ""
             hostPath:
               path: /hf-cache
-              type: DirectoryOrCreate
           ---
           apiVersion: v1
           kind: PersistentVolumeClaim
@@ -186,7 +185,6 @@ jobs:
             storageClassName: ""
             hostPath:
               path: /nsight-reports
-              type: DirectoryOrCreate
           ---
           apiVersion: v1
           kind: PersistentVolumeClaim
