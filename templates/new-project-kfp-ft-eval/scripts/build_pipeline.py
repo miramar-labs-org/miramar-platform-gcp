@@ -311,11 +311,15 @@ def _metrics_suffix(body, func_name):
         )
         return body, accuracy_block
 
-    # Safety eval: avg_score already computed; replace plain metrics write
+    # Safety eval: avg_score already computed; strip write_text call to end of body.
+    # write_text is always the last statement and may have nested parens (json.dumps),
+    # so we strip from the pathlib.Path line to end-of-string rather than trying to
+    # match balanced parentheses with a regex.
     body_trimmed = re.sub(
-        r"\n?pathlib\.Path\(args\.metrics_path\)\.write_text\([^)]+\)\n?",
+        r"\n?pathlib\.Path\(args\.metrics_path\)\.write_text\(.*",
         "",
         body,
+        flags=re.DOTALL,
     )
     accuracy_block = (
         "\n\n"
