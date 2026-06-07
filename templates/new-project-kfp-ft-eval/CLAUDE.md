@@ -20,7 +20,6 @@
 | `scripts/terminate_pipeline.py` | Terminate a run by ID (called by Undeploy from KFP workflow) |
 | `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run (git-ignored) |
 | `runs/run-NNN.md` | Periodic status log for run NNN, written by the monitoring loop (git-ignored) |
-| `NSIGHT.md` | Nsight Systems GPU profiling — how to enable, output paths, viewing reports |
 
 ## Slash commands
 

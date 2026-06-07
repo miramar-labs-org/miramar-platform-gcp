@@ -27,17 +27,14 @@ prepare_dataset
 > `fine_tune` runs after both baseline evals (not parallel) — on single-node minikube, GPU steps
 > cannot overlap without exceeding the allocatable memory limit.
 
-To start a new project with this template, run **Create Project** in
-[miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) with type `kfp-ft-eval`.
-
 ---
 
 ## 2. Quick start
 
 1. Edit `config.yaml` — set `model.id`, the `datasets` list, LoRA params, eval thresholds, and judge prompt
-2. Edit `formatters.py` — add one function per dataset that maps a raw HF row to `{instruction, response, source}`; register in `FORMATTERS`
-3. Open `notebook.ipynb` in JupyterLab and fill in every `# ---- USER CODE BLOCK ----` section (see `WORKBOOK.md` for the full checklist)
-4. Save (`Ctrl+S`), run the **Build → `pipeline.py`** cell
+2. Edit `formatters.py` and `loaders.py` — add one function/lambda per dataset (see `WORKBOOK.md`)
+3. Open `notebook.ipynb` in JupyterLab and fill in every `# ---- USER CODE BLOCK ----` section
+4. Run the **Build → `pipeline.py`** cell
 5. Run the compile check:
    ```sh
    python3 -c "from kfp import compiler; from pipeline import pipeline; \
@@ -52,7 +49,7 @@ To start a new project with this template, run **Create Project** in
 | Key | Type | Description |
 |---|---|---|
 | `model.id` | string | HuggingFace model ID (e.g. `google/medgemma-27b-it`) |
-| `datasets[].name` | string | Dataset name — must match a key in `FORMATTERS` |
+| `datasets[].name` | string | Dataset name — must match a key in `FORMATTERS` and `LOADERS` |
 | `datasets[].hf_path` | string | HuggingFace dataset path |
 | `datasets[].hf_config` | string | Optional HF dataset config name |
 | `datasets[].trust_remote_code` | bool | Pass `trust_remote_code=True` to `load_dataset` |
@@ -77,46 +74,7 @@ To start a new project with this template, run **Create Project** in
 
 ---
 
-## 4. Writing formatters
-
-Each formatter converts a single HuggingFace dataset row to a standard dict:
-
-```python
-def format_my_dataset(example: dict) -> dict:
-    return {
-        "instruction": example["question"],   # str — the prompt
-        "response": example["answer"],         # str — the expected response
-        "source": "my-dataset",               # str — traceability label
-    }
-
-FORMATTERS = {
-    "my-dataset": format_my_dataset,          # key must match config.yaml datasets[].name
-}
-```
-
-**Common pitfalls:**
-- Imports used inside a formatter must be in `prepare_dataset`'s `packages_to_install` — the Build
-  cell inlines `formatters.py` into the component body, but does not add packages automatically
-- If options are a list of dicts (e.g. `[{"key": "A", "value": "..."}]`), convert them explicitly
-- Datasets using custom scripts need `trust_remote_code: true` in `config.yaml` and `datasets<3.0`
-
----
-
-## 5. Pipeline structure
-
-| Step | Inputs | Outputs | Notes |
-|---|---|---|---|
-| `prepare_dataset` | `dataset_names`, `val_size`, `test_size` | `train_out`, `val_out`, `test_out` | Formatters inlined from `formatters.py` |
-| `baseline_eval` | `val_out`, `base_model_id` | `metrics` | Base model accuracy before fine-tuning |
-| `baseline_safety_eval` | `val_out`, `base_model_id`, judge params | `metrics` | Base model safety before fine-tuning; uses `OPENAI_API_KEY` |
-| `fine_tune` | `train_out`, `val_out`, `base_model_id`, LoRA params | `ft_model` | After both baseline evals; sequential to avoid OOM |
-| `post_finetune_eval` | `val_out`, `ft_model` | `metrics` | After `fine_tune` |
-| `safety_eval` | `val_out`, `ft_model`, judge params | `metrics` | After `fine_tune`; uses `OPENAI_API_KEY` |
-| `deployment_gate` | `test_out`, `ft_model`, all metrics, thresholds | — | Fails pipeline on regression |
-
----
-
-## 6. Secrets
+## 4. Secrets
 
 All API keys (`HF_TOKEN`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WANDB_API_KEY`, etc.) are injected
 automatically into every component pod from the `mlabs-api-keys` K8s secret in the `kubeflow` namespace.
@@ -126,7 +84,7 @@ automatically into every component pod from the `mlabs-api-keys` K8s secret in t
 
 ---
 
-## 7. MLflow
+## 5. MLflow
 
 Each component logs metrics to MLflow automatically. Access the UI:
 
@@ -135,37 +93,11 @@ ssh -L 5000:localhost:5000 <user>@spark-79b7.local
 # → http://localhost:5000
 ```
 
-Use **ML** experiment type (not *GenAI apps & agents*). Logged values:
-- `baseline_eval` → `baseline_accuracy`
-- `baseline_safety_eval` → `baseline_safety_avg_score`
-- `fine_tune` → training hyperparameters
-- `post_finetune_eval` → `postft_accuracy`
-- `safety_eval` → `safety_avg_score`
+Use **ML** experiment type (not *GenAI apps & agents*).
 
 ---
 
-## 8. Adding a new dataset
-
-1. Add an entry to `config.yaml` under `datasets:`
-   ```yaml
-   - name: my-dataset
-     hf_path: org/my-dataset
-   ```
-2. Add a formatter to `formatters.py` and register it in `FORMATTERS`
-3. Add a loader lambda to `loaders.py` and register it in `LOADERS`
-4. Save, run Build cell, compile check, trigger **Deploy to KFP**
-
----
-
-## 9. Changing the model
-
-Edit `model.id` in `config.yaml`. The `base_model_id` pipeline parameter default updates automatically
-when the Build cell regenerates `pipeline.py`. You may also need to update `lora.target_modules` to
-match the new model's attention architecture.
-
----
-
-## 10. KFP UI
+## 6. KFP UI
 
 ```sh
 ssh -L 8080:localhost:8080 <user>@spark-79b7.local
@@ -181,7 +113,7 @@ is unreachable.
 
 ---
 
-## 11. GPU profiling (Nsight Systems)
+## 7. GPU profiling (Nsight Systems)
 
 Optional Nsight Systems profiling on individual pipeline stages. Enable per-stage flags when submitting a run:
 
@@ -216,10 +148,9 @@ All flags default to off. Unprofiled runs behave identically to runs before this
 nsys-ui /home/aaron/shared/nsight/{{PROJECT_NAME}}/{run_id}/baseline-eval/profile.nsys-rep
 ```
 
-**9p permissions** — before the first profiling run, ensure the host directory is world-writable so the pod (runs as root) can write through the 9p mount:
+**9p permissions** — before the first profiling run, ensure the host directory is world-writable:
 ```bash
 chmod -R 777 /home/aaron/shared/nsight/
 ```
-Repeat any time a subdirectory is manually created on the host. Symptom if missing: `PermissionError: [Errno 13] ... '/nsight-reports/{{PROJECT_NAME}}/<run-id>'`
 
 **Infrastructure** — profiling uses the `nsight-reports` PVC (50 Gi, `ReadWriteMany`) mounted at `/nsight-reports/` in each GPU component pod. The PVC is provisioned by **Kubeflow Deploy**.
