@@ -145,8 +145,8 @@ jobs:
           fi
           sleep 5
 
-          # --- PV + PVC manifests (idempotent — kubectl apply is safe to re-run) ---
-          kubectl apply -f - <<'MANIFESTS'
+          # --- PVs: skip if already exist (spec.persistentvolumesource is immutable after creation)
+          kubectl get pv hf-model-cache &>/dev/null || kubectl apply -f - <<'EOF'
           apiVersion: v1
           kind: PersistentVolume
           metadata:
@@ -159,7 +159,24 @@ jobs:
             storageClassName: ""
             hostPath:
               path: /hf-cache
-          ---
+          EOF
+          kubectl get pv nsight-reports &>/dev/null || kubectl apply -f - <<'EOF'
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nsight-reports
+          spec:
+            capacity:
+              storage: 50Gi
+            accessModes: [ReadWriteMany]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            hostPath:
+              path: /nsight-reports
+          EOF
+
+          # --- PVCs: always apply (no immutable fields; idempotent)
+          kubectl apply -f - <<'EOF'
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
@@ -174,19 +191,6 @@ jobs:
             volumeName: hf-model-cache
           ---
           apiVersion: v1
-          kind: PersistentVolume
-          metadata:
-            name: nsight-reports
-          spec:
-            capacity:
-              storage: 50Gi
-            accessModes: [ReadWriteMany]
-            persistentVolumeReclaimPolicy: Retain
-            storageClassName: ""
-            hostPath:
-              path: /nsight-reports
-          ---
-          apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
             name: nsight-reports
@@ -198,7 +202,7 @@ jobs:
                 storage: 50Gi
             storageClassName: ""
             volumeName: nsight-reports
-          MANIFESTS
+          EOF
 
           kubectl get pv hf-model-cache nsight-reports 2>/dev/null || true
           kubectl get pvc hf-model-cache nsight-reports -n kubeflow 2>/dev/null || true
