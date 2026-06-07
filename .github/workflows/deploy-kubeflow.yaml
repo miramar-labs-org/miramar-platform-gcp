@@ -235,6 +235,19 @@ jobs:
             --from-literal=NVIDIA_API_KEY="$NVIDIA_API_KEY" \
             -n kubeflow --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Wire GHCR pull secret for profiled image
+        env:
+          MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
+        run: |
+          kubectl create secret docker-registry ghcr-pull-secret \
+            -n kubeflow \
+            --docker-server=ghcr.io \
+            --docker-username=miramar-labs-org \
+            --docker-password="$MIRAMAR_ORG_GHCR_PAT" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl patch serviceaccount pipeline-runner -n kubeflow \
+            -p '{"imagePullSecrets": [{"name": "ghcr-pull-secret"}]}'
+
       - name: Set KFP active state
         run: |
           export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
