@@ -87,7 +87,7 @@ Use **ML** experiment type (not *GenAI apps & agents*).
 
 ---
 
-## 5. KFP UI
+## 5. Kubeflow Pipelines UI
 
 ```sh
 ssh -L 8080:localhost:8080 <user>@spark-79b7.local
@@ -98,7 +98,7 @@ Runs appear in the **Runs** tab. After the first submission, the pipeline also a
 **Pipelines** tab (registered by `scripts/deploy_pipeline.py`).
 
 Prerequisites: **Kubeflow Deploy** must be running. Trigger it in
-[miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) if the KFP UI
+[miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) if the Kubeflow Pipelines UI
 is unreachable.
 
 ---
