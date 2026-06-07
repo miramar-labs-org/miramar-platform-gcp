@@ -46,12 +46,14 @@ judge:
 deployment:
   gcs_bucket: miramar-platform-ft-adapters
 
+nsys_project: "{{PROJECT_NAME}}"
+
 profiling:
   baseline: false
   finetune: false
   postft: false
   safety: false
   baseline_safety: false
-  warmup_samples: 5
-  capture_samples: 10
+  warmup_samples: 2
+  capture_samples: 3
   train_max_steps: 20

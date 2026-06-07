@@ -3,10 +3,10 @@ Re-generate pipeline.py by inlining formatters.py and loaders.py into the
 prepare_dataset component body. Mirrors the Build cell in notebook.ipynb — run
 either one.
 """
-import json, pathlib, re, textwrap
+import json, pathlib, re, textwrap, yaml
 
 
-def _make_profiled_variant(func_name, src, profiled_image):
+def _make_profiled_variant(func_name, src, profiled_image, nsys_project="project"):
     # Derive *_profiled KFP component: swap base_image, rename, stop after NVTX capture.
     src = re.sub(
         r'(base_image\s*=\s*)"[^"]+"',
@@ -25,6 +25,7 @@ def _make_profiled_variant(func_name, src, profiled_image):
         after = src[src.index(FINAL):]
         inject = (
             "\n"
+            f"        pathlib.Path('/tmp/nsys_project').write_text('{nsys_project}')\n"
             "        TOTAL_P = WARMUP + CAPTURE\n"
             "        correct_p = 0\n"
             "        for _i_p, _r_p in enumerate(val_data[:TOTAL_P]):\n"
@@ -47,8 +48,11 @@ def build_pipeline(
     loaders_path="loaders.py",
     eval_helpers_path="eval_helpers.py",
     utils_path="utils.py",
+    config_path="config.yaml",
 ):
     base_dir = pathlib.Path(notebook_path).parent
+    cfg = yaml.safe_load((base_dir / config_path).read_text())
+    _nsys_project = cfg.get("nsys_project", "project")
     nb = json.loads(pathlib.Path(notebook_path).read_text())
     formatters_src    = (base_dir / formatters_path).read_text().rstrip("\n")
     loaders_src       = (base_dir / loaders_path).read_text().rstrip("\n")
@@ -80,7 +84,7 @@ def build_pipeline(
             if profiled_image:
                 m = re.search(r"^def (\w+)\(", src, re.MULTILINE)
                 if m:
-                    step_srcs.append(_make_profiled_variant(m.group(1), src, profiled_image))
+                    step_srcs.append(_make_profiled_variant(m.group(1), src, profiled_image, _nsys_project))
         elif "kfp_pipeline" in tags:
             pipeline_src = src
 

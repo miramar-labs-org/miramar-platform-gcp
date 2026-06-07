@@ -204,16 +204,12 @@ jobs:
           kubectl get pv hf-model-cache nsight-reports 2>/dev/null || true
           kubectl get pvc hf-model-cache nsight-reports -n kubeflow 2>/dev/null || true
 
-      - name: Build and load profiled PyTorch image
+      - name: Build and push profiled PyTorch image to GHCR
         run: |
-          IMAGE="mlabs/pytorch-profiled:25.03"
-          if minikube image ls 2>/dev/null | grep -q "$IMAGE"; then
-            echo "Image $IMAGE already loaded — skipping."
-          else
-            docker build -f docker/Dockerfile.profiled -t "$IMAGE" docker/
-            minikube image load "$IMAGE"
-            echo "Loaded $IMAGE into minikube."
-          fi
+          IMAGE="ghcr.io/miramar-labs-org/pytorch-profiled:25.03"
+          docker build -f docker/Dockerfile.profiled -t "$IMAGE" docker/
+          docker push "$IMAGE"
+          echo "Pushed $IMAGE to GHCR."
 
       - name: Smoke-test endpoints
         continue-on-error: true
