@@ -54,8 +54,9 @@ jobs:
         run: bash dgx/minikube/kubeflow/destroy-kubeflow.sh
 
       - name: Clear KFP active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           var="${machine}_KFP_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \

@@ -87,8 +87,9 @@ jobs:
           sudo sed -i '/# Added by NeMo setup script/d' /etc/hosts || true
 
       - name: Clear NeMo active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           var="${machine}_NEMO_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \

@@ -141,8 +141,9 @@ jobs:
           echo "Project $PROJECT_ID deleted."
 
       - name: Mark cluster inactive
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
           for var_name in GKE_CLUSTER_ACTIVE GKE_GPU_POOL_ACTIVE; do
             gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var_name}" \
               -f name="${var_name}" -f value="false" -f visibility="all" \

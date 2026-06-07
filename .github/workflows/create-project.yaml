@@ -73,6 +73,7 @@ jobs:
           DESCRIPTION: ${{ inputs.description }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo create \
             "miramar-labs-org/${PROJECT_NAME}" \
@@ -84,6 +85,7 @@ jobs:
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_TYPE: ${{ inputs.project_type }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X PUT \
@@ -95,6 +97,7 @@ jobs:
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
           HOST: ${{ inputs.host }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X PATCH "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
@@ -108,6 +111,7 @@ jobs:
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           HOST: ${{ inputs.host }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
 
@@ -175,6 +179,7 @@ jobs:
       - name: Clone to host projects folder
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
           SCRIPT: |
             set -euo pipefail
             mkdir -p "${HOME}/git-miramar-labs-org/projects"
@@ -221,6 +226,8 @@ jobs:
 
       - name: Draft blog post
         continue-on-error: true
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
           BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"

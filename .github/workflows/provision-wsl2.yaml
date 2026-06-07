@@ -313,10 +313,11 @@ jobs:
 
       - name: Register in WSL2_DISTROS
         id: register
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           DISTRO='${{ inputs.distro_name }}'
           REPO='${{ github.repository }}'
-          export GH_TOKEN="$GITHUB_ORG_ADMIN_PAT"
           CURRENT=$(gh api "repos/$REPO/actions/variables/WSL2_DISTROS" --jq '.value' 2>/dev/null || echo "")
           [[ "$CURRENT" == "NONE" ]] && CURRENT=""
           if echo " $CURRENT " | grep -qF " $DISTRO "; then

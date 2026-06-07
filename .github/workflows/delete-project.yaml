@@ -40,6 +40,7 @@ jobs:
       - name: Verify repository exists
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           if ! GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
               "repos/miramar-labs-org/${PROJECT_NAME}" >/dev/null 2>&1; then
@@ -51,6 +52,7 @@ jobs:
       - name: Resolve host
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           if _val=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
               "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
@@ -71,6 +73,7 @@ jobs:
       - name: Delete repository
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo delete \
             "miramar-labs-org/${PROJECT_NAME}" \
@@ -81,6 +84,7 @@ jobs:
         continue-on-error: true
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
           BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"

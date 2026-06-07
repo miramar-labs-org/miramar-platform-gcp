@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: List posts and draft PRs
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
           BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"

@@ -145,6 +145,7 @@ jobs:
         env:
           NIM_ORG: ${{ inputs.nim_org }}
           NIM_NAME: ${{ inputs.nim_name }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           echo "NIM deploy failed — submitting undeploy for ${NIM_ORG}/${NIM_NAME}..."
           ( source dgx/minikube/nim/undeploy_nim.sh
@@ -161,6 +162,8 @@ jobs:
 
       - name: Update platform state
         if: success()
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
           NIM_MODEL="${{ inputs.nim_org }}/${{ inputs.nim_name }}"
@@ -173,6 +176,8 @@ jobs:
 
       - name: Record NIM VRAM usage
         if: success()
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           vram_gb=$(ssh -i /tmp/host_key \
             -o BatchMode=yes -o IdentitiesOnly=yes \

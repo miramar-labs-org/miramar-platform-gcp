@@ -77,6 +77,8 @@ jobs:
       - name: Update platform state
         if: success()
         shell: bash
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
           for var_val in "${STATE_MODEL_VAR}=none" "${STATE_VRAM_VAR}=0"; do

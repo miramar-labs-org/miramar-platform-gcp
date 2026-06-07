@@ -73,15 +73,20 @@ echo "==> Removing arm64-incompatible controller-manager ..."
 kubectl delete deployment controller-manager -n kubeflow --ignore-not-found || true
 
 # Create (or update) a GHCR imagePullSecret in the kubeflow namespace.
-# Uses GITHUB_ORG_GHCR_PAT (long-lived runner env var) so pods can pull even
-# after the workflow run ends and GITHUB_TOKEN has expired.
+# Uses MIRAMAR_ORG_GHCR_PAT (passed from the org-level GHA secret by the
+# caller workflow) so the credential is always live regardless of runner env.
 echo "==> Creating GHCR imagePullSecret in kubeflow namespace ..."
 kubectl create secret docker-registry ghcr-pull-secret \
   --docker-server=ghcr.io \
-  --docker-username="${GITHUB_ACTOR:-github-actions}" \
-  --docker-password="${GITHUB_ORG_GHCR_PAT}" \
+  --docker-username=miramar-labs-org \
+  --docker-password="${MIRAMAR_ORG_GHCR_PAT}" \
   --namespace=kubeflow \
   --dry-run=client -o yaml | kubectl apply -f -
+
+# pipeline-runner SA is used by KFP project pods (not Deployments) — patch it
+# separately so profiled-image components can also pull from GHCR.
+kubectl patch serviceaccount pipeline-runner -n kubeflow \
+  -p '{"imagePullSecrets": [{"name": "ghcr-pull-secret"}]}'
 
 # ---------------------------------------------------------------------------
 # Patch MLMD stack (always — these have no upstream arm64 images at all)

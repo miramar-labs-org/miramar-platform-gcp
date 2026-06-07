@@ -189,6 +189,8 @@ jobs:
 
       - name: Set GPU pool state vars
         if: success()
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           upsert_org_var() {
             GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
