@@ -32,7 +32,7 @@ mkdir -p "$(dirname "$OUTPUT")"
 echo "==> Fetching public repos for ${ORG} ..."
 REPOS_JSON=$(GH_TOKEN="$GH_TOKEN" gh api --paginate \
   "orgs/${ORG}/repos?type=public&per_page=100" \
-  --jq '[.[] | select(.topics != null and (.topics | index("miramar-project") != null))]')
+  --jq '[.[] | select(.topics != null and (.topics | index("miramar-project") != null) and (.topics | index("hide") == null))]')
 
 REPO_COUNT=$(echo "$REPOS_JSON" | jq 'length')
 echo "    Found ${REPO_COUNT} repos tagged miramar-project"
