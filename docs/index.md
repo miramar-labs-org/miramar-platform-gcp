@@ -11,6 +11,7 @@ operational procedure.
 | --- | --- | --- |
 | Repo purpose and positioning | [SOWHAT.md](../SOWHAT.md) | [README.md](../README.md), [SOWHAT.md](../SOWHAT.md) |
 | Developer workflow | [development.md](development.md) | [development.md](development.md) |
+| CLI reference (`gh`, `gcloud`, Terraform, `kubectl`, MLflow) | [cli.md](cli.md) | [cli.md](cli.md) |
 | Platform architecture | [architecture.md](architecture.md) | [README.md](../README.md), [architecture.md](architecture.md) |
 | Diagrams | [diagrams.md](diagrams.md) | [diagrams.md](diagrams.md) |
 | Security model | [security-model.md](security-model.md) | [security-model.md](security-model.md) |
