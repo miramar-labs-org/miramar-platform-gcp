@@ -12,6 +12,7 @@ Env vars:
   KFP_API   - KFP REST API base URL  (default: http://localhost:8890/apis/v2beta1)
 """
 import os
+import subprocess
 import sys
 import urllib.request
 import urllib.error
@@ -70,9 +71,27 @@ def purge_pipeline():
     print(f"  Deleted pipeline: {PIPELINE_NAME} ({pid})")
 
 
+def purge_argo_workflows():
+    prefix = PIPELINE_NAME.replace("_", "-")
+    result = subprocess.run(
+        ["kubectl", "get", "workflows", "-n", "kubeflow",
+         "--no-headers", "-o", "custom-columns=NAME:.metadata.name"],
+        capture_output=True, text=True,
+    )
+    workflows = [w for w in result.stdout.splitlines() if w.startswith(prefix)]
+    if not workflows:
+        print("No orphaned Argo workflows found.")
+        return
+    for wf in workflows:
+        subprocess.run(["kubectl", "delete", "workflow", "-n", "kubeflow", wf], check=True)
+        print(f"  Deleted Argo workflow: {wf}")
+
+
 print(f"Purging KFP state for '{PIPELINE_NAME}'...")
 print("Runs:")
 purge_runs()
 print("Pipeline:")
 purge_pipeline()
+print("Argo workflows:")
+purge_argo_workflows()
 print("Done.")
