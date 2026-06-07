@@ -178,11 +178,20 @@ fi
 
 ## Setting secrets
 
+All machines share Spark's SSH identity — use `HOST_SSH_KEY` for all SSH operations.
+
 ```sh
-gh secret set WSL2_HOST --body "192.168.1.x"
-gh secret set WSL2_HOST_USER --body "aaron"
-gh secret set WSL2_HOST_SSH_KEY < ~/.ssh/id_ed25519
-gh secret set DGX_HOST_SSH_KEY < ~/.ssh/id_ed25519
+gh secret set HOST_SSH_KEY < ~/.ssh/id_ed25519
+```
+
+API keys and PATs:
+
+```sh
+gh secret set HF_TOKEN --body "hf_..."
+gh secret set OPENAI_API_KEY --body "sk-..."
+gh secret set GITHUB_ORG_ADMIN_PAT --body "ghp_..."
 ```
 
 Or via **Settings → Secrets and variables → Actions → New repository secret**.
+
+See [configuration.md](configuration.md) for the full list of org-level secrets and variables.

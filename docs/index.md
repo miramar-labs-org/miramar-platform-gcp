@@ -10,7 +10,7 @@ operational procedure.
 | Area | Start here | Source of truth |
 | --- | --- | --- |
 | Repo purpose and positioning | [SOWHAT.md](../SOWHAT.md) | [README.md](../README.md), [SOWHAT.md](../SOWHAT.md) |
-| Developer workflow | [DEVELOPER.md](../DEVELOPER.md) | [DEVELOPER.md](../DEVELOPER.md) |
+| Developer workflow | [development.md](development.md) | [development.md](development.md) |
 | Platform architecture | [architecture.md](architecture.md) | [README.md](../README.md), [architecture.md](architecture.md) |
 | Diagrams | [diagrams.md](diagrams.md) | [diagrams.md](diagrams.md) |
 | Security model | [security-model.md](security-model.md) | [security-model.md](security-model.md) |
