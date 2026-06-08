@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="$HOME/.config/systemd/user"
 # minikube first — port-forward services depend on it
-SERVICES=(minikube minikube-hf-cache-mount dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd)
+SERVICES=(minikube minikube-hf-cache-mount minikube-nsight-mount dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd)
 
 mkdir -p "$DEST"
 

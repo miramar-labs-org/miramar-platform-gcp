@@ -1,0 +1,15 @@
+[Unit]
+Description=minikube mount — Nsight Systems profiling reports (/home/aaron/shared/nsight → /nsight-reports)
+After=network-online.target minikube.service
+Wants=network-online.target minikube.service
+
+[Service]
+Type=simple
+Environment=HOME=%h
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/minikube mount %h/shared/nsight:/nsight-reports
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
