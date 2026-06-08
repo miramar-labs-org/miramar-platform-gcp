@@ -17,7 +17,7 @@ from kfp import kubernetes as k8s_ext
 
 
 @dsl.component(
-    base_image="nvcr.io/nvidia/pytorch:25.03-py3",
+    base_image="nvcr.io/nvidia/pytorch:26.04-py3",
     packages_to_install=["nvtx"],
 )
 def gpu_stage(run_id: str, profile: bool = False):
@@ -59,8 +59,11 @@ print(f"Result norm: {result.norm().item():.4f}")
         )
         print(proc.stdout)
         if proc.returncode != 0:
-            print(proc.stderr)
-            raise RuntimeError("nsys profiling failed")
+            print("nsys stderr:", proc.stderr)
+        # Copy report even if workload crashed — nsys generates it regardless
+        rep = Path("/tmp/profile.nsys-rep")
+        if not rep.exists():
+            raise RuntimeError("nsys did not generate a .nsys-rep — profiling failed entirely")
         subprocess.run(
             ["cp", "/tmp/profile.nsys-rep", str(NSIGHT_DIR / "profile.nsys-rep")],
             check=True,
@@ -69,11 +72,11 @@ print(f"Result norm: {result.norm().item():.4f}")
         for r in ["cuda_gpu_kern_sum", "cuda_api_sum", "cuda_gpu_mem_time_sum", "nvtx_sum"]:
             lines.append(f"=== {r} ===\n")
             res = subprocess.run(
-                ["nsys", "stats", "--report", r, "--format", "csv",
+                ["nsys", "stats", "--report", r,
                  str(NSIGHT_DIR / "profile.nsys-rep")],
                 capture_output=True, text=True,
             )
-            lines.append(res.stdout if res.returncode == 0 else "(skipped)\n")
+            lines.append(res.stdout if res.returncode == 0 else f"(exit {res.returncode}): {res.stderr[:200]}\n")
         (NSIGHT_DIR / "summaries.csv").write_text("".join(lines))
         print(f"Profiling output: {NSIGHT_DIR}")
     else:
