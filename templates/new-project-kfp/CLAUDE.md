@@ -12,8 +12,17 @@
 |---|---|
 | `pipeline.py` | KFP v2 pipeline definition — `pipeline()` is compiled and submitted |
 | `notebook.ipynb` | Interactive development: compile, inspect, submit, monitor runs |
-| `scripts/deploy_pipeline.py` | Called by Deploy to KFP workflow |
+| `scripts/deploy_pipeline.py` | Compile + submit; `--profile` enables nsys GPU profiling |
 | `scripts/terminate_pipeline.py` | Called by Undeploy from KFP workflow |
+| `scripts/purge_kfp.py` | Purge all runs + pipeline versions before redeploy |
+| `scripts/purge_nsight.py` | Clean up large nsys artifacts from `~/shared/nsight/` |
+
+## Slash commands
+
+| Command | What it does |
+|---|---|
+| `/kfp-monitor [run-NNN]` | Self-paced monitoring loop — checks pods, appends to `runs/run-NNN.md` |
+| `/nsight-interpret [run-NNN\|path]` | Interpret an Nsight Systems `.nsys-rep` with an LLM |
 
 ## Workflows
 
@@ -25,12 +34,24 @@ Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** i
 | **Deploy to KFP** | `run_name` | Compile `pipeline.py` → upload → submit run |
 | **Undeploy from KFP** | `run_id` | Terminate a run |
 
-Click the **Open in JupyterLab** badge in the README to open `notebook.ipynb` directly (requires SSH tunnel).
+## Deploy cycle
+
+```bash
+# Always purge before redeploy
+python3 scripts/purge_kfp.py
+
+# Normal run
+python3 scripts/deploy_pipeline.py --run-name run-001
+
+# With nsys GPU profiling
+python3 scripts/deploy_pipeline.py --run-name run-001 --profile
+```
 
 ## Editing the pipeline
 
-Define components with `@dsl.component` and wire them in the `@dsl.pipeline` function
-named `pipeline`. The scaffold ships a hello-world component to replace.
+`pipeline.py` ships a GPU-capable stub using the NGC PyTorch base image. Replace the
+`WORKLOAD` string in `gpu_stage` with your GPU body. For non-GPU stages, swap to
+`base_image="python:3.11-slim"` and drop the nsys/PVC boilerplate.
 
 ```python
 from kfp import dsl
@@ -40,14 +61,14 @@ def my_step(x: str) -> str:
     ...
 
 @dsl.pipeline(name="{{PROJECT_NAME}}")
-def pipeline(x: str = "default"):
-    my_step(x=x)
+def pipeline(run_id: str = "run-001", profile: bool = False):
+    my_step(x=run_id)
 ```
 
-Compile locally to inspect the YAML before submitting:
+Compile check:
 
 ```sh
-python3 -c "from kfp import compiler; from pipeline import pipeline; compiler.Compiler().compile(pipeline, '/tmp/p.yaml')"
+python3 -c "from kfp import compiler; from pipeline import pipeline; compiler.Compiler().compile(pipeline, '/tmp/p.yaml'); print('OK')"
 ```
 
 ## KFP UI access

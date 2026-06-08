@@ -23,8 +23,42 @@ KFP running on DGX — trigger **Kubeflow Deploy** in [miramar-platform-gcp](htt
 pipeline.py          ← KFP v2 pipeline definition — edit this
 notebook.ipynb       ← Development notebook
 scripts/
-  deploy_pipeline.py    ← Called by Deploy to KFP workflow
+  deploy_pipeline.py    ← Called by Deploy to KFP workflow; --profile flag for nsys
   terminate_pipeline.py ← Called by Undeploy from KFP workflow
+  purge_kfp.py          ← Purge all runs + pipeline versions before redeploy
+  purge_nsight.py       ← Clean up large nsys artifacts from ~/shared/nsight/
+```
+
+---
+
+## Nsys GPU Profiling
+
+Profile any run with a single flag:
+
+```bash
+python3 scripts/purge_kfp.py
+python3 scripts/deploy_pipeline.py --run-name run-001 --profile
+```
+
+This will:
+1. Pre-create `~/shared/nsight/{{PROJECT_NAME}}/run-001/main/` with correct permissions
+2. Submit the run with `profile=True` passed as a pipeline parameter
+3. Patch the Argo Workflow to run the GPU container as `privileged=true` (required for CUPTI)
+
+After the run completes, interpret the results:
+
+```bash
+# Check GPU kernel capture
+cat ~/shared/nsight/{{PROJECT_NAME}}/run-001/main/summaries.csv | grep -A 5 "cuda_gpu_kern_sum"
+
+# AI-assisted analysis (requires /nsight-interpret skill)
+# /nsight-interpret run-001
+```
+
+To clean up large artifacts (`.nsys-rep`, `.sqlite`) once `summaries.csv` exists:
+
+```bash
+python3 scripts/purge_nsight.py
 ```
 
 ---
@@ -37,7 +71,7 @@ Click the badge above or open: [{{JL_URL}}]({{JL_URL}})
 
 ### 2. Define your pipeline in `pipeline.py`
 
-Replace the hello-world stub with your own components. Each `@dsl.component`
+Replace the `gpu_stage` stub with your own components. Each `@dsl.component`
 function runs as an isolated container step:
 
 ```python
@@ -80,7 +114,7 @@ Open `/tmp/pipeline.yaml` to verify the DAG structure before submitting.
 
 ```python
 import kfp
-client = kfp.Client(host='http://localhost:8080')
+client = kfp.Client(host='http://localhost:8890')
 
 run = client.create_run_from_pipeline_package(
     pipeline_file='/tmp/pipeline.yaml',
