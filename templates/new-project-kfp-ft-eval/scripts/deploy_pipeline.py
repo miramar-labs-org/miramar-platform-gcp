@@ -64,35 +64,37 @@ def main():
         active = [k for k, v in cfg["profiling"].items() if v is True]
         print(f"Profiling enabled: {active}")
 
-    # ── Pre-create nsight output dirs on the DGX host (as aaron, UID 1000) ──
-    # The profiled pods run as UID 65532. The minikube 9p mount presents all
-    # directories as owned by the DGX host UID (1000/aaron) regardless of who
-    # created them, and does permission checks using host UIDs — so the pod
-    # always appears as "other". Directories must be world-writable (777) before
-    # the pod starts; creating them here (as aaron) with mode 0o777 is the only
-    # reliable way to ensure this.
-    if any_profile:
-        import yaml, pathlib, stat
-        cfg_data = yaml.safe_load(pathlib.Path("config.yaml").read_text())
-        nsys_project = cfg_data.get("nsys_project", os.path.basename(os.getcwd()))
-        nsight_host_base = pathlib.Path.home() / "shared/nsight" / nsys_project / run_name
-        _STAGE_MAP = {
-            "baseline":        "baseline-eval",
-            "finetune":        "fine-tune",
-            "postft":          "post-finetune-eval",
-            "safety":          "safety-eval",
-            "baseline_safety": "baseline-safety-eval",
-        }
-        for flag, stage_dir in _STAGE_MAP.items():
-            if cfg_data.get("profiling", {}).get(flag, False):
-                d = nsight_host_base / stage_dir
-                d.mkdir(parents=True, exist_ok=True)
-                d.chmod(0o777)
-                print(f"Pre-created nsight dir: {d}")
-
     # ── Always rebuild pipeline.py from notebook ──────────────────────────
     from scripts.build_pipeline import build_pipeline
     build_pipeline()
+
+    # ── Pre-create nsight output dirs on the DGX host (as aaron, UID 1000) ──
+    # Done AFTER build so config.yaml reflects the final profiling state whether
+    # flags were passed via CLI or patched externally.
+    # The profiled pods run as UID 65532. The minikube 9p noextend mount ignores
+    # the pod's umask and creates dirs at mode 0755; UID 65532 is "other" and
+    # cannot write to 0755. Pre-creating with chmod 777 from the host is the
+    # only reliable fix — all writes from inside the pod go through the 9p
+    # server as the host UID (1000/aaron), which can write to 0777 dirs.
+    import yaml, pathlib
+    cfg_data = yaml.safe_load(pathlib.Path("config.yaml").read_text())
+    nsys_project = cfg_data.get("nsys_project", os.path.basename(os.getcwd()))
+    nsight_host_base = pathlib.Path.home() / "shared/nsight" / nsys_project / run_name
+    _STAGE_MAP = {
+        "baseline":        "baseline-eval",
+        "finetune":        "fine-tune",
+        "postft":          "post-finetune-eval",
+        "safety":          "safety-eval",
+        "baseline_safety": "baseline-safety-eval",
+    }
+    for flag, stage_dir in _STAGE_MAP.items():
+        if cfg_data.get("profiling", {}).get(flag, False):
+            d = nsight_host_base / stage_dir
+            d.mkdir(parents=True, exist_ok=True)
+            d.chmod(0o777)
+            # chmod run-name parent too — pods need to list it
+            d.parent.chmod(0o777)
+            print(f"Pre-created nsight dir (0777): {d}")
 
     # ── Import freshly-built pipeline (dynamic to avoid stale cache) ──────
     spec = importlib.util.spec_from_file_location("pipeline", "pipeline.py")
