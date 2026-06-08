@@ -150,7 +150,7 @@ with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
   through the multi-level KFP subprocess chain.
 
 - **AI-assisted interpretation** — `/nsight-interpret` extracts `nsys stats` summaries and sends
-  them to Claude for structured bottleneck analysis — top GPU utilization gaps, memory transfer
+  them to an LLM of your choice for structured bottleneck analysis — top GPU utilization gaps, memory transfer
   overhead, NVTX stage breakdown, and prioritized optimization recommendations. Results are saved
   as `analysis-claude.md` alongside the `.nsys-rep` for future reference.
 
