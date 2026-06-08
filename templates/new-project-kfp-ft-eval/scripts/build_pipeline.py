@@ -476,7 +476,6 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         + "nsys profile \\\n"
         + "  --trace=cuda,nvtx,cublas,cudnn,osrt \\\n"
         + "  --cuda-flush-interval=10000 \\\n"
-        + "  --cuda-trace-scope=process-tree \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "/tmp/nsys_profile" \\\n'
         + f"  python3 {_script_tmp} \\\n"

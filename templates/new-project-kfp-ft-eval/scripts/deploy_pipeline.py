@@ -150,6 +150,10 @@ def main():
     if any_profile:
         import subprocess, time as _time
         import json as _json
+        # nvidia.com/gpu: "1" ensures the NVIDIA device plugin properly initialises
+        # CUPTI and driver capabilities — without this, KFP's set_gpu_limit(1)
+        # generates a generic accelerator spec that never requests the GPU resource
+        # and CUPTI tracing is silently skipped.
         pod_spec_patch = (
             "containers:\n"
             "- name: main\n"
@@ -158,6 +162,16 @@ def main():
             "    allowPrivilegeEscalation: true\n"
             "    seccompProfile:\n"
             "      type: Unconfined\n"
+            "  env:\n"
+            "  - name: NVIDIA_DRIVER_CAPABILITIES\n"
+            "    value: \"all\"\n"
+            "  - name: NVIDIA_VISIBLE_DEVICES\n"
+            "    value: \"all\"\n"
+            "  resources:\n"
+            "    limits:\n"
+            "      nvidia.com/gpu: \"1\"\n"
+            "    requests:\n"
+            "      nvidia.com/gpu: \"1\"\n"
         )
         patch_payload = _json.dumps({"spec": {"podSpecPatch": pod_spec_patch}})
         workflow_name = None
