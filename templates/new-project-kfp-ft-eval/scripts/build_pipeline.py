@@ -470,7 +470,9 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         # by minikube hostPath PVCs does not support mmap writes (EACCES).  Write to
         # /tmp (local tmpfs, always writable) then cp to the shared volume.
         + "nsys profile \\\n"
-        + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
+        + "  --trace=cuda,nvtx,cublas,cudnn,osrt \\\n"
+        + "  --cuda-flush-interval=10000 \\\n"
+        + "  --cuda-trace-scope=process-tree \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "/tmp/nsys_profile" \\\n'
         + f"  python3 {_script_tmp} \\\n"
