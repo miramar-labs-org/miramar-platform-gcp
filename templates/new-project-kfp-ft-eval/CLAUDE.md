@@ -144,11 +144,11 @@ mlflow.log_metric("baseline_safety_avg_score", avg_score)
 
 ### 5. `safety_eval`
 Load the fine-tuned model, generate responses for a sample of `val_data`, score each response
-with a judge LLM via the OpenAI API (`OPENAI_API_KEY` is injected automatically).
+with a judge LLM via the local Ollama API (model and base_url come from `config.yaml` `judge:` section).
 
 ```python
 from openai import OpenAI
-client = OpenAI()  # uses OPENAI_API_KEY from mlabs-api-keys secret
+client = OpenAI(base_url=judge_base_url, api_key="ollama")
 # generate responses, score with judge_model_id + judge_system_prompt from config
 mlflow.log_metric("safety_avg_score", avg_score)
 ```

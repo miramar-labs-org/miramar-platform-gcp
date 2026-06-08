@@ -216,9 +216,8 @@ The nsys command embedded in the component (base64 in `build_pipeline.py`):
 
 ```bash
 nsys profile \
-  --trace=cuda,nvtx,cublas,cudnn,osrt \
+  --trace=cuda,nvtx,cublas,cudnn \
   --cuda-flush-interval=10000 \
-  --cuda-trace-scope=process-tree \
   --sample=none --force-overwrite=true \
   -o "/tmp/nsys_profile" \
   python3 /tmp/nsys_eval_script.py
@@ -226,9 +225,9 @@ nsys profile \
 
 Key flags:
 - `--cuda-flush-interval=10000` — required for runs >5 min; prevents trace buffer overflow
-- `--cuda-trace-scope=process-tree` — attaches CUPTI to the full subprocess chain
-  (argoexec → kfp-launcher → bash → nsys → python3)
 - `--sample=none` — CPU sampling disabled (irrelevant for GPU profiling; reduces overhead)
+- `osrt` omitted — on GB10 Blackwell it suppresses `cuda_gpu_kern_sum` capture
+- `--cuda-trace-scope=process-tree` omitted — causes `cuda_gpu_kern_sum SKIPPED` on GB10 (confirmed run-039)
 
 ### Profile output location
 
@@ -259,7 +258,7 @@ This ensures the migration never overlaps warmup or inference timing.
 
 **`cuda_gpu_kern_sum` SKIPPED** — if the GPU kernel summary is absent from `nsys stats` output:
 - Possible cause 1: trace buffer overflow (run exceeded ~5 min without `--cuda-flush-interval`)
-- Possible cause 2: CUPTI subscription not reaching the Python subprocess (add `--cuda-trace-scope=process-tree`)
+- Possible cause 2: `--cuda-trace-scope=process-tree` present — **remove it** (confirmed GB10 root cause in run-039)
 - Possible cause 3: privilege/capability issue in the pod (verify `privileged: true` on `main` container)
 - Note: `cuda_api_sum` present without `cuda_gpu_kern_sum` is NOT a GB10 hardware limitation —
   it indicates a capture/reporting/process issue
