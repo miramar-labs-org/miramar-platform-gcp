@@ -18,8 +18,8 @@
 | `WORKBOOK.md` | Implementation checklist — every `USER CODE BLOCK` and helper file to fill in, with order and snippets |
 | `scripts/deploy_pipeline.py` | Compile, register, and submit a run (called by Deploy to KFP workflow) |
 | `scripts/terminate_pipeline.py` | Terminate a run by ID (called by Undeploy from KFP workflow) |
-| `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run (git-ignored) |
-| `runs/run-NNN.md` | Periodic status log for run NNN, written by the monitoring loop (git-ignored) |
+| `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run |
+| `runs/run-NNN.md` | Periodic status log for run NNN, written by the monitoring loop |
 
 ## Slash commands
 
