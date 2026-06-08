@@ -444,7 +444,6 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         + f'PROFILE_DIR="/nsight-reports/{nsys_project}/${{RUN_ID}}/{stage_name}"\n'
         + 'mkdir -p "${PROFILE_DIR}"\n'
         + "nsys profile \\\n"
-        + "  --capture-range=nvtx --nvtx-capture=nsys_capture \\\n"
         + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "${PROFILE_DIR}/profile" \\\n'
