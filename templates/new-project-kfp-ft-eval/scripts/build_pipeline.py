@@ -473,22 +473,30 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         # nsys writes .nsys-rep via mmap-based FileStream; the 9p noextend mount used
         # by minikube hostPath PVCs does not support mmap writes (EACCES).  Write to
         # /tmp (local tmpfs, always writable) then cp to the shared volume.
+        # osrt omitted: on GB10 Blackwell it suppresses cuda_gpu_kern_sum capture.
         + "nsys profile \\\n"
-        + "  --trace=cuda,nvtx,cublas,cudnn,osrt \\\n"
+        + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
         + "  --cuda-flush-interval=10000 \\\n"
+        + "  --cuda-trace-scope=process-tree \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "/tmp/nsys_profile" \\\n'
         + f"  python3 {_script_tmp} \\\n"
         + " \\\n".join(py_arg_lines) + "\n"
-        + 'cp /tmp/nsys_profile.nsys-rep "${PROFILE_DIR}/profile.nsys-rep"\n'
-        + 'nsys stats "${PROFILE_DIR}/profile.nsys-rep" \\\n'
-        + '  > "${PROFILE_DIR}/nsys_stats.txt" || true\n'
-        # Generate per-report CSV summaries consumed by the /nsight-interpret skill.
-        # Each section is prefixed with "=== <report_name> ===" so the skill can read
-        # the file directly without re-running nsys stats.
+        # Run stats against /tmp BEFORE copying to PVC — the 9p filesystem has
+        # 1-second mtime resolution; copying nsys-rep and then generating sqlite
+        # in the same second causes "sqlite older than input" false positive.
+        + 'nsys stats /tmp/nsys_profile.nsys-rep > /tmp/nsys_stats.txt || true\n'
+        # Generate per-report summaries consumed by the /nsight-interpret skill.
+        # Each section is prefixed with "=== <report_name> ===" for direct reading.
+        # --format csv is intentionally omitted: some reports reject it (exit 1).
         + '{ for _r in cuda_gpu_kern_sum cuda_api_sum cuda_gpu_mem_time_sum cuda_gpu_mem_size_sum nvtx_sum; do\n'
-        + '    echo "=== ${_r} ==="; nsys stats --report "${_r}" --format csv "${PROFILE_DIR}/profile.nsys-rep" 2>/dev/null || echo "(skipped)";\n'
-        + 'done; } > "${PROFILE_DIR}/summaries.csv" || true\n'
+        + '    echo "=== ${_r} ==="; nsys stats --report "${_r}" /tmp/nsys_profile.nsys-rep 2>&1 || echo "(skipped)";\n'
+        + 'done; } > /tmp/summaries.csv || true\n'
+        # Copy all artifacts to PVC after stats are done
+        + 'cp /tmp/nsys_profile.nsys-rep "${PROFILE_DIR}/profile.nsys-rep"\n'
+        + 'cp /tmp/nsys_profile.sqlite "${PROFILE_DIR}/profile.sqlite" 2>/dev/null || true\n'
+        + 'cp /tmp/nsys_stats.txt "${PROFILE_DIR}/nsys_stats.txt" 2>/dev/null || true\n'
+        + 'cp /tmp/summaries.csv "${PROFILE_DIR}/summaries.csv"\n'
     )
 
     # ── Python function signature (required params first, optional last) ───
