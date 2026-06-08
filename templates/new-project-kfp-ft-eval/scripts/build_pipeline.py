@@ -433,6 +433,20 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         var  = _param_shell_var(name, ann_str)
         py_arg_lines.append(f'    {flag} "${{{var}}}"')
 
+    # Embed the generated nsys script as a base64 blob so the image doesn't
+    # need to contain project-specific scripts.  The script is decoded and
+    # written to /tmp at container startup — no image rebuild needed when the
+    # profiling code changes.
+    import base64 as _base64
+    _script_path = pathlib.Path("docker") / f"nsys_{func_name}.py"
+    _script_b64 = _base64.b64encode(_script_path.read_bytes()).decode()
+    _script_tmp = f"/tmp/nsys_{func_name}.py"
+    _decode_cmd = (
+        f"python3 -c 'import base64,pathlib;"
+        f" pathlib.Path(\"{_script_tmp}\").write_bytes("
+        f"base64.b64decode(\"{_script_b64}\"))'\n"
+    )
+
     shell_script = (
         "set -euo pipefail\n"
         # umask 000 ensures all dirs created by mkdir -p are world-writable (777).
@@ -447,6 +461,9 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         + "export NVIDIA_DRIVER_CAPABILITIES=all\n"
         + "export NVIDIA_VISIBLE_DEVICES=all\n"
         + "\n".join(shell_lines) + "\n"
+        # Decode the nsys script from the base64 blob embedded at compile time.
+        # This removes the dependency on the image containing project-specific scripts.
+        + _decode_cmd
         + f'PROFILE_DIR="/nsight-reports/{nsys_project}/${{RUN_ID}}/{stage_name}"\n'
         + 'mkdir -p "${PROFILE_DIR}"\n'
         # nsys writes .nsys-rep via mmap-based FileStream; the 9p noextend mount used
@@ -456,7 +473,7 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "/tmp/nsys_profile" \\\n'
-        + f"  python3 /usr/local/bin/nsys_{func_name}.py \\\n"
+        + f"  python3 {_script_tmp} \\\n"
         + " \\\n".join(py_arg_lines) + "\n"
         + 'cp /tmp/nsys_profile.nsys-rep "${PROFILE_DIR}/profile.nsys-rep"\n'
         + 'nsys stats "${PROFILE_DIR}/profile.nsys-rep" \\\n'

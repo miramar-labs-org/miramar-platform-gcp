@@ -134,6 +134,47 @@ def main():
     print(f"Run submitted — ID: {run_id}")
     print(f"UI: {host}/#/runs/details/{run_id}")
 
+    # ── Patch Argo Workflow for profiling runs ────────────────────────────
+    # KFP compiler enforces drop:ALL on all containers.  For nsys profiling,
+    # the main container needs privileged=true so CUPTI can access the NVIDIA
+    # performance-counter device nodes.  We patch the Argo Workflow CRD that
+    # KFP creates (labelled pipeline/runid=<run_id>) immediately after
+    # submission — before the profiled pod is scheduled.
+    if any_profile:
+        import subprocess, time as _time
+        import json as _json
+        pod_spec_patch = (
+            "containers:\n"
+            "- name: main\n"
+            "  securityContext:\n"
+            "    privileged: true\n"
+            "    allowPrivilegeEscalation: true\n"
+            "    seccompProfile:\n"
+            "      type: Unconfined\n"
+        )
+        patch_payload = _json.dumps({"spec": {"podSpecPatch": pod_spec_patch}})
+        workflow_name = None
+        for attempt in range(30):
+            result = subprocess.run(
+                ["kubectl", "get", "workflows", "-n", "kubeflow",
+                 "-l", f"pipeline/runid={run_id}", "-o", "name"],
+                capture_output=True, text=True,
+            )
+            if result.stdout.strip():
+                workflow_name = result.stdout.strip().split("/")[-1]
+                break
+            _time.sleep(2)
+        if workflow_name:
+            subprocess.run(
+                ["kubectl", "patch", "workflow", "-n", "kubeflow", workflow_name,
+                 "--type=merge", "-p", patch_payload],
+                check=True,
+            )
+            print(f"Patched Argo Workflow {workflow_name}: privileged=true podSpecPatch applied")
+        else:
+            print("WARNING: could not find Argo Workflow for run — profiling may lack capabilities",
+                  file=sys.stderr)
+
     output_file = os.environ.get("GITHUB_OUTPUT")
     if output_file:
         with open(output_file, "a") as f:
