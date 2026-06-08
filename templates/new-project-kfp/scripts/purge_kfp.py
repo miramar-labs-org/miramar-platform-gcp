@@ -36,12 +36,23 @@ def api(method, path, *, ok=(200,)):
         raise
 
 
-def purge_runs():
+def _find_pipeline_id():
+    pipelines = api("GET", "/pipelines").get("pipelines") or []
+    match = [p for p in pipelines if p["display_name"] == PIPELINE_NAME]
+    return match[0]["pipeline_id"] if match else None
+
+
+def purge_runs(pipeline_id):
+    """Delete only runs belonging to this project's pipeline."""
     runs = api("GET", "/runs").get("runs") or []
-    if not runs:
-        print("No runs found.")
+    mine = [
+        r for r in runs
+        if r.get("pipeline_version_reference", {}).get("pipeline_id") == pipeline_id
+    ]
+    if not mine:
+        print("  No runs found for this pipeline.")
         return
-    for run in runs:
+    for run in mine:
         rid = run["run_id"]
         name = run["display_name"]
         state = run.get("state", "")
@@ -55,20 +66,17 @@ def purge_runs():
         print(f"  Deleted run: {name} ({rid})")
 
 
-def purge_pipeline():
-    pipelines = api("GET", "/pipelines").get("pipelines") or []
-    match = [p for p in pipelines if p["display_name"] == PIPELINE_NAME]
-    if not match:
+def purge_pipeline(pipeline_id):
+    if not pipeline_id:
         print(f"Pipeline '{PIPELINE_NAME}' not found — nothing to delete.")
         return
-    pid = match[0]["pipeline_id"]
-    versions = api("GET", f"/pipelines/{pid}/versions").get("pipeline_versions") or []
+    versions = api("GET", f"/pipelines/{pipeline_id}/versions").get("pipeline_versions") or []
     for v in versions:
         vid = v["pipeline_version_id"]
-        api("DELETE", f"/pipelines/{pid}/versions/{vid}")
+        api("DELETE", f"/pipelines/{pipeline_id}/versions/{vid}")
         print(f"  Deleted version: {vid}")
-    api("DELETE", f"/pipelines/{pid}")
-    print(f"  Deleted pipeline: {PIPELINE_NAME} ({pid})")
+    api("DELETE", f"/pipelines/{pipeline_id}")
+    print(f"  Deleted pipeline: {PIPELINE_NAME} ({pipeline_id})")
 
 
 def purge_argo_workflows():
@@ -88,10 +96,11 @@ def purge_argo_workflows():
 
 
 print(f"Purging KFP state for '{PIPELINE_NAME}'...")
+pid = _find_pipeline_id()
 print("Runs:")
-purge_runs()
+purge_runs(pid)
 print("Pipeline:")
-purge_pipeline()
+purge_pipeline(pid)
 print("Argo workflows:")
 purge_argo_workflows()
 print("Done.")
