@@ -78,6 +78,13 @@ def main():
     # server as the host UID (1000/aaron), which can write to 0777 dirs.
     import yaml, pathlib
     cfg_data = yaml.safe_load(pathlib.Path("config.yaml").read_text())
+    # any_profile must also account for profiling already enabled in config.yaml
+    # (not just CLI flags) — the privileged patch is needed whenever any profiling
+    # step will run, regardless of how it was enabled.
+    any_profile = any_profile or any(
+        cfg_data.get("profiling", {}).get(flag, False)
+        for flag in ["baseline", "finetune", "postft", "safety", "baseline_safety"]
+    )
     nsys_project = cfg_data.get("nsys_project", os.path.basename(os.getcwd()))
     nsight_host_base = pathlib.Path.home() / "shared/nsight" / nsys_project / run_name
     _STAGE_MAP = {
