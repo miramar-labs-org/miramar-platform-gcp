@@ -141,29 +141,30 @@ settings — then offers the full card on request.
 
 ---
 
-## `/nsight-interpret [report | run-NNN] [--ollama model]`
+## `/nsight-interpret <project-name> <run-NNN> [--ollama model]`
 
 **Extracts Nsight Systems profiling summaries and sends them to an LLM for bottleneck
 analysis — no manual reading of `.nsys-rep` files required.**
 
 ```bash
-# Auto-detect latest report in the project's nsight-reports directory
-/nsight-interpret
+# Specific project + run (standard usage from any directory)
+/nsight-interpret my-project run-021
 
-# Report from a specific run
+# Use a local Ollama model instead of Claude/OpenAI API
+/nsight-interpret my-project run-021 --ollama qwen3-coder:30b
+
+# Direct path (no project name needed)
+/nsight-interpret /home/aaron/shared/nsight/my-project/run-021/main/profile.nsys-rep
+
+# Auto-detect: if only run-NNN given, project inferred from basename $(pwd)
 /nsight-interpret run-021
-
-# Direct path
-/nsight-interpret /nsight-reports/my-project/run-021/baseline.nsys-rep
-
-# Use a local Ollama model instead of Claude API
-/nsight-interpret run-021 --ollama llama3
 ```
 
 What it does:
-1. Locates the `.nsys-rep` file (argument → run name → latest auto-detected)
-2. Runs `nsys stats` for five report types: `cuda_gpu_kern_sum`, `cuda_api_sum`,
-   `cuda_gpu_mem_time_sum`, `cuda_gpu_mem_size_sum`, `nvtx_sum`
+1. Locates the `.nsys-rep` under `$HOME/shared/nsight/<project-name>/<run-id>/`
+2. Reads pre-generated `summaries.csv` if present; otherwise runs `nsys stats` for five report
+   types: `cuda_gpu_kern_sum`, `cuda_api_sum`, `cuda_gpu_mem_time_sum`, `cuda_gpu_mem_size_sum`,
+   `nvtx_sum` and saves the result to `summaries.csv`
 3. Sends the extracted tables to an LLM with a GPU optimization system prompt
 4. Returns a structured analysis covering:
    - Top 3 bottlenecks (ranked by % of total time)
@@ -172,11 +173,15 @@ What it does:
    - NVTX stage breakdown (if annotations present)
    - Prioritized recommended next steps
    - What's already well-optimized
+5. Saves to `analysis-claude.md` / `analysis-codex.md` / `analysis-ollama-<model>.md` alongside
+   the `.nsys-rep` file, and appends a reference line to `runs/<run-NNN>.md`
 
 **LLM backends:**
-- Claude Code skill (`/nsight-interpret`): uses `claude-opus-4-8` by default
-- Codex skill (`/nsight-interpret`): uses `gpt-4o` by default
-- Both accept `--ollama <model>` to use a local model via Ollama instead
+- Claude Code skill (`/nsight-interpret`): uses `claude-opus-4-8` by default; auto-falls back to
+  local Ollama (`qwen3-coder:30b`) if the API key is exhausted or unavailable
+- Codex skill (`/nsight-interpret`): uses `gpt-4o` by default; same Ollama fallback
+- Pass `--ollama <model>` to force a specific local model (DGX has `qwen3-coder:30b`,
+  `llama3.3:70b-instruct-q4_K_M`, `qwen2.5-coder:32b-instruct-fp16`, and others)
 
 **Prerequisites:** `nsys` must be installed and on `PATH`; the `.nsys-rep` file must
 be readable from the current machine (not inside a pod).

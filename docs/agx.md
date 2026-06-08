@@ -122,3 +122,20 @@ Actions -> NeMo Undeploy  (runner: agx)
 NIM is **not supported on AGX Orin**. All NIM LLM containers on NGC are
 `linux/amd64` only; there are no `linux/arm64` images. `CURRENT_NIM_MODEL_AGX`
 stays `none`. Use Ollama for GPU inference on AGX.
+
+## Nsys Profiling
+
+> ⚠️ **The NGC image / host driver compatibility table in [dgx.md](dgx.md) is DGX-specific.**
+> Do not use it to select an NGC container image for AGX Orin.
+
+AGX Orin uses JetPack 6.x (Linux R36.x) drivers — a completely separate driver versioning
+tree from DGX's datacenter 580.x series. The CUPTI version mapping between JetPack kernel
+driver series and NGC pytorch containers has **not been validated** for AGX.
+
+If you need Nsight Systems profiling on AGX:
+1. Check the JetPack release notes for the CUPTI version bundled with your driver
+2. Find the NGC pytorch container whose bundled nsys/CUPTI version matches your JetPack driver series
+3. Treat this as a separate compatibility investigation — do not assume DGX-verified NGC images work on AGX
+
+KFP projects currently do not target AGX (`PROJECT_HOST=dgx`). If AGX KFP profiling is ever needed,
+the podSpecPatch and image selection must be validated independently.
