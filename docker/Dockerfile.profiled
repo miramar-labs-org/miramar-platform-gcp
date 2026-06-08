@@ -1,5 +1,9 @@
-FROM nvcr.io/nvidia/pytorch:25.03-py3
+FROM nvcr.io/nvidia/pytorch:26.04-py3
 
+# Allow CUPTI to mount all NVIDIA driver libraries at container start.
+# The NGC base image defaults to compute,utility,video which includes CUPTI, but
+# setting all here ensures every profiling-related library is mounted.
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 ENV PIP_CONSTRAINT=""
 RUN pip install --no-cache-dir \
     "transformers>=4.45,<5.0" \

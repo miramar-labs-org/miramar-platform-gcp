@@ -440,6 +440,12 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         # ownership relative to the host UID (1000/aaron), so without 777 the pod
         # cannot write into directories it created on the shared hostPath volume.
         + "umask 000\n"
+        # NVIDIA_DRIVER_CAPABILITIES: the NGC pytorch base image sets compute,utility,video.
+        # 'all' is required to mount the CUPTI profiling libraries into the container.
+        # NVIDIA_VISIBLE_DEVICES: force 'all' to prevent any env override from hiding the GPU.
+        # Both are required for nsys CUPTI to attach on DGX Spark (Blackwell GB10).
+        + "export NVIDIA_DRIVER_CAPABILITIES=all\n"
+        + "export NVIDIA_VISIBLE_DEVICES=all\n"
         + "\n".join(shell_lines) + "\n"
         + f'PROFILE_DIR="/nsight-reports/{nsys_project}/${{RUN_ID}}/{stage_name}"\n'
         + 'mkdir -p "${PROFILE_DIR}"\n'
@@ -448,6 +454,8 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         # /tmp (local tmpfs, always writable) then cp to the shared volume.
         + "nsys profile \\\n"
         + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
+        + "  --gpu-metrics-devices=all \\\n"
+        + "  --gpu-metrics-frequency=10000 \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "/tmp/nsys_profile" \\\n'
         + f"  python3 /usr/local/bin/nsys_{func_name}.py \\\n"
