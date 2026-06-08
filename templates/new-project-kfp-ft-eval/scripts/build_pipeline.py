@@ -454,8 +454,6 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         # /tmp (local tmpfs, always writable) then cp to the shared volume.
         + "nsys profile \\\n"
         + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
-        + "  --gpu-metrics-devices=all \\\n"
-        + "  --gpu-metrics-frequency=10000 \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "/tmp/nsys_profile" \\\n'
         + f"  python3 /usr/local/bin/nsys_{func_name}.py \\\n"

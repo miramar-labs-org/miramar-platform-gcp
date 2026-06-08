@@ -452,13 +452,16 @@ entrypoint (the profiled component does both):
 ```bash
 nsys profile \
   --trace=cuda,nvtx,cublas,cudnn \   # capture CUDA kernels, NVTX ranges, cuBLAS and cuDNN calls
-  --gpu-metrics-devices=all \        # collect hardware GPU metrics (SM utilization, memory BW, etc.)
-  --gpu-metrics-frequency=10000 \    # sample GPU HW metrics at 10 kHz
   --sample=none \                    # disable CPU call-stack sampling (not needed, reduces file size)
   --force-overwrite=true \           # overwrite any existing .nsys-rep at the output path
   -o /tmp/nsys_profile \             # write to /tmp — see "Writing to /tmp" section below
   python3 /usr/local/bin/nsys_<stage>.py ...
 ```
+
+**Do not use `--gpu-metrics-devices` or `--gpu-metrics-frequency`.** These flags collect hardware
+GPU metrics (SM utilization, memory bandwidth) but are not supported on the DGX Spark GB10
+(Blackwell, sm_100). nsys exits immediately with `Illegal --gpu-metrics-devices usage. None of
+the installed GPUs are supported.` CUDA kernel tracing works without them.
 
 **Do not use `--capture-range=cudaProfilerApi`.** PyTorch calls CUDA profiler start/stop through
 `torch._C._cudart`, which is compiled directly into the PyTorch binary and bypasses nsys's
