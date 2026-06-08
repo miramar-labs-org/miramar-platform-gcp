@@ -14,7 +14,7 @@ pyenv virtualenv 3.13 pyJLab
 pyenv activate pyJLab
 ```
 
-### 2. Install PyTorch (CUDA 12.6, arm64)
+### 2. Install PyTorch (cu126 wheels, arm64)
 
 Must be done before `requirements.txt` to get the right CUDA-enabled wheels:
 
