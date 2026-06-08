@@ -4,6 +4,9 @@
 
 <!-- One-line description of this project -->
 
+> **Validation status:** Pipeline is in scaffolding phase — no runs yet. Status tracked in
+> [docs/VALIDATION_STATUS.md](docs/VALIDATION_STATUS.md).
+
 **Type**: KFP v2 eval-first fine-tuning pipeline
 
 ---
