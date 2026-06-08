@@ -51,7 +51,6 @@ print(f"Result norm: {result.norm().item():.4f}")
                 "--trace=cuda,nvtx,cublas,cudnn",
                 "--sample=none",
                 "--cuda-flush-interval=10000",
-                "--cuda-trace-scope=process-tree",
                 "--force-overwrite=true",
                 "-o", "/tmp/profile",
                 "python3", "/tmp/body.py",
