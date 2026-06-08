@@ -478,6 +478,12 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         + 'cp /tmp/nsys_profile.nsys-rep "${PROFILE_DIR}/profile.nsys-rep"\n'
         + 'nsys stats "${PROFILE_DIR}/profile.nsys-rep" \\\n'
         + '  > "${PROFILE_DIR}/nsys_stats.txt" || true\n'
+        # Generate per-report CSV summaries consumed by the /nsight-interpret skill.
+        # Each section is prefixed with "=== <report_name> ===" so the skill can read
+        # the file directly without re-running nsys stats.
+        + '{ for _r in cuda_gpu_kern_sum cuda_api_sum cuda_gpu_mem_time_sum cuda_gpu_mem_size_sum nvtx_sum; do\n'
+        + '    echo "=== ${_r} ==="; nsys stats --report "${_r}" --format csv "${PROFILE_DIR}/profile.nsys-rep" 2>/dev/null || echo "(skipped)";\n'
+        + 'done; } > "${PROFILE_DIR}/summaries.csv" || true\n'
     )
 
     # ── Python function signature (required params first, optional last) ───
