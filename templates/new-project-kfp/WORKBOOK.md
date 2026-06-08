@@ -70,7 +70,7 @@ Update `scripts/deploy_pipeline.py` to pass any new args in the `arguments={}` d
 Chain multiple components by passing outputs as inputs:
 
 ```python
-@dsl.component(base_image="nvcr.io/nvidia/pytorch:25.03-py3", ...)
+@dsl.component(base_image="nvcr.io/nvidia/pytorch:26.04-py3", ...)
 def stage_b(input_path: str, run_id: str) -> float:
     ...
 
