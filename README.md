@@ -138,6 +138,36 @@ Planned templates include RAG systems, evaluation harnesses, NeMo/NIM workflows,
 
 ---
 
+## GPU Profiling & AI-Assisted Analysis
+
+Projects scaffolded from the `kfp-ft-eval` template include first-class Nsight Systems profiling
+with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
+
+- **Per-component profiling in KFP** — any pipeline stage can be profiled with a single flag at
+  deploy time. The deploy script automatically patches the Argo pod spec with the required CUPTI
+  privileges (`privileged`, `SYS_PTRACE`, `seccompProfile: Unconfined`) and embeds the correct
+  `nsys profile` flags (`--cuda-flush-interval`, `--cuda-trace-scope=process-tree`) to capture
+  through the multi-level KFP subprocess chain.
+
+- **AI-assisted interpretation** — `/nsight-interpret` extracts `nsys stats` summaries and sends
+  them to Claude for structured bottleneck analysis — top GPU utilization gaps, memory transfer
+  overhead, NVTX stage breakdown, and prioritized optimization recommendations. Results are saved
+  as `analysis-claude.md` alongside the `.nsys-rep` for future reference.
+
+- **GB10 unified memory awareness** — on DGX Spark (Blackwell GB10, 128 GB unified memory), the
+  platform automatically handles the cold weight-migration spike that occurs on first GPU access
+  after `from_pretrained`, preventing it from contaminating inference timing.
+
+```bash
+# Profile baseline eval and interpret results
+/kfp-deploy run-NNN --profile-baseline
+/nsight-interpret run-NNN
+```
+
+Full details: [docs/kfp-skills.md — Nsight Profiling in KFP](docs/kfp-skills.md#nsight-profiling-in-kfp) · [docs/dgx.md — GPU Profiling](docs/dgx.md#gpu-profiling)
+
+---
+
 ## Local DGX Stack
 
 DGX Spark runs the local AI stack: [minikube](https://minikube.sigs.k8s.io/), [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/), [MLflow](https://mlflow.org), [Qdrant](https://qdrant.tech), [Kubeflow Pipelines](https://www.kubeflow.org/), [NIM](https://developer.nvidia.com/nim), and [Ollama](https://ollama.com). See [docs/dgx.md](docs/dgx.md) for workflow details and [dgx/README.md](dgx/README.md) for host-level service notes.
@@ -170,6 +200,7 @@ Detailed operational procedures live in focused docs:
 | GCP bootstrap, Terraform, WIF, and state storage | [docs/gcp.md](docs/gcp.md) |
 | Workflow catalog | [docs/workflows.md](docs/workflows.md) |
 | DGX local AI stack | [docs/dgx.md](docs/dgx.md), [dgx/README.md](dgx/README.md) |
+| GPU profiling + AI analysis | [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp), [docs/dgx.md](docs/dgx.md#gpu-profiling) |
 | WSL2 environments | [wsl2/README.md](wsl2/README.md), [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md) |
 | SSH topology | [docs/ssh-runbook.md](docs/ssh-runbook.md) |
 | Shared DGX/WSL2 folder | [docs/shared.md](docs/shared.md) |
@@ -183,6 +214,7 @@ Common entry points:
 | Create/destroy platform | [docs/workflows.md](docs/workflows.md) |
 | Scale GKE/GPU capacity | [docs/workflows.md](docs/workflows.md), [docs/gpu-quota-request.md](docs/gpu-quota-request.md) |
 | Deploy DGX AI services | [docs/dgx.md](docs/dgx.md) |
+| Profile a KFP pipeline stage | [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp) |
 | Provision WSL2 distros | [wsl2/README.md](wsl2/README.md) |
 | Troubleshoot SSH | [docs/ssh-runbook.md](docs/ssh-runbook.md) |
 
