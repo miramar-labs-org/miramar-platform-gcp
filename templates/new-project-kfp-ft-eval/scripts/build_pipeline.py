@@ -443,12 +443,16 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         + "\n".join(shell_lines) + "\n"
         + f'PROFILE_DIR="/nsight-reports/{nsys_project}/${{RUN_ID}}/{stage_name}"\n'
         + 'mkdir -p "${PROFILE_DIR}"\n'
+        # nsys writes .nsys-rep via mmap-based FileStream; the 9p noextend mount used
+        # by minikube hostPath PVCs does not support mmap writes (EACCES).  Write to
+        # /tmp (local tmpfs, always writable) then cp to the shared volume.
         + "nsys profile \\\n"
         + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
-        + '  -o "${PROFILE_DIR}/profile" \\\n'
+        + '  -o "/tmp/nsys_profile" \\\n'
         + f"  python3 /usr/local/bin/nsys_{func_name}.py \\\n"
         + " \\\n".join(py_arg_lines) + "\n"
+        + 'cp /tmp/nsys_profile.nsys-rep "${PROFILE_DIR}/profile.nsys-rep"\n'
         + 'nsys stats "${PROFILE_DIR}/profile.nsys-rep" \\\n'
         + '  > "${PROFILE_DIR}/nsys_stats.txt" || true\n'
     )
