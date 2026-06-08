@@ -64,19 +64,24 @@ print(f"Result norm: {result.norm().item():.4f}")
         rep = Path("/tmp/profile.nsys-rep")
         if not rep.exists():
             raise RuntimeError("nsys did not generate a .nsys-rep — profiling failed entirely")
-        subprocess.run(
-            ["cp", "/tmp/profile.nsys-rep", str(NSIGHT_DIR / "profile.nsys-rep")],
-            check=True,
-        )
+        # Run stats against /tmp — avoids 9p filesystem 1-second timestamp
+        # resolution causing "sqlite older than nsys-rep" false positive on PVC.
         lines = []
         for r in ["cuda_gpu_kern_sum", "cuda_api_sum", "cuda_gpu_mem_time_sum", "nvtx_sum"]:
             lines.append(f"=== {r} ===\n")
             res = subprocess.run(
-                ["nsys", "stats", "--report", r,
-                 str(NSIGHT_DIR / "profile.nsys-rep")],
+                ["nsys", "stats", "--report", r, "/tmp/profile.nsys-rep"],
                 capture_output=True, text=True,
             )
-            lines.append(res.stdout if res.returncode == 0 else f"(exit {res.returncode}): {res.stderr[:200]}\n")
+            lines.append(res.stdout if res.returncode == 0 else f"(exit {res.returncode}): {res.stderr}\n")
+        # Copy artifacts to PVC after stats are done
+        subprocess.run(
+            ["cp", "/tmp/profile.nsys-rep", str(NSIGHT_DIR / "profile.nsys-rep")],
+            check=True,
+        )
+        sqlite = Path("/tmp/profile.sqlite")
+        if sqlite.exists():
+            subprocess.run(["cp", str(sqlite), str(NSIGHT_DIR / "profile.sqlite")], check=True)
         (NSIGHT_DIR / "summaries.csv").write_text("".join(lines))
         print(f"Profiling output: {NSIGHT_DIR}")
     else:
