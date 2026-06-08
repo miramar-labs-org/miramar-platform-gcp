@@ -223,7 +223,7 @@ cat > "$OUTPUT" <<HTMLEOF
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Miramar Platform — Projects</title>
+<title>Miramar AI Platform Projects</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   body {
@@ -315,7 +315,7 @@ cat > "$OUTPUT" <<HTMLEOF
 </style>
 </head>
 <body>
-<h1>Miramar Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
+<h1>Miramar AI Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
 <p class="subtitle"><span>Platform Status and Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. (Refreshed hourly)</span><span style="display:flex;gap:0.5rem;align-items:center"><button class="btn-refresh" id="refresh-btn">&#x21BB; Refresh</button><button class="btn-new-project" id="new-proj-btn">+ New Project</button><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></span></p>
 <div class="machine-section">
   <div class="machine-label">DGX Spark</div>
