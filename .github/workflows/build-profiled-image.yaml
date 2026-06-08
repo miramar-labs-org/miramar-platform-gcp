@@ -29,7 +29,9 @@ jobs:
 
       - name: Build and push profiled PyTorch image
         run: |
-          IMAGE="ghcr.io/miramar-labs-org/pytorch-profiled:25.03"
-          docker build -f docker/Dockerfile.profiled -t "$IMAGE" docker/
+          NGC_TAG=$(grep '^FROM' docker/Dockerfile.profiled | sed 's|.*pytorch:\(.*\)-py3|\1|')
+          IMAGE="ghcr.io/miramar-labs-org/pytorch-profiled:${NGC_TAG}"
+          docker build -f docker/Dockerfile.profiled -t "$IMAGE" -t "ghcr.io/miramar-labs-org/pytorch-profiled:latest" docker/
           docker push "$IMAGE"
-          echo "Pushed $IMAGE"
+          docker push "ghcr.io/miramar-labs-org/pytorch-profiled:latest"
+          echo "Pushed $IMAGE and :latest"
