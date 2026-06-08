@@ -297,14 +297,18 @@ def _metrics_suffix(body, func_name):
     if STOP in body:
         stop_idx = body.index(STOP)
         body_trimmed = body[:stop_idx].rstrip()
+        # The PROFILED_STOP marker sits inside the `with mlflow.start_run():` block
+        # (4-space indent after dedent). Keep the accuracy block at 4-space indent so
+        # it runs inside the same context and can call mlflow.log_metric.
         accuracy_block = (
             "\n\n"
-            "# ── profiling accuracy (second pass over capture window) ──────\n"
-            "_cap_correct = sum(\n"
-            "    1 for _r in val_data[WARMUP:WARMUP + CAPTURE]\n"
-            "    if extract_answer(_infer(_r)) == extract_answer(_r['response'])\n"
-            ") if CAPTURE > 0 else 0\n"
-            "_profiling_accuracy = _cap_correct / CAPTURE if CAPTURE > 0 else 0.0\n"
+            "    # ── profiling accuracy (second pass over capture window) ──────\n"
+            "    _cap_correct = sum(\n"
+            "        1 for _r in val_data[WARMUP:WARMUP + CAPTURE]\n"
+            "        if extract_answer(_infer(_r)) == extract_answer(_r['response'])\n"
+            "    ) if CAPTURE > 0 else 0\n"
+            "    _profiling_accuracy = _cap_correct / CAPTURE if CAPTURE > 0 else 0.0\n"
+            "    mlflow.log_metric('baseline_accuracy', _profiling_accuracy)\n"
         )
         return body_trimmed, accuracy_block
 
