@@ -60,3 +60,4 @@ profiling:
   warmup_samples: 2
   capture_samples: 3
   train_max_steps: 20
+  profile_max_new_tokens: 16

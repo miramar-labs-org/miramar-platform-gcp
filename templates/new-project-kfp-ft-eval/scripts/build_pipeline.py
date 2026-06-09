@@ -437,12 +437,19 @@ def _subprocess_value_expr(name, ann_str):
     return name
 
 
-def _make_profiled_component(func_name, src_orig, profiled_image, nsys_project, stage_name):
+def _make_profiled_component(func_name, src_orig, profiled_image, nsys_project, stage_name,
+                             param_overrides=None):
     """
     Return Python source for a @dsl.component that runs nsys_{func_name}.py
     under nsys profile with subprocess.run.
+
+    param_overrides: optional dict mapping CLI flag names (e.g. "--max-new-tokens")
+    to literal string values that replace the pipeline-parameter expression.
+    Used to cap max_new_tokens during profiling to avoid CUPTI ring-buffer overflow.
     """
     params = _parse_params(src_orig)
+    if param_overrides is None:
+        param_overrides = {}
 
     # fine_tune: add metrics output if absent
     if not any(n == "metrics" for n, _, _ in params):
@@ -458,7 +465,10 @@ def _make_profiled_component(func_name, src_orig, profiled_image, nsys_project, 
     py_arg_lines = []
     for name, ann_str, _ in params:
         flag = _param_flag(name, ann_str)
-        value_expr = _subprocess_value_expr(name, ann_str)
+        if flag in param_overrides:
+            value_expr = repr(str(param_overrides[flag]))
+        else:
+            value_expr = _subprocess_value_expr(name, ann_str)
         py_arg_lines.append(f"            {flag!r}, {value_expr},")
 
     # Embed the generated nsys script as a base64 blob so the image doesn't
@@ -571,6 +581,8 @@ def build_pipeline(
     utils_src        = (base_dir / utils_path).read_text().rstrip("\n")
 
     pathlib.Path("docker").mkdir(exist_ok=True)
+    _profiling_cfg = cfg.get("profiling", {})
+    _profile_max_new_tokens = _profiling_cfg.get("profile_max_new_tokens")
 
     step_srcs, pipeline_src = [], None
     for cell in nb["cells"]:
@@ -594,9 +606,16 @@ def build_pipeline(
                         fname, src_orig, stage_name, _nsys_project,
                         utils_src, eval_helpers_src,
                     )
+                    # Override max_new_tokens during profiling to prevent CUPTI ring-buffer
+                    # overflow: large models generate millions of kernels per sample at
+                    # high max_new_tokens, exceeding the GPU activity ring buffer.
+                    _overrides = {}
+                    if _profile_max_new_tokens is not None:
+                        _overrides["--max-new-tokens"] = _profile_max_new_tokens
                     step_srcs.append(
                         _make_profiled_component(
-                            fname, src_orig, profiled_image, _nsys_project, stage_name
+                            fname, src_orig, profiled_image, _nsys_project, stage_name,
+                            param_overrides=_overrides,
                         )
                     )
 
