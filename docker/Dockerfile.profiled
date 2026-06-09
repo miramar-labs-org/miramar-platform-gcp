@@ -15,11 +15,11 @@ RUN pip install --no-cache-dir \
     datasets \
     "trl>=0.14.0,<1.0"
 
-COPY cuda_debian_prod.gpg /usr/share/keyrings/cuda_debian_prod.gpg
-COPY cuda-compute-repo.sources /etc/apt/sources.list.d/cuda-compute-repo.sources
-RUN apt-get update && \
-    apt-get install -y nsight-systems-2026.3.1 && \
-    rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL \
+    "https://developer.download.nvidia.com/devtools/repos/ubuntu2404/arm64/nsight-systems-cli-2026.3.1_2026.3.1.157-1_arm64.deb" \
+    -o /tmp/nsight-systems-cli.deb && \
+    dpkg -i /tmp/nsight-systems-cli.deb && \
+    rm /tmp/nsight-systems-cli.deb
 RUN ln -sf /opt/nvidia/nsight-systems-cli/2026.3.1/target-linux-sbsa-armv8/nsys /usr/local/bin/nsys
 
 COPY nsys_*.py /usr/local/bin/
