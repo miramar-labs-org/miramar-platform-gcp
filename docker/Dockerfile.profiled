@@ -16,9 +16,8 @@ RUN pip install --no-cache-dir \
     "trl>=0.14.0,<1.0"
 
 COPY cuda_debian_prod.gpg /usr/share/keyrings/cuda_debian_prod.gpg
-RUN printf 'Types: deb\nURIs: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/\nSuites: /\nSigned-By: /usr/share/keyrings/cuda_debian_prod.gpg\n' \
-        > /etc/apt/sources.list.d/cuda-compute-repo.sources && \
-    apt-get update && \
+COPY cuda-compute-repo.sources /etc/apt/sources.list.d/cuda-compute-repo.sources
+RUN apt-get update && \
     apt-get install -y nsight-systems-2026.3.1 && \
     rm -rf /var/lib/apt/lists/*
 RUN ln -sf /opt/nvidia/nsight-systems-cli/2026.3.1/target-linux-sbsa-armv8/nsys /usr/local/bin/nsys
