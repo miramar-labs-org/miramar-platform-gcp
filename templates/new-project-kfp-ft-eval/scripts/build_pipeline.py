@@ -38,12 +38,6 @@ def _param_attr(name, ann_str):
     return "args." + _PARAM_RENAMES.get(name, name)
 
 
-def _param_shell_var(name, ann_str):
-    """Return the SHELL_VAR name used in the ContainerSpec bash script."""
-    if ann_str.startswith("Input[") or ann_str.startswith("Output["):
-        return name.upper() + "_PATH"
-    return _PARAM_RENAMES.get(name, name).upper()
-
 
 def _parse_params(src):
     """
@@ -402,10 +396,51 @@ def _generate_nsys_script(
     return True
 
 
-def _make_container_component(func_name, src_orig, profiled_image, nsys_project, stage_name):
+def _component_packages(src):
+    """Return the packages_to_install list from a @dsl.component decorator."""
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return []
+    func_def = next((n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)), None)
+    if func_def is None:
+        return []
+    for dec in func_def.decorator_list:
+        if not isinstance(dec, ast.Call):
+            continue
+        func = dec.func
+        is_component = (
+            isinstance(func, ast.Attribute) and func.attr == "component"
+            or isinstance(func, ast.Name) and func.id == "component"
+        )
+        if not is_component:
+            continue
+        for kw in dec.keywords:
+            if kw.arg == "packages_to_install":
+                try:
+                    return ast.literal_eval(kw.value)
+                except (ValueError, SyntaxError):
+                    return []
+    return []
+
+
+def _subprocess_value_expr(name, ann_str):
+    """Return a Python expression suitable for a subprocess argv value."""
+    if ann_str.startswith("Input[") or ann_str.startswith("Output["):
+        return f"{name}.path"
+    if ann_str in {"int", "float"}:
+        return f"str({name})"
+    if ann_str == "bool":
+        return f"str({name}).lower()"
+    if ann_str == "list":
+        return f"json.dumps({name})"
+    return name
+
+
+def _make_profiled_component(func_name, src_orig, profiled_image, nsys_project, stage_name):
     """
-    Return Python source for a @dsl.container_component that runs
-    nsys_{func_name}.py under nsys profile using a bash -lc wrapper.
+    Return Python source for a @dsl.component that runs nsys_{func_name}.py
+    under nsys profile with subprocess.run.
     """
     params = _parse_params(src_orig)
 
@@ -413,102 +448,28 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
     if not any(n == "metrics" for n, _, _ in params):
         params.append(("metrics", "Output[Metrics]", None))
 
-    # Positional order for ContainerSpec args: run_id first ($0), then declaration order
-    ordered = sorted(params, key=lambda p: 0 if p[0] == "run_id" else 1)
-
     # Signature order: required (no default) first, optional (has default) last.
-    # Python requires this; the ContainerSpec positional order uses `ordered`.
     sig_params = (
         [p for p in params if p[2] is None]
         + [p for p in params if p[2] is not None]
     )
 
-    # ── shell variable assignments ─────────────────────────────────────────
-    shell_lines = []
-    for idx, (name, ann_str, _) in enumerate(ordered):
-        var = _param_shell_var(name, ann_str)
-        ref = f"${{{idx}}}" if idx >= 10 else f"${idx}"
-        shell_lines.append(f'{var}="{ref}"')
-
     # ── python CLI args (named flags, any order) ───────────────────────────
     py_arg_lines = []
     for name, ann_str, _ in params:
         flag = _param_flag(name, ann_str)
-        var  = _param_shell_var(name, ann_str)
-        py_arg_lines.append(f'    {flag} "${{{var}}}"')
+        value_expr = _subprocess_value_expr(name, ann_str)
+        py_arg_lines.append(f"            {flag!r}, {value_expr},")
 
     # Embed the generated nsys script as a base64 blob so the image doesn't
-    # need to contain project-specific scripts.  The script is decoded and
-    # written to /tmp at container startup — no image rebuild needed when the
-    # profiling code changes.
+    # need to contain project-specific scripts.
     import base64 as _base64
     _script_path = pathlib.Path("docker") / f"nsys_{func_name}.py"
     _script_b64 = _base64.b64encode(_script_path.read_bytes()).decode()
     _script_tmp = f"/tmp/nsys_{func_name}.py"
-    _decode_cmd = (
-        f"python3 -c 'import base64,pathlib;"
-        f" pathlib.Path(\"{_script_tmp}\").write_bytes("
-        f"base64.b64decode(\"{_script_b64}\"))'\n"
-    )
+    packages = _component_packages(src_orig)
 
-    shell_script = (
-        "set -euo pipefail\n"
-        # umask 000 ensures all dirs created by mkdir -p are world-writable (777).
-        # Required because the pod runs as UID 65532 but the minikube 9p mount presents
-        # ownership relative to the host UID (1000/aaron), so without 777 the pod
-        # cannot write into directories it created on the shared hostPath volume.
-        + "umask 000\n"
-        # NVIDIA_DRIVER_CAPABILITIES: the NGC pytorch base image sets compute,utility,video.
-        # 'all' is required to mount the CUPTI profiling libraries into the container.
-        # NVIDIA_VISIBLE_DEVICES: force 'all' to prevent any env override from hiding the GPU.
-        # Both are required for nsys CUPTI to attach on DGX Spark (Blackwell GB10).
-        + "export NVIDIA_DRIVER_CAPABILITIES=all\n"
-        + "export NVIDIA_VISIBLE_DEVICES=all\n"
-        + "\n".join(shell_lines) + "\n"
-        # Decode the nsys script from the base64 blob embedded at compile time.
-        # This removes the dependency on the image containing project-specific scripts.
-        + _decode_cmd
-        + f'PROFILE_DIR="/nsight-reports/{nsys_project}/${{RUN_ID}}/{stage_name}"\n'
-        + 'mkdir -p "${PROFILE_DIR}"\n'
-        # nsys writes .nsys-rep via mmap-based FileStream; the 9p noextend mount used
-        # by minikube hostPath PVCs does not support mmap writes (EACCES).  Write to
-        # /tmp (local tmpfs, always writable) then cp to the shared volume.
-        # osrt omitted: on GB10 Blackwell it causes perf_event_open permission issues.
-        # --capture-range=nvtx: activate CUPTI only during the NVTX capture window so
-        # model-loading and warmup kernel launches don't overflow the CUPTI activity
-        # buffer (root cause of cuda_gpu_kern_sum SKIPPED in run-039/040).
-        # --nvtx-capture="nsys_capture": required companion to --capture-range=nvtx;
-        # tells nsys which NVTX range name to use as the recording trigger.  Without
-        # this flag nsys never activates CUPTI (root cause of no report in run-041).
-        # --cuda-flush-interval=1000: flush every 1s; at ~22K kernel launches/sec the
-        # 8MB CUPTI buffer fills in ~3.6s — 10s interval causes overflow, 1s does not.
-        + "nsys profile \\\n"
-        + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
-        + "  --capture-range=nvtx --capture-range-end=stop-shutdown \\\n"
-        + '  --nvtx-capture="nsys_capture" \\\n'
-        + "  --cuda-flush-interval=1000 \\\n"
-        + "  --sample=none --force-overwrite=true \\\n"
-        + '  -o "/tmp/nsys_profile" \\\n'
-        + f"  python3 {_script_tmp} \\\n"
-        + " \\\n".join(py_arg_lines) + "\n"
-        # Run stats against /tmp BEFORE copying to PVC — the 9p filesystem has
-        # 1-second mtime resolution; copying nsys-rep and then generating sqlite
-        # in the same second causes "sqlite older than input" false positive.
-        + 'nsys stats /tmp/nsys_profile.nsys-rep > /tmp/nsys_stats.txt || true\n'
-        # Generate per-report summaries consumed by the /nsight-interpret skill.
-        # Each section is prefixed with "=== <report_name> ===" for direct reading.
-        # --format csv is intentionally omitted: some reports reject it (exit 1).
-        + '{ for _r in cuda_gpu_kern_sum cuda_api_sum cuda_gpu_mem_time_sum cuda_gpu_mem_size_sum nvtx_sum; do\n'
-        + '    echo "=== ${_r} ==="; nsys stats --report "${_r}" /tmp/nsys_profile.nsys-rep 2>&1 || echo "(skipped)";\n'
-        + 'done; } > /tmp/summaries.csv || true\n'
-        # Copy all artifacts to PVC after stats are done
-        + 'cp /tmp/nsys_profile.nsys-rep "${PROFILE_DIR}/profile.nsys-rep"\n'
-        + 'cp /tmp/nsys_profile.sqlite "${PROFILE_DIR}/profile.sqlite" 2>/dev/null || true\n'
-        + 'cp /tmp/nsys_stats.txt "${PROFILE_DIR}/nsys_stats.txt" 2>/dev/null || true\n'
-        + 'cp /tmp/summaries.csv "${PROFILE_DIR}/summaries.csv"\n'
-    )
-
-    # ── Python function signature (required params first, optional last) ───
+    # ── Python function signature ──────────────────────────────────────────
     sig_parts = []
     for name, ann_str, default_str in sig_params:
         if default_str is not None:
@@ -517,28 +478,76 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
             sig_parts.append(f"    {name}: {ann_str}")
     sig = ",\n".join(sig_parts)
 
-    # ── ContainerSpec args list ────────────────────────────────────────────
-    container_args = []
-    for name, ann_str, _ in ordered:
-        if ann_str.startswith("Input[") or ann_str.startswith("Output["):
-            container_args.append(f"            {name}.path,")
-        else:
-            container_args.append(f"            {name},")
-    container_args_str = "\n".join(container_args)
+    py_args = "\n".join(py_arg_lines)
+    packages_repr = repr(packages)
 
     return (
-        f"@dsl.container_component\n"
+        f"@dsl.component(\n"
+        f"    base_image={profiled_image!r},\n"
+        f"    packages_to_install={packages_repr},\n"
+        f")\n"
         f"def {func_name}_profiled(\n"
         f"{sig},\n"
         f"):\n"
-        f"    return dsl.ContainerSpec(\n"
-        f"        image={repr(profiled_image)},\n"
-        f"        command=['bash', '-lc'],\n"
-        f"        args=[\n"
-        f"            {repr(shell_script)},\n"
-        f"{container_args_str}\n"
-        f"        ],\n"
-        f"    )\n"
+        f"    import base64, json, os, shutil, subprocess\n"
+        f"    from pathlib import Path\n"
+        f"\n"
+        f"    os.umask(0)\n"
+        f"    os.environ['NVIDIA_DRIVER_CAPABILITIES'] = 'all'\n"
+        f"    os.environ['NVIDIA_VISIBLE_DEVICES'] = 'all'\n"
+        f"\n"
+        f"    script_path = Path({_script_tmp!r})\n"
+        f"    script_path.write_bytes(base64.b64decode({_script_b64!r}))\n"
+        f"    profile_dir = Path(f'/nsight-reports/{nsys_project}/{{run_id}}/{stage_name}')\n"
+        f"    profile_dir.mkdir(parents=True, exist_ok=True)\n"
+        f"\n"
+        f"    nsys_rep = Path('/tmp/nsys_profile.nsys-rep')\n"
+        f"    nsys_sqlite = Path('/tmp/nsys_profile.sqlite')\n"
+        f"    nsys_stats = Path('/tmp/nsys_stats.txt')\n"
+        f"    summaries = Path('/tmp/summaries.csv')\n"
+        f"    returncode_file = Path('/tmp/nsys_returncode.txt')\n"
+        f"\n"
+        f"    cmd = [\n"
+        f"        'nsys', 'profile',\n"
+        f"        '--trace=cuda,nvtx,cublas,cudnn',\n"
+        f"        '--capture-range=nvtx', '--nvtx-capture=nsys_capture',\n"
+        f"        '--capture-range-end=stop-shutdown',\n"
+        f"        '--cuda-flush-interval=1000',\n"
+        f"        '--sample=none', '--force-overwrite=true',\n"
+        f"        '-o', '/tmp/nsys_profile',\n"
+        f"        'python3', str(script_path),\n"
+        f"{py_args}\n"
+        f"    ]\n"
+        f"\n"
+        f"    proc = subprocess.run(cmd)\n"
+        f"    returncode_file.write_text(str(proc.returncode))\n"
+        f"\n"
+        f"    with nsys_stats.open('w') as out:\n"
+        f"        subprocess.run(['nsys', 'stats', str(nsys_rep)], stdout=out, stderr=subprocess.STDOUT)\n"
+        f"    with summaries.open('w') as out:\n"
+        f"        for report in ['cuda_gpu_kern_sum', 'cuda_api_sum', 'cuda_gpu_mem_time_sum', 'cuda_gpu_mem_size_sum', 'nvtx_sum']:\n"
+        f"            out.write(f'=== {{report}} ===\\n')\n"
+        f"            out.flush()\n"
+        f"            res = subprocess.run(\n"
+        f"                ['nsys', 'stats', '--report', report, str(nsys_rep)],\n"
+        f"                stdout=out,\n"
+        f"                stderr=subprocess.STDOUT,\n"
+        f"            )\n"
+        f"            if res.returncode != 0:\n"
+        f"                out.write('(skipped)\\n')\n"
+        f"\n"
+        f"    for src, dest_name in [\n"
+        f"        (nsys_rep, 'profile.nsys-rep'),\n"
+        f"        (nsys_sqlite, 'profile.sqlite'),\n"
+        f"        (nsys_stats, 'nsys_stats.txt'),\n"
+        f"        (summaries, 'summaries.csv'),\n"
+        f"        (returncode_file, 'nsys_returncode.txt'),\n"
+        f"    ]:\n"
+        f"        if src.exists():\n"
+        f"            shutil.copy(src, profile_dir / dest_name)\n"
+        f"\n"
+        f"    if not nsys_rep.exists():\n"
+        f"        raise FileNotFoundError(str(nsys_rep))\n"
     )
 
 
@@ -586,7 +595,7 @@ def build_pipeline(
                         utils_src, eval_helpers_src,
                     )
                     step_srcs.append(
-                        _make_container_component(
+                        _make_profiled_component(
                             fname, src_orig, profiled_image, _nsys_project, stage_name
                         )
                     )
