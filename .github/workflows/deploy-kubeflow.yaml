@@ -207,13 +207,6 @@ jobs:
           kubectl get pv hf-model-cache nsight-reports 2>/dev/null || true
           kubectl get pvc hf-model-cache nsight-reports -n kubeflow 2>/dev/null || true
 
-      - name: Build and push profiled PyTorch image to GHCR
-        run: |
-          IMAGE="ghcr.io/miramar-labs-org/pytorch-profiled:25.03"
-          docker build -f docker/Dockerfile.profiled -t "$IMAGE" docker/
-          docker push "$IMAGE"
-          echo "Pushed $IMAGE to GHCR."
-
       - name: Smoke-test endpoints
         continue-on-error: true
         run: bash dgx/minikube/kubeflow/verify-kfp-endpoints.sh
