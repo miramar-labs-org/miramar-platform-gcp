@@ -1,0 +1,129 @@
+name: Nsight Operator Deploy
+
+# Deploys the NVIDIA Nsight Operator into the nsight-operator namespace on
+# the target minikube cluster via Helm from the NGC devtools registry.
+#
+# After deploy, the Nsight Operator UI is available on host port 8889 via
+# nsight-portfwd.service. Optionally labels the kubeflow namespace with
+# nvidia-nsight-profile=enabled so the injector can target KFP pods.
+#
+# Prerequisites:
+#   - minikube running on the target machine (Minikube Install workflow)
+#   - nsight-portfwd.service installed on the host (dgx/systemd/install.sh)
+#   - NVIDIA_API_KEY org secret (NGC auth for Helm chart pull)
+#
+# NOTE: after first deploy, verify the UI service name matches:
+#   kubectl get svc -n nsight-operator
+# If it differs from nsight-operator-ui, update dgx/systemd/nsight-portfwd.service.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+      chart_version:
+        description: Nsight Operator Helm chart version
+        default: "26.2.2"
+        required: false
+      label_kubeflow_namespace:
+        description: Label kubeflow namespace with nvidia-nsight-profile=enabled (allows pod injection)
+        type: boolean
+        default: true
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Add NGC Helm repo
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          helm repo add nvidia-devtools https://helm.ngc.nvidia.com/nvidia/devtools \
+            --username='$oauthtoken' \
+            --password="${NVIDIA_API_KEY}" \
+            --force-update
+          helm repo update
+
+      - name: Install Nsight Operator
+        run: |
+          helm upgrade --install \
+            --wait \
+            --namespace nsight-operator \
+            --create-namespace \
+            --version "${{ inputs.chart_version }}" \
+            -f dgx/minikube/nsight/values.yaml \
+            --timeout 10m \
+            nsight-operator \
+            nvidia-devtools/nsight-operator
+
+      - name: Wait for pods
+        run: kubectl get pods -n nsight-operator
+
+      - name: Label kubeflow namespace
+        if: ${{ inputs.label_kubeflow_namespace }}
+        run: |
+          kubectl label namespace kubeflow nvidia-nsight-profile=enabled --overwrite
+
+      - name: Start port-forward service
+        run: |
+          systemctl --user daemon-reload
+          systemctl --user enable --now nsight-portfwd.service
+
+      - name: Set Nsight Operator active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_NSIGHT_OPERATOR_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          POD_COUNT=$(kubectl get pods -n nsight-operator --no-headers 2>/dev/null | grep -c . || echo 0)
+          KF_LABEL=$(kubectl get namespace kubeflow --show-labels 2>/dev/null | grep -o 'nvidia-nsight-profile=enabled' || echo 'not labeled')
+          {
+            echo "## Nsight Operator Deployed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
+            echo "| Chart version | \`${{ inputs.chart_version }}\` |"
+            echo "| Namespace | \`nsight-operator\` |"
+            echo "| Pods | \`${POD_COUNT}\` |"
+            echo "| kubeflow label | \`${KF_LABEL}\` |"
+            echo ""
+            echo "Tunnel to access the UI:"
+            echo "\`\`\`"
+            echo "# DGX"
+            echo "ssh -L 8889:localhost:8889 aaron@spark-79b7.local"
+            echo "# http://localhost:8889"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

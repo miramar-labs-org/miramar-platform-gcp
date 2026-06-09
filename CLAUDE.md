@@ -129,6 +129,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL[_AGX]`. Inputs: `runner` |
 | Qdrant Deploy | `deploy-qdrant.yaml` | Deploy Qdrant vector database into minikube `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
 | Qdrant Undeploy | `undeploy-qdrant.yaml` | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
+| Nsight Operator Deploy | `deploy-nsight-operator.yaml` | Install Nsight Operator via Helm (NGC devtools registry); optionally labels kubeflow namespace for pod injection; starts `nsight-portfwd.service` (UI at port 8889); writes `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner` (dgx/agx), `chart_version`, `label_kubeflow_namespace` |
+| Nsight Operator Undeploy | `undeploy-nsight-operator.yaml` | Helm uninstall Nsight Operator; stops `nsight-portfwd.service`; optionally removes kubeflow injection label and namespace; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner`, `delete_namespace`, `unlabel_kubeflow_namespace` |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. Images are reusable on AGX (both linux/arm64). |
@@ -176,6 +178,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_QDRANT_ACTIVE` | Qdrant Deploy (agx) | Qdrant Undeploy (agx) |
 | `DGX_KFP_ACTIVE` | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx) |
 | `AGX_KFP_ACTIVE` | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx) |
+| `DGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (dgx) | Nsight Operator Undeploy (dgx) |
+| `AGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (agx) | Nsight Operator Undeploy (agx) |
 | `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx) | Ollama Undeploy (dgx), rollback |
 | `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback |
 | `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU |
@@ -241,6 +245,7 @@ Both DGX Spark and AGX Orin run the identical eight systemd user services on boo
 | `kfp-api-portfwd` | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API) |
 | `nemo-portfwd` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
 | `qdrant-portfwd` | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC) |
+| `nsight-portfwd` | `8889` | `kubectl port-forward svc/nsight-operator-ui:8888` (Nsight Operator UI) |
 
 **SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop:
 
@@ -255,18 +260,21 @@ Both DGX Spark and AGX Orin run the identical eight systemd user services on boo
 | Ollama | `11434` | `11435` |
 | Qdrant REST | `6333` | `6335` |
 | Qdrant gRPC | `6334` | `6336` |
+| Nsight Operator UI | `8889` | `8892` |
 
 ```sh
 # DGX Spark (spark-79b7.local)
 ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
     -L 11434:localhost:11434 -L 6333:localhost:6333 -L 6334:localhost:6334 \
+    -L 8889:localhost:8889 \
     aaron@spark-79b7.local
 
 # AGX Orin (orin.local)
 ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
     -L 11435:localhost:11434 -L 6335:localhost:6333 -L 6336:localhost:6334 \
+    -L 8892:localhost:8889 \
     aaron@orin.local
 ```
 

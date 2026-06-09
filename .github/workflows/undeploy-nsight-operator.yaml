@@ -1,0 +1,86 @@
+name: Nsight Operator Undeploy
+
+# Removes the NVIDIA Nsight Operator from the target minikube cluster.
+# Stops the nsight-portfwd.service port-forward, optionally removes the
+# kubeflow namespace injection label, and optionally deletes the namespace.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+      delete_namespace:
+        description: Delete nsight-operator namespace after removal
+        type: boolean
+        default: true
+        required: false
+      unlabel_kubeflow_namespace:
+        description: Remove nvidia-nsight-profile=enabled label from kubeflow namespace
+        type: boolean
+        default: true
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
+          sudo chmod -R a+rX "${HOME}/.minikube"
+          TMP_KC=$(mktemp)
+          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
+              "${HOME}/.kube/config" > "${TMP_KC}"
+          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Stop port-forward service
+        run: systemctl --user disable --now nsight-portfwd.service || true
+
+      - name: Remove kubeflow namespace label
+        if: ${{ inputs.unlabel_kubeflow_namespace }}
+        run: kubectl label namespace kubeflow nvidia-nsight-profile- 2>/dev/null || true
+
+      - name: Helm uninstall
+        run: helm uninstall nsight-operator -n nsight-operator --wait || true
+
+      - name: Delete namespace
+        if: ${{ inputs.delete_namespace }}
+        run: kubectl delete namespace nsight-operator --ignore-not-found
+
+      - name: Clear Nsight Operator active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_NSIGHT_OPERATOR_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="false" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Nsight Operator Undeployed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Runner | \`${{ inputs.runner }}\` |"
+            echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
+            echo "| kubeflow label removed | \`${{ inputs.unlabel_kubeflow_namespace }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

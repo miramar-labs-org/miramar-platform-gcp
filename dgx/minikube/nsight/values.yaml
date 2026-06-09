@@ -1,0 +1,15 @@
+# Nsight Operator Helm values — miramar-platform-gcp
+# Coordinator mode: profiler-start/stop via nsight_operator.py CLI
+# Injection targets: kubeflow namespace pods labeled nvidia-nsight-profile=enabled
+
+nsight-injector:
+  nsightToolConfig:
+    # Match python3 processes (KFP component scripts)
+    injectionIncludePatterns:
+      - ".*python3.*"
+    # Core profiling flags — same as manual nsys path
+    nsightToolArgs: >-
+      --trace=cuda,nvtx,cublas,cudnn
+      --sample=none
+      --cuda-flush-interval=100
+      --force-overwrite=true

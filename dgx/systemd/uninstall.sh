@@ -3,7 +3,7 @@ set -euo pipefail
 
 DEST="$HOME/.config/systemd/user"
 # Stop in reverse dependency order (dependents first, minikube last)
-SERVICES=(qdrant-portfwd nemo-portfwd kfp-api-portfwd kubeflow-portfwd mlflow-portfwd jupyterlab dashboard minikube-nsight-mount minikube-hf-cache-mount minikube)
+SERVICES=(nsight-portfwd qdrant-portfwd nemo-portfwd kfp-api-portfwd kubeflow-portfwd mlflow-portfwd jupyterlab dashboard minikube-nsight-mount minikube-hf-cache-mount minikube)
 
 for svc in "${SERVICES[@]}"; do
     echo "Removing ${svc}..."
