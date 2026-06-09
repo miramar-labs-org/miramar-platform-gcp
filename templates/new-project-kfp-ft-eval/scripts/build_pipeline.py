@@ -477,11 +477,15 @@ def _make_container_component(func_name, src_orig, profiled_image, nsys_project,
         # --capture-range=nvtx: activate CUPTI only during the NVTX capture window so
         # model-loading and warmup kernel launches don't overflow the CUPTI activity
         # buffer (root cause of cuda_gpu_kern_sum SKIPPED in run-039/040).
+        # --nvtx-capture="nsys_capture": required companion to --capture-range=nvtx;
+        # tells nsys which NVTX range name to use as the recording trigger.  Without
+        # this flag nsys never activates CUPTI (root cause of no report in run-041).
         # --cuda-flush-interval=1000: flush every 1s; at ~22K kernel launches/sec the
         # 8MB CUPTI buffer fills in ~3.6s — 10s interval causes overflow, 1s does not.
         + "nsys profile \\\n"
         + "  --trace=cuda,nvtx,cublas,cudnn \\\n"
         + "  --capture-range=nvtx --capture-range-end=stop-shutdown \\\n"
+        + '  --nvtx-capture="nsys_capture" \\\n'
         + "  --cuda-flush-interval=1000 \\\n"
         + "  --sample=none --force-overwrite=true \\\n"
         + '  -o "/tmp/nsys_profile" \\\n'
