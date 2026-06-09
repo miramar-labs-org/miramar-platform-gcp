@@ -15,40 +15,9 @@ on:
         description: MLflow tracking server URL (leave blank to use the in-cluster default)
         default: ""
         required: false
-      profile_baseline:
-        description: Enable Nsight Systems profiling for the baseline_eval step
-        type: boolean
-        default: false
-        required: false
-      profile_finetune:
-        description: Enable Nsight Systems profiling for the fine_tune step
-        type: boolean
-        default: false
-        required: false
-      profile_postft:
-        description: Enable Nsight Systems profiling for the post_finetune_eval step
-        type: boolean
-        default: false
-        required: false
-      profile_safety:
-        description: Enable Nsight Systems profiling for the safety_eval step
-        type: boolean
-        default: false
-        required: false
-      profile_baseline_safety:
-        description: Enable Nsight Systems profiling for the baseline_safety_eval step
-        type: boolean
-        default: false
-        required: false
-      profile_nsight:
-        description: "Shorthand: enable Nsight profiling for all steps"
-        type: boolean
-        default: false
-        required: false
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   deploy:
@@ -75,41 +44,6 @@ jobs:
       - name: Install kfp SDK
         run: pip install kfp kfp-kubernetes pyyaml pytest --quiet
 
-      - name: Patch profiling config
-        run: |
-          python3 - <<'EOF'
-          import yaml, pathlib, os
-          cfg = yaml.safe_load(pathlib.Path('config.yaml').read_text())
-          profiling = cfg.setdefault('profiling', {})
-          any_nsight = "${{ inputs.profile_nsight }}" == "true"
-          profiling['baseline']        = any_nsight or "${{ inputs.profile_baseline }}"        == "true"
-          profiling['finetune']        = any_nsight or "${{ inputs.profile_finetune }}"        == "true"
-          profiling['postft']          = any_nsight or "${{ inputs.profile_postft }}"          == "true"
-          profiling['safety']          = any_nsight or "${{ inputs.profile_safety }}"          == "true"
-          profiling['baseline_safety'] = any_nsight or "${{ inputs.profile_baseline_safety }}" == "true"
-          pathlib.Path('config.yaml').write_text(yaml.dump(cfg, default_flow_style=False))
-          active = [k for k, v in profiling.items() if v]
-          print('Profiling active:', active or 'none')
-          # Pre-create nsight output dirs on the DGX host as aaron (UID 1000) with
-          # mode 0o777. Profiled pods run as UID 65532; the minikube 9p mount always
-          # presents ownership as host UID 1000 and checks permissions using host UIDs,
-          # so the pod appears as "other" — dirs must be world-writable before pod start.
-          if any(active):
-              run_name = "${{ inputs.run_name }}"
-              nsys_project = cfg.get('nsys_project', os.path.basename(os.getcwd()))
-              stage_map = {
-                  'baseline': 'baseline-eval', 'finetune': 'fine-tune',
-                  'postft': 'post-finetune-eval', 'safety': 'safety-eval',
-                  'baseline_safety': 'baseline-safety-eval',
-              }
-              for flag, stage_dir in stage_map.items():
-                  if profiling.get(flag, False):
-                      d = pathlib.Path.home() / 'shared/nsight' / nsys_project / run_name / stage_dir
-                      d.mkdir(parents=True, exist_ok=True)
-                      d.chmod(0o777)
-                      print(f'Pre-created nsight dir: {d}')
-          EOF
-
       - name: Build pipeline.py from notebook
         run: python3 scripts/build_pipeline.py
 
@@ -118,60 +52,6 @@ jobs:
 
       - name: Pip dry-run check
         run: python3 scripts/check_packages.py
-
-      # ── Docker build for profiled image (only when at least one profile flag is set) ──
-
-      - name: Determine if profiled image build is needed
-        id: profile_check
-        run: |
-          if [[ "${{ inputs.profile_nsight }}" == "true" \
-             || "${{ inputs.profile_baseline }}" == "true" \
-             || "${{ inputs.profile_finetune }}" == "true" \
-             || "${{ inputs.profile_postft }}" == "true" \
-             || "${{ inputs.profile_safety }}" == "true" \
-             || "${{ inputs.profile_baseline_safety }}" == "true" ]]; then
-            echo "needed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "needed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Set up Docker Buildx
-        if: steps.profile_check.outputs.needed == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        if: steps.profile_check.outputs.needed == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
-
-      - name: Checkout miramar-platform-gcp
-        if: steps.profile_check.outputs.needed == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: miramar-labs-org/miramar-platform-gcp
-          token: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
-          path: miramar-platform-gcp
-
-      - name: Copy nsys scripts into Docker context
-        if: steps.profile_check.outputs.needed == 'true'
-        run: cp docker/nsys_*.py miramar-platform-gcp/docker/
-
-      - name: Build and push profiled image
-        if: steps.profile_check.outputs.needed == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: miramar-platform-gcp/docker
-          file: miramar-platform-gcp/docker/Dockerfile.profiled
-          push: true
-          tags: |
-            ghcr.io/miramar-labs-org/pytorch-profiled:25.03
-            ghcr.io/miramar-labs-org/pytorch-profiled:${{ github.sha }}
-          platforms: linux/arm64
-
-      # ── Compile and submit ──────────────────────────────────────────────────
 
       - name: Compile and submit pipeline
         id: submit
@@ -189,7 +69,6 @@ jobs:
             echo "|---|---|"
             echo "| Run name | \`${{ inputs.run_name }}\` |"
             echo "| Run ID | \`${{ steps.submit.outputs.run_id }}\` |"
-            echo "| Nsight profiling | baseline=${{ inputs.profile_baseline || inputs.profile_nsight }} finetune=${{ inputs.profile_finetune || inputs.profile_nsight }} postft=${{ inputs.profile_postft || inputs.profile_nsight }} safety=${{ inputs.profile_safety || inputs.profile_nsight }} baseline_safety=${{ inputs.profile_baseline_safety || inputs.profile_nsight }} |"
             echo ""
             echo "Open the UI: \`ssh -L 8080:localhost:8080 <user>@spark-79b7.local\` → http://localhost:8080"
           } >> "$GITHUB_STEP_SUMMARY"

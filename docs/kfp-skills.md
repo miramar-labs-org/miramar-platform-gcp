@@ -10,37 +10,19 @@ Two Claude Code slash commands cover the full run lifecycle for any project scaf
 **Purges KFP state, deploys a new run, and creates the status log file.**
 
 ```bash
-# Auto-increment run number, no profiling
+# Auto-increment run number
 /kfp-deploy
 
 # Explicit run name
 /kfp-deploy run-021
-
-# Profile baseline eval only
-/kfp-deploy run-021 --profile-baseline
-
-# Profile fine-tune only
-/kfp-deploy run-021 --profile-finetune
-
-# Profile post-fine-tune eval only
-/kfp-deploy run-021 --profile-postft
-
-# Profile safety eval only
-/kfp-deploy run-021 --profile-safety
-
-# Profile baseline safety eval only
-/kfp-deploy run-021 --profile-baseline-safety
-
-# Profile baseline + fine-tune (shorthand)
-/kfp-deploy run-021 --profile-nsight
 ```
 
 Steps it performs:
 1. Determines the next run name (auto-increments from `runs/run-NNN.md`, or uses the argument)
 2. Checks for active pods — asks for confirmation before purging if any are Running
 3. Runs `python3 scripts/purge_kfp.py`
-4. Runs `python3 scripts/deploy_pipeline.py --run-name <run-name> [flags]`
-5. Creates `runs/<run-name>.md` with the KFP Run ID, start time, and profile flags pre-filled
+4. Runs `python3 scripts/deploy_pipeline.py --run-name <run-name>`
+5. Creates `runs/<run-name>.md` with the KFP Run ID and start time
 
 After this finishes, invoke `/kfp-monitor <run-name>` to start the monitoring loop.
 
@@ -103,7 +85,6 @@ Each run gets a file in the `runs/` directory (git-tracked):
 
 **KFP Run ID:** `<uuid>`
 **Started:** 2026-06-07 10:00 PDT
-**Profile flags:** none
 **KFP UI:** http://localhost:8080/#/runs/details/<uuid>
 
 Changes from previous run:
@@ -188,103 +169,11 @@ be readable from the current machine (not inside a pod).
 
 ---
 
-## Nsight Profiling in KFP
-
-Profiling a KFP pipeline component requires special pod configuration. The `--profile-*` flags
-to `/kfp-deploy` enable this automatically.
-
-### How it works
-
-When a profiling flag is set, `scripts/deploy_pipeline.py` patches the Argo Workflow with:
-
-```yaml
-podSpecPatch: |
-  containers:
-    - name: main
-      securityContext:
-        privileged: true
-        capabilities:
-          add: ["SYS_PTRACE"]
-        seccompProfile:
-          type: Unconfined
-```
-
-This grants CUPTI access to the `main` container (the KFP component). The `wait` container
-(argoexec sidecar) is not patched.
-
-The nsys command embedded in the component (base64 in `build_pipeline.py`):
-
-```bash
-nsys profile \
-  --trace=cuda,nvtx,cublas,cudnn \
-  --cuda-flush-interval=10000 \
-  --sample=none --force-overwrite=true \
-  -o "/tmp/nsys_profile" \
-  python3 /tmp/nsys_eval_script.py
-```
-
-Key flags:
-- `--cuda-flush-interval=10000` — required for runs >5 min; prevents trace buffer overflow
-- `--sample=none` — CPU sampling disabled (irrelevant for GPU profiling; reduces overhead)
-- `osrt` omitted — on GB10 Blackwell it suppresses `cuda_gpu_kern_sum` capture
-- `--cuda-trace-scope=process-tree` omitted — causes `cuda_gpu_kern_sum SKIPPED` on GB10 (confirmed run-039)
-
-### Profile output location
-
-```
-~/shared/nsight/<project-name>/<run-name>/<component>/profile.nsys-rep
-```
-
-### GPU weight migration (GB10 unified memory)
-
-On DGX Spark (GB10, unified memory), `from_pretrained` with `device_map="auto"` loads weights
-to CPU-accessible pages. The first GPU kernel access triggers a blocking `cudaMemcpyAsync` that
-migrates the full model weight tensor (~54 GB for MedGemma 27B, ~49.7s).
-
-The eval scripts force this migration immediately after `model.eval()` via a dummy forward pass:
-
-```python
-model.eval()
-with torch.no_grad():
-    _dummy_ids = torch.zeros(1, 1, dtype=torch.long, device=next(model.parameters()).device)
-    model(_dummy_ids)
-    torch.cuda.synchronize()
-del _dummy_ids
-```
-
-This ensures the migration never overlaps warmup or inference timing.
-
-### Known issues
-
-**`cuda_gpu_kern_sum` SKIPPED** — if the GPU kernel summary is absent from `nsys stats` output:
-- Possible cause 1: trace buffer overflow (run exceeded ~5 min without `--cuda-flush-interval`)
-- Possible cause 2: `--cuda-trace-scope=process-tree` present — **remove it** (confirmed GB10 root cause in run-039)
-- Possible cause 3: privilege/capability issue in the pod (verify `privileged: true` on `main` container)
-- Note: `cuda_api_sum` present without `cuda_gpu_kern_sum` is NOT a GB10 hardware limitation —
-  it indicates a capture/reporting/process issue
-
-**Standalone pods (outside KFP) always work** — `nsys` with `privileged: true` and
-`RmProfilingAdminOnly=0` in `/etc/modprobe.d/nvidia.conf` captures GPU kernels correctly.
-The subprocess chain in KFP adds complexity that the flags above address.
-
-### Purging large artifacts
-
-```bash
-python3 scripts/purge_nsight.py [--sqlite-only] [--generate-missing] [--exclude run-NNN] [--dry-run]
-```
-
-- Default: delete `.sqlite` (always safe) + delete `.nsys-rep` where `summaries.csv` exists
-- `--sqlite-only`: keep `.nsys-rep` files, only remove `.sqlite`
-- `--generate-missing`: run `nsys stats` to create `summaries.csv` before deleting `.nsys-rep`
-- `--exclude run-NNN`: skip specific runs
-
----
-
 ## Prerequisites
 
 - KFP running on DGX (`kubeflow` namespace) — deploy via `deploy-kubeflow.yaml` workflow
 - `scripts/purge_kfp.py` and `scripts/deploy_pipeline.py` present (scaffolded by template)
 - `runs/` directory exists (created by template or first `/kfp-deploy`)
 - MLflow accessible at `localhost:5000`
-- For Nsight profiling: `nsys` installed on host, kubeflow namespace PSS set to `privileged`,
-  `RmProfilingAdminOnly=0` in `/etc/modprobe.d/nvidia.conf`
+- For GPU profiling: deploy Nsight Operator via `deploy-nsight-operator.yaml` in miramar-platform-gcp,
+  then add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to the target stage
