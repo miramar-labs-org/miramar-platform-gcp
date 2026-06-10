@@ -32,9 +32,9 @@ on:
         default: "26.2.2"
         required: false
       label_kubeflow_namespace:
-        description: Label kubeflow namespace with nvidia-nsight-profile=enabled (allows pod injection)
+        description: "Label kubeflow namespace with nvidia-nsight-profile=enabled — WARNING: injects nsys into ALL pods including KFP system pods (DAG driver etc.) which fail with runAsNonRoot. Leave false; use per-pod kubernetes.add_pod_label() in pipeline.py instead."
         type: boolean
-        default: true
+        default: false
         required: false
 
 permissions:

@@ -68,6 +68,8 @@ from kfp import kubernetes
 kubernetes.add_pod_label(task, label_key="nvidia-nsight-profile", label_value="enabled")
 ```
 
+**Do not label the kubeflow namespace** (`nvidia-nsight-profile=enabled` at namespace level) — it injects nsys into ALL pods including KFP's own DAG driver pods, which fail with `runAsNonRoot`. Per-pod labels are the only correct approach.
+
 Compile check:
 
 ```sh
