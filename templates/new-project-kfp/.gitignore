@@ -19,7 +19,6 @@ env/
 *.ipynb_checkpoints
 
 # KFP compiled pipeline artefacts
-/pipeline.py
 /pipeline_compiled.yaml
 /pipeline.yaml
 
