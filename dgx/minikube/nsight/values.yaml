@@ -1,29 +1,25 @@
 # Nsight Operator Helm values — miramar-platform-gcp
-# Coordinator mode: profiler-start/stop via nsight_operator.py CLI
 # Injection targets: kubeflow namespace pods labeled nvidia-nsight-profile=enabled
 
 nsight-injector:
-  # privileged: required for CUPTI software activity tracing (GPU-side kernel records).
-  # Without it, nsys falls back to hardware counter sampling — only ~7 kernel records
-  # captured out of thousands. NVIDIA_VISIBLE_DEVICES=void (the process hook's
-  # anti-recursion guard) prevents CUPTI from attaching to the GPU context for
-  # activity buffers unless the container has full privilege.
+  # privileged: required for hardware GPU trace on GB10.
+  # Without it, ~7 kernel records; with it, ~47 records (1.89s hardware trace snapshot).
   privileged: true
 
   nsightToolConfig:
     # Match python3 processes (KFP component scripts)
     injectionIncludePatterns:
       - ".*python3.*"
-    # Core profiling flags — same as manual nsys path.
-    # --env-var NVIDIA_VISIBLE_DEVICES=all: overrides the "void" value that
-    # the process hook injects as its anti-recursion guard. nsys reads
-    # PROCESS_0's env to decide COLLECT_CUDA_TRACE; "void" → false (hardware
-    # sampling only, ~47 kernels/run). "all" → true (full CUPTI software
-    # activity tracing, every kernel captured). The re-launched PROCESS_0 has
-    # no hook LD_PRELOAD'd, so "all" does not trigger re-interception.
+    # Core profiling flags.
+    # NOTE: In process hook injection mode, COLLECT_CUDA_TRACE=false is expected —
+    # it means nsys uses hardware trace (not software CUPTI) for GPU-side kernel
+    # records. The hardware trace captures a single ~1.89s snapshot (~45 kernels)
+    # at CUDA init time. CPU-side CUDA API trace (CUPTI_ACTIVITY_KIND_RUNTIME) and
+    # NVTX events are captured continuously for the full collection window.
+    # DO NOT add --env-var NVIDIA_VISIBLE_DEVICES=all: this disrupts the hardware
+    # trace snapshot timing and reduces kernel coverage from 47 to 2 records.
     nsightToolArgs: >-
       --trace=cuda,nvtx,cublas,cudnn
       --sample=none
       --cuda-flush-interval=100
       --force-overwrite=true
-      --env-var NVIDIA_VISIBLE_DEVICES=all
