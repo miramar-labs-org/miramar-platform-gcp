@@ -10,8 +10,9 @@
 
 | File | Purpose |
 |---|---|
-| `pipeline.py` | KFP v2 pipeline definition — `pipeline()` is compiled and submitted |
-| `notebook.ipynb` | Interactive development: compile, inspect, submit, monitor runs |
+| `notebook.ipynb` | Source of truth — define components in tagged cells, run the Build cell to regenerate `pipeline.py` |
+| `pipeline.py` | Generated from notebook — **do not edit manually** (gitignored) |
+| `scripts/build_pipeline.py` | Assemble `pipeline.py` from tagged notebook cells |
 | `scripts/deploy_pipeline.py` | Compile + submit a run |
 | `scripts/terminate_pipeline.py` | Called by Undeploy from KFP workflow |
 | `scripts/purge_kfp.py` | Purge all runs + pipeline versions before redeploy |
