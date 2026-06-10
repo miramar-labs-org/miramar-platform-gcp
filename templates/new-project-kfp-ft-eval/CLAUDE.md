@@ -194,6 +194,49 @@ All steps receive train/val/test data as JSON files where every row is:
 `instruction` and `response` are the standard instruction-tuning fields. `source` is metadata
 only — strip it before passing to the trainer.
 
+## Chunked training (multi-run fine-tuning)
+
+For datasets too large to train in a single run, split training across N sequential runs where
+each run trains on a different data slice and warm-starts from the previous run's adapter.
+
+**Enable in `config.yaml`:**
+
+```yaml
+training:
+  target_hours: 8.0      # wall-clock budget per run
+  overhead_hours: 1.5    # model loads + eval stages (tune per model size)
+
+chunking:
+  enabled: true
+  total_chunks: 5        # divide training data into 5 equal slices
+  shuffle_seed: 42       # fixed seed — reproducible splits; val/test unchanged across runs
+```
+
+**Deploy each run manually:**
+
+```bash
+# Run 1 — cold start, trains on data slice 0
+python3 scripts/deploy_pipeline.py --run-name run-001 --chunk-index 0
+
+# Run 2 — warm-starts from run-001 adapter, trains on data slice 1
+python3 scripts/deploy_pipeline.py --run-name run-002 --chunk-index 1
+
+# Run N — warm-starts from chunk N-1 adapter, trains on data slice N-1
+python3 scripts/deploy_pipeline.py --run-name run-NNN --chunk-index N-1
+```
+
+**How it works:**
+- `prepare_dataset` shuffles all rows with the fixed seed, then slices `train_rows[start:end]` for this chunk. Val/test are derived from the same fixed-seed shuffle and never chunked — metrics stay comparable across all runs.
+- `fine_tune` loads the previous chunk's adapter from the HF cache PVC (`/root/.cache/huggingface/adapters/{pipeline-name}/chunk-{N-1}/`). `is_trainable=True` continues training without a memory-expensive merge.
+- Adapter is copied to the PVC at the end of `fine_tune` regardless of the deployment gate outcome, so the next run always has a valid warm-start source.
+- `max_steps` is self-calibrating: a `_TimeBudgetCallback` runs 10 warmup steps, measures sec/step, then sets `control.should_training_stop` at the computed step.
+
+**Without chunking (`chunking.enabled: false`, `target_hours: 0`):** behaves identically to a standard single-run pipeline — backward-compatible default.
+
+**Adapters on the DGX host:** `/home/aaron/shared/huggingface-kfp/adapters/{pipeline-name}/chunk-{N}/`
+
+---
+
 ## Workflows
 
 Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** in

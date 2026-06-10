@@ -22,10 +22,19 @@ def main():
     parser.add_argument("--run-name", default=None,
                         help="KFP run display name (also sets run_id pipeline param)")
     parser.add_argument("--host", default=None, help="KFP API server URL")
+    parser.add_argument("--chunk-index", type=int, default=None,
+                        help="Chunk index for multi-run chunked training (overrides config.yaml chunking.chunk_index)")
     args = parser.parse_args()
 
     host = args.host or os.environ.get("KFP_HOST", "http://localhost:8890")
     run_name = args.run_name or os.environ.get("RUN_NAME", "pipeline-run")
+
+    # Load config to resolve chunk_index default and validate chunking config
+    import yaml as _yaml
+    _cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml")
+    _cfg = (_yaml.safe_load(open(_cfg_path).read()) or {}) if os.path.exists(_cfg_path) else {}
+    _chunking = _cfg.get("chunking", {})
+    chunk_index = args.chunk_index if args.chunk_index is not None else _chunking.get("chunk_index", 0)
 
     # ── Always rebuild pipeline.py from notebook ──────────────────────────
     from scripts.build_pipeline import build_pipeline
@@ -99,7 +108,8 @@ def main():
 
     run_response = client.create_run_from_pipeline_package(
         pipeline_file=pipeline_yaml,
-        arguments={"run_id": run_name, "mlflow_experiment_name": pipeline_name},
+        arguments={"run_id": run_name, "mlflow_experiment_name": pipeline_name,
+                   "chunk_index": chunk_index},
         run_name=run_name,
         experiment_name=pipeline_name,
     )
