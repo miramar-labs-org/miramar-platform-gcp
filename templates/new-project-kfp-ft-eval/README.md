@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}}
 
-[![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})
+[![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})  [![last run](https://img.shields.io/badge/last%20run-pending-lightgrey)](runs/RUNS.md)
 
 | | |
 |---|---|
