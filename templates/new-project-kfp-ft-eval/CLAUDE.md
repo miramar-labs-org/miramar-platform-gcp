@@ -20,7 +20,6 @@
 | `scripts/terminate_pipeline.py` | Terminate a run by ID (called by Undeploy from KFP workflow) |
 | `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run |
 | `runs/run-NNN.md` | Periodic status log for run NNN, written by the monitoring loop |
-| `scripts/purge_nsight.py` | Clean up large Nsight artifacts — delete `.sqlite` and optionally `.nsys-rep` when `summaries.csv` exists |
 
 ## Slash commands
 

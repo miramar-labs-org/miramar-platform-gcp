@@ -139,22 +139,6 @@ response, collect scores into `scores`, compute `avg_score`.
 
 ---
 
-## Profile mode caps
-
-All GPU runs are capped when profiling is enabled — prevents large nsys report files.
-
-| Flag in `config.yaml` | Component capped | How |
-|---|---|---|
-| `profiling.baseline: true` | `baseline_eval` | WARMUP + CAPTURE samples only |
-| `profiling.baseline_safety: true` | `baseline_safety_eval` | `capture_samples` samples |
-| `profiling.finetune: true` | `fine_tune` | `max_steps=train_max_steps` in SFTConfig |
-| `profiling.postft: true` | `post_finetune_eval` | WARMUP + CAPTURE samples only |
-| `profiling.safety: true` | `safety_eval` | `capture_samples` samples |
-
-Default cap: `warmup_samples=2`, `capture_samples=3` (5 samples total for eval components),
-`train_max_steps=20`. Adjust in the `profiling:` block of `config.yaml`.
-
----
 
 ## Implementation order
 

@@ -17,7 +17,6 @@
 | `baseline_safety_eval` | 🔲 Not yet run |
 | `safety_eval` | 🔲 Not yet run |
 | `deployment_gate` | ✅ Implemented (template) |
-| GPU profiling (nsys) | 🔲 Not yet configured |
 
 **Project is in scaffolding phase.** Pipeline compiles; no runs have been executed yet.
 
@@ -39,10 +38,9 @@
 - KFP v2 pipeline scaffold with all 6 stages wired
 - `_local_model_path()` — bypasses HuggingFace `.locks/` PermissionError on 9p mount
 - Hard-link HF cache (minikube 9p symlink fix)
-- `deploy_pipeline.py` with per-stage nsys profiling flags
-- MLflow run-per-stage tracking with live `running_accuracy` curve
-- Nsight profiling infrastructure (privileged pods, `/tmp` write + `cp`, base64 inline scripts)
-- `purge_kfp.py`, `purge_nsight.py`
+- MLflow run-per-stage tracking
+- `purge_kfp.py`
+- Nsight Operator integration — add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to profile any stage
 - BF16 direct loading with `max_memory={0: "100GiB"}` (Blackwell GB10 unified memory)
 
 ### Project-specific
@@ -58,7 +56,6 @@
 - Implement dataset formatters and loaders
 - Implement all pipeline stage bodies
 - First pipeline run — establish baseline accuracy
-- GPU profiling run
 
 ---
 
@@ -76,6 +73,6 @@ None yet.
 
 ---
 
-## Latest Profiling Finding
+## Latest Nsight Finding
 
 No profiling runs yet.

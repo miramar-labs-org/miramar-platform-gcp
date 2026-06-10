@@ -26,42 +26,26 @@ KFP running on DGX — trigger **Kubeflow Deploy** in [miramar-platform-gcp](htt
 pipeline.py          ← KFP v2 pipeline definition — edit this
 notebook.ipynb       ← Development notebook
 scripts/
-  deploy_pipeline.py    ← Called by Deploy to KFP workflow; --profile flag for nsys
+  deploy_pipeline.py    ← Called by Deploy to KFP workflow
   terminate_pipeline.py ← Called by Undeploy from KFP workflow
   purge_kfp.py          ← Purge all runs + pipeline versions before redeploy
-  purge_nsight.py       ← Clean up large nsys artifacts from ~/shared/nsight/
 ```
 
 ---
 
-## Nsys GPU Profiling
+## GPU Profiling (Nsight Operator)
 
-Profile any run with a single flag:
+Profile any stage without modifying the component — add a pod label in `pipeline.py`:
 
-```bash
-python3 scripts/purge_kfp.py
-python3 scripts/deploy_pipeline.py --run-name run-001 --profile
+```python
+from kfp import kubernetes
+kubernetes.add_pod_label(task, label_key="nvidia-nsight-profile", label_value="enabled")
 ```
 
-This will:
-1. Pre-create `~/shared/nsight/{{PROJECT_NAME}}/run-001/main/` with correct permissions
-2. Submit the run with `profile=True` passed as a pipeline parameter
-3. Patch the Argo Workflow to run the GPU container as `privileged=true` (required for CUPTI)
-
-After the run completes, interpret the results:
+The Nsight Operator injects `nsys` at pod creation. View results in the Nsight UI at [http://localhost:8889](http://localhost:8889).
 
 ```bash
-# Check GPU kernel capture
-cat ~/shared/nsight/{{PROJECT_NAME}}/run-001/main/summaries.csv | grep -A 5 "cuda_gpu_kern_sum"
-
-# AI-assisted analysis (requires /nsight-interpret skill)
-# /nsight-interpret run-001
-```
-
-To clean up large artifacts (`.nsys-rep`, `.sqlite`) once `summaries.csv` exists:
-
-```bash
-python3 scripts/purge_nsight.py
+/nsight-interpret run-001   # AI-assisted bottleneck analysis
 ```
 
 ---

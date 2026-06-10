@@ -11,7 +11,6 @@
 | Component | Status |
 |---|---|
 | `gpu_stage` | 🔲 Not yet run |
-| GPU profiling (nsys) | 🔲 Not yet configured |
 
 **Project is in scaffolding phase.** Pipeline compiles; no runs have been executed yet.
 
@@ -31,9 +30,8 @@
 
 ### Infrastructure (inherited from platform template)
 - KFP v2 pipeline with GPU component using NGC PyTorch base image
-- nsys profiling: `--profile` flag on `deploy_pipeline.py`; privileged Argo patch; PVC mount
-- `purge_kfp.py`, `purge_nsight.py`
-- `deploy_pipeline.py` with `--run-name`, `--profile`, `--profile-stage`
+- `purge_kfp.py`
+- Nsight Operator integration — add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to profile any stage
 
 ### Project-specific
 - `pipeline.py` — `gpu_stage` WORKLOAD to be replaced with actual workload
@@ -43,9 +41,8 @@
 
 ## What Is Still Pending
 
-- Replace `WORKLOAD` in `pipeline.py` with actual GPU body
+- Replace `gpu_stage` stub in `pipeline.py` with actual GPU body
 - First pipeline run
-- GPU profiling run
 
 ---
 
@@ -61,6 +58,6 @@ None yet.
 
 ---
 
-## Latest Profiling Finding
+## Latest Nsight Finding
 
 No profiling runs yet.

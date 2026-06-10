@@ -6,29 +6,23 @@ Steps to go from the scaffold to a running pipeline.
 
 ## 1. `pipeline.py` — replace the GPU workload
 
-Open `pipeline.py` and replace the `WORKLOAD` string in `gpu_stage` with your actual GPU body.
-The string is executed as a standalone Python script under `python3 /tmp/body.py`, so it must
-be fully self-contained (all imports inside it).
+Open `pipeline.py` and replace the `gpu_stage` component body with your actual GPU code.
+Add NVTX annotations around logical sections — they appear in the Nsight timeline if you profile.
 
 ```python
-WORKLOAD = """\
-import torch
-import nvtx
-
-# Your GPU code here — runs both normally (exec) and under nsys (subprocess)
-with nvtx.annotate("my_stage", color="green"):
-    result = my_model(inputs)
-    torch.cuda.synchronize()
-
-print(f"Result: {result}")
-"""
+@dsl.component(base_image="nvcr.io/nvidia/pytorch:26.04-py3", packages_to_install=["nvtx"])
+def gpu_stage(run_id: str):
+    import torch, nvtx
+    with nvtx.annotate("my_workload", color="green"):
+        result = my_model(inputs)
+        torch.cuda.synchronize()
+    print(f"Result: {result}")
 ```
 
 Key rules:
-- All imports inside the string
-- `torch.cuda.synchronize()` at the end of each logical block (required for accurate profiling)
-- NVTX annotations around logical sections (`nvtx.annotate` or `nvtx.push_range` / `nvtx.pop_range`)
-- The `exec(WORKLOAD)` path in the `else` branch runs in the component's Python process directly
+- All imports inside the function body (each component runs in its own container)
+- `torch.cuda.synchronize()` at the end of each logical block (accurate timing)
+- NVTX annotations make bottlenecks visible in Nsight Operator captures
 
 ---
 
@@ -37,13 +31,12 @@ Key rules:
 `gpu_stage` is a placeholder name. Rename it to match your workload:
 
 ```python
-# pipeline.py
-def my_inference_stage(run_id: str, profile: bool = False):
+def my_inference_stage(run_id: str):
     ...
 
-def pipeline(run_id: str = "run-001", profile: bool = False):
-    task = my_inference_stage(run_id=run_id, profile=profile)
-    ...
+def pipeline(run_id: str = "run-001"):
+    task = my_inference_stage(run_id=run_id)
+    task.set_gpu_limit(1).set_memory_limit("64G")
 ```
 
 ---
@@ -53,12 +46,11 @@ def pipeline(run_id: str = "run-001", profile: bool = False):
 Add parameters to both the component and the pipeline function:
 
 ```python
-def my_stage(run_id: str, model_id: str, profile: bool = False):
+def my_stage(run_id: str, model_id: str):
     ...
 
-def pipeline(run_id: str = "run-001", model_id: str = "my-model", profile: bool = False):
-    task = my_stage(run_id=run_id, model_id=model_id, profile=profile)
-    ...
+def pipeline(run_id: str = "run-001", model_id: str = "my-model"):
+    task = my_stage(run_id=run_id, model_id=model_id)
 ```
 
 Update `scripts/deploy_pipeline.py` to pass any new args in the `arguments={}` dict.
@@ -70,14 +62,13 @@ Update `scripts/deploy_pipeline.py` to pass any new args in the `arguments={}` d
 Chain multiple components by passing outputs as inputs:
 
 ```python
-@dsl.component(base_image="nvcr.io/nvidia/pytorch:26.04-py3", ...)
+@dsl.component(base_image="nvcr.io/nvidia/pytorch:26.04-py3")
 def stage_b(input_path: str, run_id: str) -> float:
     ...
 
-def pipeline(run_id: str = "run-001", profile: bool = False):
-    a = stage_a(run_id=run_id, profile=profile)
+def pipeline(run_id: str = "run-001"):
+    a = stage_a(run_id=run_id)
     a.set_gpu_limit(1).set_memory_limit("64G")
-    k8s_ext.mount_pvc(a, pvc_name="nsight-reports", mount_path="/nsight-reports")
 
     b = stage_b(input_path=a.output, run_id=run_id)
     b.set_gpu_limit(1).set_memory_limit("64G")
@@ -94,19 +85,20 @@ python3 -c "from kfp import compiler; from pipeline import pipeline; \
 
 ---
 
-## 6. Deploy + profile
+## 6. Deploy
 
 ```bash
-# Normal run
 python3 scripts/purge_kfp.py
 python3 scripts/deploy_pipeline.py --run-name run-001
-
-# With nsys GPU profiling
-python3 scripts/purge_kfp.py
-python3 scripts/deploy_pipeline.py --run-name run-001 --profile
 ```
 
-Profile output lands at `~/shared/nsight/{{PROJECT_NAME}}/run-001/main/summaries.csv`.
+To profile a stage with the Nsight Operator, add before deploying:
+
+```python
+# In pipeline.py, after creating the task:
+from kfp import kubernetes
+kubernetes.add_pod_label(task, label_key="nvidia-nsight-profile", label_value="enabled")
+```
 
 ---
 

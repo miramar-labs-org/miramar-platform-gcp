@@ -12,10 +12,9 @@
 |---|---|
 | `pipeline.py` | KFP v2 pipeline definition — `pipeline()` is compiled and submitted |
 | `notebook.ipynb` | Interactive development: compile, inspect, submit, monitor runs |
-| `scripts/deploy_pipeline.py` | Compile + submit; `--profile` enables nsys GPU profiling |
+| `scripts/deploy_pipeline.py` | Compile + submit a run |
 | `scripts/terminate_pipeline.py` | Called by Undeploy from KFP workflow |
 | `scripts/purge_kfp.py` | Purge all runs + pipeline versions before redeploy |
-| `scripts/purge_nsight.py` | Clean up large nsys artifacts from `~/shared/nsight/` |
 
 ## Slash commands
 
@@ -42,16 +41,12 @@ python3 scripts/purge_kfp.py
 
 # Normal run
 python3 scripts/deploy_pipeline.py --run-name run-001
-
-# With nsys GPU profiling
-python3 scripts/deploy_pipeline.py --run-name run-001 --profile
 ```
 
 ## Editing the pipeline
 
-`pipeline.py` ships a GPU-capable stub using the NGC PyTorch base image. Replace the
-`WORKLOAD` string in `gpu_stage` with your GPU body. For non-GPU stages, swap to
-`base_image="python:3.11-slim"` and drop the nsys/PVC boilerplate.
+`pipeline.py` ships a GPU-capable stub using the NGC PyTorch base image. Replace
+`gpu_stage` with your own components. For non-GPU stages, swap to `base_image="python:3.11-slim"`.
 
 ```python
 from kfp import dsl
@@ -61,8 +56,15 @@ def my_step(x: str) -> str:
     ...
 
 @dsl.pipeline(name="{{PROJECT_NAME}}")
-def pipeline(run_id: str = "run-001", profile: bool = False):
+def pipeline(run_id: str = "run-001"):
     my_step(x=run_id)
+```
+
+To profile a stage with the Nsight Operator:
+
+```python
+from kfp import kubernetes
+kubernetes.add_pod_label(task, label_key="nvidia-nsight-profile", label_value="enabled")
 ```
 
 Compile check:
