@@ -35,6 +35,27 @@ Backlog of dataset, model, and pipeline ideas for future projects on the Miramar
 
 ---
 
+## Medical Arc — Three-Project Clinical ML Template
+
+Full lifecycle template arc for clinical ML on the Miramar platform. Each project is a reusable template for a clinical task category.
+
+1. **`medgemma-kfp-ft-eval-pipeline`** — eval-first LoRA fine-tuning on DGX. KFP pipeline: prepare_dataset → baseline_eval + fine_tune → post_finetune_eval → clinical_safety_eval → deployment_gate → GCS.
+2. **GKE vLLM serving project** — pull LoRA adapter from GCS, serve via vLLM on GKE with OpenAI-compatible API. Init container pulls adapter; K8s Deployment + Service; GHA deploy/undeploy workflows.
+3. **Inference optimization project** — prune → distill → quantize (FP8) the fine-tuned model using Model-Optimizer + Megatron-Bridge (`dli-llm-prune-dist-quant-course` patterns). Output: quantized merged model, served via TensorRT-LLM or NIM instead of LoRA + vLLM.
+
+---
+
+## ARC-Challenge Pipeline (qwen25-7b-arc-kfp-ft-eval-pipeline)
+
+Next steps after run-004 (PASS, accuracy 0.8919→0.9099):
+
+- **Nsight profiling** — `fine_tune` is ~572s; profile with `nsys profile` in a run-005 deploy, then run `/nsight-interpret` to find bottlenecks.
+- **FP8 quantization** — quantize the LoRA adapter with `hf_ptq.py` (FP8 W8A8) and run a post-compression accuracy check to measure the compression delta vs BF16.
+- **GKE serving** — scaffold a `kfp` type project to deploy a GKE vLLM serving pipeline for the fine-tuned model.
+- **Increase dataset size** — currently only ARC-Challenge train split (~2.5k examples); mixing in ARC-Easy or other reasoning datasets could push accuracy higher.
+
+---
+
 ## PHI / Data Boundary Reminder
 
 Any dataset containing real clinical data (TCGA, MIMIC, i2b2) must stay on DGX. LLM judges for PHI-adjacent evals must also run locally (Ollama/NIM on DGX) — not GPT-4o or Claude API.
