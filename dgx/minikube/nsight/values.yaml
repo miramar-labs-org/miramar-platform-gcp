@@ -3,14 +3,12 @@
 # Injection targets: kubeflow namespace pods labeled nvidia-nsight-profile=enabled
 
 nsight-injector:
-  # SYS_PTRACE: required for nsys to trace CUDA/NVTX inside KFP component pods.
-  # KFP drops ALL capabilities by default; CUPTI cannot initialize without ptrace.
-  # Unconfined seccomp: RuntimeDefault blocks perf_event_open needed by nsys.
-  capabilities:
-    add:
-      - SYS_PTRACE
-  seccompProfile:
-    type: Unconfined
+  # privileged: required for CUPTI software activity tracing (GPU-side kernel records).
+  # Without it, nsys falls back to hardware counter sampling — only ~7 kernel records
+  # captured out of thousands. NVIDIA_VISIBLE_DEVICES=void (the process hook's
+  # anti-recursion guard) prevents CUPTI from attaching to the GPU context for
+  # activity buffers unless the container has full privilege.
+  privileged: true
 
   nsightToolConfig:
     # Match python3 processes (KFP component scripts)
