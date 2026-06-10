@@ -152,9 +152,6 @@ with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
   ```python
   kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")
   ```
-  **Warning:** Do NOT label the `kubeflow` namespace with `nvidia-nsight-profile=enabled` — it
-  injects nsys into ALL pods including KFP's DAG driver pods, which fail with `runAsNonRoot`.
-  Use per-pod labels only.
 
 - **AI-assisted interpretation** — `/nsight-interpret` extracts `nsys stats` summaries and sends
   them to an LLM of your choice for structured bottleneck analysis — top GPU utilization gaps, memory transfer

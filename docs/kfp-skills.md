@@ -177,3 +177,7 @@ be readable from the current machine (not inside a pod).
 - MLflow accessible at `localhost:5000`
 - For GPU profiling: deploy Nsight Operator via `deploy-nsight-operator.yaml` in miramar-platform-gcp,
   then add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to the target stage
+
+> **Warning:** Do NOT label the `kubeflow` namespace with `nvidia-nsight-profile=enabled` — it
+> injects nsys into ALL pods including KFP's DAG driver pods, which fail with `runAsNonRoot`.
+> Use per-pod labels only.
