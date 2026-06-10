@@ -104,7 +104,9 @@ Load the base model, run inference on `val_data`, compute your accuracy metric, 
 # Inside baseline_eval:
 from transformers import AutoModelForCausalLM, AutoTokenizer
 tokenizer = AutoTokenizer.from_pretrained(base_model_id)
-model = AutoModelForCausalLM.from_pretrained(base_model_id, device_map="auto", torch_dtype="auto")
+model = AutoModelForCausalLM.from_pretrained(
+    base_model_id, device_map="auto", torch_dtype="auto",
+    max_memory={0: "100GiB"})   # required on DGX Spark — prevents silent CPU offload
 # run inference on val_data, compute accuracy
 mlflow.log_metric("baseline_accuracy", accuracy)
 ```
@@ -114,12 +116,17 @@ Fine-tune the base model with LoRA on `train_data`, save the adapter, log to MLf
 
 ```python
 # Inside fine_tune:
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import LoraConfig, get_peft_model
-from trl import SFTTrainer
-# load model, apply LoraConfig, run SFTTrainer, save adapter to ft_model.path
+from trl import SFTTrainer, SFTConfig
+# load model, apply LoraConfig, set tokenizer.model_max_length = max_seq_length
+# run SFTTrainer(processing_class=tokenizer, args=SFTConfig(...)), save adapter to ft_model.path
 mlflow.log_params({...})
 ```
+
+> **trl ≥ 0.29:** Use `from trl import SFTTrainer, SFTConfig` (not `TrainingArguments`).
+> Pass `processing_class=tokenizer` (not `tokenizer=`). Set `tokenizer.model_max_length = max_seq_length`
+> before constructing the trainer — `max_seq_length` was removed from `SFTConfig.__init__` in trl 0.29.
 
 ### 3. `post_finetune_eval`
 Load base model + LoRA adapter from `ft_model.path`, run inference on `val_data`, compute the

@@ -143,11 +143,16 @@ Planned templates include RAG systems, evaluation harnesses, NeMo/NIM workflows,
 Projects scaffolded from the `kfp-ft-eval` template include first-class Nsight Systems profiling
 with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
 
-- **Per-component profiling in KFP** — any pipeline stage can be profiled with a single flag at
-  deploy time. The deploy script automatically patches the Argo pod spec with the required CUPTI
-  privileges (`privileged`, `SYS_PTRACE`, `seccompProfile: Unconfined`) and embeds the correct
-  `nsys profile` flags (`--cuda-flush-interval`, `--cuda-trace-scope=process-tree`) to capture
-  through the multi-level KFP subprocess chain.
+- **Per-component profiling in KFP** — any pipeline stage can be profiled with a single pod
+  label in the pipeline definition. The Nsight Operator (deployed via `deploy-nsight-operator.yaml`)
+  intercepts the pod at creation time via a mutating webhook and injects `nsys` automatically —
+  no code changes or specialised Docker images required:
+  ```python
+  kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")
+  ```
+  **Warning:** Do NOT label the `kubeflow` namespace with `nvidia-nsight-profile=enabled` — it
+  injects nsys into ALL pods including KFP's DAG driver pods, which fail with `runAsNonRoot`.
+  Use per-pod labels only.
 
 - **AI-assisted interpretation** — `/nsight-interpret` extracts `nsys stats` summaries and sends
   them to an LLM of your choice for structured bottleneck analysis — top GPU utilization gaps, memory transfer

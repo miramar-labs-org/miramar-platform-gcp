@@ -63,7 +63,7 @@
 
 None yet.
 
-> **Platform-level fixes** (bitsandbytes on Blackwell, trl 0.29 API, PIP_CONSTRAINT, 9p symlinks, nsys mmap, CUPTI privileges) are already incorporated in this template. See [medgemma-kfp-ft-eval-pipeline/docs/VALIDATION_STATUS.md](https://github.com/miramar-labs-org/medgemma-kfp-ft-eval-pipeline/blob/main/docs/VALIDATION_STATUS.md) for full history.
+> **Platform-level fixes** (bitsandbytes on Blackwell, trl 0.29 API, PIP_CONSTRAINT, 9p symlinks, nsys mmap, CUPTI privileges) are already incorporated in this template. See [qwen25-7b-arc-kfp-ft-eval-pipeline/docs/VALIDATION_STATUS.md](https://github.com/miramar-labs-org/qwen25-7b-arc-kfp-ft-eval-pipeline/blob/main/docs/VALIDATION_STATUS.md) for the full fix history (first green run).
 
 ---
 
