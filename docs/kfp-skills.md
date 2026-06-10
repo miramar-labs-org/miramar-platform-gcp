@@ -20,7 +20,7 @@ Two Claude Code slash commands cover the full run lifecycle for any project scaf
 Steps it performs:
 1. Determines the next run name (auto-increments from `runs/run-NNN.md`, or uses the argument)
 2. Checks for active pods — asks for confirmation before purging if any are Running
-3. Runs `python3 scripts/purge_kfp.py`
+3. Runs `python3 scripts/purge_kfp_mlflow.py`
 4. Runs `python3 scripts/deploy_pipeline.py --run-name <run-name>`
 5. Creates `runs/<run-name>.md` with the KFP Run ID and start time
 
@@ -172,7 +172,7 @@ be readable from the current machine (not inside a pod).
 ## Prerequisites
 
 - KFP running on DGX (`kubeflow` namespace) — deploy via `deploy-kubeflow.yaml` workflow
-- `scripts/purge_kfp.py` and `scripts/deploy_pipeline.py` present (scaffolded by template)
+- `scripts/purge_kfp_mlflow.py` and `scripts/deploy_pipeline.py` present (scaffolded by template)
 - `runs/` directory exists (created by template or first `/kfp-deploy`)
 - MLflow accessible at `localhost:5000`
 - For GPU profiling: deploy Nsight Operator via `deploy-nsight-operator.yaml` in miramar-platform-gcp,

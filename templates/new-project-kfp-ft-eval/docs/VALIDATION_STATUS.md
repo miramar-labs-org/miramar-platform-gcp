@@ -39,7 +39,7 @@
 - `_local_model_path()` — bypasses HuggingFace `.locks/` PermissionError on 9p mount
 - Hard-link HF cache (minikube 9p symlink fix)
 - MLflow run-per-stage tracking
-- `purge_kfp.py`
+- `purge_kfp_mlflow.py`
 - Nsight Operator integration — add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to profile any stage
 - BF16 direct loading with `max_memory={0: "100GiB"}` (Blackwell GB10 unified memory)
 
