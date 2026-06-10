@@ -90,9 +90,19 @@ jobs:
           kubectl label namespace kubeflow nvidia-nsight-profile=enabled --overwrite
 
       - name: Start port-forward service
+        env:
+          HOST_USER: ${{ vars.DGX_HOST_USER }}
+          HOST_IP:   ${{ inputs.runner == 'agx' && vars.AGX_HOST_IP || vars.DGX_HOST_IP }}
+          SSH_KEY:   ${{ secrets.HOST_SSH_KEY }}
         run: |
-          systemctl --user daemon-reload
-          systemctl --user enable --now nsight-portfwd.service
+          echo "$SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
+          scp -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            dgx/systemd/nsight-portfwd.service \
+            "${HOST_USER}@${HOST_IP}:~/.config/systemd/user/nsight-portfwd.service"
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            'systemctl --user daemon-reload && systemctl --user enable --now nsight-portfwd.service'
+          rm -f /tmp/deploy_key
 
       - name: Set Nsight Operator active state
         env:

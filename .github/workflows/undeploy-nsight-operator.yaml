@@ -49,7 +49,16 @@ jobs:
         run: kubectl get nodes
 
       - name: Stop port-forward service
-        run: systemctl --user disable --now nsight-portfwd.service || true
+        env:
+          HOST_USER: ${{ vars.DGX_HOST_USER }}
+          HOST_IP:   ${{ inputs.runner == 'agx' && vars.AGX_HOST_IP || vars.DGX_HOST_IP }}
+          SSH_KEY:   ${{ secrets.HOST_SSH_KEY }}
+        run: |
+          echo "$SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            'systemctl --user disable --now nsight-portfwd.service 2>/dev/null || true'
+          rm -f /tmp/deploy_key
 
       - name: Remove kubeflow namespace label
         if: ${{ inputs.unlabel_kubeflow_namespace }}
