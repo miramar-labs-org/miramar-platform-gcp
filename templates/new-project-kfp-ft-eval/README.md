@@ -2,14 +2,16 @@
 
 [![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})
 
+| | |
+|---|---|
+| **Type** | KFP v2 eval-first fine-tuning pipeline |
+| **Model** | [{{HF_MODEL_ID}}](https://huggingface.co/{{HF_MODEL_ID}}) |
+| **Dataset** | [{{HF_DATASET_ID}}](https://huggingface.co/datasets/{{HF_DATASET_ID}}) |
+
 <!-- One-line description of this project -->
 
 > **Validation status:** Pipeline is in scaffolding phase — no runs yet. Status tracked in
 > [docs/VALIDATION_STATUS.md](docs/VALIDATION_STATUS.md).
-
-**Type**: KFP v2 eval-first fine-tuning pipeline  
-**Model**: _set `model.id` in `config.yaml` — replace with `[org/model](https://huggingface.co/org/model)`_  
-**Dataset**: _set `datasets[].hf_path` in `config.yaml` — replace with `[org/dataset](https://huggingface.co/datasets/org/dataset)`_
 
 ---
 

@@ -47,6 +47,14 @@ on:
         description: "Default Python packages for the project venv (space-separated). Edit to customize."
         default: "ipykernel ipywidgets numpy pandas matplotlib seaborn scikit-learn tqdm transformers datasets huggingface_hub evaluate accelerate openai anthropic mlflow qdrant-client pyyaml requests python-dotenv nvidia-ml-py"
         required: false
+      hf_model_id:
+        description: "HuggingFace model ID (kfp-ft-eval only, e.g. Qwen/Qwen2.5-7B-Instruct)"
+        default: "org/model"
+        required: false
+      hf_dataset_id:
+        description: "HuggingFace dataset ID (kfp-ft-eval only, e.g. allenai/ai2_arc)"
+        default: "org/dataset"
+        required: false
 
 permissions:
   contents: read
@@ -111,6 +119,8 @@ jobs:
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           HOST: ${{ inputs.host }}
+          HF_MODEL_ID: ${{ inputs.hf_model_id }}
+          HF_DATASET_ID: ${{ inputs.hf_dataset_id }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
@@ -140,6 +150,8 @@ jobs:
               -e "s/{{YEAR}}/${YEAR}/g" \
               -e "s/{{CHANGE_DATE}}/${CHANGE_DATE}/g" \
               -e "s|{{JL_URL}}|${JL_URL}|g" \
+              -e "s|{{HF_MODEL_ID}}|${HF_MODEL_ID}|g" \
+              -e "s|{{HF_DATASET_ID}}|${HF_DATASET_ID}|g" \
             {} +
 
           # Inject CI workflow badges after the title line for kfp and nemo types.
