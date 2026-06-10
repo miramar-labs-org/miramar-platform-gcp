@@ -28,7 +28,7 @@ notebook.ipynb       ← Development notebook
 scripts/
   deploy_pipeline.py    ← Called by Deploy to KFP workflow
   terminate_pipeline.py ← Called by Undeploy from KFP workflow
-  purge_kfp.py          ← Purge all runs + pipeline versions before redeploy
+  purge_kfp_mlflow.py          ← Purge all runs + pipeline versions before redeploy
 ```
 
 ---

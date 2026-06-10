@@ -15,7 +15,7 @@
 | `scripts/build_pipeline.py` | Assemble `pipeline.py` from tagged notebook cells |
 | `scripts/deploy_pipeline.py` | Compile + submit a run |
 | `scripts/terminate_pipeline.py` | Called by Undeploy from KFP workflow |
-| `scripts/purge_kfp.py` | Purge all runs + pipeline versions before redeploy |
+| `scripts/purge_kfp_mlflow.py` | Purge all runs + pipeline versions before redeploy |
 
 ## Slash commands
 
@@ -38,7 +38,7 @@ Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** i
 
 ```bash
 # Always purge before redeploy
-python3 scripts/purge_kfp.py
+python3 scripts/purge_kfp_mlflow.py
 
 # Normal run
 python3 scripts/deploy_pipeline.py --run-name run-001
