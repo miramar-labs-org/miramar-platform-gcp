@@ -125,7 +125,7 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/),
 | --- | --- | --- |
 | `default` | Notebook + platform endpoint reference | — |
 | `kfp` | KFP v2 pipeline stub, notebook, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges | `kfp>=2.0.0` |
-| `kfp-finetune` | KFP v2 fine-tuning pipeline: 7 named `@dsl.component` steps (prepare_data → train → merge_adapter → quantize → evaluate → push_to_gcs → deploy) with HuggingFace/LoRA/AWQ boilerplate, Build cell to regenerate `pipeline.py`, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges. Teal dashboard badge; topic tag `miramar-kfp-finetune`. | `kfp>=2.0.0` |
+| `kfp-ft-eval` | KFP v2 eval-first fine-tuning pipeline: 6 `@dsl.component` steps (prepare_dataset → baseline_eval → baseline_safety_eval → fine_tune → post_finetune_eval → safety_eval → deployment_gate), config-driven via `config.yaml` + `formatters.py` + `loaders.py`, Build cell to regenerate `pipeline.py`, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges. Topic tag `miramar-kfp-ft-eval`. | `kfp>=2.0.0` |
 | `nemo` | NeMo training config, notebook, `deploy-nemo.yaml` / `undeploy-nemo.yaml` workflows + CI badges | `nemo-microservices` |
 
 ### Python environment

@@ -6,7 +6,7 @@ Hybrid on-prem + GCP AI platform for generating, deploying, and operating reprod
 
 > **Blog:** [miramar-labs-org.github.io](https://miramar-labs-org.github.io) — project write-ups and lab notes.
 
-> **Dev Workflow:** [DEVELOPER.md](DEVELOPER.md) — branch workflow, PR process, testing strategies, and gotchas.
+> **Dev Workflow:** [docs/development.md](docs/development.md) — branch workflow, PR process, testing strategies, and gotchas.
 
 > **Docs Index:** [docs/index.md](docs/index.md) — source-of-truth map for architecture, workflows, WSL2, SSH, and runbooks.
 
@@ -186,10 +186,15 @@ ssh -L 8001:localhost:8001 \
     -L 11434:localhost:11434 \
     -L 6333:localhost:6333 \
     -L 6334:localhost:6334 \
+    -L 8889:localhost:8889 \
     <user>@spark-79b7.local
 ```
 
-Stack order: **Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy**. Ollama is independent of minikube.
+Stack order:
+- **DGX:** Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
+- **AGX:** Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
+
+Ollama runs as a host systemd service (independent of minikube) on both machines.
 
 ---
 
@@ -246,4 +251,4 @@ Common entry points:
 
 ## Contributing
 
-Branch workflow, PR process, testing strategies, branch protection commands, and secrets setup: see [DEVELOPER.md](DEVELOPER.md).
+Branch workflow, PR process, testing strategies, branch protection commands, and secrets setup: see [docs/development.md](docs/development.md).
