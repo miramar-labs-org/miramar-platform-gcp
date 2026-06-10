@@ -120,8 +120,8 @@ jobs:
           # --- Host directories ---
           # World-writable (777): minikube 9p does not map container UIDs to the
           # host user, so pods (root/UID 0) cannot write into 755 directories.
-          mkdir -p "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
-          chmod 777 "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
+          mkdir -p "${HOME}/shared/huggingface-kfp" "${HOME}/shared/huggingface-kfp/adapters" "${HOME}/shared/nsight"
+          chmod 777 "${HOME}/shared/huggingface-kfp" "${HOME}/shared/huggingface-kfp/adapters" "${HOME}/shared/nsight"
 
           # --- minikube 9p mounts (idempotent) ---
           # umask 000 on the subshell ensures the 9p server inherits umask 0,
