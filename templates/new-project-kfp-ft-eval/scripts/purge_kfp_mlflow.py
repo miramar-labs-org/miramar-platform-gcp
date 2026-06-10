@@ -133,13 +133,25 @@ def purge_mlflow():
     Deleting the experiment with MLflow's soft-delete leaves it in a state where
     mlflow.set_experiment() raises "cannot set a deleted experiment" on the next
     run. The experiment is a stable named scope — only its runs need purging.
+    If the experiment is soft-deleted, restore it so the next run can use it.
     """
     ename = urllib.parse.quote(PIPELINE_NAME, safe="")
     resp = mlflow_api("GET", f"/experiments/get-by-name?experiment_name={ename}")
     exp = resp.get("experiment")
     if not exp:
-        print("  No MLflow experiment found — nothing to delete.")
-        return
+        # Check if it exists but is soft-deleted
+        all_resp = mlflow_api("POST", "/experiments/search",
+                              {"max_results": 200, "view_type": "DELETED_ONLY"})
+        deleted = [e for e in all_resp.get("experiments", [])
+                   if e["name"] == PIPELINE_NAME]
+        if deleted:
+            eid = deleted[0]["experiment_id"]
+            mlflow_api("POST", "/experiments/restore", {"experiment_id": eid})
+            print(f"  Restored soft-deleted MLflow experiment (id={eid})")
+            exp = deleted[0]
+        else:
+            print("  No MLflow experiment found — nothing to delete.")
+            return
     eid = exp["experiment_id"]
     deleted = 0
     page_token = None
