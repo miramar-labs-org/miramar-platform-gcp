@@ -11,7 +11,7 @@ Edit the top section to match your model and dataset:
 
 ```yaml
 model:
-  id: google/medgemma-4b-it   # HuggingFace model ID (must be cached on DGX)
+  id: your-org/your-model     # HuggingFace model ID (must be cached on DGX)
 datasets:
   - name: my-dataset          # must match keys in formatters.py and loaders.py
     hf_path: org/repo
