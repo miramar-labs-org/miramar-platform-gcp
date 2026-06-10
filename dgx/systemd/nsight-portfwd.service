@@ -1,5 +1,5 @@
 [Unit]
-Description=kubectl port-forward Nsight Operator UI (8889 -> svc/nsight-operator-ui:8888)
+Description=kubectl port-forward Nsight Operator UI (8889 -> svc/nsight-operator-cloud-ui:80)
 After=network-online.target minikube.service
 Wants=network-online.target minikube.service
 StartLimitIntervalSec=60
@@ -10,20 +10,17 @@ Type=simple
 Environment=HOME=%h
 Environment=KUBECONFIG=%h/.kube/config
 
-# Wait until the service exists and has at least one ready endpoint.
-# NOTE: if the actual service name differs from nsight-operator-ui, update
-# this file and ExecStart below. Verify with: kubectl get svc -n nsight-operator
 ExecStartPre=/usr/bin/bash -lc '\
-/usr/local/bin/kubectl --context minikube -n nsight-operator get svc nsight-operator-ui >/dev/null || { echo "svc/nsight-operator-ui not found"; exit 1; }; \
+/usr/local/bin/kubectl --context minikube -n nsight-operator get svc nsight-operator-cloud-ui >/dev/null || { echo "svc/nsight-operator-cloud-ui not found"; exit 1; }; \
 for i in {1..60}; do \
-  ip=$(/usr/local/bin/kubectl --context minikube -n nsight-operator get endpoints nsight-operator-ui -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
+  ip=$(/usr/local/bin/kubectl --context minikube -n nsight-operator get endpoints nsight-operator-cloud-ui -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
   if [ -n "$ip" ]; then exit 0; fi; \
   sleep 2; \
 done; \
-echo "Timed out waiting for ready endpoints for svc/nsight-operator-ui"; \
+echo "Timed out waiting for ready endpoints for svc/nsight-operator-cloud-ui"; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl --context minikube -n nsight-operator port-forward svc/nsight-operator-ui 8889:8888 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl --context minikube -n nsight-operator port-forward svc/nsight-operator-cloud-ui 8889:80 --address 0.0.0.0
 Restart=on-failure
 RestartSec=3
 
