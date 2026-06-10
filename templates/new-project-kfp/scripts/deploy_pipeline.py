@@ -34,10 +34,17 @@ def main():
     pipeline_fn = mod.pipeline
 
     from kfp import compiler
+    import yaml as _yaml
     pipeline_yaml = "/tmp/compiled-pipeline.yaml"
     pipeline_name = Path.cwd().name
     compiler.Compiler().compile(pipeline_func=pipeline_fn, package_path=pipeline_yaml)
     print(f"Compiled: {pipeline_yaml}")
+
+    # ── Load project description ──────────────────────────────────────────
+    _cfg_path = Path("config.yaml")
+    pipeline_description = None
+    if _cfg_path.exists():
+        pipeline_description = (_yaml.safe_load(_cfg_path.read_text()) or {}).get("description") or None
 
     # ── Register + submit ─────────────────────────────────────────────────
     import kfp
@@ -47,15 +54,23 @@ def main():
         client.upload_pipeline(
             pipeline_package_path=pipeline_yaml,
             pipeline_name=pipeline_name,
+            description=pipeline_description,
         )
         print(f"Pipeline registered: {pipeline_name}")
     except Exception as e:
         print(f"Note: pipeline registration skipped ({type(e).__name__})", file=sys.stderr)
 
+    try:
+        client.create_experiment(pipeline_name, description=pipeline_description)
+        print(f"KFP experiment created: {pipeline_name}")
+    except Exception:
+        pass  # already exists
+
     run_response = client.create_run_from_pipeline_package(
         pipeline_file=pipeline_yaml,
         arguments={"run_id": run_name},
         run_name=run_name,
+        experiment_name=pipeline_name,
     )
     run_id = run_response.run_id
     print(f"Run submitted — ID: {run_id}")

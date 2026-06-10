@@ -1,3 +1,5 @@
+description: ""   # One sentence — shown in KFP Pipelines + KFP Experiments + MLflow Experiments UI
+
 model:
   id: google/medgemma-27b-it      # HuggingFace model ID
 

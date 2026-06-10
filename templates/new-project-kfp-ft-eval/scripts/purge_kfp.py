@@ -79,6 +79,18 @@ def purge_pipeline(pipeline_id):
     print(f"  Deleted pipeline: {PIPELINE_NAME} ({pipeline_id})")
 
 
+def purge_experiment():
+    exps = api("GET", "/experiments").get("experiments") or []
+    match = [e for e in exps if e.get("display_name") == PIPELINE_NAME]
+    if not match:
+        print("  No experiment found — nothing to delete.")
+        return
+    for exp in match:
+        eid = exp["experiment_id"]
+        api("DELETE", f"/experiments/{eid}")
+        print(f"  Deleted experiment: {PIPELINE_NAME} ({eid})")
+
+
 def purge_argo_workflows():
     prefix = PIPELINE_NAME.replace("_", "-")
     result = subprocess.run(
@@ -103,4 +115,6 @@ print("Pipeline:")
 purge_pipeline(pid)
 print("Argo workflows:")
 purge_argo_workflows()
+print("Experiment:")
+purge_experiment()
 print("Done.")
