@@ -54,6 +54,7 @@ flowchart LR
     Mini --> Qdrant[Qdrant]
     Mini --> NIM[NVIDIA NIM]
     Mini --> KFP[Kubeflow Pipelines]
+    Mini --> NsightOp[Nsight Operator]
 ```
 
 [![GCP Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-create.yaml)
