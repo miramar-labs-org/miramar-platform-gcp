@@ -3,7 +3,9 @@
 Purge all runs and pipeline versions for this project from KFP and MLflow.
 
 Terminates + deletes every KFP run, then deletes all versions, the pipeline,
-and all MLflow runs + experiment for this project.
+and all MLflow runs for this project. The MLflow experiment container is
+preserved so the next run can call mlflow.set_experiment() without hitting
+the "cannot set a deleted experiment" error from a prior soft-delete.
 Safe to run before every redeploy. Tutorial pipelines are never touched.
 
 Usage:
@@ -126,7 +128,12 @@ def purge_argo_workflows():
 
 
 def purge_mlflow():
-    """Delete all MLflow runs and the experiment for this project."""
+    """Delete all MLflow runs for this project; preserve the experiment container.
+
+    Deleting the experiment with MLflow's soft-delete leaves it in a state where
+    mlflow.set_experiment() raises "cannot set a deleted experiment" on the next
+    run. The experiment is a stable named scope — only its runs need purging.
+    """
     ename = urllib.parse.quote(PIPELINE_NAME, safe="")
     resp = mlflow_api("GET", f"/experiments/get-by-name?experiment_name={ename}")
     exp = resp.get("experiment")
@@ -147,9 +154,7 @@ def purge_mlflow():
         page_token = runs_resp.get("next_page_token")
         if not page_token:
             break
-    print(f"  Deleted {deleted} MLflow run(s)")
-    mlflow_api("POST", "/experiments/delete", {"experiment_id": eid})
-    print(f"  Deleted MLflow experiment: {PIPELINE_NAME} ({eid})")
+    print(f"  Deleted {deleted} MLflow run(s) (experiment container preserved)")
 
 
 print(f"Purging KFP state for '{PIPELINE_NAME}'...")
