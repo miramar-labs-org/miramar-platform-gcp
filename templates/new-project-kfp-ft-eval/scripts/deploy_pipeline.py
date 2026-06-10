@@ -62,7 +62,7 @@ def main():
 
     run_response = client.create_run_from_pipeline_package(
         pipeline_file=pipeline_yaml,
-        arguments={"run_id": run_name},
+        arguments={"run_id": run_name, "mlflow_experiment_name": pipeline_name},
         run_name=run_name,
     )
     run_id = run_response.run_id
