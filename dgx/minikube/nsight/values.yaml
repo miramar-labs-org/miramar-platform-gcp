@@ -14,9 +14,16 @@ nsight-injector:
     # Match python3 processes (KFP component scripts)
     injectionIncludePatterns:
       - ".*python3.*"
-    # Core profiling flags — same as manual nsys path
+    # Core profiling flags — same as manual nsys path.
+    # --env-var NVIDIA_VISIBLE_DEVICES=all: overrides the "void" value that
+    # the process hook injects as its anti-recursion guard. nsys reads
+    # PROCESS_0's env to decide COLLECT_CUDA_TRACE; "void" → false (hardware
+    # sampling only, ~47 kernels/run). "all" → true (full CUPTI software
+    # activity tracing, every kernel captured). The re-launched PROCESS_0 has
+    # no hook LD_PRELOAD'd, so "all" does not trigger re-interception.
     nsightToolArgs: >-
       --trace=cuda,nvtx,cublas,cudnn
       --sample=none
       --cuda-flush-interval=100
       --force-overwrite=true
+      --env-var NVIDIA_VISIBLE_DEVICES=all
