@@ -189,24 +189,19 @@ DOCKER_VOLS=(
     -v "${WORK_DIR}:/home/runner/_work"
 )
 
-# DGX and AGX: minikube state must persist across ephemeral runner containers.
-# WSL2 has no minikube; its ~/.kube/config holds GKE contexts we don't want exposed.
-# /host-bin exposes the host's /usr/local/bin so workflows can install binaries there
-# (e.g. setup-minikube copies the runner image's baked-in minikube to the host).
+# DGX and AGX: k3s kubeconfig and shared storage must persist across runner containers.
+# WSL2 has no k3s; its ~/.kube/config holds GKE contexts we don't want exposed.
+# /host-bin exposes the host's /usr/local/bin so workflows can install binaries there.
 if [[ "${DEFAULT_LABELS}" == *"dgx"* || "${DEFAULT_LABELS}" == *"agx"* ]]; then
-    mkdir -p "${HOME}/.minikube" "${HOME}/.kube"
+    mkdir -p "${HOME}/.kube"
     # The runner container runs as uid 1000; host files are owned by the host
-    # user (different uid). Make .minikube and .kube world-readable so kubectl
-    # inside the container can read cert files referenced in the kubeconfig.
-    chmod -R a+rX "${HOME}/.minikube" "${HOME}/.kube" 2>/dev/null || true
-    # Pipeline backing storage: minikube 9p mounts serve these host directories
-    # into the cluster as PVs. World-writable (777): minikube 9p does not map
-    # container UIDs to the host user, so pods (root/UID 0) cannot write into
-    # 755 directories via the mount.
+    # user (different uid). Make .kube world-readable so kubectl inside the
+    # container can read the k3s kubeconfig.
+    chmod -R a+rX "${HOME}/.kube" 2>/dev/null || true
+    # Pipeline backing storage: k3s hostPath PVs reference these host directories
+    # directly — no 9p mount daemon needed.
     mkdir -p "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
-    chmod 777 "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
     DOCKER_VOLS+=(
-        -v "${HOME}/.minikube:/home/runner/.minikube"
         -v "${HOME}/.kube:/home/runner/.kube"
         -v /usr/local/bin:/host-bin
         -v "${HOME}/shared/huggingface-kfp:/home/runner/shared/huggingface-kfp"

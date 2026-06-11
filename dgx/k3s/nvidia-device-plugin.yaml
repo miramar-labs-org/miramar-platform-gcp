@@ -1,0 +1,38 @@
+# NVIDIA device plugin v0.18.0 — pinned for GB10 (Blackwell) fix.
+# Pinned to nvcr.io/nvidia/k8s/k8s-device-plugin:v0.18.0 (same image as minikube addon).
+# Applied by scripts/ubuntu/install-k3s.sh after k3s node is Ready.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: nvidia-device-plugin-ds
+    spec:
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      priorityClassName: system-node-critical
+      containers:
+        - image: nvcr.io/nvidia/k8s/k8s-device-plugin:v0.18.0
+          name: nvidia-device-plugin-ctr
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins

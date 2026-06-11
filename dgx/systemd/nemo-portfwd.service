@@ -1,7 +1,7 @@
 [Unit]
 Description=kubectl port-forward NeMo ingress (8082 -> ingress-nginx-controller:80)
-After=network-online.target minikube.service
-Wants=network-online.target minikube.service
+After=network-online.target k3s.service
+Wants=network-online.target k3s.service
 StartLimitIntervalSec=60
 StartLimitBurst=3
 
@@ -13,17 +13,17 @@ Environment=KUBECONFIG=%h/.kube/config
 # Wait until the ingress controller has a ready endpoint.
 # If NeMo is not deployed this hits StartLimitBurst=3 and stops retrying — expected.
 ExecStartPre=/usr/bin/bash -lc '\
-/usr/local/bin/kubectl --context minikube -n ingress-nginx get svc ingress-nginx-controller >/dev/null || { echo "svc/ingress-nginx-controller not found"; exit 1; }; \
+/usr/local/bin/kubectl -n ingress-nginx get svc ingress-nginx-controller >/dev/null || { echo "svc/ingress-nginx-controller not found"; exit 1; }; \
 for i in {1..60}; do \
-  ip=$(/usr/local/bin/kubectl --context minikube -n ingress-nginx get endpoints ingress-nginx-controller -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
+  ip=$(/usr/local/bin/kubectl -n ingress-nginx get endpoints ingress-nginx-controller -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
   if [ -n "$ip" ]; then exit 0; fi; \
   sleep 2; \
 done; \
 echo "Timed out waiting for ready endpoints for svc/ingress-nginx-controller"; \
-/usr/local/bin/kubectl --context minikube -n ingress-nginx get endpoints ingress-nginx-controller -o wide || true; \
+/usr/local/bin/kubectl -n ingress-nginx get endpoints ingress-nginx-controller -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl --context minikube -n ingress-nginx port-forward svc/ingress-nginx-controller 8082:80 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 8082:80 --address 0.0.0.0
 Restart=on-failure
 RestartSec=3
 

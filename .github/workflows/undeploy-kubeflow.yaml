@@ -35,14 +35,10 @@ jobs:
 
       - name: Set up kubeconfig
         run: |
-          # After a runner restart the container is on the default bridge and
-          # can't reach 192.168.49.x (minikube Docker network). Connect to it.
-          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
-          sudo chmod -R a+rX "${HOME}/.minikube"
-          TMP_KC=$(mktemp)
-          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
-              "${HOME}/.kube/config" > "${TMP_KC}"
-          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
+          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
+          # --network=host so it resolves directly.
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Verify cluster access
         run: kubectl get nodes

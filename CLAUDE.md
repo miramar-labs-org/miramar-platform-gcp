@@ -27,7 +27,7 @@ scripts/
   dashboard/       # generate-dashboard.sh (GitHub Pages platform dashboard)
 mlabs-runner/      # Docker image for self-hosted GHA runners
 dgx/               # DGX Spark host config and local tooling
-  minikube/        # GHA workflows for minikube lifecycle + NeMo deployment
+  minikube/        # legacy minikube manifests (retained for reference); k3s manifests in dgx/k3s/
   ollama/          # Ollama deploy/undeploy scripts and model catalog
   systemd/         # Systemd user service unit files + install/uninstall scripts
 agx/               # AGX Orin host config and local tooling (mirrors dgx/)
@@ -120,14 +120,13 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | GKE Expand GPU | `gke-expand-gpu.yaml` | Add transient GPU node pool via `terraform-gpu/` |
 | GKE Restore GPU | `gke-restore-gpu.yaml` | Remove GPU node pool via `terraform destroy` in `terraform-gpu/` |
 | Find GPU Capacity | `find-gpu-capacity.yaml` | Probe GPU availability; top 5 cheapest with [USE NOW] / [REQUEST QUOTA FIRST] |
-| Minikube Install | `install-minikube.yaml` | Install minikube and start cluster on target machine; update `<RUNNER>_MINIKUBE_KUBECONFIG` secret; writes `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
-| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster, purge state, remove binary; clears `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` |
-| Minikube Toggle | `toggle-minikube.yaml` | `minikube pause` / `unpause`. Inputs: `action`, `runner` (dgx/agx/wsl2) |
+| K3s Install | `install-k3s.yaml` | Install k3s with NVIDIA device plugin + nginx-ingress; patches CoreDNS for `host.k3s.internal`; update `<RUNNER>_K3S_KUBECONFIG` secret; writes `{MACHINE}_K3S_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
+| K3s Uninstall | `uninstall-k3s.yaml` | Run `k3s-uninstall.sh`, remove kubeconfig; clears `{MACHINE}_K3S_ACTIVE` org var. Inputs: `runner` |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo + Volcano via Helm; auto-commits hosts file + doc updates (DGX only); writes `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner`, `nemo_version` |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Uninstall NeMo + Volcano; deletes postgres PVCs first to prevent password drift; clears `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner` |
 | NIM Deploy | `deploy-nim.yaml` | Deploy NIM via NeMo API; swaps any different running NIM first; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` repo var. Inputs: `runner` |
 | NIM Undeploy | `undeploy-nim.yaml` | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL[_AGX]`. Inputs: `runner` |
-| Qdrant Deploy | `deploy-qdrant.yaml` | Deploy Qdrant vector database into minikube `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
+| Qdrant Deploy | `deploy-qdrant.yaml` | Deploy Qdrant vector database into k3s `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` (dgx/agx) |
 | Qdrant Undeploy | `undeploy-qdrant.yaml` | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
 | Nsight Operator Deploy | `deploy-nsight-operator.yaml` | Install Nsight Operator via Helm (NGC devtools registry); optionally labels kubeflow namespace for pod injection; starts `nsight-portfwd.service` (UI at port 8889); writes `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner` (dgx/agx), `chart_version`, `label_kubeflow_namespace` |
 | Nsight Operator Undeploy | `undeploy-nsight-operator.yaml` | Helm uninstall Nsight Operator; stops `nsight-portfwd.service`; optionally removes kubeflow injection label and namespace; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner`, `delete_namespace`, `unlabel_kubeflow_namespace` |
@@ -168,8 +167,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 
 | Variable | Set to `true` by | Set to `false` by |
 |---|---|---|
-| `DGX_MINIKUBE_ACTIVE` | Minikube Install (dgx) | Minikube Uninstall (dgx) |
-| `AGX_MINIKUBE_ACTIVE` | Minikube Install (agx) | Minikube Uninstall (agx) |
+| `DGX_K3S_ACTIVE` | K3s Install (dgx) | K3s Uninstall (dgx) |
+| `AGX_K3S_ACTIVE` | K3s Install (agx) | K3s Uninstall (agx) |
 | `DGX_NEMO_ACTIVE` | NeMo Deploy (dgx) | NeMo Undeploy (dgx) |
 | `AGX_NEMO_ACTIVE` | NeMo Deploy (agx) | NeMo Undeploy (agx) |
 | `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx) | MLflow Undeploy (dgx) |
@@ -237,8 +236,7 @@ Both DGX Spark and AGX Orin run the identical eight systemd user services on boo
 
 | Service | Host port | Purpose |
 |---|---|---|
-| `minikube` | — | Starts/stops minikube; other services depend on it |
-| `dashboard` | `8001` | `kubectl proxy --context minikube` |
+| `dashboard` | `8001` | `kubectl proxy` for the Kubernetes dashboard |
 | `jupyterlab` | `8888` | JupyterLab in the pyJLab Python environment |
 | `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
 | `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` |
@@ -278,17 +276,17 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     aaron@orin.local
 ```
 
-**Minikube** is managed exclusively via GHA workflows. Runner container mounts `~/.minikube` and `~/.kube` from the host so cluster state persists.
+**k3s** is managed exclusively via GHA workflows (K3s Install / Uninstall). Kubeconfig is written to `~/.kube/config` on the host and mounted into the runner container.
 
 **Workload stack** (deployment order):
-- DGX: Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
-- AGX: Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
+- DGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
+- AGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
 **NIM** — DGX only. Default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). Not available on AGX — all NIM LLM containers on NGC are `linux/amd64`; no `linux/arm64` images exist. See `dgx/minikube/nim/NIM.md` for catalog.
 
-**Ollama** — runs as a systemd service on the host (not in minikube).
+**Ollama** — runs as a systemd service on the host (not in k3s).
 - DGX: ~28 GB reserved for platform, **~100 GB for models** (`DGX_VRAM_USEABLE`)
 - AGX: ~24 GB reserved for platform, **~40 GB for models** (`AGX_VRAM_USEABLE`)
 
@@ -296,7 +294,7 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
 
 **Qdrant** (`qdrant-system` namespace) — REST API at `http://localhost:6333`, gRPC at `localhost:6334`. Web UI at `http://localhost:6333/dashboard`. `QDRANT_URL=http://host.docker.internal:6333` works from inside the runner container.
 
-**Kubeflow Pipelines** (`kubeflow` namespace) — independent of NeMo/MLflow; can deploy on a fresh minikube cluster.
+**Kubeflow Pipelines** (`kubeflow` namespace) — independent of NeMo/MLflow; can deploy on a fresh k3s cluster.
 
-**inotify limits (DGX + AGX)** — the default `fs.inotify.max_user_instances=128` is too low for minikube. Pods like `nvidia-device-plugin` and `volcano-scheduler` will `CrashLoopBackOff` with "too many open files" when the limit is exhausted. Applied on both machines: `/etc/sysctl.d/99-sysctl.conf` with `max_user_instances=1024`, `max_user_watches=1048576`. To diagnose: `docker exec minikube bash -c 'cat /proc/sys/fs/inotify/max_user_instances; find /proc/*/fd -lname "anon_inode:inotify" 2>/dev/null | wc -l'`.
+**inotify limits (DGX + AGX)** — the default `fs.inotify.max_user_instances=128` is too low for k3s. Pods like `nvidia-device-plugin` and `volcano-scheduler` will `CrashLoopBackOff` with "too many open files" when the limit is exhausted. Applied on both machines: `/etc/sysctl.d/99-sysctl.conf` with `max_user_instances=1024`, `max_user_watches=1048576`.
 

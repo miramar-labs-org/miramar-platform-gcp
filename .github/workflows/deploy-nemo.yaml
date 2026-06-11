@@ -48,14 +48,10 @@ jobs:
 
       - name: Set up kubeconfig
         run: |
-          # After a runner restart the container is on the default bridge and
-          # can't reach 192.168.49.x (minikube Docker network). Connect to it.
-          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
-          sudo chmod -R a+rX "${HOME}/.minikube"
-          TMP_KC=$(mktemp)
-          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
-              "${HOME}/.kube/config" > "${TMP_KC}"
-          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
+          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
+          # --network=host so it resolves directly.
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Verify cluster access
         run: kubectl get nodes
@@ -92,7 +88,8 @@ jobs:
 
       - name: Label GPU node
         run: |
-          kubectl label node minikube \
+          NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          kubectl label node "${NODE_NAME}" \
             feature.node.kubernetes.io/pci-10de.present=true --overwrite || true
 
       - name: Install Volcano scheduler
@@ -138,15 +135,15 @@ jobs:
           RUNNER: ${{ inputs.runner }}
         run: |
           set -euo pipefail
-          MINIKUBE_IP=$(minikube ip)
+          CLUSTER_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 
-          printf '%s nemo.test nim.test data-store.test\n' "${MINIKUBE_IP}" > "$HOSTS_FILE"
+          printf '%s nemo.test nim.test data-store.test\n' "${CLUSTER_IP}" > "$HOSTS_FILE"
 
           if [[ "$RUNNER" == "dgx" ]]; then
             # DGX: also refresh version-stamped docs
             DOC_LABEL="${NEMO_VERSION%.*}"
 
-            sed -i "s|minikube cluster IP (\`[0-9][0-9.]*[0-9]\`)|minikube cluster IP (\`${MINIKUBE_IP}\`)|g" \
+            sed -i "s|cluster IP (\`[0-9][0-9.]*[0-9]\`)|cluster IP (\`${CLUSTER_IP}\`)|g" \
               dgx/minikube/nemo/ENDPOINTS.md
 
             sed -i \
@@ -241,7 +238,7 @@ jobs:
         run: |
           POD_COUNT=$(kubectl get pods -n nemo-microservices --no-headers 2>/dev/null | grep -c . || echo 0)
           CHART_VER=$(helm list -n nemo-microservices -o json 2>/dev/null | jq -r '.[0].chart // "unknown"')
-          MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "unknown")
+          CLUSTER_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || echo "unknown")
           {
             echo "## NeMo Microservices Deployed"
             echo "| | |"

@@ -1,11 +1,11 @@
 [Unit]
 Description=kubectl proxy for Minikube dashboard (fixed port)
-After=network-online.target minikube.service
-Wants=minikube.service
+After=network-online.target k3s.service
+Wants=k3s.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/kubectl --context minikube proxy --address=127.0.0.1 --port=8001
+ExecStart=/usr/local/bin/kubectl proxy --address=127.0.0.1 --port=8001
 Restart=always
 RestartSec=2
 

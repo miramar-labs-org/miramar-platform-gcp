@@ -1,7 +1,8 @@
-name: MLflow Undeploy
+name: K3s Uninstall
 
-# Removes MLflow and MinIO from the mlflow-system namespace,
-# then deletes the namespace entirely.
+# Completely removes k3s from the target machine: stops the service, removes
+# all state and binaries via k3s-uninstall.sh, and clears the kubeconfig.
+# Run this before a clean reinstall via the K3s Install workflow.
 
 on:
   workflow_dispatch:
@@ -16,33 +17,29 @@ on:
           - agx
 
 jobs:
-  undeploy:
+  uninstall:
     runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubeconfig
+      - name: Uninstall k3s
         run: |
-          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
-          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
-          # --network=host so it resolves directly.
-          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+          if [[ -x /usr/local/bin/k3s-uninstall.sh ]]; then
+            /usr/local/bin/k3s-uninstall.sh
+            echo "==> k3s uninstalled."
+          else
+            echo "==> k3s-uninstall.sh not found — already uninstalled."
+          fi
+          rm -f "${HOME}/.kube/config"
+          echo "==> kubeconfig removed."
 
-      - name: Verify cluster access
-        run: kubectl get nodes
-
-      - name: Destroy MLflow and MinIO
-        env:
-          DELETE_NS: "true"
-        run: bash dgx/minikube/mlflow/destroy-mlflow.sh
-
-      - name: Clear MLflow active state
+      - name: Clear k3s active state
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
-          var="${machine}_MLFLOW_ACTIVE"
+          var="${machine}_K3S_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
             -f name="${var}" -f value="false" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \

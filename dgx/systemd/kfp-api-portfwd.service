@@ -1,7 +1,7 @@
 [Unit]
 Description=kubectl port-forward KFP API server (8890 -> svc/ml-pipeline:8888)
-After=network-online.target minikube.service
-Wants=network-online.target minikube.service
+After=network-online.target k3s.service
+Wants=network-online.target k3s.service
 StartLimitIntervalSec=60
 StartLimitBurst=3
 
@@ -12,17 +12,17 @@ Environment=KUBECONFIG=%h/.kube/config
 
 # Wait until the service exists and has at least one ready endpoint
 ExecStartPre=/usr/bin/bash -lc '\
-/usr/local/bin/kubectl --context minikube -n kubeflow get svc ml-pipeline >/dev/null || { echo "svc/ml-pipeline not found"; exit 1; }; \
+/usr/local/bin/kubectl -n kubeflow get svc ml-pipeline >/dev/null || { echo "svc/ml-pipeline not found"; exit 1; }; \
 for i in {1..60}; do \
-  ip=$(/usr/local/bin/kubectl --context minikube -n kubeflow get endpoints ml-pipeline -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
+  ip=$(/usr/local/bin/kubectl -n kubeflow get endpoints ml-pipeline -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
   if [ -n "$ip" ]; then exit 0; fi; \
   sleep 2; \
 done; \
 echo "Timed out waiting for ready endpoints for svc/ml-pipeline"; \
-/usr/local/bin/kubectl --context minikube -n kubeflow get endpoints ml-pipeline -o wide || true; \
+/usr/local/bin/kubectl -n kubeflow get endpoints ml-pipeline -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl --context minikube -n kubeflow port-forward svc/ml-pipeline 8890:8888 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n kubeflow port-forward svc/ml-pipeline 8890:8888 --address 0.0.0.0
 Restart=on-failure
 RestartSec=3
 

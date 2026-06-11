@@ -1,7 +1,7 @@
 name: Kubeflow Deploy
 
 # Deploys Kubeflow Pipelines standalone into the kubeflow namespace on the target
-# minikube cluster. The env/dev kustomize overlay creates the kubeflow namespace
+# k3s cluster. The env/dev kustomize overlay creates the kubeflow namespace
 # automatically and includes built-in SeaweedFS and MySQL — no external dependencies.
 # arm64 image overrides applied post-apply:
 #   - controller-manager removed (Application CRD, display-only, amd64-only binary)
@@ -19,7 +19,7 @@ name: Kubeflow Deploy
 #   systemctl --user restart kubeflow-portfwd kfp-api-portfwd
 #
 # Prerequisites:
-#   - minikube running on the target machine (Minikube Install workflow)
+#   - k3s running on the target machine (K3s Install workflow)
 #   - kubeflow-portfwd.service and kfp-api-portfwd.service installed
 
 on:
@@ -56,14 +56,10 @@ jobs:
 
       - name: Set up kubeconfig
         run: |
-          # After a runner restart the container is on the default bridge and
-          # can't reach 192.168.49.x (minikube Docker network). Connect to it.
-          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
-          sudo chmod -R a+rX "${HOME}/.minikube"
-          TMP_KC=$(mktemp)
-          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
-              "${HOME}/.kube/config" > "${TMP_KC}"
-          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
+          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
+          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
+          # --network=host so it resolves directly.
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Verify cluster access
         run: kubectl get nodes
@@ -117,35 +113,12 @@ jobs:
 
       - name: Create KFP shared storage
         run: |
-          # --- Host directories ---
-          # World-writable (777): minikube 9p does not map container UIDs to the
-          # host user, so pods (root/UID 0) cannot write into 755 directories.
+          # --- Host directories (create if missing; no chmod needed — k3s hostPath
+          # uses real kernel mounts, containers write as their actual uid) ---
           mkdir -p "${HOME}/shared/huggingface-kfp" "${HOME}/shared/huggingface-kfp/adapters" "${HOME}/shared/nsight"
-          chmod 777 "${HOME}/shared/huggingface-kfp" "${HOME}/shared/huggingface-kfp/adapters" "${HOME}/shared/nsight"
-
-          # --- minikube 9p mounts (idempotent) ---
-          # umask 000 on the subshell ensures the 9p server inherits umask 0,
-          # so all directories created through the mount get 777 permissions
-          # (not 755, which pods cannot write into via this mount).
-          if ! minikube ssh "mount 2>/dev/null | grep -q '/hf-cache'" 2>/dev/null; then
-            echo "==> Starting hf-cache minikube mount..."
-            (umask 000; nohup minikube mount "${HOME}/shared/huggingface-kfp:/hf-cache" \
-              > /tmp/minikube-mount-hf.log 2>&1) &
-            disown $!
-          else
-            echo "==> hf-cache already mounted in VM."
-          fi
-          if ! minikube ssh "mount 2>/dev/null | grep -q '/nsight-reports'" 2>/dev/null; then
-            echo "==> Starting nsight-reports minikube mount..."
-            (umask 000; nohup minikube mount "${HOME}/shared/nsight:/nsight-reports" \
-              > /tmp/minikube-mount-nsight.log 2>&1) &
-            disown $!
-          else
-            echo "==> nsight-reports already mounted in VM."
-          fi
-          sleep 5
 
           # --- PVs: skip if already exist (spec.persistentvolumesource is immutable after creation)
+          # k3s uses direct hostPath — no 9p mount daemon needed.
           kubectl get pv hf-model-cache &>/dev/null || kubectl apply -f - <<'EOF'
           apiVersion: v1
           kind: PersistentVolume
@@ -158,7 +131,7 @@ jobs:
             persistentVolumeReclaimPolicy: Retain
             storageClassName: ""
             hostPath:
-              path: /hf-cache
+              path: /home/aaron/shared/huggingface-kfp/hub
           EOF
           kubectl get pv nsight-reports &>/dev/null || kubectl apply -f - <<'EOF'
           apiVersion: v1
@@ -172,7 +145,7 @@ jobs:
             persistentVolumeReclaimPolicy: Retain
             storageClassName: ""
             hostPath:
-              path: /nsight-reports
+              path: /home/aaron/shared/nsight
           EOF
 
           # --- PVCs: always apply (no immutable fields; idempotent)

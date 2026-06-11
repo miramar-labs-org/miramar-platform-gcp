@@ -4,7 +4,6 @@ Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en
 
 | Service | Host port | Purpose |
 |---|---|---|
-| `minikube.service` | — | Starts/stops the minikube cluster; other services depend on it |
 | `dashboard.service` | `8001` | `kubectl proxy` for the Kubernetes dashboard |
 | `jupyterlab.service` | `8888` | JupyterLab (pyJLab environment) |
 | `mlflow-portfwd.service` | `5000` | `kubectl port-forward svc/mlflow-tracking` (`mlflow-system`) |
@@ -54,7 +53,7 @@ The service unit files are symlinked from `dgx/systemd/` — the AGX stack is id
 ## Manage services
 
 ```sh
-systemctl --user status  minikube
+systemctl --user status  k3s
 systemctl --user restart mlflow-portfwd qdrant-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd
 journalctl --user -u mlflow-portfwd -f
 journalctl --user -u qdrant-portfwd -f

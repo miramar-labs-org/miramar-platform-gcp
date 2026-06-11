@@ -3,8 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="$HOME/.config/systemd/user"
-# minikube first — port-forward services depend on it
-SERVICES=(minikube minikube-hf-cache-mount minikube-nsight-mount dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd nsight-portfwd)
+# k3s is managed by its own systemd service (k3s.service, installed by install-k3s.sh).
+# Port-forward services declare After=k3s.service so they start in the right order.
+SERVICES=(dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd nsight-portfwd)
 
 mkdir -p "$DEST"
 

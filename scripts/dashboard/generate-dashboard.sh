@@ -103,7 +103,7 @@ OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL")
 NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB")
 OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB")
 DGX_VRAM_USEABLE=$(read_org_var "DGX_VRAM_USEABLE")
-DGX_MINIKUBE_ACTIVE=$(read_org_var "DGX_MINIKUBE_ACTIVE")
+DGX_K3S_ACTIVE=$(read_org_var "DGX_K3S_ACTIVE")
 DGX_NEMO_ACTIVE=$(read_org_var "DGX_NEMO_ACTIVE")
 DGX_KFP_ACTIVE=$(read_org_var "DGX_KFP_ACTIVE")
 DGX_OLLAMA_ACTIVE=$(read_org_var "DGX_OLLAMA_ACTIVE")
@@ -115,7 +115,7 @@ AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
 AGX_NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL_AGX")
 AGX_NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB_AGX")
 AGX_VRAM_USEABLE=$(read_org_var "AGX_VRAM_USEABLE")
-AGX_MINIKUBE_ACTIVE=$(read_org_var "AGX_MINIKUBE_ACTIVE")
+AGX_K3S_ACTIVE=$(read_org_var "AGX_K3S_ACTIVE")
 AGX_NEMO_ACTIVE=$(read_org_var "AGX_NEMO_ACTIVE")
 AGX_KFP_ACTIVE=$(read_org_var "AGX_KFP_ACTIVE")
 AGX_OLLAMA_ACTIVE=$(read_org_var "AGX_OLLAMA_ACTIVE")
@@ -206,14 +206,14 @@ fi
 DGX_NEMO_BADGE=$([ "$DGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_KFP_BADGE=$([ "$DGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8080/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_OLLAMA_BADGE=$([ "$DGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
-DGX_MINIKUBE_BADGE=$([ "$DGX_MINIKUBE_ACTIVE" = "true" ] && echo '<a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+DGX_K3S_BADGE=$([ "$DGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_MLFLOW_BADGE=$([ "$DGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5000" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_QDRANT_BADGE=$([ "$DGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6333/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 AGX_NEMO_BADGE=$([ "$AGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_KFP_BADGE=$([ "$AGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8081/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_OLLAMA_BADGE=$([ "$AGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_MINIKUBE_BADGE=$([ "$AGX_MINIKUBE_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_K3S_BADGE=$([ "$AGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_MLFLOW_BADGE=$([ "$AGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5001" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_QDRANT_BADGE=$([ "$AGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6335/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
@@ -342,7 +342,7 @@ cat > "$OUTPUT" <<HTMLEOF
     </div>
     <div class="ps-item">
       <div class="ps-label">Minikube</div>
-      ${DGX_MINIKUBE_BADGE}
+      ${DGX_K3S_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">MLflow</div>
@@ -387,7 +387,7 @@ cat > "$OUTPUT" <<HTMLEOF
     </div>
     <div class="ps-item">
       <div class="ps-label">Minikube</div>
-      ${AGX_MINIKUBE_BADGE}
+      ${AGX_K3S_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">MLflow</div>

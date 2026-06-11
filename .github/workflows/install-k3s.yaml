@@ -1,0 +1,68 @@
+name: K3s Install
+
+# Installs k3s on the target machine with GPU support, deploys the NVIDIA device
+# plugin and nginx-ingress, and patches CoreDNS for host.k3s.internal resolution.
+# Safe to re-run — idempotent; skips the install step if k3s is already present.
+#
+# After installing, updates the <RUNNER>_K3S_KUBECONFIG org secret so all
+# deploy workflows can authenticate.
+#
+# Prerequisites:
+#   - mlabs-runner container launched via scripts/gha/launch-runner.sh
+#   - NVIDIA container toolkit installed on the host (nvidia-ctk available)
+#   - GITHUB_ORG_ADMIN_PAT env var set on the runner (injected by launch-runner.sh)
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+
+jobs:
+  install:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve secret / variable names
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          echo "KUBECONFIG_SECRET=${machine}_K3S_KUBECONFIG" >> "$GITHUB_ENV"
+          echo "ACTIVE_VAR=${machine}_K3S_ACTIVE"            >> "$GITHUB_ENV"
+
+      - name: Install k3s and configure GPU support
+        run: bash scripts/ubuntu/install-k3s.sh
+
+      - name: Cleanup on failure
+        if: failure()
+        run: |
+          echo "==> Install failed — uninstalling k3s for a clean retry..."
+          /usr/local/bin/k3s-uninstall.sh 2>/dev/null || true
+          echo "==> Cleanup done. Re-trigger this workflow to start fresh."
+
+      - name: Set k3s active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${ACTIVE_VAR}" \
+            -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all"
+
+      - name: Update k3s kubeconfig org secret
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          set -o pipefail
+          KUBECONFIG_B64=$(cat "${HOME}/.kube/config" | base64 -w0)
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set "${KUBECONFIG_SECRET}" \
+            --org miramar-labs-org \
+            --body "${KUBECONFIG_B64}"
+          echo "==> ${KUBECONFIG_SECRET} updated"

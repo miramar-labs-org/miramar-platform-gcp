@@ -1,7 +1,7 @@
 [Unit]
 Description=kubectl port-forward Qdrant (6333/6334 -> svc/qdrant)
-After=network-online.target minikube.service
-Wants=network-online.target minikube.service
+After=network-online.target k3s.service
+Wants=network-online.target k3s.service
 StartLimitIntervalSec=300
 StartLimitBurst=5
 
@@ -12,17 +12,17 @@ Environment=KUBECONFIG=%h/.kube/config
 
 # Wait until the service exists and has at least one ready endpoint
 ExecStartPre=/usr/bin/bash -lc '\
-/usr/local/bin/kubectl --context minikube -n qdrant-system get svc qdrant >/dev/null || { echo "svc/qdrant not found"; exit 1; }; \
+/usr/local/bin/kubectl -n qdrant-system get svc qdrant >/dev/null || { echo "svc/qdrant not found"; exit 1; }; \
 for i in {1..60}; do \
-  ip=$(/usr/local/bin/kubectl --context minikube -n qdrant-system get endpoints qdrant -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
+  ip=$(/usr/local/bin/kubectl -n qdrant-system get endpoints qdrant -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
   if [ -n "$ip" ]; then exit 0; fi; \
   sleep 2; \
 done; \
 echo "Timed out waiting for ready endpoints for svc/qdrant"; \
-/usr/local/bin/kubectl --context minikube -n qdrant-system get endpoints qdrant -o wide || true; \
+/usr/local/bin/kubectl -n qdrant-system get endpoints qdrant -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl --context minikube -n qdrant-system port-forward svc/qdrant 6333:6333 6334:6334 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n qdrant-system port-forward svc/qdrant 6333:6333 6334:6334 --address 0.0.0.0
 Restart=on-failure
 RestartSec=3
 

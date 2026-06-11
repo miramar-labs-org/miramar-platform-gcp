@@ -2,7 +2,7 @@
 set -euo pipefail
 # Restart all DGX user services in dependency order.
 
-SERVICES=(minikube dashboard jupyterlab mlflow-portfwd)
+SERVICES=(dashboard jupyterlab mlflow-portfwd)
 
 for svc in "${SERVICES[@]}"; do
     echo "Restarting ${svc}..."
