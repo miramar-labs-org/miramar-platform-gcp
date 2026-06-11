@@ -62,17 +62,24 @@ def _find_pipeline_id():
     return match[0]["pipeline_id"] if match else None
 
 
-def purge_runs(pipeline_id):
-    """Delete only runs belonging to this project's pipeline."""
-    runs = api("GET", "/runs").get("runs") or []
-    mine = [
-        r for r in runs
-        if r.get("pipeline_version_reference", {}).get("pipeline_id") == pipeline_id
-    ]
-    if not mine:
+def purge_runs():
+    """Delete all runs in this project's KFP experiment.
+
+    Filtering by pipeline_id fails when the pipeline has already been deleted
+    (pipeline_id is None → nothing matches). Filtering by experiment is robust
+    whether or not the pipeline registration still exists.
+    """
+    exps = api("GET", "/experiments").get("experiments") or []
+    match = [e for e in exps if e.get("display_name") == PIPELINE_NAME]
+    if not match:
+        print("  No experiment found — no runs to delete.")
+        return
+    eid = match[0]["experiment_id"]
+    runs = api("GET", f"/runs?experiment_id={eid}").get("runs") or []
+    if not runs:
         print("  No runs found for this pipeline.")
         return
-    for run in mine:
+    for run in runs:
         rid = run["run_id"]
         name = run["display_name"]
         state = run.get("state", "")
@@ -98,17 +105,6 @@ def purge_pipeline(pipeline_id):
     api("DELETE", f"/pipelines/{pipeline_id}")
     print(f"  Deleted pipeline: {PIPELINE_NAME} ({pipeline_id})")
 
-
-def purge_experiment():
-    exps = api("GET", "/experiments").get("experiments") or []
-    match = [e for e in exps if e.get("display_name") == PIPELINE_NAME]
-    if not match:
-        print("  No experiment found — nothing to delete.")
-        return
-    for exp in match:
-        eid = exp["experiment_id"]
-        api("DELETE", f"/experiments/{eid}")
-        print(f"  Deleted experiment: {PIPELINE_NAME} ({eid})")
 
 
 def purge_argo_workflows():
@@ -172,13 +168,11 @@ def purge_mlflow():
 print(f"Purging KFP state for '{PIPELINE_NAME}'...")
 pid = _find_pipeline_id()
 print("Runs:")
-purge_runs(pid)
+purge_runs()
 print("Pipeline:")
 purge_pipeline(pid)
 print("Argo workflows:")
 purge_argo_workflows()
-print("Experiment:")
-purge_experiment()
 print("MLflow:")
 purge_mlflow()
 print("Done.")
