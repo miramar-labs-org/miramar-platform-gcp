@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
+FROM debian:bookworm-slim
 
 ARG RUNNER_VERSION=2.334.0
 ARG TARGETARCH
@@ -11,9 +11,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RUNNER_USER=runner \
     RUNNER_HOME=/home/runner
 
-# Runner runtime deps + general audio/video libs
-# Pre-installs runner .NET deps explicitly so installdependencies.sh is not
-# needed (running it under QEMU during arm64 cross-builds is unreliable).
+# Core deps + .NET runtime deps (libicu72 = Bookworm's ICU) + mDNS
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -22,43 +20,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         sudo \
         unzip \
         wget \
-        zsh \
         lsb-release \
         apt-transport-https \
         gnupg \
         libssl3 \
         libkrb5-3 \
         zlib1g \
-        libicu70 \
-        ffmpeg \
-        libsndfile1 \
-        sox \
+        libicu72 \
+        openssh-client \
+        zstd \
+        python3 \
+        python3-pip \
+        python-is-python3 \
+        shellcheck \
+        yamllint \
         libnss-mdns \
     && sed -i 's/^\(hosts:.*\)dns\s*$/\1mdns4_minimal [NOTFOUND=return] dns/' /etc/nsswitch.conf \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Docker CLI (socket is mounted from the host at runtime)
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+# Docker CLI (Debian Bookworm repo)
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg \
         | gpg --dearmor -o /usr/share/keyrings/docker.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] \
-        https://download.docker.com/linux/ubuntu jammy stable" \
+        https://download.docker.com/linux/debian bookworm stable" \
         > /etc/apt/sources.list.d/docker.list && \
     apt-get update && apt-get install -y --no-install-recommends docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
-# Install kubectl
+# kubectl
 RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" \
         -o /usr/local/bin/kubectl && \
     chmod +x /usr/local/bin/kubectl
 
-# Install openssh-client and zstd
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      openssh-client \
-      zstd \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install gcloud, terraform, and gh via their apt repos
+# gcloud, terraform, gh
 RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
@@ -76,21 +70,19 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         google-cloud-cli \
         terraform \
         gh \
-        make \
-        python3 \
-        python3-pip \
-        python-is-python3 \
-        shellcheck \
-        yamllint \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node 20 LTS from NodeSource (apt ships Node 12 which is too old for prettier)
+# helm
+RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Node 20 LTS + prettier (repo-quality workflow)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/* && \
-    node --version
+    npm install -g prettier && \
+    node --version && prettier --version
 
-# Install repo-quality tools that are not reliably available from apt
+# shfmt
 RUN set -eux; \
     case "${TARGETARCH}" in \
         amd64) SHFMT_ARCH="amd64" ;; \
@@ -102,6 +94,7 @@ RUN set -eux; \
     chmod +x /usr/local/bin/shfmt; \
     shfmt --version
 
+# hadolint
 RUN set -eux; \
     case "${TARGETARCH}" in \
         amd64) HADOLINT_ARCH="x86_64" ;; \
@@ -113,6 +106,7 @@ RUN set -eux; \
     chmod +x /usr/local/bin/hadolint; \
     hadolint --version
 
+# actionlint
 RUN set -eux; \
     case "${TARGETARCH}" in \
         amd64) ACTIONLINT_ARCH="amd64" ;; \
@@ -127,14 +121,7 @@ RUN set -eux; \
     rm -f /tmp/actionlint.tar.gz; \
     actionlint --version
 
-RUN set -eux; \
-    npm install -g prettier; \
-    prettier --version
-
-# Install helm
-RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-# Install NGC CLI (arm64: v4.5.2, amd64: v3.41.3)
+# NGC CLI
 RUN case "${TARGETARCH}" in \
         amd64) ZIP_NAME="ngccli_linux.zip";  NGC_VER="3.41.3" ;; \
         arm64) ZIP_NAME="ngccli_arm64.zip";  NGC_VER="4.5.2"  ;; \
@@ -149,49 +136,15 @@ RUN case "${TARGETARCH}" in \
     chmod +x /usr/local/bin/ngc && \
     rm -rf /tmp/ngccli.zip /tmp/ngccli
 
-LABEL org.opencontainers.image.version="${RUNNER_VERSION}"
-
-# PyTorch with CUDA 12.6
-# amd64: explicit CUDA wheels from pytorch.org; arm64: standard PyPI (ships CUDA-enabled for aarch64)
-RUN case "${TARGETARCH}" in \
-        amd64) pip3 install --no-cache-dir \
-                   torch torchvision torchaudio \
-                   --index-url https://download.pytorch.org/whl/cu126 ;; \
-        arm64) pip3 install --no-cache-dir \
-                   torch torchvision torchaudio ;; \
-    esac
-
-# HuggingFace ecosystem + genAI + ML tooling
-RUN pip3 install --no-cache-dir --upgrade \
-    transformers \
-    accelerate \
-    peft \
-    huggingface_hub \
-    diffusers \
-    optimum \
-    evaluate \
-    sentence-transformers \
-    timm \
-    einops \
-    bitsandbytes \
-    datasets \
-    numpy \
-    scipy \
-    pandas \
-    scikit-learn \
-    tqdm \
-    pillow \
-    tensorboard \
-    mlflow \
-    onnx \
-    onnxscript \
-    boto3 \
-    s3fs \
-    dill \
-    pytest \
-    kfp>=2.0.0 \
+# KFP SDK + minimal Python deps (pipeline compilation and submission only)
+RUN pip3 install --no-cache-dir --break-system-packages \
+    "kfp>=2.0.0" \
     kfp-kubernetes \
-    pyyaml
+    pyyaml \
+    boto3 \
+    pytest
+
+LABEL org.opencontainers.image.version="${RUNNER_VERSION}"
 
 RUN useradd -m -s /bin/bash runner \
     && echo "runner ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
