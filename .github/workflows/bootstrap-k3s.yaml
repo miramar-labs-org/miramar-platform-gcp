@@ -117,7 +117,7 @@ jobs:
         run: |
           mkdir -p "${HOME}/.kube"
           scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
-            "${HOST_USER}@${HOST_IP}:${HOME}/.kube/config" \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" \
             "${HOME}/.kube/config"
           echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
