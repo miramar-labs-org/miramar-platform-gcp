@@ -63,6 +63,46 @@ kubectl apply -k \
 echo "==> Waiting for applications.app.k8s.io CRD ..."
 kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
 
+echo "==> Creating KFP hostPath PVs (k3s has no dynamic provisioner) ..."
+KFP_DATA_DIR="${KFP_DATA_DIR:-/home/aaron/shared/kfp}"
+mkdir -p "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs"
+chmod 777 "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs"
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: kfp-mysql-pv
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    name: mysql-pv-claim
+    namespace: kubeflow
+  hostPath:
+    path: ${KFP_DATA_DIR}/mysql
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: kfp-seaweedfs-pv
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    name: seaweedfs-pvc
+    namespace: kubeflow
+  hostPath:
+    path: ${KFP_DATA_DIR}/seaweedfs
+    type: DirectoryOrCreate
+EOF
+
 echo "==> Installing Kubeflow Pipelines (env/dev) into kubeflow namespace ..."
 kubectl apply -k \
   "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=${PIPELINE_VERSION}"

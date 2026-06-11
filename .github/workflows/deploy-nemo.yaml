@@ -120,6 +120,111 @@ jobs:
             echo "Release status: '${STATUS:-not found}' — no cleanup needed"
           fi
 
+      - name: Create NeMo hostPath PVs
+        run: |
+          # k3s has no dynamic provisioner — create all PVs before Helm install
+          # so PVCs bind immediately and the 30m Helm timeout isn't wasted.
+          NEMO_DATA="${HOME}/shared/nemo"
+          mkdir -p "${NEMO_DATA}"/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
+          chmod -R 777 "${NEMO_DATA}"
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-customizerdb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-customizerdb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/customizerdb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-entity-storedb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-entity-storedb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/entity-storedb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-evaluatordb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-evaluatordb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/evaluatordb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-jobsdb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-jobsdb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/jobsdb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-postgresql-pv
+          spec:
+            capacity: {storage: 10Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-postgresql-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/postgresql", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-datastore-pv
+          spec:
+            capacity: {storage: 100Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: datastore-shared-storage, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/datastore", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-models-pv
+          spec:
+            capacity: {storage: 100Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: finetuning-ms-models-pvc, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/models", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-job-storage-pv
+          spec:
+            capacity: {storage: 200Gi}
+            accessModes: [ReadWriteMany]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: nemo-core-job-storage, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/job-storage", type: DirectoryOrCreate}
+          EOF
+
       - name: Install NeMo Microservices
         run: |
           helm upgrade --install nemo nmp/nemo-microservices-helm-chart \

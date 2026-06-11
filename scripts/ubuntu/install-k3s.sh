@@ -24,16 +24,12 @@ else
 fi
 
 # ---- Configure NVIDIA container runtime for containerd ----
-# k3s uses its own containerd instance at /var/lib/rancher/k3s/agent/etc/containerd/config.toml
-log "Configuring NVIDIA container runtime for k3s containerd..."
-CONTAINERD_CFG=/var/lib/rancher/k3s/agent/etc/containerd/config.toml
-if [[ -f "$CONTAINERD_CFG" ]]; then
-  sudo nvidia-ctk runtime configure --runtime=containerd --config="$CONTAINERD_CFG"
-  sudo systemctl restart k3s
-  log "NVIDIA runtime configured; k3s restarted."
-else
-  log "containerd config not found at ${CONTAINERD_CFG} — skipping (will apply after first k3s start)."
-fi
+# nvidia-ctk v1.19+ writes to /etc/containerd/conf.d/99-nvidia.toml (ignores --config flag).
+# k3s reads this at startup and merges it into its generated config.toml automatically.
+log "Configuring NVIDIA container runtime..."
+sudo nvidia-ctk runtime configure --runtime=containerd
+sudo systemctl restart k3s
+log "NVIDIA runtime configured; k3s restarted."
 
 # ---- Kubeconfig ----
 log "Setting up kubeconfig..."
@@ -51,7 +47,8 @@ kubectl get nodes -o wide
 # ---- NVIDIA device plugin (v0.18.0, GB10 / Spark fix) ----
 log "Applying NVIDIA device plugin v0.18.0..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || echo "${SCRIPT_DIR}/../..")"
+# REPO_ROOT can be pre-set by the caller (e.g. bootstrap-k3s.yaml SSHes files to /tmp).
+REPO_ROOT="${REPO_ROOT:-$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || echo "${SCRIPT_DIR}/../..")}"
 kubectl apply -f "${REPO_ROOT}/dgx/k3s/nvidia-device-plugin.yaml"
 
 # ---- Label node for GPU scheduling ----
@@ -71,12 +68,67 @@ kubectl rollout status deployment/ingress-nginx-controller \
   -n ingress-nginx --timeout=180s || log "nginx-ingress not yet ready — may still be pulling image"
 
 # ---- CoreDNS patch: host.k3s.internal → node IP ----
+# k3s CoreDNS already uses a 'hosts' plugin for NodeHosts — adding a second hosts
+# block via ConfigMap extension crashes CoreDNS. Instead, append to NodeHosts directly.
 log "Patching CoreDNS to resolve host.k3s.internal..."
-NODE_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-export NODE_IP
-envsubst < "${REPO_ROOT}/dgx/k3s/coredns-custom.yaml" | kubectl apply -f -
+NODE_IP=$(python3 -c "
+import subprocess, json
+out = subprocess.check_output(['kubectl','get','node','-o','json']).decode()
+addrs = json.loads(out)['items'][0]['status']['addresses']
+print(next(a['address'] for a in addrs if a['type']=='InternalIP' and '.' in a['address']))
+")
+CURRENT=$(kubectl get configmap coredns -n kube-system -o jsonpath='{.data.NodeHosts}')
+PATCHED=$(printf '%s\n' "$CURRENT" | grep -v 'host\.k3s\.internal'; printf '%s host.k3s.internal\n' "$NODE_IP")
+PATCHED_JSON=$(printf '%s' "$PATCHED" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
+kubectl patch configmap coredns -n kube-system --type merge \
+  -p "{\"data\":{\"NodeHosts\":${PATCHED_JSON}}}"
 kubectl rollout restart deployment/coredns -n kube-system
 kubectl rollout status deployment/coredns -n kube-system --timeout=60s
+
+# ---- Kubernetes Dashboard ----
+K8S_DASHBOARD_VERSION="v2.7.0"
+K8S_DASHBOARD_URL="https://raw.githubusercontent.com/kubernetes/dashboard/${K8S_DASHBOARD_VERSION}/aio/deploy/recommended.yaml"
+log "Deploying Kubernetes Dashboard ${K8S_DASHBOARD_VERSION}..."
+kubectl apply -f "${K8S_DASHBOARD_URL}"
+# Grant cluster-admin to both the dashboard SA (for skip-login) and an explicit admin-user
+kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-dashboard-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-user
+  namespace: kubernetes-dashboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-user
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: admin-user
+    namespace: kubernetes-dashboard
+EOF
+# Enable skip-login so the dashboard can be accessed without a token
+kubectl -n kubernetes-dashboard patch deployment kubernetes-dashboard --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-skip-login"}]'
+log "Dashboard deployed at port 8001 (skip-login enabled)."
+log "URL: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/"
 
 log "k3s install complete."
 log "Node IP: ${NODE_IP} — host.k3s.internal resolves to this address inside pods"

@@ -14,15 +14,34 @@ log "Starting Qdrant deployment"
 QDRANT_NS="${QDRANT_NS:-qdrant-system}"
 QDRANT_IMAGE="${QDRANT_IMAGE:-qdrant/qdrant:latest}"
 QDRANT_PVC_SIZE="${QDRANT_PVC_SIZE:-20Gi}"
-QDRANT_STORAGE_CLASS="${QDRANT_STORAGE_CLASS:-standard}"
+# k3s uses hostPath PVs (no dynamic provisioner); data dir created on host.
+QDRANT_DATA_DIR="${QDRANT_DATA_DIR:-/home/aaron/shared/qdrant-data}"
+QDRANT_PV_NAME="${QDRANT_PV_NAME:-qdrant-pv}"
 
 # ---- Ensure namespace ----
 log "Ensuring namespace ${QDRANT_NS} exists"
 kubectl get ns "${QDRANT_NS}" >/dev/null 2>&1 || kubectl create ns "${QDRANT_NS}"
 
+# ---- Ensure host data directory ----
+mkdir -p "${QDRANT_DATA_DIR}"
+
 # ---- Deploy ----
 log "Applying Qdrant manifests (image: ${QDRANT_IMAGE})"
 kubectl apply -f - <<YAML
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ${QDRANT_PV_NAME}
+spec:
+  capacity:
+    storage: ${QDRANT_PVC_SIZE}
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: ${QDRANT_DATA_DIR}
+    type: DirectoryOrCreate
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -33,7 +52,8 @@ spec:
   resources:
     requests:
       storage: ${QDRANT_PVC_SIZE}
-  storageClassName: ${QDRANT_STORAGE_CLASS}
+  storageClassName: ""
+  volumeName: ${QDRANT_PV_NAME}
 ---
 apiVersion: apps/v1
 kind: Deployment

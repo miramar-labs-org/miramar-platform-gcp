@@ -1,0 +1,266 @@
+name: K3s Bootstrap
+
+# Full end-to-end bootstrap for a machine that previously ran minikube.
+# Runs the complete sequence in a single dispatch:
+#   1. Uninstall minikube (idempotent — safe if already gone)
+#   2. Install k3s + NVIDIA device plugin + nginx-ingress + CoreDNS + Dashboard
+#      (SSHes to host — k3s install requires systemd which the runner container lacks)
+#   3. Deploy NeMo Microservices
+#   4. Deploy MLflow (uses NeMo's postgres as backend)
+#   5. Deploy Qdrant
+#   6. Deploy KFP (Kubeflow Pipelines)
+#
+# After a successful bootstrap, the machine is ready to run pipelines.
+# NIM (DGX) or Ollama (AGX) must be deployed separately via their own workflows.
+#
+# Prerequisites:
+#   - mlabs-runner container running on the target machine
+#   - NVIDIA container toolkit installed on the host
+#   - NVIDIA_API_KEY, HF_TOKEN, HOST_SSH_KEY, MIRAMAR_ORG_ADMIN_PAT secrets set
+#   - DGX_HOST_IP / AGX_HOST_IP, DGX_HOST_USER / AGX_HOST_USER org vars set
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+      nemo_version:
+        description: "NeMo Microservices version (leave blank for chart default)"
+        type: string
+        required: false
+        default: ""
+      skip_minikube_uninstall:
+        description: "Skip minikube uninstall (if minikube was never installed)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  bootstrap:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Resolve machine-specific names ───────────────────────────────────────
+      - name: Resolve machine-specific names
+        run: |
+          MACHINE=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          echo "MACHINE=${MACHINE}"                          >> "$GITHUB_ENV"
+          echo "ACTIVE_VAR=${MACHINE}_K3S_ACTIVE"           >> "$GITHUB_ENV"
+          echo "KUBECONFIG_SECRET=${MACHINE}_K3S_KUBECONFIG" >> "$GITHUB_ENV"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      # ── Set up SSH key for host commands ─────────────────────────────────────
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/bootstrap_key
+          chmod 600 /tmp/bootstrap_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      # ── Step 1: Uninstall minikube ────────────────────────────────────────────
+      - name: Uninstall minikube
+        if: ${{ inputs.skip_minikube_uninstall == false }}
+        run: |
+          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" '
+              set -euo pipefail
+              if command -v minikube &>/dev/null; then
+                echo "==> Stopping minikube..."
+                minikube stop 2>/dev/null || true
+                echo "==> Deleting minikube cluster..."
+                minikube delete 2>/dev/null || true
+                echo "==> Removing minikube binary..."
+                sudo rm -f /usr/local/bin/minikube
+                echo "==> minikube removed."
+              else
+                echo "==> minikube not found — nothing to uninstall."
+              fi
+              # Remove minikube systemd services if present
+              for svc in minikube minikube-hf-cache-mount minikube-nsight-mount; do
+                systemctl --user disable --now "${svc}.service" 2>/dev/null || true
+                rm -f "${HOME}/.config/systemd/user/${svc}.service"
+              done
+              systemctl --user daemon-reload 2>/dev/null || true
+            '
+
+      # ── Step 2: Install k3s (SSH to host — needs systemd) ────────────────────
+      - name: Install k3s on host
+        run: |
+          # install-k3s.sh references dgx/k3s/nvidia-device-plugin.yaml via REPO_ROOT.
+          # SCP both files into a temp dir on the host and point REPO_ROOT there.
+          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" "mkdir -p /tmp/k3s-bootstrap/dgx/k3s"
+          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            scripts/ubuntu/install-k3s.sh \
+            "${HOST_USER}@${HOST_IP}:/tmp/k3s-bootstrap/install-k3s.sh"
+          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            dgx/k3s/nvidia-device-plugin.yaml \
+            "${HOST_USER}@${HOST_IP}:/tmp/k3s-bootstrap/dgx/k3s/nvidia-device-plugin.yaml"
+          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            "REPO_ROOT=/tmp/k3s-bootstrap bash /tmp/k3s-bootstrap/install-k3s.sh"
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p "${HOME}/.kube"
+          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:${HOME}/.kube/config" \
+            "${HOME}/.kube/config"
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        run: kubectl get nodes -o wide
+
+      # ── Step 3: Deploy NeMo ───────────────────────────────────────────────────
+      - name: Create namespace and secrets
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          kubectl create namespace nemo-microservices --dry-run=client -o yaml | kubectl apply -f -
+          kubectl delete secret nvcrimagepullsecret ngc-api nvidia-api hf-token \
+            -n nemo-microservices --ignore-not-found
+          kubectl create secret docker-registry nvcrimagepullsecret \
+            -n nemo-microservices \
+            --docker-server=nvcr.io \
+            --docker-username='$oauthtoken' \
+            --docker-password="${NVIDIA_API_KEY}"
+          kubectl create secret generic ngc-api \
+            -n nemo-microservices --from-literal=NGC_API_KEY="${NVIDIA_API_KEY}"
+          kubectl create secret generic nvidia-api \
+            -n nemo-microservices --from-literal=NVIDIA_API_KEY="${NVIDIA_API_KEY}"
+          kubectl create secret generic hf-token \
+            -n nemo-microservices --from-literal=HF_TOKEN="${HF_TOKEN}"
+
+      - name: Label GPU node
+        run: |
+          NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          kubectl label node "${NODE_NAME}" \
+            nvidia.com/gpu.present=true \
+            feature.node.kubernetes.io/pci-10de.present=true \
+            --overwrite
+
+      - name: Deploy NeMo Microservices
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NEMO_VERSION: ${{ inputs.nemo_version }}
+          RUNNER: ${{ inputs.runner }}
+        run: bash dgx/minikube/nemo/install-nemo.sh
+
+      - name: Update hosts file
+        env:
+          RUNNER: ${{ inputs.runner }}
+        run: bash dgx/minikube/nemo/update-hosts.sh
+
+      - name: Wait for NeMo pods
+        run: |
+          echo "==> Waiting for NeMo pods to be ready (up to 20m)..."
+          kubectl wait pod --all -n nemo-microservices \
+            --for=condition=Ready --timeout=1200s
+
+      - name: Set NeMo active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          var="${MACHINE}_NEMO_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
+
+      # ── Step 4: Deploy MLflow ─────────────────────────────────────────────────
+      - name: Deploy MLflow
+        run: bash dgx/minikube/mlflow/integrate-mlflow.sh
+
+      - name: Set MLflow active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          var="${MACHINE}_MLFLOW_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
+
+      # ── Step 5: Deploy Qdrant ─────────────────────────────────────────────────
+      - name: Deploy Qdrant
+        run: bash dgx/minikube/qdrant/integrate-qdrant.sh
+
+      - name: Set Qdrant active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          var="${MACHINE}_QDRANT_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
+
+      # ── Step 6: Deploy KFP ───────────────────────────────────────────────────
+      - name: Deploy Kubeflow Pipelines
+        run: bash dgx/minikube/kubeflow/deploy-kfp.sh
+
+      - name: Set KFP active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          var="${MACHINE}_KFP_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
+
+      # ── Finalise ─────────────────────────────────────────────────────────────
+      - name: Set k3s active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${ACTIVE_VAR}" \
+            -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all"
+
+      - name: Update k3s kubeconfig org secret
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          KUBECONFIG_B64=$(base64 -w0 < "${HOME}/.kube/config")
+          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set "${KUBECONFIG_SECRET}" \
+            --org miramar-labs-org \
+            --body "${KUBECONFIG_B64}"
+
+      - name: Summary
+        run: |
+          {
+            echo "## K3s Bootstrap Complete — ${{ inputs.runner }}"
+            echo ""
+            echo "| Component | Status |"
+            echo "|---|---|"
+            echo "| k3s | ✅ |"
+            echo "| NVIDIA device plugin | ✅ |"
+            echo "| nginx-ingress | ✅ |"
+            echo "| Kubernetes Dashboard | ✅ port 8001 |"
+            echo "| NeMo Microservices | ✅ |"
+            echo "| MLflow | ✅ port 5000 |"
+            echo "| Qdrant | ✅ port 6333 |"
+            echo "| KFP | ✅ port 8080 |"
+            echo ""
+            echo "Next: deploy NIM (DGX) or Ollama (AGX) via their own workflows."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/bootstrap_key

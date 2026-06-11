@@ -1,19 +1,15 @@
-# CoreDNS ConfigMap patch — adds host.k3s.internal → node IP resolution.
-# Applied by scripts/ubuntu/install-k3s.sh via: envsubst < coredns-custom.yaml | kubectl apply -f -
-# NODE_IP must be set in the environment before applying (envsubst substitutes it).
+# CoreDNS host.k3s.internal resolution — NOTE: this file is NOT applied via kubectl apply.
 #
-# This resolves host.k3s.internal inside pods to the k3s node's InternalIP,
-# replacing the minikube equivalent host.minikube.internal.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: coredns-custom
-  namespace: kube-system
-data:
-  k3s-host.server: |
-    host.k3s.internal:53 {
-        hosts {
-            ${NODE_IP} host.k3s.internal
-        }
-        fallthrough
-    }
+# k3s CoreDNS already has a 'hosts' plugin entry for NodeHosts in the default Corefile.
+# Adding a second ConfigMap (with 'hosts' in a .override block) crashes CoreDNS with:
+#   "hosts plugin can only be used once per Server Block"
+#
+# The correct approach is to append to the existing NodeHosts entry in the coredns ConfigMap.
+# install-k3s.sh does this directly with kubectl patch — this file is documentation only.
+#
+# What install-k3s.sh does:
+#   kubectl patch configmap coredns -n kube-system --type merge \
+#     -p '{"data":{"NodeHosts":"<existing entries>\n<NODE_IP> host.k3s.internal"}}'
+#
+# To verify resolution inside a pod:
+#   kubectl run -it --rm dns-test --image=busybox --restart=Never -- nslookup host.k3s.internal

@@ -1,6 +1,9 @@
 # NVIDIA device plugin v0.18.0 — pinned for GB10 (Blackwell) fix.
-# Pinned to nvcr.io/nvidia/k8s/k8s-device-plugin:v0.18.0 (same image as minikube addon).
 # Applied by scripts/ubuntu/install-k3s.sh after k3s node is Ready.
+# device-discovery-strategy=nvml: required on k3s because containerd socket is at
+# /run/k3s/containerd/containerd.sock (not the standard path); auto strategy fails.
+# k3s writes device plugin sockets to /var/lib/rancher/k3s/agent/pod-resources/
+# but kubelet DevicePlugin API still uses /var/lib/kubelet/device-plugins.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -23,16 +26,22 @@ spec:
           effect: NoSchedule
       priorityClassName: system-node-critical
       containers:
-        - image: nvcr.io/nvidia/k8s/k8s-device-plugin:v0.18.0
+        - image: nvcr.io/nvidia/k8s-device-plugin:v0.18.0
           name: nvidia-device-plugin-ctr
+          args:
+            - --device-discovery-strategy=nvml
           securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
+            privileged: true
           volumeMounts:
             - name: device-plugin
               mountPath: /var/lib/kubelet/device-plugins
+            - name: nvidia-libs
+              mountPath: /usr/lib/aarch64-linux-gnu
+              readOnly: true
       volumes:
         - name: device-plugin
           hostPath:
             path: /var/lib/kubelet/device-plugins
+        - name: nvidia-libs
+          hostPath:
+            path: /usr/lib/aarch64-linux-gnu
