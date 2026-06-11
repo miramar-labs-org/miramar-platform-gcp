@@ -404,15 +404,14 @@ jobs:
             --for=condition=Ready --timeout=1200s
 
       - name: Set NeMo active state
-        if: ${{ inputs.deploy_nemo == true }}
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           var="${MACHINE}_NEMO_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
-            -f name="${var}" -f value="true" -f visibility="all" \
+            -f name="${var}" -f value="${{ inputs.deploy_nemo }}" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
-            -f name="${var}" -f value="true" -f visibility="all"
+            -f name="${var}" -f value="${{ inputs.deploy_nemo }}" -f visibility="all"
 
       # ── Step 4: Deploy MLflow ─────────────────────────────────────────────────
       - name: Deploy MLflow
@@ -422,15 +421,14 @@ jobs:
           bash dgx/minikube/mlflow/integrate-mlflow.sh
 
       - name: Set MLflow active state
-        if: ${{ inputs.deploy_mlflow == true }}
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           var="${MACHINE}_MLFLOW_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
-            -f name="${var}" -f value="true" -f visibility="all" \
+            -f name="${var}" -f value="${{ inputs.deploy_mlflow }}" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
-            -f name="${var}" -f value="true" -f visibility="all"
+            -f name="${var}" -f value="${{ inputs.deploy_mlflow }}" -f visibility="all"
 
       # ── Step 5: Deploy Qdrant ─────────────────────────────────────────────────
       - name: Deploy Qdrant
@@ -440,15 +438,14 @@ jobs:
           bash dgx/minikube/qdrant/integrate-qdrant.sh
 
       - name: Set Qdrant active state
-        if: ${{ inputs.deploy_qdrant == true }}
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           var="${MACHINE}_QDRANT_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
-            -f name="${var}" -f value="true" -f visibility="all" \
+            -f name="${var}" -f value="${{ inputs.deploy_qdrant }}" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
-            -f name="${var}" -f value="true" -f visibility="all"
+            -f name="${var}" -f value="${{ inputs.deploy_qdrant }}" -f visibility="all"
 
       # ── Step 6: Deploy KFP ───────────────────────────────────────────────────
       - name: Log in to GHCR
@@ -541,6 +538,12 @@ jobs:
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all"
+          # Minikube is always removed by bootstrap — clear the stale var
+          minikube_var="${MACHINE}_MINIKUBE_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${minikube_var}" \
+            -f name="${minikube_var}" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${minikube_var}" -f value="false" -f visibility="all" || true
 
       - name: Update k3s kubeconfig org secret
         env:
@@ -553,6 +556,9 @@ jobs:
 
       - name: Summary
         run: |
+          nemo_status() { [[ "${{ inputs.deploy_nemo }}"   == "true" ]] && echo "✅" || echo "⏭ skipped (uses DGX)"; }
+          mlflow_status() { [[ "${{ inputs.deploy_mlflow }}" == "true" ]] && echo "✅ port 5000" || echo "⏭ skipped (uses DGX)"; }
+          qdrant_status() { [[ "${{ inputs.deploy_qdrant }}" == "true" ]] && echo "✅ port 6333" || echo "⏭ skipped (uses DGX)"; }
           {
             echo "## K3s Bootstrap Complete — ${{ inputs.runner }}"
             echo ""
@@ -562,9 +568,9 @@ jobs:
             echo "| NVIDIA device plugin | ✅ |"
             echo "| nginx-ingress | ✅ |"
             echo "| Kubernetes Dashboard | ✅ port 8001 |"
-            echo "| NeMo Microservices | ✅ |"
-            echo "| MLflow | ✅ port 5000 |"
-            echo "| Qdrant | ✅ port 6333 |"
+            echo "| NeMo Microservices | $(nemo_status) |"
+            echo "| MLflow | $(mlflow_status) |"
+            echo "| Qdrant | $(qdrant_status) |"
             echo "| KFP | ✅ port 8080 |"
             echo ""
             echo "Next: deploy NIM (DGX) or Ollama (AGX) via their own workflows."

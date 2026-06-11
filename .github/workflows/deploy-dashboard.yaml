@@ -8,6 +8,7 @@ on:
     workflows:
       - "Create Project"
       - "Delete Project"
+      - "K3s Bootstrap"
       - "Minikube Install"
       - "Minikube Uninstall"
       - "NeMo Deploy"
