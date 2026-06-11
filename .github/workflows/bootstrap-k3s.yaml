@@ -156,14 +156,143 @@ jobs:
       - name: Deploy NeMo Microservices
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          NEMO_VERSION: ${{ inputs.nemo_version }}
-          RUNNER: ${{ inputs.runner }}
-        run: bash dgx/minikube/nemo/install-nemo.sh
+        run: |
+          NEMO_VERSION="${{ inputs.nemo_version }}"
+          NEMO_VERSION="${NEMO_VERSION:-25.12.1}"
+          helm repo add nmp https://helm.ngc.nvidia.com/nvidia/nemo-microservices \
+            --username='$oauthtoken' --password="${NVIDIA_API_KEY}" --force-update
+          helm repo update
+
+          STATUS=$(helm status nemo -n nemo-microservices -o json 2>/dev/null | jq -r '.info.status // empty')
+          if [[ "$STATUS" == "pending-install" || "$STATUS" == "pending-upgrade" || "$STATUS" == "pending-rollback" ]]; then
+            helm rollback nemo -n nemo-microservices 2>/dev/null || \
+              kubectl delete secret -n nemo-microservices -l owner=helm,name=nemo --ignore-not-found
+          fi
+
+          NEMO_DATA="${HOME}/shared/nemo"
+          mkdir -p "${NEMO_DATA}"/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
+          chmod -R 777 "${NEMO_DATA}"
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-customizerdb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-customizerdb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/customizerdb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-entity-storedb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-entity-storedb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/entity-storedb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-evaluatordb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-evaluatordb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/evaluatordb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-jobsdb-pv
+          spec:
+            capacity: {storage: 8Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-jobsdb-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/jobsdb", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-postgresql-pv
+          spec:
+            capacity: {storage: 10Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: data-nemo-postgresql-0, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/postgresql", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-datastore-pv
+          spec:
+            capacity: {storage: 100Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: datastore-shared-storage, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/datastore", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-models-pv
+          spec:
+            capacity: {storage: 100Gi}
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: finetuning-ms-models-pvc, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/models", type: DirectoryOrCreate}
+          ---
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nemo-job-storage-pv
+          spec:
+            capacity: {storage: 200Gi}
+            accessModes: [ReadWriteMany]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef: {name: nemo-core-job-storage, namespace: nemo-microservices}
+            hostPath: {path: "${NEMO_DATA}/job-storage", type: DirectoryOrCreate}
+          EOF
+
+          helm upgrade --install nemo nmp/nemo-microservices-helm-chart \
+            --namespace nemo-microservices \
+            --create-namespace \
+            --version "${NEMO_VERSION}" \
+            -f dgx/minikube/nemo/install/values.yaml \
+            --timeout 30m
 
       - name: Update hosts file
-        env:
-          RUNNER: ${{ inputs.runner }}
-        run: bash dgx/minikube/nemo/update-hosts.sh
+        run: |
+          CLUSTER_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            HOSTS_FILE="agx/minikube/nemo/hosts.agx"
+          else
+            HOSTS_FILE="dgx/minikube/nemo/hosts.dgx"
+          fi
+          printf '%s nemo.test nim.test data-store.test\n' "${CLUSTER_IP}" > "${HOSTS_FILE}"
+          git config user.email "actions@github.com"
+          git config user.name "Miramar Platform"
+          if ! git diff --quiet; then
+            git add "${HOSTS_FILE}"
+            git commit -m "docs: update NeMo hosts file for ${{ inputs.runner }} [skip ci]"
+            git push origin HEAD:main
+          fi
 
       - name: Wait for NeMo pods
         run: |
