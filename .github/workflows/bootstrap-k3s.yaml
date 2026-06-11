@@ -50,6 +50,11 @@ on:
         type: boolean
         required: false
         default: true
+      deploy_nemo:
+        description: "Deploy NeMo Microservices on this machine (set false to use DGX NeMo instead)"
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   bootstrap:
@@ -196,9 +201,6 @@ jobs:
       - name: Prepare host data directories
         run: |
           ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
-            NEMO_DATA=/home/${HOST_USER}/shared/nemo
-            mkdir -p \${NEMO_DATA}/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
-            chmod -R 777 \${NEMO_DATA}
             mkdir -p /home/${HOST_USER}/shared/mlflow/minio
             chmod 777 /home/${HOST_USER}/shared/mlflow/minio
             mkdir -p /home/${HOST_USER}/shared/qdrant-data
@@ -210,7 +212,17 @@ jobs:
                      /home/${HOST_USER}/shared/nsight
           "
 
+      - name: Prepare NeMo data directories
+        if: ${{ inputs.deploy_nemo == true }}
+        run: |
+          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+            NEMO_DATA=/home/${HOST_USER}/shared/nemo
+            mkdir -p \${NEMO_DATA}/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
+            chmod -R 777 \${NEMO_DATA}
+          "
+
       - name: Create namespace and secrets
+        if: ${{ inputs.deploy_nemo == true }}
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -231,6 +243,7 @@ jobs:
             -n nemo-microservices --from-literal=HF_TOKEN="${HF_TOKEN}"
 
       - name: Label GPU node
+        if: ${{ inputs.deploy_nemo == true }}
         run: |
           NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
           kubectl label node "${NODE_NAME}" \
@@ -239,6 +252,7 @@ jobs:
             --overwrite
 
       - name: Deploy NeMo Microservices
+        if: ${{ inputs.deploy_nemo == true }}
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: |
@@ -361,6 +375,7 @@ jobs:
             --timeout 30m
 
       - name: Update hosts file
+        if: ${{ inputs.deploy_nemo == true }}
         env:
           MIRAMAR_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
@@ -382,12 +397,14 @@ jobs:
           fi
 
       - name: Wait for NeMo pods
+        if: ${{ inputs.deploy_nemo == true }}
         run: |
           echo "==> Waiting for NeMo pods to be ready (up to 20m)..."
           kubectl wait pod --all -n nemo-microservices \
             --for=condition=Ready --timeout=1200s
 
       - name: Set NeMo active state
+        if: ${{ inputs.deploy_nemo == true }}
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
