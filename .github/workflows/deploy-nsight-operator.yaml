@@ -73,6 +73,37 @@ jobs:
       - name: Verify cluster access
         run: kubectl get nodes
 
+      - name: Prepare Nsight data directory and PV
+        run: |
+          # Create host directory for OTLP data
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+            mkdir -p /home/${HOST_USER}/shared/nsight/otlp-data
+            chmod 777 /home/${HOST_USER}/shared/nsight/otlp-data || true
+          "
+          # k3s has no dynamic provisioner — create the static PV so the StatefulSet PVC can bind.
+          # Clear stale claimRef if PV is in Released state from a prior undeploy.
+          if kubectl get pv nsight-otlp-data-pv -o jsonpath='{.status.phase}' 2>/dev/null | grep -q "Released"; then
+            kubectl patch pv nsight-otlp-data-pv -p '{"spec":{"claimRef":null}}' --type=merge
+          fi
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nsight-otlp-data-pv
+          spec:
+            capacity:
+              storage: 10Gi
+            accessModes: [ReadWriteOnce]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            claimRef:
+              name: otlp-data-nsight-operator-overview-0
+              namespace: nsight-operator
+            hostPath:
+              path: /home/${HOST_USER}/shared/nsight/otlp-data
+              type: DirectoryOrCreate
+          EOF
+
       - name: Add NGC Helm repo
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
