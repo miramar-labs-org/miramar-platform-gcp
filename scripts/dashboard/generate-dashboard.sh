@@ -206,14 +206,14 @@ fi
 DGX_NEMO_BADGE=$([ "$DGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_KFP_BADGE=$([ "$DGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8080/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_OLLAMA_BADGE=$([ "$DGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
-DGX_K3S_BADGE=$([ "$DGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+DGX_K3S_BADGE=$([ "$DGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:443/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_MLFLOW_BADGE=$([ "$DGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5000" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_QDRANT_BADGE=$([ "$DGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6333/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 AGX_NEMO_BADGE=$([ "$AGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_KFP_BADGE=$([ "$AGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8081/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_OLLAMA_BADGE=$([ "$AGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_K3S_BADGE=$([ "$AGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_K3S_BADGE=$([ "$AGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:443/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_MLFLOW_BADGE=$([ "$AGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5001" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_QDRANT_BADGE=$([ "$AGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6335/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
@@ -341,7 +341,7 @@ cat > "$OUTPUT" <<HTMLEOF
       <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label">Minikube</div>
+      <div class="ps-label">k3s</div>
       ${DGX_K3S_BADGE}
     </div>
     <div class="ps-item">
@@ -386,7 +386,7 @@ cat > "$OUTPUT" <<HTMLEOF
       <code class="${AGX_OLLAMA_CLASS}">${AGX_OLLAMA_MODEL}</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label">Minikube</div>
+      <div class="ps-label">k3s</div>
       ${AGX_K3S_BADGE}
     </div>
     <div class="ps-item">
@@ -456,7 +456,7 @@ cat > "$OUTPUT" <<HTMLEOF
 ${ROWS}
 </tbody>
 </table>
-<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. Minikube: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335.</p>
+<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. k3s Dashboard: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335.</p>
 
 <div class="modal-overlay" id="new-proj-modal">
   <div class="modal">
