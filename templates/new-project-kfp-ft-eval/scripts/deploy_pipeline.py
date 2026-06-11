@@ -36,6 +36,10 @@ def main():
     _chunking = _cfg.get("chunking", {})
     chunk_index = args.chunk_index if args.chunk_index is not None else _chunking.get("chunk_index", 0)
 
+    # When chunking across multiple runs, qualify run_name with the chunk number (1-indexed).
+    if _chunking.get("enabled") and _chunking.get("total_chunks", 1) > 1:
+        run_name = f"{run_name}-{chunk_index + 1}"
+
     # ── Always rebuild pipeline.py from notebook ──────────────────────────
     from scripts.build_pipeline import build_pipeline
     build_pipeline()

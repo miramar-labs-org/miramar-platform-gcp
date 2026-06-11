@@ -212,17 +212,17 @@ chunking:
   shuffle_seed: 42       # fixed seed — reproducible splits; val/test unchanged across runs
 ```
 
-**Deploy each run manually:**
+**Deploy each chunk manually** (one logical run base name, chunk suffix appended automatically):
 
 ```bash
-# Run 1 — cold start, trains on data slice 0
-python3 scripts/deploy_pipeline.py --run-name run-001 --chunk-index 0
+# Chunk 1 — cold start, trains on data slice 0; KFP/MLflow run name: run-003-1
+python3 scripts/deploy_pipeline.py --run-name run-003 --chunk-index 0
 
-# Run 2 — warm-starts from run-001 adapter, trains on data slice 1
-python3 scripts/deploy_pipeline.py --run-name run-002 --chunk-index 1
+# Chunk 2 — warm-starts from chunk-1 adapter; KFP/MLflow run name: run-003-2
+python3 scripts/deploy_pipeline.py --run-name run-003 --chunk-index 1
 
-# Run N — warm-starts from chunk N-1 adapter, trains on data slice N-1
-python3 scripts/deploy_pipeline.py --run-name run-NNN --chunk-index N-1
+# Chunk N — KFP/MLflow run name: run-003-N
+python3 scripts/deploy_pipeline.py --run-name run-003 --chunk-index N-1
 ```
 
 **How it works:**
