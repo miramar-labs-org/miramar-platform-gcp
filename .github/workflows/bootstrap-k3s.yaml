@@ -293,6 +293,8 @@ jobs:
             --timeout 30m
 
       - name: Update hosts file
+        env:
+          MIRAMAR_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           CLUSTER_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
           if [[ "${{ inputs.runner }}" == "agx" ]]; then
@@ -306,6 +308,8 @@ jobs:
           if ! git diff --quiet; then
             git add "${HOSTS_FILE}"
             git commit -m "docs: update NeMo hosts file for ${{ inputs.runner }} [skip ci]"
+            git config --local --unset-all http.https://github.com/.extraheader || true
+            git remote set-url origin "https://x-access-token:${MIRAMAR_ORG_ADMIN_PAT}@github.com/miramar-labs-org/miramar-platform-gcp.git"
             git push origin HEAD:main
           fi
 
