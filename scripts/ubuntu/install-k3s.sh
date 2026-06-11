@@ -32,13 +32,21 @@ else
   log "helm installed: $(helm version --short)"
 fi
 
-# ---- Configure NVIDIA container runtime for containerd ----
-# nvidia-ctk v1.19+ writes to /etc/containerd/conf.d/99-nvidia.toml (ignores --config flag).
-# k3s reads this at startup and merges it into its generated config.toml automatically.
-log "Configuring NVIDIA container runtime..."
-sudo nvidia-ctk runtime configure --runtime=containerd
+# ---- Set nvidia as the default containerd runtime ----
+# k3s auto-detects /usr/bin/nvidia-container-runtime at startup and adds it as
+# a named runtimeclass in the generated config.toml. We just need to make it
+# the default so GPU-requesting pods get driver injection without runtimeClassName.
+# Must be v3 format; config-v3.toml.d/ is the only import path k3s reads.
+log "Setting nvidia as default containerd runtime..."
+sudo mkdir -p /var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/
+cat <<'EOF' | sudo tee /var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/nvidia-default-runtime.toml >/dev/null
+version = 3
+
+[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "nvidia"
+EOF
 sudo systemctl restart k3s
-log "NVIDIA runtime configured; k3s restarted."
+log "nvidia set as default runtime; k3s restarted."
 
 # ---- Kubeconfig ----
 log "Setting up kubeconfig..."
