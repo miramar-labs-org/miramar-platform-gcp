@@ -135,7 +135,7 @@ jobs:
           NEMO_DATA="/home/${HOST_USER}/shared/nemo"
           ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             mkdir -p ${NEMO_DATA}/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
-            chmod -R 777 ${NEMO_DATA}
+            chmod -R 777 ${NEMO_DATA} || true
           "
 
       - name: Create NeMo hostPath PVs
