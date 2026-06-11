@@ -36,7 +36,7 @@ on:
         required: false
         default: ""
       skip_minikube_uninstall:
-        description: "Skip minikube uninstall (if minikube was never installed)"
+        description: "Force-skip minikube uninstall (auto-detected by default — only use to override)"
         type: boolean
         required: false
         default: false
@@ -70,9 +70,67 @@ jobs:
           chmod 600 /tmp/bootstrap_key
           ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      # ── Preflight + host state probe ─────────────────────────────────────────
+      - name: Preflight check
+        run: |
+          # Copy preflight script to host and run it (non-interactive — reports only, no fixes)
+          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            scripts/ubuntu/preflight-host.sh \
+            "${HOST_USER}@${HOST_IP}:/tmp/preflight-host.sh"
+          # Run with secrets sourced; non-interactive so auto-fix prompt is suppressed
+          # We continue even on failure — bootstrap steps are idempotent and preflight
+          # failures are reported in the step summary for visibility
+          PREFLIGHT=$(ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            "source ~/.config/zsh/secrets.zsh 2>/dev/null || true; bash /tmp/preflight-host.sh" 2>&1) || true
+          echo "$PREFLIGHT"
+          {
+            echo "## Preflight — ${{ inputs.runner }}"
+            echo '```'
+            echo "$PREFLIGHT" | sed 's/\x1b\[[0-9;]*m//g'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Probe host state
+        run: |
+          PROBE=$(ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" bash <<'PROBE'
+          echo "minikube=$(command -v minikube &>/dev/null && minikube version 2>/dev/null | head -1 || echo 'not installed')"
+          echo "k3s=$(command -v k3s &>/dev/null && k3s --version 2>/dev/null | head -1 || echo 'not installed')"
+          echo "k3s_active=$(systemctl is-active k3s 2>/dev/null || echo inactive)"
+          echo "helm_releases=$(KUBECONFIG=~/.kube/config helm list -A --short 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo 'none')"
+          echo "error_pods=$(KUBECONFIG=~/.kube/config kubectl get pods -A --no-headers 2>/dev/null | awk '$4~/Error|CrashLoop|OOMKilled/{print $2}' | tr '\n' ',' | sed 's/,$//' || echo 'none')"
+          PROBE
+          )
+
+          echo "$PROBE"
+
+          # Parse and export
+          MINIKUBE_VER=$(echo "$PROBE" | grep '^minikube=' | cut -d= -f2-)
+          if [[ "$MINIKUBE_VER" == "not installed" ]]; then
+            echo "MINIKUBE_INSTALLED=false" >> "$GITHUB_ENV"
+          else
+            echo "MINIKUBE_INSTALLED=true"  >> "$GITHUB_ENV"
+          fi
+
+          K3S_VER=$(echo "$PROBE"        | grep '^k3s='          | cut -d= -f2-)
+          K3S_ACTIVE=$(echo "$PROBE"     | grep '^k3s_active='   | cut -d= -f2-)
+          HELM_RELEASES=$(echo "$PROBE"  | grep '^helm_releases=' | cut -d= -f2-)
+          ERROR_PODS=$(echo "$PROBE"     | grep '^error_pods='    | cut -d= -f2-)
+
+          {
+            echo "## Host State — ${{ inputs.runner }}"
+            echo "| Check | Value |"
+            echo "|---|---|"
+            echo "| minikube | $MINIKUBE_VER |"
+            echo "| k3s | $K3S_VER ($K3S_ACTIVE) |"
+            echo "| helm releases | ${HELM_RELEASES:-none} |"
+            echo "| pods in error | ${ERROR_PODS:-none} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # ── Step 1: Uninstall minikube ────────────────────────────────────────────
       - name: Uninstall minikube
-        if: ${{ inputs.skip_minikube_uninstall == false }}
+        if: ${{ inputs.skip_minikube_uninstall == false && env.MINIKUBE_INSTALLED == 'true' }}
         run: |
           ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" '
