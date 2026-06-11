@@ -179,9 +179,7 @@ else
         "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
 fi
 
-if docker run --rm --gpus all --entrypoint nvidia-smi \
-    nvcr.io/nvidia/cuda:12.6.3-base-ubuntu22.04 \
-    --query-gpu=name --format=csv,noheader &>/dev/null 2>&1; then
+if docker run --rm --gpus all ubuntu:22.04 nvidia-smi &>/dev/null 2>&1; then
     _pass "GPU accessible from containers (--gpus all)"
 else
     _fail "GPU not accessible from Docker containers" \
