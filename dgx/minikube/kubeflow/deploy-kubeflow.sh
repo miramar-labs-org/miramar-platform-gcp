@@ -67,6 +67,12 @@ echo "==> Creating KFP hostPath PVs (k3s has no dynamic provisioner) ..."
 KFP_DATA_DIR="${KFP_DATA_DIR:-${HOME}/shared/kfp}"
 mkdir -p "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs" 2>/dev/null || true
 chmod 777 "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs" 2>/dev/null || true
+# Clear stale claimRef on Released PVs (left by a prior undeploy with Retain policy)
+for _pv in kfp-mysql-pv kfp-seaweedfs-pv; do
+  if kubectl get pv "${_pv}" -o jsonpath='{.status.phase}' 2>/dev/null | grep -q "Released"; then
+    kubectl patch pv "${_pv}" -p '{"spec":{"claimRef":null}}' --type=merge
+  fi
+done
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: PersistentVolume

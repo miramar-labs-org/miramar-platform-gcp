@@ -26,6 +26,10 @@ kubectl get ns "${QDRANT_NS}" >/dev/null 2>&1 || kubectl create ns "${QDRANT_NS}
 mkdir -p "${QDRANT_DATA_DIR}" 2>/dev/null || true
 
 # ---- Deploy ----
+# Clear stale claimRef on a Released PV (left by a prior undeploy with Retain policy)
+if kubectl get pv "${QDRANT_PV_NAME}" -o jsonpath='{.status.phase}' 2>/dev/null | grep -q "Released"; then
+  kubectl patch pv "${QDRANT_PV_NAME}" -p '{"spec":{"claimRef":null}}' --type=merge
+fi
 log "Applying Qdrant manifests (image: ${QDRANT_IMAGE})"
 kubectl apply -f - <<YAML
 apiVersion: v1

@@ -54,7 +54,7 @@ jobs:
         run: |
           ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             mkdir -p /home/${HOST_USER}/shared/qdrant-data
-            chmod 777 /home/${HOST_USER}/shared/qdrant-data
+            chmod 777 /home/${HOST_USER}/shared/qdrant-data || true
           "
 
       - name: Deploy Qdrant
