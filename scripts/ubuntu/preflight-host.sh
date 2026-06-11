@@ -22,11 +22,42 @@ BOLD='\033[1m'; NC='\033[0m'
 
 PASS=0; FAIL=0; WARN=0
 
-_pass() { printf "  ${GREEN}✓${NC} %s\n" "$1";                                               PASS=$((PASS + 1)); }
-_fail() { printf "  ${RED}✗${NC} %s  ${RED}← %s${NC}\n" "$1" "${2:-fix required}";          FAIL=$((FAIL + 1)); }
-_warn() { printf "  ${YELLOW}⚠${NC} %s  ${YELLOW}← %s${NC}\n" "$1" "${2:-advisory}";        WARN=$((WARN + 1)); }
+_pass() { printf "  ${GREEN}✓${NC} %s\n" "$1";                                             PASS=$((PASS + 1)); }
+_fail() { printf "  ${RED}✗${NC} %s  ${RED}← %s${NC}\n" "$1" "${2:-fix required}";        FAIL=$((FAIL + 1)); }
+_warn() { printf "  ${YELLOW}⚠${NC} %s  ${YELLOW}← %s${NC}\n" "$1" "${2:-advisory}";      WARN=$((WARN + 1)); }
 _info() { printf "  ${CYAN}→${NC} %s\n" "$1"; }
 section() { printf "\n${BOLD}%s${NC}\n" "$1"; }
+
+# ── Fix registry ──────────────────────────────────────────────────────────────
+# Parallel arrays, deduplicated by ID so multiple checks can share one fix.
+FIX_IDS=(); FIX_DESCS=(); FIX_CMDS=()
+
+_add_fix() {
+    local id="$1" desc="$2" cmd="$3"
+    local existing
+    for existing in "${FIX_IDS[@]:-}"; do [[ "$existing" == "$id" ]] && return; done
+    FIX_IDS+=("$id"); FIX_DESCS+=("$desc"); FIX_CMDS+=("$cmd")
+}
+
+# ── Fix functions for multi-step operations ───────────────────────────────────
+
+fix_inotify() {
+    printf "  Writing /etc/sysctl.d/99-k3s.conf\n"
+    printf 'fs.inotify.max_user_instances=1024\nfs.inotify.max_user_watches=1048576\n' \
+        | sudo tee /etc/sysctl.d/99-k3s.conf > /dev/null
+    # Patch any files that sort after 99-k3s.conf and would override it
+    for f in /etc/sysctl.conf /etc/sysctl.d/99-sysctl.conf; do
+        [[ -f "$f" ]] && sudo sed -i \
+            's/^fs\.inotify\.max_user_watches=.*/fs.inotify.max_user_watches=1048576/' "$f"
+    done
+    printf "  Applying sysctl settings\n"
+    sudo sysctl fs.inotify.max_user_instances=1024 fs.inotify.max_user_watches=1048576 > /dev/null
+}
+
+fix_gpu_runtime() {
+    sudo nvidia-ctk runtime configure --runtime=docker
+    sudo systemctl restart docker
+}
 
 # ── 1. OS & Hardware ──────────────────────────────────────────────────────────
 section "1. OS & Hardware"
@@ -36,7 +67,6 @@ _info "Architecture: $ARCH"
 
 MODEL=$([[ -f /proc/device-tree/model ]] && tr -d '\0' < /proc/device-tree/model 2>/dev/null || true)
 [[ -n "$MODEL" ]] && _info "Device: $MODEL"
-
 [[ -f /etc/nv_tegra_release ]] && _info "JetPack: $(head -1 /etc/nv_tegra_release)"
 
 OS=$(lsb_release -d 2>/dev/null | cut -f2-)
@@ -60,9 +90,11 @@ FREE_GB=$(df -BG "$HOME" | awk 'NR==2 { gsub(/G/,"",$4); print $4 }')
 if [[ $FREE_GB -ge 500 ]]; then
     _pass "Free disk in ~: ${FREE_GB} GB (≥500 GB)"
 elif [[ $FREE_GB -ge 100 ]]; then
-    _warn "Free disk in ~: ${FREE_GB} GB — installable, but full model workloads need ~500 GB" "consider freeing space before running pipelines"
+    _warn "Free disk in ~: ${FREE_GB} GB — installable, but full model workloads need ~500 GB" \
+        "consider freeing space before running pipelines"
 else
-    _fail "Free disk in ~: ${FREE_GB} GB" "need ≥100 GB to install — NeMo + model cache alone exceeds 500 GB"
+    _fail "Free disk in ~: ${FREE_GB} GB" \
+        "need ≥100 GB to install — NeMo + model cache alone exceeds 500 GB"
 fi
 
 INODE_PCT=$(df -i "$HOME" | awk 'NR==2 { gsub(/%/,"",$5); print $5 }')
@@ -85,12 +117,14 @@ if systemctl is-active --quiet ssh 2>/dev/null || systemctl is-active --quiet ss
     _pass "SSH daemon: active"
 else
     _fail "SSH daemon not running" "sudo systemctl enable --now ssh"
+    _add_fix "ssh-daemon" "Enable and start SSH daemon" "sudo systemctl enable --now ssh"
 fi
 
 if systemctl is-active --quiet avahi-daemon 2>/dev/null; then
     _pass "Avahi (mDNS): active"
 else
     _warn "Avahi (mDNS) not running" "sudo systemctl enable --now avahi-daemon"
+    _add_fix "avahi" "Enable and start Avahi (mDNS)" "sudo systemctl enable --now avahi-daemon"
 fi
 
 if curl -fsSL --max-time 5 https://example.com -o /dev/null 2>/dev/null; then
@@ -102,19 +136,31 @@ fi
 # ── 4. System Software ────────────────────────────────────────────────────────
 section "4. System Software"
 
+MISSING_PKGS=()
 for cmd in curl git jq python3; do
-    command -v "$cmd" &>/dev/null \
-        && _pass "$cmd: $(command -v "$cmd")" \
-        || _fail "$cmd not installed" "sudo apt-get install -y $cmd"
+    if command -v "$cmd" &>/dev/null; then
+        _pass "$cmd: $(command -v "$cmd")"
+    else
+        _fail "$cmd not installed" "sudo apt-get install -y $cmd"
+        MISSING_PKGS+=("$cmd")
+    fi
 done
+if [[ ${#MISSING_PKGS[@]} -gt 0 ]]; then
+    _add_fix "apt-pkgs" "Install missing packages: ${MISSING_PKGS[*]}" \
+        "sudo apt-get update -qq && sudo apt-get install -y ${MISSING_PKGS[*]}"
+fi
 
 command -v docker &>/dev/null \
     && _pass "docker: $(command -v docker)" \
     || _fail "docker not installed" "https://docs.docker.com/engine/install/ubuntu/"
 
-docker ps &>/dev/null 2>&1 \
-    && _pass "Docker daemon: accessible without sudo" \
-    || _fail "Docker daemon not accessible" "sudo usermod -aG docker \$USER && newgrp docker  OR  sudo systemctl start docker"
+if docker ps &>/dev/null 2>&1; then
+    _pass "Docker daemon: accessible without sudo"
+else
+    _fail "Docker daemon not accessible" \
+        "sudo systemctl start docker  OR  sudo usermod -aG docker \$USER (then re-login)"
+    _add_fix "docker-daemon" "Start Docker daemon" "sudo systemctl start docker"
+fi
 
 # ── 5. NVIDIA / GPU ───────────────────────────────────────────────────────────
 section "5. NVIDIA / GPU"
@@ -129,7 +175,8 @@ fi
 if command -v nvidia-ctk &>/dev/null; then
     _pass "nvidia-ctk: $(nvidia-ctk --version 2>&1 | head -1)"
 else
-    _fail "NVIDIA Container Toolkit not installed" "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+    _fail "NVIDIA Container Toolkit not installed" \
+        "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
 fi
 
 if docker run --rm --gpus all --entrypoint nvidia-smi \
@@ -137,7 +184,10 @@ if docker run --rm --gpus all --entrypoint nvidia-smi \
     --query-gpu=name --format=csv,noheader &>/dev/null 2>&1; then
     _pass "GPU accessible from containers (--gpus all)"
 else
-    _fail "GPU not accessible from Docker containers" "nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"
+    _fail "GPU not accessible from Docker containers" \
+        "nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"
+    command -v nvidia-ctk &>/dev/null && \
+        _add_fix "gpu-runtime" "Configure NVIDIA container runtime for Docker" "fix_gpu_runtime"
 fi
 
 # ── 6. Kernel Limits ─────────────────────────────────────────────────────────
@@ -150,14 +200,16 @@ if [[ $INOTIFY_INST -ge 1024 ]]; then
     _pass "inotify max_user_instances: $INOTIFY_INST"
 else
     _fail "inotify max_user_instances: $INOTIFY_INST (need ≥1024)" \
-        "echo 'fs.inotify.max_user_instances=1024' | sudo tee -a /etc/sysctl.d/99-k3s.conf && sudo sysctl --system"
+        "see inotify fix"
+    _add_fix "inotify" "Set inotify kernel limits (instances=1024, watches=1048576)" "fix_inotify"
 fi
 
 if [[ $INOTIFY_WATCH -ge 1048576 ]]; then
     _pass "inotify max_user_watches: $INOTIFY_WATCH"
 else
     _fail "inotify max_user_watches: $INOTIFY_WATCH (need ≥1048576)" \
-        "echo 'fs.inotify.max_user_watches=1048576' | sudo tee -a /etc/sysctl.d/99-k3s.conf && sudo sysctl --system"
+        "see inotify fix"
+    _add_fix "inotify" "Set inotify kernel limits (instances=1024, watches=1048576)" "fix_inotify"
 fi
 
 # ── 7. k3s State ─────────────────────────────────────────────────────────────
@@ -170,7 +222,8 @@ command -v systemctl &>/dev/null && systemctl --version &>/dev/null \
 if sudo -n true &>/dev/null 2>&1; then
     _pass "sudo: passwordless access"
 elif sudo -v &>/dev/null 2>&1; then
-    _warn "sudo: requires password" "bootstrap workflow SSHes in and runs sudo — passwordless sudo is required"
+    _warn "sudo: requires password" \
+        "bootstrap workflow SSHes in and runs sudo — passwordless sudo is required"
 else
     _fail "sudo: not available" "add $USER to sudoers"
 fi
@@ -183,6 +236,7 @@ if command -v k3s &>/dev/null; then
     else
         _warn "k3s binary found but service not active ($K3S_VER)" \
             "sudo systemctl start k3s  OR  run bootstrap workflow for fresh install"
+        _add_fix "k3s-start" "Start k3s service" "sudo systemctl start k3s"
     fi
 else
     _pass "k3s: not installed (clean state — ready for fresh install)"
@@ -248,9 +302,35 @@ else
         "add the HOST_SSH_KEY public key so workflows can SSH in"
 fi
 
-[[ "$(stat -c %a "$HOME/.ssh" 2>/dev/null)" == "700" ]] \
-    && _pass "~/.ssh permissions: 700" \
-    || _warn "~/.ssh permissions are not 700" "chmod 700 ~/.ssh"
+if [[ "$(stat -c %a "$HOME/.ssh" 2>/dev/null)" == "700" ]]; then
+    _pass "~/.ssh permissions: 700"
+else
+    _warn "~/.ssh permissions are not 700" "chmod 700 ~/.ssh"
+    _add_fix "ssh-perms" "Fix ~/.ssh directory permissions" "chmod 700 $HOME/.ssh"
+fi
+
+# ── Auto-fix prompt ───────────────────────────────────────────────────────────
+if [[ ${#FIX_IDS[@]} -gt 0 ]] && [[ -t 0 ]]; then
+    printf "\n${BOLD}%d auto-fixable issue(s):${NC}\n" "${#FIX_IDS[@]}"
+    for i in "${!FIX_DESCS[@]}"; do
+        printf "  [%d] %s\n" "$((i+1))" "${FIX_DESCS[$i]}"
+    done
+    printf "\nApply all fixes? [y/N] "
+    read -r -n 1 REPLY; printf "\n"
+    if [[ "${REPLY:-}" =~ ^[Yy]$ ]]; then
+        FIXED=0
+        for i in "${!FIX_IDS[@]}"; do
+            printf "\n${CYAN}Fixing: %s${NC}\n" "${FIX_DESCS[$i]}"
+            if eval "${FIX_CMDS[$i]}"; then
+                printf "${GREEN}✓ Done${NC}\n"
+                FIXED=$((FIXED + 1))
+            else
+                printf "${RED}✗ Failed — apply manually${NC}\n"
+            fi
+        done
+        printf "\n${CYAN}Applied %d fix(es). Re-run this script to confirm.${NC}\n" "$FIXED"
+    fi
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 printf "\n${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
