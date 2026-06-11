@@ -40,6 +40,16 @@ on:
         type: boolean
         required: false
         default: false
+      deploy_mlflow:
+        description: "Deploy MLflow + MinIO on this machine (set false to use DGX MLflow instead)"
+        type: boolean
+        required: false
+        default: true
+      deploy_qdrant:
+        description: "Deploy Qdrant on this machine (set false to use DGX Qdrant instead)"
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   bootstrap:
@@ -389,11 +399,13 @@ jobs:
 
       # ── Step 4: Deploy MLflow ─────────────────────────────────────────────────
       - name: Deploy MLflow
+        if: ${{ inputs.deploy_mlflow == true }}
         run: |
           MINIO_DATA_DIR="/home/${HOST_USER}/shared/mlflow/minio" \
           bash dgx/minikube/mlflow/integrate-mlflow.sh
 
       - name: Set MLflow active state
+        if: ${{ inputs.deploy_mlflow == true }}
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
@@ -405,11 +417,13 @@ jobs:
 
       # ── Step 5: Deploy Qdrant ─────────────────────────────────────────────────
       - name: Deploy Qdrant
+        if: ${{ inputs.deploy_qdrant == true }}
         run: |
           QDRANT_DATA_DIR="/home/${HOST_USER}/shared/qdrant-data" \
           bash dgx/minikube/qdrant/integrate-qdrant.sh
 
       - name: Set Qdrant active state
+        if: ${{ inputs.deploy_qdrant == true }}
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
