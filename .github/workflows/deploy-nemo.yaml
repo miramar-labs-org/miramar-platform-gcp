@@ -299,6 +299,7 @@ jobs:
                       templates/new-project-nemo/notebook.ipynb
             fi
             git commit -m "docs: update NeMo doc links to ${NEMO_VERSION} [skip ci]"
+            git config --local --unset-all http.https://github.com/.extraheader || true
             git remote set-url origin "https://x-access-token:${MIRAMAR_ORG_ADMIN_PAT}@github.com/miramar-labs-org/miramar-platform-gcp.git"
             git push origin HEAD:main
             echo "Changes committed and pushed to main."
