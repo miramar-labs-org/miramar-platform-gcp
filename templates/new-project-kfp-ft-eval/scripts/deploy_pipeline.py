@@ -75,7 +75,8 @@ def main():
         _hf_hub = _pl.Path(_hf_base)
         print(f"Downloading model: {_model_id}")
         from huggingface_hub import snapshot_download as _snapshot_download
-        _snapshot_download(repo_id=_model_id, cache_dir=str(_hf_hub))
+        _snapshot_download(repo_id=_model_id, cache_dir=str(_hf_hub),
+                           token=os.environ.get("HF_TOKEN"))
         _model_key = _model_id.replace("/", "--")
         _refs = _hf_hub / f"models--{_model_key}" / "refs" / "main"
         if _refs.exists():
