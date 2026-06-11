@@ -27,7 +27,7 @@ Add a static lease in your router for the MAC address. Update `/etc/hosts` on al
 
 ### inotify limits
 
-The default `fs.inotify.max_user_instances=128` is too low for minikube. Apply on the new machine:
+The default `fs.inotify.max_user_instances=128` is too low for k3s. Apply on the new machine:
 
 ```sh
 sudo tee /etc/sysctl.d/99-sysctl.conf <<'EOF'
@@ -71,7 +71,7 @@ The runner registers itself with GitHub Actions under `[self-hosted, dgx2]`. Ver
 
 ## 3. Install systemd services
 
-The seven platform services (minikube, dashboard, jupyterlab, port-forwards) are managed by systemd user units. The `dgx/systemd/` directory is canonical for arm64 machines:
+The eight platform services (dashboard, jupyterlab, port-forwards) are managed by systemd user units. The `dgx/systemd/` directory is canonical for arm64 machines:
 
 ```sh
 # On the new machine
@@ -99,7 +99,7 @@ Create these GitHub org-level variables (Settings → Actions → Variables, or 
 Seed the active-state variables to `false`:
 
 ```sh
-for svc in MINIKUBE NEMO MLFLOW KFP OLLAMA; do
+for svc in K3S NEMO MLFLOW KFP OLLAMA; do
   gh api --method PATCH \
     orgs/miramar-labs-org/actions/variables/DGX2_${svc}_ACTIVE \
     --field value=false \
@@ -131,7 +131,7 @@ done
 
 Every workflow with a `runner: choice [dgx, agx]` input needs the new label added. Affected workflows:
 
-- `install-minikube.yaml`, `uninstall-minikube.yaml`, `toggle-minikube.yaml`
+- `install-k3s.yaml`, `uninstall-k3s.yaml`
 - `deploy-nemo.yaml`, `undeploy-nemo.yaml`
 - `deploy-mlflow.yaml`, `undeploy-mlflow.yaml`
 - `deploy-kubeflow.yaml`, `undeploy-kubeflow.yaml`
@@ -191,7 +191,7 @@ Add a Bitvise profile (or SSH alias) for the new machine using these local ports
 
 - [ ] Runner appears in GitHub org → Settings → Actions → Runners as `[self-hosted, dgx2]`
 - [ ] `ssh <NEW_HOST_USER>@<NEW_HOST_IP> echo ok` works from runner container
-- [ ] All seven systemd services are active (`systemctl --user status minikube jupyterlab ...`)
-- [ ] Run **Minikube Install** workflow with `runner: dgx2` — passes
+- [ ] All eight systemd services are active (`systemctl --user status dashboard jupyterlab mlflow-portfwd ...`)
+- [ ] Run **K3s Install** workflow with `runner: dgx2` — passes
 - [ ] Dashboard shows DGX2 status section with correct active/inactive badges after next deploy
-- [ ] Org variable `DGX2_MINIKUBE_ACTIVE` flips to `true` after Minikube Install
+- [ ] Org variable `DGX2_K3S_ACTIVE` flips to `true` after K3s Install

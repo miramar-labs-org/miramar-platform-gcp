@@ -16,7 +16,7 @@ flowchart LR
         WSL2["WSL2 laptop runner\namd64"]
         DGX["DGX Spark runner\narm64 + GPU"]
         AGX["Jetson AGX Orin runner\narm64 + GPU"]
-        MK["DGX minikube"]
+        MK["DGX k3s"]
         LocalAI["NeMo / NIM / MLflow / Ollama"]
     end
 
@@ -83,7 +83,7 @@ flowchart TD
     GHCR --> AGX["Jetson AGX Orin pulls arm64"]
 
     WSL2 --> Jobs1["General orchestration jobs"]
-    DGX --> Jobs2["DGX / minikube / GPU jobs"]
+    DGX --> Jobs2["DGX / k3s / GPU jobs"]
     AGX --> Jobs3["Edge / arm64 validation jobs"]
 ```
 
@@ -93,8 +93,8 @@ flowchart TD
 flowchart TD
     Start["Operator starts workflow"] --> Runner["DGX self-hosted runner"]
     Runner --> Check["Check host prerequisites"]
-    Check --> Minikube["Start / verify minikube"]
-    Minikube --> Storage["Prepare local storage and namespaces"]
+    Check --> K3s["Start / verify k3s"]
+    K3s --> Storage["Prepare local storage and namespaces"]
     Storage --> Nemo["Deploy NeMo Microservices"]
     Nemo --> MLflow["Deploy MLflow + MinIO"]
     MLflow --> NIM["Deploy NIM workloads"]

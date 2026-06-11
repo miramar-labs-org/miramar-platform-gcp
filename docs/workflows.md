@@ -36,14 +36,13 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Minikube Install | `install-minikube.yaml` | Install/start minikube and update kubeconfig secret; writes `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` |
-| Minikube Uninstall | `uninstall-minikube.yaml` | Delete cluster and purge minikube state; clears `{MACHINE}_MINIKUBE_ACTIVE` org var. Inputs: `runner` |
-| Minikube Toggle | `toggle-minikube.yaml` | Pause/resume minikube. Inputs: `action`, `runner` |
+| K3s Install | `install-k3s.yaml` | Install k3s with NVIDIA device plugin + nginx-ingress; update kubeconfig secret; writes `{MACHINE}_K3S_ACTIVE` org var. Inputs: `runner` |
+| K3s Uninstall | `uninstall-k3s.yaml` | Run k3s-uninstall.sh and remove kubeconfig; clears `{MACHINE}_K3S_ACTIVE` org var. Inputs: `runner` |
 | NeMo Deploy | `deploy-nemo.yaml` | Install NeMo Microservices and Volcano; `nemo_version` input; auto-commits doc/SDK updates; writes `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner`, `nemo_version` |
 | NeMo Undeploy | `undeploy-nemo.yaml` | Remove NeMo, Volcano, DNS entries, and postgres PVCs; clears `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner` |
-| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into minikube; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
+| MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into k3s `mlflow-system` namespace; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
-| Qdrant Deploy | `deploy-qdrant.yaml` | Deploy Qdrant vector database into minikube `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
+| Qdrant Deploy | `deploy-qdrant.yaml` | Deploy Qdrant vector database into k3s `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
 | Qdrant Undeploy | `undeploy-qdrant.yaml` | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
 | NIM Deploy | `deploy-nim.yaml` | Deploy a NIM via NeMo API; swaps conflicting NIM; rollback on failure; writes `CURRENT_NIM_MODEL[_AGX]` + `CURRENT_NIM_VRAM_GB[_AGX]`. Inputs: `runner` |
 | NIM Undeploy | `undeploy-nim.yaml` | Remove a NIM deployment; clears `CURRENT_NIM_MODEL[_AGX]` + `CURRENT_NIM_VRAM_GB[_AGX]`. Inputs: `runner` |
@@ -52,14 +51,14 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 | Ollama Update | `update-ollama.yaml` | Install or upgrade Ollama on target host; writes `OLLAMA_VERSION`. Inputs: `runner` |
 
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images on DGX; optional `component` input to rebuild one. Images are reusable on AGX (both `linux/arm64`). |
-| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; creates `hf-model-cache` (200 Gi) and `nsight-reports` (50 Gi) PVs + PVCs in the `kubeflow` namespace and starts the backing minikube 9p mounts; writes `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
+| Kubeflow Deploy | `deploy-kubeflow.yaml` | Deploy KFP standalone with native arm64 images; creates `hf-model-cache` (200 Gi) and `nsight-reports` (50 Gi) PVs + PVCs in the `kubeflow` namespace backed by k3s hostPath PVs; writes `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
 | Kubeflow Undeploy | `undeploy-kubeflow.yaml` | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
 
 Stack deployment order:
 
 ```text
-DGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
-AGX: Minikube Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> Ollama Deploy
+DGX: K3s Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
+AGX: K3s Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> Ollama Deploy
 ```
 
 NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` images exist.
@@ -81,8 +80,8 @@ NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` i
 
 | Variable | Set to `true` by | Set to `false` by |
 | --- | --- | --- |
-| `DGX_MINIKUBE_ACTIVE` | Minikube Install (dgx) | Minikube Uninstall (dgx) |
-| `AGX_MINIKUBE_ACTIVE` | Minikube Install (agx) | Minikube Uninstall (agx) |
+| `DGX_K3S_ACTIVE` | K3s Install (dgx) | K3s Uninstall (dgx) |
+| `AGX_K3S_ACTIVE` | K3s Install (agx) | K3s Uninstall (agx) |
 | `DGX_NEMO_ACTIVE` | NeMo Deploy (dgx) | NeMo Undeploy (dgx) |
 | `AGX_NEMO_ACTIVE` | NeMo Deploy (agx) | NeMo Undeploy (agx) |
 | `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx) | MLflow Undeploy (dgx) |
@@ -115,7 +114,7 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/),
 | --- | --- | --- |
 | Create Project | `create-project.yaml` | Create a new org repo pre-wired for the platform. `host` input (dgx/agx) sets which machine clones the repo and writes `PROJECT_HOST`. Tags repo `miramar-project` + `miramar-<type>` for the dashboard. Opens a draft blog post PR. See project types and Python environment below. |
 | Delete Project | `delete-project.yaml` | Permanently delete a platform repo. Verifies repo exists first (fails fast with a clear error). Double-entry confirmation guard. Cleans up blog draft PR/branch, local clone on host, and JupyterLab kernel. Triggers dashboard refresh on completion. Requires `delete_repo` scope on `GITHUB_ORG_ADMIN_PAT`. |
-| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/Minikube/MLflow/Qdrant), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Header includes a + New Project button that opens a form modal and dispatches `create-project.yaml`. Project table includes Host column, JupyterLab links, and a 🗑 delete button per row that fires `delete-project.yaml` via GitHub API using `DASHBOARD_DISPATCH_TOKEN` (fine-grained PAT baked into HTML at generation time — no browser input required). Runs hourly + on completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
+| Deploy Platform Dashboard | `deploy-dashboard.yaml` | Build and publish the GitHub Pages project dashboard. Three status bars: DGX Spark, AGX Orin (NeMo/KFP/Ollama/NIM model+VRAM/k3s/MLflow/Qdrant), and GCP (GKE cluster link, Zone, Node type, CPU pool node count, GPU pool badge, State bucket, GAR link). Header includes a + New Project button that opens a form modal and dispatches `create-project.yaml`. Project table includes Host column, JupyterLab links, and a 🗑 delete button per row that fires `delete-project.yaml` via GitHub API using `DASHBOARD_DISPATCH_TOKEN` (fine-grained PAT baked into HTML at generation time — no browser input required). Runs hourly + on completion of any state-writing workflow. URL: https://miramar-labs-org.github.io/miramar-platform-gcp/ |
 | List Blog Posts | `list-blog-posts.yaml` | List all live posts and open draft PRs in `miramar-labs-org/miramar-labs-org.github.io`. Run before Delete Blog Post to get the exact filename. |
 | Delete Blog Post | `delete-blog-post.yaml` | Delete a post from `miramar-labs-org/miramar-labs-org.github.io` by filename; closes any open draft PR and removes the draft branch. GitHub Pages rebuilds in ~60s. |
 

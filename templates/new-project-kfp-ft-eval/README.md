@@ -31,7 +31,7 @@ prepare_dataset
         --> safety_eval        -->
 ```
 
-> `fine_tune` runs after both baseline evals (not parallel) — on single-node minikube, GPU steps
+> `fine_tune` runs after both baseline evals (not parallel) — on single-node k3s, GPU steps
 > cannot overlap without exceeding the allocatable memory limit.
 
 ---

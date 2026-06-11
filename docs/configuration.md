@@ -20,8 +20,8 @@ host values are set manually.
 | `LANGCHAIN_API_KEY` | LangChain / LangSmith API key | Injected into KFP pods via `mlabs-api-keys` K8s secret |
 | `HOST_SSH_KEY` | Private SSH key | SSH into DGX, AGX, or WSL2 hosts from runners (all machines share Spark's identity) |
 | `DGX_SMB_PASSWORD` | Samba password for DGX `aaron` | Used by **Setup Shared SSH Store**; not needed by WSL2 Provision |
-| `DGX_MINIKUBE_KUBECONFIG` | base64 kubeconfig | Written by **Minikube Install** (runner=dgx); used by minikube workflows |
-| `AGX_MINIKUBE_KUBECONFIG` | base64 kubeconfig | Written by **Minikube Install** (runner=agx) on first run |
+| `DGX_K3S_KUBECONFIG` | base64 kubeconfig | Written by **K3s Install** (runner=dgx); used by k3s workflows |
+| `AGX_K3S_KUBECONFIG` | base64 kubeconfig | Written by **K3s Install** (runner=agx) on first run |
 
 ### Repo-Level Secrets
 
@@ -66,8 +66,8 @@ Drive the green/red dashboard badges. Set by deploy workflows, cleared by undepl
 
 | Variable | Set to `true` by | Set to `false` by |
 | --- | --- | --- |
-| `DGX_MINIKUBE_ACTIVE` | Minikube Install (dgx) | Minikube Uninstall (dgx) |
-| `AGX_MINIKUBE_ACTIVE` | Minikube Install (agx) | Minikube Uninstall (agx) |
+| `DGX_K3S_ACTIVE` | K3s Install (dgx) | K3s Uninstall (dgx) |
+| `AGX_K3S_ACTIVE` | K3s Install (agx) | K3s Uninstall (agx) |
 | `DGX_NEMO_ACTIVE` | NeMo Deploy (dgx) | NeMo Undeploy (dgx) |
 | `AGX_NEMO_ACTIVE` | NeMo Deploy (agx) | NeMo Undeploy (agx) |
 | `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx) | MLflow Undeploy (dgx) |

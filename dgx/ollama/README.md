@@ -7,7 +7,7 @@ on DGX Spark (vLLM and TGI have open sm_121/aarch64 issues).
 
 Ollama is installed on the DGX host via the **Ollama Update** GHA workflow (`update-ollama.yaml`).
 
-> **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for the platform (OS, minikube, services), leaving **~100 GB for AI models** (configurable via `DGX_VRAM_USEABLE` org variable). The deploy workflow auto-undeploys any existing Ollama model before loading a new one. NIM co-deployment is allowed if free memory ≥ 15 GB; it only blocks if headroom is too low.
+> **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for the platform (OS, k3s, services), leaving **~100 GB for AI models** (configurable via `DGX_VRAM_USEABLE` org variable). The deploy workflow auto-undeploys any existing Ollama model before loading a new one. NIM co-deployment is allowed if free memory ≥ 15 GB; it only blocks if headroom is too low.
 
 ## GHA Workflows
 

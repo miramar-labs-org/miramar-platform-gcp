@@ -15,10 +15,10 @@ This document describes the current high-level architecture of the Miramar Labs 
 | Layer | Component | Responsibility |
 |---|---|---|
 | Source control | GitHub repository | Stores Terraform, workflows, runner image, scripts, and platform docs. |
-| CI/CD control plane | GitHub Actions | Runs lifecycle workflows for GCP, GKE, minikube, NeMo, NIM, MLflow, Ollama, and runner image builds. |
+| CI/CD control plane | GitHub Actions | Runs lifecycle workflows for GCP, GKE, k3s, NeMo, NIM, MLflow, Ollama, and runner image builds. |
 | Runner substrate | `mlabs-runner` Docker image | Provides common tooling for self-hosted workflow execution across WSL2, DGX Spark, and Jetson/Orin hosts. |
 | Local GPU systems | WSL2 laptop, DGX Spark, Jetson AGX Orin | Provide GPU execution, local Kubernetes, local AI services, and architecture coverage. |
-| Local Kubernetes | DGX minikube | Runs local AI platform services such as NeMo Microservices, MLflow, NIM, and related support components. |
+| Local Kubernetes | DGX k3s | Runs local AI platform services such as NeMo Microservices, MLflow, NIM, and related support components. |
 | Cloud Kubernetes | GKE Standard | Provides shared GCP-hosted Kubernetes capacity for platform and application workloads. |
 | Artifact storage | GHCR and GCP Artifact Registry | Stores runner images and application/container artifacts. |
 | State storage | GCS | Stores Terraform state and GKE node-pool state/snapshots. |
@@ -46,10 +46,10 @@ flowchart TD
     GCP --> GAR[Artifact Registry apps]
     GCP --> GCS[GCS State Buckets]
 
-    DGX --> Minikube[DGX minikube]
-    Minikube --> Nemo[NeMo Microservices]
-    Minikube --> MLflow[MLflow + MinIO]
-    Minikube --> NIM[NVIDIA NIM]
+    DGX --> K3s[DGX k3s]
+    K3s --> Nemo[NeMo Microservices]
+    K3s --> MLflow[MLflow + MinIO]
+    K3s --> NIM[NVIDIA NIM]
     DGX --> Ollama[Ollama]
 
     GH --> GHCR[GitHub Container Registry]
@@ -66,7 +66,7 @@ The local domain is made up of physical machines controlled by the operator. The
 Current local targets include:
 
 - WSL2 laptop runner for `amd64` testing and orchestration.
-- DGX Spark runner for local GPU workloads and DGX minikube management.
+- DGX Spark runner for local GPU workloads and DGX k3s management.
 - Jetson AGX Orin runner for `arm64` and edge-style GPU coverage.
 
 ### Cloud domain
@@ -93,7 +93,7 @@ GitHub is the source-of-truth control plane for automation:
 |---|---|---|
 | Platform lifecycle | Create/destroy GCP platform, expand/restore GKE | GitHub Actions with GCP WIF. |
 | Runner image lifecycle | Build/publish `mlabs-runner` multi-arch image | GitHub Actions with Buildx/QEMU. |
-| Local Kubernetes lifecycle | Install, uninstall, and toggle DGX minikube | DGX self-hosted runner. |
+| Local Kubernetes lifecycle | Install and uninstall DGX k3s | DGX self-hosted runner. |
 | AI service lifecycle | Deploy/undeploy NeMo, NIM, MLflow, Ollama updates | DGX self-hosted runner and local Kubernetes. |
 | Capacity discovery | Find GPU capacity in GCP zones | GitHub Actions and GCP APIs. |
 
@@ -110,7 +110,7 @@ A typical full local AI stack deployment follows this order:
 
 1. Start or verify the DGX self-hosted runner.
 2. Build or pull the current `mlabs-runner` image.
-3. Install or verify DGX minikube.
+3. Install or verify DGX k3s.
 4. Deploy NeMo Microservices.
 5. Deploy MLflow after NeMo is available.
 6. Deploy NIM workloads as needed.
@@ -132,7 +132,7 @@ This repository is intentionally optimized for a hands-on hybrid lab/platform en
 - Self-hosted runners are used to reach local GPUs and local networks.
 - A single shared GCP project keeps cloud setup simple.
 - The runner image is broad and tool-heavy so operational workflows can share a common execution environment.
-- DGX minikube keeps the local AI stack close to local GPUs and local storage.
+- DGX k3s keeps the local AI stack close to local GPUs and local storage.
 
 Future production hardening should focus on environment separation, private GKE networking, policy-as-code, image signing, vulnerability scanning, and stricter least-privilege boundaries.
 

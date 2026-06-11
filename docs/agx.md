@@ -1,6 +1,6 @@
 # AGX Orin Operations
 
-AGX Orin runs the same local AI stack as the DGX Spark: minikube, NeMo
+AGX Orin runs the same local AI stack as the DGX Spark: k3s, NeMo
 Microservices, MLflow, Qdrant, and Ollama. The runner label is `agx`.
 
 > **NIM is not available on AGX.** All NIM LLM containers on NGC are
@@ -42,15 +42,15 @@ ssh -L 8002:localhost:8001 \
 
 See [../agx/systemd/README.md](../agx/systemd/README.md) for the service units.
 
-## minikube
+## k3s
 
-AGX minikube hosts the same workloads as DGX. All minikube workflows accept
+AGX k3s hosts the same workloads as DGX. All k3s workflows accept
 a `runner` input — set it to `agx` to target the AGX cluster.
 
 Stack deployment order:
 
 ```text
-Actions -> Minikube Install   (runner: agx)
+Actions -> K3s Install        (runner: agx)
 Actions -> NeMo Deploy        (runner: agx)
 Actions -> MLflow Deploy      (runner: agx)
 Actions -> Qdrant Deploy      (runner: agx)
@@ -95,7 +95,7 @@ Actions -> Kubeflow Undeploy  (runner: agx)
 
 ## Ollama
 
-Ollama runs natively on the AGX host (not in minikube), same as DGX.
+Ollama runs natively on the AGX host (not in k3s), same as DGX.
 Memory budget: ~40 GB for models. No NIM conflict check in the AGX deploy
 script — the two machines are independent.
 
@@ -110,7 +110,7 @@ State variables: `CURRENT_OLLAMA_MODEL_AGX`, `CURRENT_OLLAMA_VRAM_GB_AGX`.
 ## NeMo Microservices
 
 Same Helm chart and values as DGX (`dgx/minikube/nemo/install/values.yaml`).
-Hosts file for minikube DNS: `agx/minikube/nemo/hosts.agx` (updated on deploy).
+Hosts file for k3s DNS: `agx/minikube/nemo/hosts.agx` (updated on deploy).
 
 ```text
 Actions -> NeMo Deploy    (runner: agx)

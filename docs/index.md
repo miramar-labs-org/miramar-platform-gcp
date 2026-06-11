@@ -21,7 +21,7 @@ operational procedure.
 | Adding a new project template | [adding-a-project-template.md](adding-a-project-template.md) | [adding-a-project-template.md](adding-a-project-template.md), `templates/`, `create-project.yaml`, `generate-dashboard.sh` |
 | GKE GPU quota and capacity | [gpu-quota-request.md](gpu-quota-request.md) | [gpu-quota-request.md](gpu-quota-request.md), `.github/workflows/find-gpu-capacity.yaml` |
 | Self-hosted runners | [runners.md](runners.md) | `mlabs-runner/`, `scripts/gha/`, `.github/workflows/build-mlabs-runner.yml` |
-| DGX minikube, NeMo, MLflow, NIM, Ollama, Qdrant | [dgx.md](dgx.md) | [dgx.md](dgx.md), `dgx/`, `.github/workflows/*minikube*.yaml`, `.github/workflows/*nemo*.yaml`, `.github/workflows/*mlflow*.yaml`, `.github/workflows/*nim*.yaml`, `.github/workflows/*ollama*.yaml`, `.github/workflows/*qdrant*.yaml` |
+| DGX k3s, NeMo, MLflow, NIM, Ollama, Qdrant | [dgx.md](dgx.md) | [dgx.md](dgx.md), `dgx/`, `.github/workflows/*k3s*.yaml`, `.github/workflows/*nemo*.yaml`, `.github/workflows/*mlflow*.yaml`, `.github/workflows/*nim*.yaml`, `.github/workflows/*ollama*.yaml`, `.github/workflows/*qdrant*.yaml` |
 | GPU profiling (Nsight Systems) in KFP | [kfp-skills.md § Nsight Profiling](kfp-skills.md#nsight-profiling-in-kfp) | [kfp-skills.md](kfp-skills.md), `~/.claude/commands/nsight-interpret.md` |
 | KFP run lifecycle — `/kfp-deploy`, `/kfp-monitor`, `/nsight-interpret` | [kfp-skills.md](kfp-skills.md) | `~/.claude/commands/kfp-deploy.md`, `~/.claude/commands/kfp-monitor.md`, `~/.claude/commands/nsight-interpret.md` |
 | JupyterLab environment, packages, project workflow | [dgx/jupyterlab/README.md](../dgx/jupyterlab/README.md) | [dgx/jupyterlab/README.md](../dgx/jupyterlab/README.md), `dgx/jupyterlab/requirements.txt` |

@@ -6,14 +6,15 @@ AGX Orin runs the identical set of services — see [../../agx/systemd/README.md
 
 | Service | Port | Purpose |
 |---|---|---|
-| `minikube.service` | — | Starts/stops the [minikube](https://minikube.sigs.k8s.io/) cluster; other services depend on it |
-| `dashboard.service` | `8001` | `kubectl proxy` for the minikube Kubernetes dashboard |
+| `dashboard.service` | `8001` | `kubectl proxy` for the k3s Kubernetes dashboard |
 | `jupyterlab.service` | `8888` | [JupyterLab](https://jupyter.org) (pyJLab environment) — no token required |
 | `mlflow-portfwd.service` | `5000` | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace |
 | `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace |
 | `kfp-api-portfwd.service` | `8890` | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace |
 | `nemo-portfwd.service` | `8082` | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
 | `qdrant-portfwd.service` | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334) |
+
+k3s itself runs as a system-level service (`sudo systemctl start k3s` / `sudo systemctl stop k3s`) — not a user unit. The port-forward services above start after k3s is ready.
 
 `dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
 services (`mlflow-portfwd`, `kubeflow-portfwd`, `nemo-portfwd`, `qdrant-portfwd`) bind to `0.0.0.0` so the runner container can
@@ -50,13 +51,13 @@ without requiring a login session), reloads systemd, then enables and starts all
 ```
 
 Re-running install applies any changes to the service files and restarts the affected services —
-safe to use as an update mechanism. `minikube.service` starts first because the others depend on
-it; expect ~30–60 s on first boot while minikube pulls its Docker image.
+safe to use as an update mechanism. k3s must be running before port-forward services start;
+verify with `sudo systemctl status k3s` if any port-forward fails to connect.
 
 ## Uninstall
 
-Stops and disables all services (dependents first, then minikube) and removes their unit files.
-Does not disable linger.
+Stops and disables all port-forward services and removes their unit files.
+Does not disable linger or stop k3s (k3s is a system service, not a user unit).
 
 ```sh
 ./uninstall.sh
@@ -65,16 +66,16 @@ Does not disable linger.
 ## Managing individual services
 
 ```sh
-systemctl --user status  minikube
-systemctl --user restart minikube
-systemctl --user stop    minikube
-systemctl --user start   minikube
+# k3s is a system service (not a user unit)
+sudo systemctl status k3s
+sudo systemctl start  k3s
+sudo systemctl stop   k3s
 
+# User-level port-forward and UI services
 systemctl --user status  dashboard
 systemctl --user restart dashboard
 
 # Follow logs
-journalctl --user -u minikube -f
 journalctl --user -u dashboard -f
 journalctl --user -u jupyterlab -f
 journalctl --user -u mlflow-portfwd -f
@@ -86,11 +87,9 @@ journalctl --user -u qdrant-portfwd -f
 
 ## Notes
 
-- `minikube.service` is `Type=oneshot RemainAfterExit` — systemd considers it active once
-  `minikube start` returns, and runs `minikube stop` on shutdown. `TimeoutStartSec=300` gives it
-  up to 5 minutes to start (first boot after a reboot may pull images).
-- All port-forward services have `After=minikube.service` so systemd starts minikube first and
-  stops it last on shutdown.
+- k3s is a system-level service managed by the root systemd instance. The user-level port-forward
+  services connect to k3s via `~/.kube/config` (written by the K3s Install workflow). k3s starts
+  automatically on boot via `systemctl enable k3s` (set during install).
 - `mlflow-portfwd.service`, `kubeflow-portfwd.service`, `kfp-api-portfwd.service`, and
   `qdrant-portfwd.service` wait for their respective services to have a ready endpoint before
   starting the port-forward, so they won't crash-loop on boot if pods are still coming up. If the
@@ -104,7 +103,7 @@ journalctl --user -u qdrant-portfwd -f
 
 | Technology | GitHub | Docs |
 |---|---|---|
-| [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
+| [k3s](https://k3s.io/) | [k3s-io/k3s](https://github.com/k3s-io/k3s) | [docs](https://docs.k3s.io/) |
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
 | [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
 | [Qdrant](https://qdrant.tech) | [qdrant/qdrant](https://github.com/qdrant/qdrant) | [docs](https://qdrant.tech/documentation/) |

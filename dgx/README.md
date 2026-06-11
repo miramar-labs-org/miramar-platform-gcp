@@ -7,7 +7,7 @@
 | Folder | Purpose |
 |---|---|
 | [jupyterlab/](jupyterlab/) | JupyterLab environment setup, installed packages, and project workflow tips |
-| [minikube/](minikube/) | GHA workflows for minikube cluster lifecycle + NeMo deployment scripts |
+| [minikube/](minikube/) | Legacy minikube manifests (retained for reference); k3s manifests in [k3s/](k3s/) |
 | [systemd/](systemd/) | Systemd user service unit files + install/uninstall scripts |
 
 ## Systemd services
@@ -16,14 +16,13 @@ Eight user services start automatically on boot (via linger) — see [systemd/](
 
 | Service | Port | What it does |
 |---|---|---|
-| `minikube` | — | Starts/stops the [minikube](https://minikube.sigs.k8s.io/) cluster |
-| `dashboard` | `8001` | `kubectl proxy` → minikube Kubernetes dashboard |
+| `dashboard` | `8001` | `kubectl proxy` → k3s Kubernetes dashboard |
 | `jupyterlab` | `8888` | [JupyterLab](https://jupyter.org) |
-| `mlflow-portfwd` | `5000` | `kubectl port-forward` → [MLflow](https://mlflow.org) (`svc/mlflow-tracking` in minikube) |
-| `kubeflow-portfwd` | `8080` | `kubectl port-forward` → [Kubeflow Pipelines](https://www.kubeflow.org/) UI (`svc/ml-pipeline-ui` in minikube) |
-| `kfp-api-portfwd` | `8890` | `kubectl port-forward` → KFP REST API (`svc/ml-pipeline:8888` in minikube) |
+| `mlflow-portfwd` | `5000` | `kubectl port-forward` → [MLflow](https://mlflow.org) (`svc/mlflow-tracking` in k3s) |
+| `kubeflow-portfwd` | `8080` | `kubectl port-forward` → [Kubeflow Pipelines](https://www.kubeflow.org/) UI (`svc/ml-pipeline-ui` in k3s) |
+| `kfp-api-portfwd` | `8890` | `kubectl port-forward` → KFP REST API (`svc/ml-pipeline:8888` in k3s) |
 | `nemo-portfwd` | `8082` | `kubectl port-forward` → NeMo ingress (`nemo.test`, `nim.test`, `data-store.test`) |
-| `qdrant-portfwd` | `6333/6334` | `kubectl port-forward` → [Qdrant](https://qdrant.tech) (`svc/qdrant` in minikube, REST + gRPC) |
+| `qdrant-portfwd` | `6333/6334` | `kubectl port-forward` → [Qdrant](https://qdrant.tech) (`svc/qdrant` in k3s, REST + gRPC) |
 
 `dashboard` and `jupyterlab` bind to `127.0.0.1`; the port-forward services (`mlflow-portfwd`, `kubeflow-portfwd`, `kfp-api-portfwd`, `nemo-portfwd`, `qdrant-portfwd`) bind to `0.0.0.0` so the runner container can reach them. Access from your laptop via SSH tunnel:
 
@@ -61,7 +60,7 @@ On Windows, [Bitvise SSH Client](https://www.bitvise.com/ssh-client) is used to 
 | Technology | GitHub | Docs |
 |---|---|---|
 | [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) | — | [developer docs](https://docs.nvidia.com/dgx/index.html) |
-| [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
+| [k3s](https://k3s.io/) | [k3s-io/k3s](https://github.com/k3s-io/k3s) | [docs](https://docs.k3s.io/) |
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
 | [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
 | [Qdrant](https://qdrant.tech) | [qdrant/qdrant](https://github.com/qdrant/qdrant) | [docs](https://qdrant.tech/documentation/) |

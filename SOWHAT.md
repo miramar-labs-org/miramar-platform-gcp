@@ -41,7 +41,7 @@ The repo demonstrates:
 - GKE platform lifecycle and scaling automation.
 - GHCR-based container publishing.
 - Workload Identity Federation for keyless GCP authentication.
-- Local Kubernetes/minikube workflows for GPU-adjacent AI services.
+- Local Kubernetes/k3s workflows for GPU-adjacent AI services.
 - MLflow for experiment tracking.
 - Qdrant for vector search and RAG.
 - Kubeflow Pipelines for pipeline orchestration, including custom arm64 component images.
@@ -123,7 +123,7 @@ Provisioning and deploying Google Cloud resources using Terraform and GitHub Act
 
 ### Kubernetes operations
 
-Working across managed cloud Kubernetes on GKE and local Kubernetes/minikube environments on GPU hardware.
+Working across managed cloud Kubernetes on GKE and local Kubernetes/k3s environments on GPU hardware.
 
 ### AI infrastructure
 

@@ -16,7 +16,7 @@ Both profiles connect as user `aaron` using the shared SSH key.
 | Service | dgx.tlp (local) | agx.tlp (local) | Remote port |
 |---|---|---|---|
 | MLflow | `5000` | `5001` | `5000` |
-| Minikube dashboard | `8001` | `8002` | `8001` |
+| Kubernetes dashboard | `8001` | `8002` | `8001` |
 | JupyterLab | `8888` | `8887` | `8888` |
 | Ollama | `11434` | `11435` | `11434` |
 | KFP UI | `8080` | `8081` | `8080` |

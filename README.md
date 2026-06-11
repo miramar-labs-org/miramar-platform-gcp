@@ -48,13 +48,13 @@ flowchart LR
     GCP --> GAR[Artifact Registry]
     GCP --> GCS[GCS State + Snapshots]
 
-    DGX --> Mini[minikube on DGX]
-    Mini --> Nemo[NeMo Microservices]
-    Mini --> MLflow[MLflow + MinIO]
-    Mini --> Qdrant[Qdrant]
-    Mini --> NIM[NVIDIA NIM]
-    Mini --> KFP[Kubeflow Pipelines]
-    Mini --> NsightOp[Nsight Operator]
+    DGX --> K3s[k3s on DGX]
+    K3s --> Nemo[NeMo Microservices]
+    K3s --> MLflow[MLflow + MinIO]
+    K3s --> Qdrant[Qdrant]
+    K3s --> NIM[NVIDIA NIM]
+    K3s --> KFP[Kubeflow Pipelines]
+    K3s --> NsightOp[Nsight Operator]
 ```
 
 [![GCP Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-create.yaml)
@@ -65,7 +65,7 @@ flowchart LR
 [![GKE Expand GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml)
 [![GKE Restore GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml)
 [![Find GPU Capacity](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml)
-[![Minikube Toggle](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/toggle-minikube.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/toggle-minikube.yaml)
+[![K3s Install](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/install-k3s.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/install-k3s.yaml)
 [![NIM Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nim.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nim.yaml)
 [![NIM Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nim.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-nim.yaml)
 [![Ollama Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-ollama.yaml)
@@ -175,7 +175,7 @@ Full details: [docs/kfp-skills.md — Nsight Profiling in KFP](docs/kfp-skills.m
 
 ## Local DGX Stack
 
-DGX Spark runs the local AI stack: [minikube](https://minikube.sigs.k8s.io/), [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/), [MLflow](https://mlflow.org), [Qdrant](https://qdrant.tech), [Kubeflow Pipelines](https://www.kubeflow.org/), [NIM](https://developer.nvidia.com/nim), and [Ollama](https://ollama.com). See [docs/dgx.md](docs/dgx.md) for workflow details and [dgx/README.md](dgx/README.md) for host-level service notes.
+DGX Spark runs the local AI stack: [k3s](https://k3s.io/), [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/), [MLflow](https://mlflow.org), [Qdrant](https://qdrant.tech), [Kubeflow Pipelines](https://www.kubeflow.org/), [NIM](https://developer.nvidia.com/nim), and [Ollama](https://ollama.com). See [docs/dgx.md](docs/dgx.md) for workflow details and [dgx/README.md](dgx/README.md) for host-level service notes.
 
 Common tunnel:
 
@@ -192,10 +192,10 @@ ssh -L 8001:localhost:8001 \
 ```
 
 Stack order:
-- **DGX:** Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
-- **AGX:** Minikube Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
+- **DGX:** K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
+- **AGX:** K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
 
-Ollama runs as a host systemd service (independent of minikube) on both machines.
+Ollama runs as a host systemd service (independent of k3s) on both machines.
 
 ---
 
@@ -232,7 +232,7 @@ Common entry points:
 
 | Technology | GitHub | Docs |
 | --- | --- | --- |
-| [minikube](https://minikube.sigs.k8s.io/) | [kubernetes/minikube](https://github.com/kubernetes/minikube) | [docs](https://minikube.sigs.k8s.io/docs/) |
+| [k3s](https://k3s.io/) | [k3s-io/k3s](https://github.com/k3s-io/k3s) | [docs](https://docs.k3s.io/) |
 | [Ollama](https://ollama.com) | [ollama/ollama](https://github.com/ollama/ollama) | [API docs](https://github.com/ollama/ollama/blob/main/docs/api.md) |
 | [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
 | [Qdrant](https://qdrant.tech) | [qdrant/qdrant](https://github.com/qdrant/qdrant) | [docs](https://qdrant.tech/documentation/) |
