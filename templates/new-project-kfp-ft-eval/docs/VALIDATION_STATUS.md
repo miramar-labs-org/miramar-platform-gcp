@@ -36,8 +36,6 @@
 
 ### Infrastructure (inherited from platform template)
 - KFP v2 pipeline scaffold with all 6 stages wired
-- `_local_model_path()` — bypasses HuggingFace `.locks/` PermissionError on 9p mount
-- Hard-link HF cache (k3s 9p symlink fix)
 - MLflow run-per-stage tracking
 - `purge_kfp_mlflow.py`
 - Nsight Operator integration — add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to profile any stage
@@ -63,7 +61,7 @@
 
 None yet.
 
-> **Platform-level fixes** (bitsandbytes on Blackwell, trl 0.29 API, PIP_CONSTRAINT, 9p symlinks, nsys mmap, CUPTI privileges) are already incorporated in this template. See [qwen25-7b-arc-kfp-ft-eval-pipeline/docs/VALIDATION_STATUS.md](https://github.com/miramar-labs-org/qwen25-7b-arc-kfp-ft-eval-pipeline/blob/main/docs/VALIDATION_STATUS.md) for the full fix history (first green run).
+> **Platform-level fixes** (bitsandbytes on Blackwell, trl 0.29 API, PIP_CONSTRAINT, nsys mmap, CUPTI privileges) are already incorporated in this template. See [qwen25-7b-arc-kfp-ft-eval-pipeline/docs/VALIDATION_STATUS.md](https://github.com/miramar-labs-org/qwen25-7b-arc-kfp-ft-eval-pipeline/blob/main/docs/VALIDATION_STATUS.md) for the full fix history (first green run).
 
 ---
 

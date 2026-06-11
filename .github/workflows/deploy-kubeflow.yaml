@@ -146,7 +146,6 @@ jobs:
           "
 
           # --- PVs: skip if already exist (spec.persistentvolumesource is immutable after creation)
-          # k3s uses direct hostPath — no 9p mount daemon needed.
           kubectl get pv hf-model-cache &>/dev/null || kubectl apply -f - <<EOF
           apiVersion: v1
           kind: PersistentVolume
