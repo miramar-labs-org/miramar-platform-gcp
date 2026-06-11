@@ -2,8 +2,7 @@
 Description=kubectl port-forward Qdrant (6333/6334 -> svc/qdrant)
 After=network-online.target k3s.service
 Wants=network-online.target k3s.service
-StartLimitIntervalSec=300
-StartLimitBurst=5
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

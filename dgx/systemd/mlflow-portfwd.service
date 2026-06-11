@@ -2,8 +2,7 @@
 Description=kubectl port-forward MLflow (5000 -> svc/mlflow-tracking:80)
 After=network-online.target k3s.service
 Wants=network-online.target k3s.service
-StartLimitIntervalSec=60
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

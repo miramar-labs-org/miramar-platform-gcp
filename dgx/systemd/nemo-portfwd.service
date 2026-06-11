@@ -2,8 +2,7 @@
 Description=kubectl port-forward NeMo ingress (8082 -> ingress-nginx-controller:80)
 After=network-online.target k3s.service
 Wants=network-online.target k3s.service
-StartLimitIntervalSec=60
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -11,7 +10,6 @@ Environment=HOME=%h
 Environment=KUBECONFIG=%h/.kube/config
 
 # Wait until the ingress controller has a ready endpoint.
-# If NeMo is not deployed this hits StartLimitBurst=3 and stops retrying — expected.
 ExecStartPre=/usr/bin/bash -lc '\
 /usr/local/bin/kubectl -n ingress-nginx get svc ingress-nginx-controller >/dev/null || { echo "svc/ingress-nginx-controller not found"; exit 1; }; \
 for i in {1..60}; do \

@@ -2,8 +2,7 @@
 Description=kubectl port-forward Nsight Operator gateway (8889 -> svc/nsight-operator-gateway:8888)
 After=network-online.target k3s.service
 Wants=network-online.target k3s.service
-StartLimitIntervalSec=60
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

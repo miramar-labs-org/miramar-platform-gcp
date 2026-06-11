@@ -2,8 +2,7 @@
 Description=kubectl port-forward Kubeflow Pipelines UI (8080 -> svc/ml-pipeline-ui:80)
 After=network-online.target k3s.service
 Wants=network-online.target k3s.service
-StartLimitIntervalSec=60
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
