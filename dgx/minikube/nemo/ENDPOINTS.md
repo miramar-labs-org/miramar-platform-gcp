@@ -64,7 +64,7 @@ ssh -L 8002:localhost:8001 \
 | `localhost:8080` | 8080 | 8080 | 8081 | Kubeflow Pipelines UI | KFP deployed |
 | `localhost:8890` | 8890 | 8890 | 8891 | KFP REST API (`/apis/v2beta1/...`) | KFP deployed |
 
-DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.49.2`). Source files: [`hosts.dgx`](hosts.dgx), [`agx/../../agx/minikube/nemo/hosts.agx`](../../../agx/minikube/nemo/hosts.agx).
+DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.1.200 fd66:3926:b096:10:4a98:7903:ca69:f3ee`). Source files: [`hosts.dgx`](hosts.dgx), [`agx/../../agx/minikube/nemo/hosts.agx`](../../../agx/minikube/nemo/hosts.agx).
 
 ---
 

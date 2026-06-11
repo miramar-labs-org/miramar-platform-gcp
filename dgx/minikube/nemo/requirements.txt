@@ -3,7 +3,7 @@ requests
 bs4
 datasets
 jupyterlab
-nemo-microservices
+nemo-microservices==25.12.1
 huggingface_hub
 lm-eval[api]
 transformers
