@@ -1,9 +1,9 @@
 name: Qdrant Deploy
 
 # Deploys Qdrant vector database into the qdrant-system namespace on the
-# target minikube cluster and restarts the qdrant-portfwd systemd service.
+# target k3s cluster and restarts the qdrant-portfwd systemd service.
 #
-# Prerequisites: Minikube must be running on the target machine.
+# Prerequisites: k3s must be running on the target machine.
 
 on:
   workflow_dispatch:
@@ -24,44 +24,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubeconfig
+      - name: Resolve host
         run: |
-          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
-          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
-          # --network=host so it resolves directly.
-          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
       - name: Verify cluster access
         run: kubectl get nodes
 
+      - name: Prepare Qdrant data directory on host
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+            mkdir -p /home/${HOST_USER}/shared/qdrant-data
+            chmod 777 /home/${HOST_USER}/shared/qdrant-data
+          "
+
       - name: Deploy Qdrant
-        run: bash dgx/minikube/qdrant/integrate-qdrant.sh
+        run: |
+          QDRANT_DATA_DIR="/home/${HOST_USER}/shared/qdrant-data" \
+          bash dgx/minikube/qdrant/integrate-qdrant.sh
 
       - name: Smoke-test endpoints
         continue-on-error: true
         run: bash dgx/minikube/qdrant/verify-qdrant-endpoints.sh
 
       - name: Restart qdrant-portfwd systemd service on host
-        env:
-          HOST_USER: ${{ vars.DGX_HOST_USER }}
-          HOST_IP:   ${{ inputs.runner == 'agx' && vars.AGX_HOST_IP || vars.DGX_HOST_IP }}
-          SSH_KEY:   ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "$SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
-          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
-            "${HOST_USER}@${HOST_IP}" \
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" \
             'systemctl --user restart qdrant-portfwd 2>/dev/null || true; \
              systemctl --user is-active qdrant-portfwd || true'
-          rm -f /tmp/deploy_key
 
       - name: Set Qdrant active state
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           var="${machine}_QDRANT_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
             -f name="${var}" -f value="true" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="true" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key

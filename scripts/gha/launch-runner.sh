@@ -193,19 +193,10 @@ DOCKER_VOLS=(
 # WSL2 has no k3s; its ~/.kube/config holds GKE contexts we don't want exposed.
 # /host-bin exposes the host's /usr/local/bin so workflows can install binaries there.
 if [[ "${DEFAULT_LABELS}" == *"dgx"* || "${DEFAULT_LABELS}" == *"agx"* ]]; then
+    # Ensure host kubeconfig dir exists (k3s writes here after install).
     mkdir -p "${HOME}/.kube"
-    # The runner container runs as uid 1000; host files are owned by the host
-    # user (different uid). Make .kube world-readable so kubectl inside the
-    # container can read the k3s kubeconfig.
-    chmod -R a+rX "${HOME}/.kube" 2>/dev/null || true
-    # Pipeline backing storage: k3s hostPath PVs reference these host directories
-    # directly — no 9p mount daemon needed.
-    mkdir -p "${HOME}/shared/huggingface-kfp" "${HOME}/shared/nsight"
     DOCKER_VOLS+=(
-        -v "${HOME}/.kube:/home/runner/.kube"
         -v /usr/local/bin:/host-bin
-        -v "${HOME}/shared/huggingface-kfp:/home/runner/shared/huggingface-kfp"
-        -v "${HOME}/shared/nsight:/home/runner/shared/nsight"
     )
 fi
 

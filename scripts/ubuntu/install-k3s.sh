@@ -23,6 +23,15 @@ else
   log "k3s installed: $(k3s --version | head -1)"
 fi
 
+# ---- Install helm ----
+if command -v helm &>/dev/null; then
+  log "helm already installed: $(helm version --short)"
+else
+  log "Installing helm..."
+  curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  log "helm installed: $(helm version --short)"
+fi
+
 # ---- Configure NVIDIA container runtime for containerd ----
 # nvidia-ctk v1.19+ writes to /etc/containerd/conf.d/99-nvidia.toml (ignores --config flag).
 # k3s reads this at startup and merges it into its generated config.toml automatically.

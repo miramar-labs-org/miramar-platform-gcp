@@ -25,7 +25,7 @@ ssh -L 8002:localhost:8001 \
     -L 11435:localhost:11434 \
     -L 6335:localhost:6333 \
     -L 6336:localhost:6334 \
-    aaron@orin.local
+    $USER@orin.local
 ```
 
 | Local port | AGX port | Service |

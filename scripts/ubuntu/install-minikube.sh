@@ -124,7 +124,7 @@ kubectl label node minikube feature.node.kubernetes.io/pci-10de.present=true --o
 
 # Rewrite kubeconfig cert paths to use the current HOME. Must run after all
 # minikube operations (addons enable regenerates ~/.kube/config with the profile's
-# stored paths, which reference /home/aaron/... on a host-originated cluster).
+# stored paths, which reference the original user's home on a host-originated cluster).
 sed -i "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
     "${HOME}/.kube/config" 2>/dev/null || true
 

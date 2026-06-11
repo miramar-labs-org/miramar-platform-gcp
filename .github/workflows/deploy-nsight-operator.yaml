@@ -1,14 +1,14 @@
 name: Nsight Operator Deploy
 
 # Deploys the NVIDIA Nsight Operator into the nsight-operator namespace on
-# the target minikube cluster via Helm from the NGC devtools registry.
+# the target k3s cluster via Helm from the NGC devtools registry.
 #
 # After deploy, the Nsight Operator UI is available on host port 8889 via
 # nsight-portfwd.service. Optionally labels the kubeflow namespace with
 # nvidia-nsight-profile=enabled so the injector can target KFP pods.
 #
 # Prerequisites:
-#   - minikube running on the target machine (Minikube Install workflow)
+#   - k3s running on the target machine (K3s Install workflow)
 #   - nsight-portfwd.service installed on the host (dgx/systemd/install.sh)
 #   - NVIDIA_API_KEY org secret (NGC auth for Helm chart pull)
 #
@@ -47,12 +47,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubeconfig
+      - name: Resolve host
         run: |
-          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
-          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
-          # --network=host so it resolves directly.
-          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"     >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"     >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
       - name: Verify cluster access
         run: kubectl get nodes
@@ -88,19 +104,13 @@ jobs:
           kubectl label namespace kubeflow nvidia-nsight-profile=enabled --overwrite
 
       - name: Start port-forward service
-        env:
-          HOST_USER: ${{ vars.DGX_HOST_USER }}
-          HOST_IP:   ${{ inputs.runner == 'agx' && vars.AGX_HOST_IP || vars.DGX_HOST_IP }}
-          SSH_KEY:   ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "$SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
-          scp -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
             dgx/systemd/nsight-portfwd.service \
             "${HOST_USER}@${HOST_IP}:~/.config/systemd/user/nsight-portfwd.service"
-          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             'systemctl --user daemon-reload && systemctl --user enable --now nsight-portfwd.service'
-          rm -f /tmp/deploy_key
 
       - name: Set Nsight Operator active state
         env:
@@ -112,6 +122,10 @@ jobs:
             -f name="${var}" -f value="true" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="true" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
 
       - name: Summary
         if: always()
@@ -130,8 +144,7 @@ jobs:
             echo ""
             echo "Tunnel to access the UI:"
             echo "\`\`\`"
-            echo "# DGX"
-            echo "ssh -L 8889:localhost:8889 aaron@spark-79b7.local"
+            echo "ssh -L 8889:localhost:8889 ${HOST_USER}@${HOST_IP}"
             echo "# http://localhost:8889"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"

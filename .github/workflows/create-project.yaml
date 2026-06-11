@@ -235,7 +235,7 @@ jobs:
           fi
           printf '%s' "${SCRIPT}" \
             | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                "${HOST_USER:-aaron}@localhost" \
+                "${HOST_USER}@localhost" \
                 env PROJECT_NAME="${PROJECT_NAME}" \
                     PAT="${GITHUB_ORG_ADMIN_PAT}" bash
 
@@ -379,7 +379,7 @@ jobs:
           fi
           printf '%s' "${SCRIPT}" \
             | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                "${HOST_USER:-aaron}@localhost" \
+                "${HOST_USER}@localhost" \
                 env PROJECT_NAME="${PROJECT_NAME}" bash
 
       - name: Summary
@@ -404,7 +404,7 @@ jobs:
             if [ "${PROJECT_TYPE}" = "default" ]; then
               echo "### Next steps"
               echo "1. Edit \`README.md\` — add a one-line description"
-              echo "2. Open SSH tunnel: \`ssh -L ${JL_PORT}:localhost:8888 aaron@$([ "${HOST}" = "agx" ] && echo "orin.local" || echo "spark-79b7.local")\`"
+              echo "2. Open SSH tunnel: \`ssh -L ${JL_PORT}:localhost:8888 ${HOST_USER}@$([ "${HOST}" = "agx" ] && echo "orin.local" || echo "spark-79b7.local")\`"
               echo "3. Open \`notebook.ipynb\` — the \`${PROJECT_NAME}\` kernel is ready"
             elif [ "${PROJECT_TYPE}" = "kfp" ]; then
               echo "### Next steps"

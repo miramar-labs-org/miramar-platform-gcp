@@ -64,7 +64,7 @@ jobs:
           setup_wsl_ssh() {
             [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]] && return
 
-            : "${DGX_HOST_USER:=aaron}"
+            : "${DGX_HOST_USER:?DGX_HOST_USER is required}"
             : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
             : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
             : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
@@ -157,7 +157,7 @@ jobs:
           setup_wsl_ssh() {
             [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]] && return
 
-            : "${DGX_HOST_USER:=aaron}"
+            : "${DGX_HOST_USER:?DGX_HOST_USER is required}"
             : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
             : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
             : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"
@@ -253,7 +253,7 @@ jobs:
           setup_wsl_ssh() {
             [[ "$DISTROS" == "NONE" || -z "$DISTROS" ]] && return
 
-            : "${DGX_HOST_USER:=aaron}"
+            : "${DGX_HOST_USER:?DGX_HOST_USER is required}"
             : "${WSL2_HOST:?WSL2_HOST is required when WSL2 distros are active}"
             : "${WSL2_HOST_USER:?WSL2_HOST_USER is required when WSL2 distros are active}"
             : "${WSL2_HOST_SSH_KEY:?WSL2_HOST_SSH_KEY is required when WSL2 distros are active}"

@@ -125,6 +125,23 @@ jobs:
         run: kubectl get nodes -o wide
 
       # ── Step 3: Deploy NeMo ───────────────────────────────────────────────────
+      - name: Prepare host data directories
+        run: |
+          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+            NEMO_DATA=/home/${HOST_USER}/shared/nemo
+            mkdir -p \${NEMO_DATA}/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
+            chmod -R 777 \${NEMO_DATA}
+            mkdir -p /home/${HOST_USER}/shared/mlflow/minio
+            chmod 777 /home/${HOST_USER}/shared/mlflow/minio
+            mkdir -p /home/${HOST_USER}/shared/qdrant-data
+            chmod 777 /home/${HOST_USER}/shared/qdrant-data
+            mkdir -p /home/${HOST_USER}/shared/kfp/mysql /home/${HOST_USER}/shared/kfp/seaweedfs
+            chmod 777 /home/${HOST_USER}/shared/kfp/mysql /home/${HOST_USER}/shared/kfp/seaweedfs
+            mkdir -p /home/${HOST_USER}/shared/huggingface-kfp/hub \
+                     /home/${HOST_USER}/shared/huggingface-kfp/adapters \
+                     /home/${HOST_USER}/shared/nsight
+          "
+
       - name: Create namespace and secrets
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
@@ -169,9 +186,7 @@ jobs:
               kubectl delete secret -n nemo-microservices -l owner=helm,name=nemo --ignore-not-found
           fi
 
-          NEMO_DATA="${HOME}/shared/nemo"
-          mkdir -p "${NEMO_DATA}"/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
-          chmod -R 777 "${NEMO_DATA}"
+          NEMO_DATA="/home/${HOST_USER}/shared/nemo"
           kubectl apply -f - <<EOF
           apiVersion: v1
           kind: PersistentVolume
@@ -312,7 +327,9 @@ jobs:
 
       # ── Step 4: Deploy MLflow ─────────────────────────────────────────────────
       - name: Deploy MLflow
-        run: bash dgx/minikube/mlflow/integrate-mlflow.sh
+        run: |
+          MINIO_DATA_DIR="/home/${HOST_USER}/shared/mlflow/minio" \
+          bash dgx/minikube/mlflow/integrate-mlflow.sh
 
       - name: Set MLflow active state
         env:
@@ -326,7 +343,9 @@ jobs:
 
       # ── Step 5: Deploy Qdrant ─────────────────────────────────────────────────
       - name: Deploy Qdrant
-        run: bash dgx/minikube/qdrant/integrate-qdrant.sh
+        run: |
+          QDRANT_DATA_DIR="/home/${HOST_USER}/shared/qdrant-data" \
+          bash dgx/minikube/qdrant/integrate-qdrant.sh
 
       - name: Set Qdrant active state
         env:
@@ -339,8 +358,76 @@ jobs:
             -f name="${var}" -f value="true" -f visibility="all"
 
       # ── Step 6: Deploy KFP ───────────────────────────────────────────────────
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
+            | docker login ghcr.io -u miramar-labs-org --password-stdin
+
       - name: Deploy Kubeflow Pipelines
-        run: bash dgx/minikube/kubeflow/deploy-kfp.sh
+        env:
+          MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
+        run: |
+          KFP_DATA_DIR="/home/${HOST_USER}/shared/kfp" \
+          bash dgx/minikube/kubeflow/deploy-kubeflow.sh
+
+      - name: Create KFP shared storage
+        run: |
+          # Apply PVs (skipped if already exist — spec is immutable after creation)
+          kubectl get pv hf-model-cache &>/dev/null || kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: hf-model-cache
+          spec:
+            capacity:
+              storage: 200Gi
+            accessModes: [ReadWriteMany]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            hostPath:
+              path: /home/${HOST_USER}/shared/huggingface-kfp/hub
+          EOF
+          kubectl get pv nsight-reports &>/dev/null || kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: nsight-reports
+          spec:
+            capacity:
+              storage: 50Gi
+            accessModes: [ReadWriteMany]
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: ""
+            hostPath:
+              path: /home/${HOST_USER}/shared/nsight
+          EOF
+          kubectl apply -f - <<'EOF'
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: hf-model-cache
+            namespace: kubeflow
+          spec:
+            accessModes: [ReadWriteMany]
+            resources:
+              requests:
+                storage: 200Gi
+            storageClassName: ""
+            volumeName: hf-model-cache
+          ---
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: nsight-reports
+            namespace: kubeflow
+          spec:
+            accessModes: [ReadWriteMany]
+            resources:
+              requests:
+                storage: 50Gi
+            storageClassName: ""
+            volumeName: nsight-reports
+          EOF
 
       - name: Set KFP active state
         env:

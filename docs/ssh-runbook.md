@@ -11,20 +11,20 @@ For WSL2 operator commands, read [../wsl2/README.md](../wsl2/README.md).
 Spark owns the canonical SSH store:
 
 ```text
-/home/aaron/shared/ssh
+~/shared/ssh
 ```
 
 Important files:
 
 ```text
-/home/aaron/shared/ssh/config
-/home/aaron/shared/ssh/known_hosts
-/home/aaron/shared/ssh/authorized_keys
-/home/aaron/shared/ssh/id_ed25519
-/home/aaron/shared/ssh/id_ed25519.pub
+~/shared/ssh/config
+~/shared/ssh/known_hosts
+~/shared/ssh/authorized_keys
+~/shared/ssh/id_ed25519
+~/shared/ssh/id_ed25519.pub
 ```
 
-DGX, Orin, and WSL2 distros symlink `/home/aaron/.ssh/*` into that shared store.
+DGX, Orin, and WSL2 distros symlink `~/.ssh/*` into that shared store.
 All machines use Spark's `id_ed25519` identity. Do not create per-machine or
 per-distro SSH identities for the normal lab topology.
 
@@ -80,23 +80,23 @@ Actions -> WSL2 Verify SSH Topology
 
 ## Orin One-Time Prerequisites
 
-Run these on the Orin host as `aaron` before the first **Setup Shared SSH Store**
+Run these on the Orin host as the default user before the first **Setup Shared SSH Store**
 run.
 
 Restore SSH files if only `.bak` files exist from an older CIFS setup:
 
 ```bash
-cp /home/aaron/.ssh/authorized_keys.bak /home/aaron/.ssh/authorized_keys 2>/dev/null || touch /home/aaron/.ssh/authorized_keys
-cp /home/aaron/.ssh/config.bak /home/aaron/.ssh/config 2>/dev/null || true
-cp /home/aaron/.ssh/known_hosts.bak /home/aaron/.ssh/known_hosts 2>/dev/null || true
-chmod 600 /home/aaron/.ssh/authorized_keys /home/aaron/.ssh/config /home/aaron/.ssh/known_hosts 2>/dev/null || true
+cp ~/.ssh/authorized_keys.bak ~/.ssh/authorized_keys 2>/dev/null || touch ~/.ssh/authorized_keys
+cp ~/.ssh/config.bak ~/.ssh/config 2>/dev/null || true
+cp ~/.ssh/known_hosts.bak ~/.ssh/known_hosts 2>/dev/null || true
+chmod 600 ~/.ssh/authorized_keys ~/.ssh/config ~/.ssh/known_hosts 2>/dev/null || true
 ```
 
 Self-authorize Orin's own key so `HOST_SSH_KEY` can SSH to localhost:
 
 ```bash
-grep -qF "$(cat /home/aaron/.ssh/id_ed25519.pub)" /home/aaron/.ssh/authorized_keys \
-  || cat /home/aaron/.ssh/id_ed25519.pub >> /home/aaron/.ssh/authorized_keys
+grep -qF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys \
+  || cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
 ```
 
 All machines share Spark's SSH identity via the shared store — `HOST_SSH_KEY` is already set as a GitHub secret from that key.
@@ -210,10 +210,10 @@ Do not add a generic `Host wsl2` block for normal operation.
 
 Likely causes:
 
-- `/home/aaron/shared/ssh` was not mounted before `sshd -i` performed public-key
+- `~/shared/ssh` was not mounted before `sshd -i` performed public-key
   authentication.
-- `/home/aaron/shared/ssh/authorized_keys` does not contain Spark's public key.
-- The `wsl2-<name>` alias in `/home/aaron/shared/ssh/config` is stale.
+- `~/shared/ssh/authorized_keys` does not contain Spark's public key.
+- The `wsl2-<name>` alias in `~/shared/ssh/config` is stale.
 
 Fix:
 
@@ -223,11 +223,11 @@ Actions -> WSL2 Provision -> distro_name: <name>  ssh_port: <port>
 Actions -> WSL2 Verify SSH Topology
 ```
 
-Do not replace `/home/aaron/.ssh/authorized_keys` inside WSL2 with a local file.
+Do not replace `~/.ssh/authorized_keys` inside WSL2 with a local file.
 It should be a symlink to:
 
 ```text
-/home/aaron/shared/ssh/authorized_keys
+~/shared/ssh/authorized_keys
 ```
 
 ### WSL2 Distro Is `Stopped`
@@ -281,4 +281,4 @@ WSL2 -> ssh msi         -> MSI Windows shell on port 22
 ```
 
 SSH config, `known_hosts`, `authorized_keys`, and the shared identity are
-managed centrally in `/home/aaron/shared/ssh/` on Spark.
+managed centrally in `~/shared/ssh/` on Spark.

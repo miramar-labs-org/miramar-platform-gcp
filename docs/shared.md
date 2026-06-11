@@ -6,8 +6,8 @@ runners during training workflows.
 
 | Machine | Path |
 |---|---|
-| DGX | `/home/aaron/shared` |
-| WSL2 (Ubuntu) | `/home/aaron/shared` |
+| DGX | `~/shared` |
+| WSL2 (Ubuntu) | `~/shared` |
 | Windows | `\\spark-79b7.local\shared` |
 
 ---
@@ -26,7 +26,7 @@ sudo apt install samba
 ### 2. Create the shared folder
 
 ```sh
-mkdir -p /home/aaron/shared
+mkdir -p ~/shared
 ```
 
 ### 3. Back up and edit smb.conf
@@ -36,25 +36,25 @@ sudo cp /etc/samba/smb.conf /etc/samba/smb.conf.bak
 sudo nano /etc/samba/smb.conf
 ```
 
-Append at the end:
+Append at the end (replace `$USER` with your Linux username — smb.conf does not expand shell variables):
 
 ```ini
 [shared]
-   path = /home/aaron/shared
+   path = /home/$USER/shared
    browseable = yes
    read only = no
    writable = yes
-   valid users = aaron
-   force user = aaron
+   valid users = $USER
+   force user = $USER
    create mask = 0660
    directory mask = 0770
 ```
 
-### 4. Add aaron to Samba's password database
+### 4. Add your user to Samba's password database
 
 ```sh
-sudo smbpasswd -a aaron
-sudo smbpasswd -e aaron
+sudo smbpasswd -a "$USER"
+sudo smbpasswd -e "$USER"
 ```
 
 ### 5. Validate config and restart
@@ -75,7 +75,7 @@ sudo ufw allow samba
 
 ## Accessing the share from WSL2
 
-WSL2 distros provisioned via **WSL2 Provision** use `/home/aaron/shared/` for the
+WSL2 distros provisioned via **WSL2 Provision** use `~/shared/` for the
 shared store. `setup-shared-ssh.sh` mounts it during `firstboot.sh`, the
 `mount-dgx-shared.service` / `mount-dgx-shared.timer` pair keeps it available
 after normal boots, and the `wsl2-<name>` SSH ProxyCommand runs the mount helper
@@ -88,7 +88,7 @@ Do not mount the shared folder from WSL2 `/etc/fstab`; `/etc/wsl.conf` keeps
 sudo /usr/local/sbin/mount-dgx-shared.sh
 ```
 
-Credentials are stored in `/home/aaron/.smbcredentials` (baked into the template
+Credentials are stored in `~/.smbcredentials` (baked into the template
 by `rebuild-template.ps1`).
 
 ### Ad-hoc file access via smbclient
@@ -97,14 +97,14 @@ For scripts that don't need a mounted filesystem, `smbclient` is available:
 
 ```sh
 # List share contents
-smbclient //spark-79b7.local/shared -A /home/aaron/.smbcredentials -N -c "ls"
+smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N -c "ls"
 
 # Download a file
-smbclient //spark-79b7.local/shared -A /home/aaron/.smbcredentials -N \
+smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
   -c "get path/to/file /local/destination"
 
 # Upload a file
-smbclient //spark-79b7.local/shared -A /home/aaron/.smbcredentials -N \
+smbclient //spark-79b7.local/shared -A ~/.smbcredentials -N \
   -c "put /local/file remote/path/file"
 ```
 
@@ -112,15 +112,15 @@ smbclient //spark-79b7.local/shared -A /home/aaron/.smbcredentials -N \
 
 ```sh
 sudo apt-get install -y cifs-utils
-mkdir -p /home/aaron/shared
-sudo mount -t cifs //spark-79b7.local/shared /home/aaron/shared \
+mkdir -p ~/shared
+sudo mount -t cifs //spark-79b7.local/shared ~/shared \
   -o credentials=$HOME/.smbcredentials,uid=$(id -u),gid=$(id -g),vers=3.0
 ```
 
 Unmount when done:
 
 ```sh
-sudo umount /home/aaron/shared
+sudo umount ~/shared
 ```
 
 ---
@@ -133,7 +133,7 @@ In File Explorer address bar:
 \\spark-79b7.local\shared
 ```
 
-Sign in with username `aaron` and the Samba password. To map as a drive
+Sign in with your Samba username and the Samba password. To map as a drive
 letter: right-click **This PC** → **Map network drive**, enter the path
 above, check **Reconnect at sign-in**.
 
@@ -155,8 +155,8 @@ for the DGX, then reconnect.
 **Mount fails in WSL2** — test with the IP instead of hostname:
 
 ```sh
-sudo mount -t cifs //192.168.x.x/shared /home/aaron/shared \
-  -o username=aaron,uid=$(id -u),gid=$(id -g),vers=3.0
+sudo mount -t cifs //192.168.x.x/shared ~/shared \
+  -o username="$USER",uid=$(id -u),gid=$(id -g),vers=3.0
 ```
 
 **Check Samba status on DGX:**

@@ -1,10 +1,21 @@
 # DGX Operations
 
-DGX Spark runs the local AI stack: minikube, NeMo Microservices, MLflow, Qdrant, NIM,
+DGX Spark runs the local AI stack: k3s, NeMo Microservices, MLflow, Qdrant, NIM,
 and Ollama. The runner label is `dgx`.
 
 AGX Orin runs the same stack minus NIM (no arm64 NIM images exist) — see
 [agx.md](agx.md) for AGX-specific details and SSH tunnel port assignments.
+
+## Host prerequisites
+
+These tools must be present on the host before any deploy workflow runs:
+
+- **kubectl** — installed automatically by k3s at `/usr/local/bin/kubectl`
+- **helm** — installed automatically by `scripts/ubuntu/install-k3s.sh`
+
+Run `K3s Install` workflow (or `K3s Bootstrap`) to set up both. The mlabs-runner
+container is a thin SSH proxy — it does not mount host paths and expects kubectl/helm
+to be on the host.
 
 ## Access
 
@@ -18,7 +29,7 @@ ssh -L 8001:localhost:8001 \
     -L 11434:localhost:11434 \
     -L 6333:localhost:6333 \
     -L 6334:localhost:6334 \
-    aaron@spark-79b7.local
+    $USER@spark-79b7.local
 ```
 
 | Local port | Service |
@@ -64,29 +75,28 @@ JupyterLab sees the filesystem live — files update immediately after a branch 
 3. Use the Git panel or terminal to switch to the relevant branch if needed
 4. Edit and run cells — MLflow at `http://localhost:5000` tracks experiments automatically; Qdrant at `http://localhost:6333` is available as a vector store
 
-## minikube
+## k3s
 
-DGX minikube hosts NeMo Microservices, MLflow, MinIO, Qdrant, and NIM deployments.
+DGX k3s hosts NeMo Microservices, MLflow, MinIO, Qdrant, KFP, and NIM deployments.
 
 Lifecycle workflows:
 
 ```text
-Actions -> Minikube Install
-Actions -> Minikube Toggle
-Actions -> Minikube Uninstall
+Actions -> K3s Install
+Actions -> K3s Uninstall
 ```
 
 Stack deployment order:
 
 ```text
-Minikube Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
+K3s Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
 ```
 
-See [../dgx/minikube/](../dgx/minikube/).
+See [../dgx/minikube/](../dgx/minikube/) for legacy manifests (retained for reference).
 
 ## MLflow
 
-MLflow runs in minikube namespace `mlflow-system` behind
+MLflow runs in k3s namespace `mlflow-system` behind
 `svc/mlflow-tracking`. The `mlflow-portfwd.service` forwards port `5000`.
 
 ```text
@@ -102,7 +112,7 @@ The deploy workflow runs a smoke test after deployment (`dgx/minikube/mlflow/ver
 
 ## Kubeflow Pipelines
 
-Kubeflow Pipelines runs in minikube namespace `kubeflow`. Two systemd services
+Kubeflow Pipelines runs in k3s namespace `kubeflow`. Two systemd services
 expose it over SSH tunnels:
 
 - `kubeflow-portfwd.service` (port `8080`) — KFP UI (`svc/ml-pipeline-ui:80`)
@@ -118,7 +128,7 @@ Actions -> Kubeflow Deploy
 ```
 
 Kubeflow is independent of NeMo and MLflow — it can be deployed on a fresh
-minikube cluster without any other workloads.
+k3s cluster without any other workloads.
 
 The deploy workflow runs a smoke test after deployment (`dgx/minikube/kubeflow/verify-kfp-endpoints.sh`):
 - `GET /` on `svc/ml-pipeline-ui:80` — UI serving
@@ -131,7 +141,7 @@ details: [../dgx/minikube/kubeflow/arm64/README.md](../dgx/minikube/kubeflow/arm
 
 ## Qdrant
 
-Qdrant vector database runs in minikube namespace `qdrant-system` behind
+Qdrant vector database runs in k3s namespace `qdrant-system` behind
 `svc/qdrant`. The `qdrant-portfwd.service` forwards REST (port `6333`) and
 gRPC (port `6334`) simultaneously. No auth configured — local dev only.
 
@@ -140,7 +150,7 @@ Actions -> Qdrant Deploy
 Actions -> Qdrant Undeploy
 ```
 
-Qdrant is independent of NeMo and MLflow — it can be deployed on a fresh minikube cluster. Conventional position: after MLflow Deploy, before Kubeflow Deploy.
+Qdrant is independent of NeMo and MLflow — it can be deployed on a fresh k3s cluster. Conventional position: after MLflow Deploy, before Kubeflow Deploy.
 
 The deploy workflow runs a smoke test after deployment (`dgx/minikube/qdrant/verify-qdrant-endpoints.sh`):
 - `GET /health` — server up
@@ -157,7 +167,7 @@ client = QdrantClient(url="http://localhost:6333")
 
 ## Ollama
 
-Ollama runs natively on the DGX host, not inside minikube. The platform
+Ollama runs natively on the DGX host, not inside k3s. The platform
 reserves ~28 GB for OS/services, leaving ~100 GB for models; no deployed model
 may exceed this budget.
 
@@ -258,26 +268,23 @@ cat /proc/driver/nvidia/params | grep RmProfilingAdminOnly
 This setting persists across reboots via `/etc/modprobe.d/nvidia.conf`. It does not persist across
 driver reinstalls — re-verify after any NVIDIA driver upgrade.
 
-### Infrastructure (one-time per fresh minikube deploy)
+### Infrastructure (one-time per fresh k3s deploy)
 
 Profiling uses a dedicated PVC (`nsight-reports`) mounted at `/nsight-reports/` inside each GPU
-component pod, backed by a minikube 9p mount from the DGX host. This is created automatically by
-the **Kubeflow Deploy** workflow, but the steps are documented here for reference or manual recovery.
+component pod, backed by a k3s hostPath PV pointing directly at the DGX host. This is created
+automatically by the **Kubeflow Deploy** workflow, but the steps are documented here for reference
+or manual recovery.
 
 ```bash
 # 1. Create host directory with world-writable permissions.
-#    IMPORTANT: must be 777 — minikube's 9p server does not map container UIDs
-#    to the host user, so pods running as any UID cannot write into a 755 dir.
-mkdir -p /home/aaron/shared/nsight
-chmod 777 /home/aaron/shared/nsight
+#    IMPORTANT: must be 777 — k3s pods run as non-root UIDs and cannot write
+#    into a 755 dir owned by another user.
+mkdir -p ~/shared/nsight
+chmod 777 ~/shared/nsight
 
-# 2. Start the minikube mount with umask 0.
-#    Default umask 022 causes the 9p server to create new directories with 755
-#    permissions — pods get EACCES trying to write into them.
-(umask 000; minikube mount /home/aaron/shared/nsight:/nsight-reports) &
-
-# 3. Apply the PV and PVC.
-kubectl apply -f - <<'EOF'
+# 2. Apply the PV and PVC.
+#    k3s hostPath PVs reference the actual host path directly — no mount daemon needed.
+kubectl apply -f - <<EOF
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -289,7 +296,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
   hostPath:
-    path: /nsight-reports
+    path: ${HOME}/shared/nsight
     type: DirectoryOrCreate
 ---
 apiVersion: v1
@@ -310,7 +317,7 @@ EOF
 Verify:
 
 ```bash
-minikube ssh "ls /nsight-reports"
+ls ~/shared/nsight
 kubectl get pvc nsight-reports -n kubeflow
 ```
 
@@ -319,7 +326,7 @@ kubectl get pvc nsight-reports -n kubeflow
 ### Output location
 
 ```
-/home/aaron/shared/nsight/
+~/shared/nsight/
   <project-name>/
     <run-id>/
       baseline-eval/
@@ -350,20 +357,21 @@ Use the `/nsight-interpret` skill to send `nsys stats` output to an LLM for bott
 Or open the desktop GUI directly:
 
 ```bash
-nsys-ui /home/aaron/shared/nsight/<project>/<run-id>/baseline-eval/profile.nsys-rep
+nsys-ui ~/shared/nsight/<project>/<run-id>/baseline-eval/profile.nsys-rep
 ```
 
 ---
 
 ### Troubleshooting
 
-**`minikube mount` process died; PVC reads as empty**
+**PVC reads as empty inside a pod**
 
-The 9p mount is maintained by a foreground `minikube mount` process. If it dies (e.g. after a
-laptop sleep/wake), the PVC becomes inaccessible from inside pods. Restart it:
+k3s hostPath PVs are stable across reboots — no mount daemon to restart. If the directory
+appears empty inside a pod, verify the host path exists and has correct permissions:
 
 ```bash
-(umask 000; minikube mount /home/aaron/shared/nsight:/nsight-reports) &
+ls -la ~/shared/nsight
+# Expected: drwxrwxrwx  (777)
 ```
 
-Verify with `minikube ssh "ls /nsight-reports"` before triggering a profiled run.
+If missing, re-create: `mkdir -p ~/shared/nsight && chmod 777 ~/shared/nsight`.

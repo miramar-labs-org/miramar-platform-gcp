@@ -43,7 +43,7 @@ MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-mlflowadmin12345678}"
 MINIO_IMAGE="${MINIO_IMAGE:-minio/minio:RELEASE.2024-05-10T01-41-38Z}"
 MINIO_PVC_SIZE="${MINIO_PVC_SIZE:-20Gi}"
 # k3s has no dynamic provisioner — use hostPath PV with empty storageClassName
-MINIO_DATA_DIR="${MINIO_DATA_DIR:-/home/aaron/shared/mlflow/minio}"
+MINIO_DATA_DIR="${MINIO_DATA_DIR:-${HOME}/shared/mlflow/minio}"
 MINIO_BUCKET="${MINIO_BUCKET:-mlflow}"
 
 # ---- Preflight: confirm NeMo release + nemo-postgresql exist ----
@@ -133,8 +133,8 @@ log "Ensuring old MinIO objects are not conflicting (safe to ignore if missing)"
 kubectl -n "${MLFLOW_NS}" delete deploy/minio svc/minio pvc/minio-pvc secret/minio-creds job/minio-make-mlflow-bucket --ignore-not-found >/dev/null 2>&1 || true
 
 log "Deploying MinIO via manifest (image: ${MINIO_IMAGE})"
-mkdir -p "${MINIO_DATA_DIR}"
-chmod 777 "${MINIO_DATA_DIR}"
+mkdir -p "${MINIO_DATA_DIR}" 2>/dev/null || true
+chmod 777 "${MINIO_DATA_DIR}" 2>/dev/null || true
 kubectl apply -f - <<YAML
 apiVersion: v1
 kind: PersistentVolume

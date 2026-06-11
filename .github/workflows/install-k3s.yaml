@@ -2,7 +2,7 @@ name: K3s Install
 
 # Installs k3s on the target machine with GPU support, deploys the NVIDIA device
 # plugin and nginx-ingress, and patches CoreDNS for host.k3s.internal resolution.
-# Safe to re-run — idempotent; skips the install step if k3s is already present.
+# Safe to re-run — idempotent; skips the install step if k3s binary already present.
 #
 # After installing, updates the <RUNNER>_K3S_KUBECONFIG org secret so all
 # deploy workflows can authenticate.
@@ -31,20 +31,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve secret / variable names
+      - name: Resolve host and secret names
         run: |
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           echo "KUBECONFIG_SECRET=${machine}_K3S_KUBECONFIG" >> "$GITHUB_ENV"
           echo "ACTIVE_VAR=${machine}_K3S_ACTIVE"            >> "$GITHUB_ENV"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
 
-      - name: Install k3s and configure GPU support
-        run: bash scripts/ubuntu/install-k3s.sh
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy repo to host
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" "mkdir -p /tmp/k3s-install"
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            scripts/ubuntu/install-k3s.sh \
+            "${HOST_USER}@${HOST_IP}:/tmp/k3s-install/install-k3s.sh"
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" "mkdir -p /tmp/k3s-install/dgx/k3s"
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            dgx/k3s/nvidia-device-plugin.yaml \
+            "${HOST_USER}@${HOST_IP}:/tmp/k3s-install/dgx/k3s/nvidia-device-plugin.yaml"
+
+      - name: Install k3s on host
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            "REPO_ROOT=/tmp/k3s-install bash /tmp/k3s-install/install-k3s.sh"
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        run: kubectl get nodes -o wide
 
       - name: Cleanup on failure
         if: failure()
         run: |
           echo "==> Install failed — uninstalling k3s for a clean retry..."
-          /usr/local/bin/k3s-uninstall.sh 2>/dev/null || true
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            "/usr/local/bin/k3s-uninstall.sh 2>/dev/null || true"
           echo "==> Cleanup done. Re-trigger this workflow to start fresh."
 
       - name: Set k3s active state
@@ -61,8 +102,12 @@ jobs:
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -o pipefail
-          KUBECONFIG_B64=$(cat "${HOME}/.kube/config" | base64 -w0)
+          KUBECONFIG_B64=$(base64 -w0 < "${HOME}/.kube/config")
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set "${KUBECONFIG_SECRET}" \
             --org miramar-labs-org \
             --body "${KUBECONFIG_B64}"
           echo "==> ${KUBECONFIG_SECRET} updated"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key

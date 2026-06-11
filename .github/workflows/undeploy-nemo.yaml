@@ -28,12 +28,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubeconfig
+      - name: Resolve host
         run: |
-          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
-          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
-          # --network=host so it resolves directly.
-          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
       - name: Verify cluster access
         run: kubectl get nodes
@@ -81,6 +97,10 @@ jobs:
           sudo sed -i '/nim\.test/d'        /etc/hosts || true
           sudo sed -i '/data-store\.test/d' /etc/hosts || true
           sudo sed -i '/# Added by NeMo setup script/d' /etc/hosts || true
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
 
       - name: Clear NeMo active state
         env:

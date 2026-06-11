@@ -1,6 +1,6 @@
 name: MLflow Deploy
 
-# Deploys MLflow + MinIO into the mlflow-system namespace on the target minikube
+# Deploys MLflow + MinIO into the mlflow-system namespace on the target k3s
 # cluster and integrates with an existing NeMo Microservices deployment.
 # MLflow uses NeMo's postgres as its backend store.
 #
@@ -25,18 +25,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubeconfig
+      - name: Resolve host
         run: |
-          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
-          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
-          # --network=host so it resolves directly.
-          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
       - name: Verify cluster access
         run: kubectl get nodes
 
+      - name: Prepare MLflow data directories on host
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+            mkdir -p /home/${HOST_USER}/shared/mlflow/minio
+            chmod 777 /home/${HOST_USER}/shared/mlflow/minio
+          "
+
       - name: Deploy MLflow and integrate with NeMo
-        run: bash dgx/minikube/mlflow/integrate-mlflow.sh
+        run: |
+          MINIO_DATA_DIR="/home/${HOST_USER}/shared/mlflow/minio" \
+          bash dgx/minikube/mlflow/integrate-mlflow.sh
 
       - name: Smoke-test endpoints
         continue-on-error: true
@@ -52,3 +77,7 @@ jobs:
             -f name="${var}" -f value="true" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="true" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key

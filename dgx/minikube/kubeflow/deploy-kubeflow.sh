@@ -64,9 +64,9 @@ echo "==> Waiting for applications.app.k8s.io CRD ..."
 kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
 
 echo "==> Creating KFP hostPath PVs (k3s has no dynamic provisioner) ..."
-KFP_DATA_DIR="${KFP_DATA_DIR:-/home/aaron/shared/kfp}"
-mkdir -p "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs"
-chmod 777 "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs"
+KFP_DATA_DIR="${KFP_DATA_DIR:-${HOME}/shared/kfp}"
+mkdir -p "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs" 2>/dev/null || true
+chmod 777 "${KFP_DATA_DIR}/mysql" "${KFP_DATA_DIR}/seaweedfs" 2>/dev/null || true
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: PersistentVolume

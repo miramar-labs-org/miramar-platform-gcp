@@ -141,7 +141,7 @@ jobs:
           fi
           printf '%s' "${SCRIPT}" \
             | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                "${HOST_USER:-aaron}@${HOST_ADDR:-localhost}" \
+                "${HOST_USER}@${HOST_ADDR:-localhost}" \
                 env PROJECT_NAME="${PROJECT_NAME}" bash
 
       - name: Summary

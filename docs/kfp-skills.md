@@ -135,7 +135,7 @@ analysis — no manual reading of `.nsys-rep` files required.**
 /nsight-interpret my-project run-021 --ollama qwen3-coder:30b
 
 # Direct path (no project name needed)
-/nsight-interpret /home/aaron/shared/nsight/my-project/run-021/main/profile.nsys-rep
+/nsight-interpret ~/shared/nsight/my-project/run-021/main/profile.nsys-rep
 
 # Auto-detect: if only run-NNN given, project inferred from basename $(pwd)
 /nsight-interpret run-021

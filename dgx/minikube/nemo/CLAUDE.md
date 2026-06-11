@@ -43,12 +43,12 @@ Access from laptop via SSH tunnel (DGX and AGX can run simultaneously on differe
 # DGX Spark
 ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
-    -L 11434:localhost:11434 aaron@spark-79b7.local
+    -L 11434:localhost:11434 $USER@spark-79b7.local
 
 # AGX Orin
 ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
-    -L 11435:localhost:11434 aaron@orin.local
+    -L 11435:localhost:11434 $USER@orin.local
 ```
 
 Add to laptop `/etc/hosts`: `127.0.0.1 nemo.test nim.test data-store.test`

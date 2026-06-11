@@ -11,7 +11,7 @@ ssh -L 8001:localhost:8001 \
     -L 8082:localhost:8082 \
     -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
-    aaron@spark-79b7.local
+    $USER@spark-79b7.local
 
 # AGX Orin (offset ports — run alongside DGX tunnel)
 ssh -L 8002:localhost:8001 \
@@ -21,7 +21,7 @@ ssh -L 8002:localhost:8001 \
     -L 8083:localhost:8082 \
     -L 8891:localhost:8890 \
     -L 11435:localhost:11434 \
-    aaron@orin.local
+    $USER@orin.local
 ```
 
 ## One-time laptop setup

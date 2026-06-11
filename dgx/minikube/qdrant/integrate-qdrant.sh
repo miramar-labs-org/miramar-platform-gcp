@@ -15,7 +15,7 @@ QDRANT_NS="${QDRANT_NS:-qdrant-system}"
 QDRANT_IMAGE="${QDRANT_IMAGE:-qdrant/qdrant:latest}"
 QDRANT_PVC_SIZE="${QDRANT_PVC_SIZE:-20Gi}"
 # k3s uses hostPath PVs (no dynamic provisioner); data dir created on host.
-QDRANT_DATA_DIR="${QDRANT_DATA_DIR:-/home/aaron/shared/qdrant-data}"
+QDRANT_DATA_DIR="${QDRANT_DATA_DIR:-${HOME}/shared/qdrant-data}"
 QDRANT_PV_NAME="${QDRANT_PV_NAME:-qdrant-pv}"
 
 # ---- Ensure namespace ----
@@ -23,7 +23,7 @@ log "Ensuring namespace ${QDRANT_NS} exists"
 kubectl get ns "${QDRANT_NS}" >/dev/null 2>&1 || kubectl create ns "${QDRANT_NS}"
 
 # ---- Ensure host data directory ----
-mkdir -p "${QDRANT_DATA_DIR}"
+mkdir -p "${QDRANT_DATA_DIR}" 2>/dev/null || true
 
 # ---- Deploy ----
 log "Applying Qdrant manifests (image: ${QDRANT_IMAGE})"

@@ -1,6 +1,6 @@
 name: Nsight Operator Undeploy
 
-# Removes the NVIDIA Nsight Operator from the target minikube cluster.
+# Removes the NVIDIA Nsight Operator from the target k3s cluster.
 # Stops the nsight-portfwd.service port-forward, optionally removes the
 # kubeflow namespace injection label, and optionally deletes the namespace.
 
@@ -36,27 +36,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubeconfig
+      - name: Resolve host
         run: |
-          # k3s writes kubeconfig to ~/.kube/config at install time; no docker network
-          # tricks needed — the API server is at 127.0.0.1:6443 and the runner uses
-          # --network=host so it resolves directly.
-          echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"     >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"     >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
       - name: Verify cluster access
         run: kubectl get nodes
 
       - name: Stop port-forward service
-        env:
-          HOST_USER: ${{ vars.DGX_HOST_USER }}
-          HOST_IP:   ${{ inputs.runner == 'agx' && vars.AGX_HOST_IP || vars.DGX_HOST_IP }}
-          SSH_KEY:   ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "$SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
-          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             'systemctl --user disable --now nsight-portfwd.service 2>/dev/null || true'
-          rm -f /tmp/deploy_key
 
       - name: Remove kubeflow namespace label
         if: ${{ inputs.unlabel_kubeflow_namespace }}
@@ -68,6 +78,10 @@ jobs:
       - name: Delete namespace
         if: ${{ inputs.delete_namespace }}
         run: kubectl delete namespace nsight-operator --ignore-not-found
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
 
       - name: Clear Nsight Operator active state
         env:

@@ -82,11 +82,11 @@ Dashboard, JupyterLab, and MLflow are always running via systemd — no manual s
 ```sh
 # DGX Spark
 ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
-    -L 8082:localhost:8082 -L 11434:localhost:11434 aaron@spark-79b7.local
+    -L 8082:localhost:8082 -L 11434:localhost:11434 $USER@spark-79b7.local
 
 # AGX Orin
 ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
-    -L 8083:localhost:8082 -L 11435:localhost:11434 aaron@orin.local
+    -L 8083:localhost:8082 -L 11435:localhost:11434 $USER@orin.local
 ```
 
 | Service | DGX URL | AGX URL |
