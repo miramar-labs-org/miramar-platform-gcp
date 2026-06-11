@@ -131,6 +131,8 @@ fi
 
 log "Ensuring old MinIO objects are not conflicting (safe to ignore if missing)"
 kubectl -n "${MLFLOW_NS}" delete deploy/minio svc/minio pvc/minio-pvc secret/minio-creds job/minio-make-mlflow-bucket --ignore-not-found >/dev/null 2>&1 || true
+# Clear stale claimRef so a Released PV can bind to the new PVC (Retain policy keeps uid from old PVC)
+kubectl patch pv mlflow-minio-pv -p '{"spec":{"claimRef":null}}' --type=merge 2>/dev/null || true
 
 log "Deploying MinIO via manifest (image: ${MINIO_IMAGE})"
 mkdir -p "${MINIO_DATA_DIR}" 2>/dev/null || true

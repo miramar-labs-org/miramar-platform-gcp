@@ -55,7 +55,7 @@ jobs:
         run: |
           ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             mkdir -p /home/${HOST_USER}/shared/mlflow/minio
-            chmod 777 /home/${HOST_USER}/shared/mlflow/minio
+            chmod 777 /home/${HOST_USER}/shared/mlflow/minio || true
           "
 
       - name: Deploy MLflow and integrate with NeMo
