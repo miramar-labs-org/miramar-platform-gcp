@@ -109,9 +109,12 @@ jobs:
       - name: Set PROJECT_HOST variable
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
           HOST: ${{ inputs.host }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
+          # llm-serving-vllm workloads run on GCP regardless of scaffolding runner
+          [[ "$PROJECT_TYPE" == "llm-serving-vllm" ]] && HOST="gcp"
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X PATCH "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
             -f value="${HOST}" 2>/dev/null || \

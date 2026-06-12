@@ -286,6 +286,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-vllm-gcp { background: #0c2a4a; color: #38bdf8; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
+  .badge-gcp      { background: #2a1f0a; color: #fbbf24; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
   .jl-link:hover { color: #ffa657; }
   .results-link { color: #a78bfa; font-size: 0.8rem; white-space: nowrap; }
