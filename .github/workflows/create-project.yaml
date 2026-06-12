@@ -3,10 +3,11 @@ name: Create Project
 # Creates a new GitHub repository under miramar-labs-org pre-wired
 # to the Miramar platform. Defaults to public so projects appear in the dashboard.
 #
-# default      — generic notebook + platform endpoint reference
-# kfp          — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
-# kfp-ft-eval  — KFP v2 eval-first fine-tuning pipeline, config-driven 6-step scaffold
-# nemo         — NeMo training job config, notebook, deploy/undeploy NeMo workflows
+# default          — generic notebook + platform endpoint reference
+# kfp              — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
+# kfp-ft-eval      — KFP v2 eval-first fine-tuning pipeline, config-driven 6-step scaffold
+# nemo             — NeMo training job config, notebook, deploy/undeploy NeMo workflows
+# llm-serving-vllm — vLLM LoRA adapter serving on GKE (L4 spot); build-push/deploy/undeploy workflows
 #
 # The host input sets which machine (dgx/agx) the project lives on:
 #   - controls which runner clones the repo on creation
@@ -24,7 +25,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, kfp-ft-eval, nemo]
+        options: [default, kfp, kfp-ft-eval, nemo, llm-serving-vllm]
         default: default
         required: true
       host:
@@ -54,6 +55,10 @@ on:
       hf_dataset_id:
         description: "HuggingFace dataset ID (kfp-ft-eval only, e.g. allenai/ai2_arc)"
         default: "org/dataset"
+        required: false
+      served_model_name:
+        description: "Stable model alias for the API (llm-serving-vllm only, e.g. biomistral-onc)"
+        default: "my-model"
         required: false
 
 permissions:
@@ -121,6 +126,7 @@ jobs:
           HOST: ${{ inputs.host }}
           HF_MODEL_ID: ${{ inputs.hf_model_id }}
           HF_DATASET_ID: ${{ inputs.hf_dataset_id }}
+          SERVED_MODEL_NAME: ${{ inputs.served_model_name }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
@@ -152,6 +158,7 @@ jobs:
               -e "s|{{JL_URL}}|${JL_URL}|g" \
               -e "s|{{HF_MODEL_ID}}|${HF_MODEL_ID}|g" \
               -e "s|{{HF_DATASET_ID}}|${HF_DATASET_ID}|g" \
+              -e "s|{{SERVED_MODEL_NAME}}|${SERVED_MODEL_NAME}|g" \
             {} +
 
           # Inject CI workflow badges after the title line for kfp and nemo types.
@@ -172,6 +179,12 @@ jobs:
             BADGE_2="[![Deploy to NeMo](${WF}/deploy-nemo.yaml/badge.svg)](${WF}/deploy-nemo.yaml)"
             BADGE_3="[![Undeploy from NeMo](${WF}/undeploy-nemo.yaml/badge.svg)](${WF}/undeploy-nemo.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "llm-serving-vllm" ]; then
+            BADGE_2="[![Build and Push](${WF}/build-push.yaml/badge.svg)](${WF}/build-push.yaml)"
+            BADGE_3="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
+            BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
           fi
 
@@ -297,6 +310,28 @@ jobs:
               "\`\`\`python" "# TODO: pipeline.py excerpt" "\`\`\`" "" \
               "## Results" "" "<!-- TODO: run results, metrics, KFP UI screenshots -->" "" \
               "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "llm-serving-vllm" ]; then
+            CATS="miramar vllm serving gke"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** GKE via [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Serving stack" "" \
+              "| | |" "|---|---|" \
+              "| Base model | <!-- TODO --> |" \
+              "| LoRA adapter | <!-- TODO: FT project + run --> |" \
+              "| Inference engine | vLLM |" \
+              "| GPU | L4 spot (24 GB) |" \
+              "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
+              "## Deployment" "" \
+              "\`\`\`bash" \
+              "curl http://localhost:8000/v1/models" \
+              "curl -X POST http://localhost:8000/v1/chat/completions \\\\" \
+              "  -d '{\"model\":\"<!-- TODO -->\",\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'" \
+              "\`\`\`" "" \
+              "## Smoke test results" "" \
+              "<!-- TODO: sample prompts and responses -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
           elif [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
             CATS="miramar kubeflow fine-tuning"
             BODY=$(printf '%s\n' \
@@ -420,6 +455,14 @@ jobs:
               echo "5. Run the **Build → \`pipeline.py\`** cell"
               echo "6. Trigger **Deploy to KFP** to compile and submit a run"
               echo "7. Prerequisites: **Kubeflow Deploy** must be running on \`${HOST}\`"
+            elif [ "${PROJECT_TYPE}" = "llm-serving-vllm" ]; then
+              echo "### Next steps"
+              echo "1. Set \`adapter.manifest_uri\` in \`serving-config.yaml\` — run \`publish-adapter.yaml\` on the FT project first"
+              echo "2. Trigger **Build and Push** to build and push the serving image to GAR"
+              echo "3. Trigger **Deploy** to expand L4 spot GPU pool, start vLLM, and run smoke tests"
+              echo "4. Trigger **Undeploy** when done to stop GPU costs"
+              echo ""
+              echo "Prerequisites: \`gcp-platform-create.yaml\` must have run to provision \`gs://miramar-platform-ft-adapters\`"
             else
               echo "### Next steps"
               echo "1. Edit \`job_config.yaml\` — set model, dataset path, hyperparameters"

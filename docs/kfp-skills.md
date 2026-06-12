@@ -186,7 +186,9 @@ settings — then offers the full card on request.
 
 ---
 
-## `/nsight-interpret <project-name> <run-NNN> [--ollama model]`
+## Nsight Profiling in KFP
+
+### `/nsight-interpret <project-name> <run-NNN> [--ollama model]`
 
 **Extracts Nsight Systems profiling summaries and sends them to an LLM for bottleneck
 analysis — no manual reading of `.nsys-rep` files required.**

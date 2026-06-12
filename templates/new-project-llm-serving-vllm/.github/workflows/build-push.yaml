@@ -1,0 +1,66 @@
+name: Build and Push
+
+# Builds the vLLM serving image (amd64 for GKE) and pushes to GAR.
+# Run this once before the first deploy, and again only when Dockerfile.serve changes.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_NAME: {{PROJECT_NAME}}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GAR_REPO: ${{ vars.GAR_REPO }}
+
+jobs:
+  build-push:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GAR
+        run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
+
+      - name: Set image URI
+        id: image
+        run: |
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}"
+          COMMIT_SHA="${{ github.sha }}"
+          echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+          echo "tag=${COMMIT_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          IMAGE_URI="${{ steps.image.outputs.uri }}"
+          TAG="${{ steps.image.outputs.tag }}"
+          docker build \
+            --cache-from "${IMAGE_URI}:latest" \
+            -t "${IMAGE_URI}:latest" \
+            -t "${IMAGE_URI}:${TAG}" \
+            -f Dockerfile.serve .
+          docker push "${IMAGE_URI}:latest"
+          docker push "${IMAGE_URI}:${TAG}"
+          echo "Pushed ${IMAGE_URI}:${TAG}"
+
+      - name: Summary
+        run: |
+          {
+            echo "## Build and Push Complete"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Project | \`$PROJECT_NAME\` |"
+            echo "| Image | \`${{ steps.image.outputs.uri }}:${{ steps.image.outputs.tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

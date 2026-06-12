@@ -1,0 +1,3 @@
+FROM vllm/vllm-openai:latest
+# Model pulled from HF Hub at startup; adapter pulled from GCS via init container.
+# Nothing to bake in — keep this image thin and rebuild only when vLLM version changes.

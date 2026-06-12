@@ -126,6 +126,25 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/),
 | `kfp` | KFP v2 pipeline stub, notebook, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges | `kfp>=2.0.0` |
 | `kfp-ft-eval` | KFP v2 eval-first fine-tuning pipeline: 6 `@dsl.component` steps (prepare_dataset → baseline_eval → baseline_safety_eval → fine_tune → post_finetune_eval → safety_eval → deployment_gate), config-driven via `config.yaml` + `formatters.py` + `loaders.py`, Build cell to regenerate `pipeline.py`, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges. Topic tag `miramar-kfp-ft-eval`. | `kfp>=2.0.0` |
 | `nemo` | NeMo training config, notebook, `deploy-nemo.yaml` / `undeploy-nemo.yaml` workflows + CI badges | `nemo-microservices` |
+| `llm-serving-vllm` | vLLM LoRA adapter serving on GKE L4 spot: `serving-config.yaml` (base model, stable alias, manifest URI), `Dockerfile.serve`, `k8s/vllm.yaml` (init container pulls adapter from GCS, main container runs vLLM), `build-push.yaml` / `deploy.yaml` / `undeploy.yaml` workflows + CI badges, `smoke_test_prompts.jsonl` | — |
+
+### Model serving (llm-serving-vllm projects)
+
+Per-project workflows in every `llm-serving-vllm` repo:
+
+| Workflow | File | Runner | Purpose |
+| --- | --- | --- | --- |
+| Build and Push | `build-push.yaml` | `wsl2` | Build `Dockerfile.serve` (amd64 for GKE), push to GAR as `:latest` + commit SHA tag |
+| Deploy | `deploy.yaml` | `wsl2` | Resolve + validate manifest (blocks if `eval_passed` or `safety_passed` is false), expand L4 spot GPU pool, apply `k8s/vllm.yaml`, wait for rollout, run smoke tests from `smoke_test_prompts.jsonl` |
+| Undeploy | `undeploy.yaml` | `wsl2` | Delete deployment and service, trigger `gke-restore-gpu.yaml` to tear down the GPU pool and stop costs |
+
+**Publish adapter** — in `kfp-ft-eval` projects (after a gate-passed KFP run):
+
+| Workflow | File | Runner | Purpose |
+| --- | --- | --- | --- |
+| Publish Adapter to GCS | `publish-adapter.yaml` | `dgx` | Extract eval metrics, generate `manifest.json` + `model_card.md`, upload full bundle to `gs://miramar-platform-ft-adapters/<project>/<run>/` |
+
+The `manifest.json` is the stable contract between FT and serving projects. Set `adapter.manifest_uri` in `serving-config.yaml` after publishing, then trigger `deploy.yaml`.
 
 ### Python environment
 

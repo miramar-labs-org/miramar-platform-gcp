@@ -77,6 +77,18 @@ jobs:
           fi
 
 
+      - name: Ensure FT adapters bucket
+        run: |
+          if ! gcloud storage buckets describe "gs://miramar-platform-ft-adapters" > /dev/null 2>&1; then
+            echo "Creating gs://miramar-platform-ft-adapters"
+            gcloud storage buckets create "gs://miramar-platform-ft-adapters" \
+              --project="$PROJECT_ID" \
+              --location="$GCP_REGION" \
+              --uniform-bucket-level-access
+          else
+            echo "Bucket gs://miramar-platform-ft-adapters already exists"
+          fi
+
       - name: Terraform Init
         working-directory: gcp/terraform
         run: terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
