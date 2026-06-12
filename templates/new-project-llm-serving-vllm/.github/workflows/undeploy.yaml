@@ -1,0 +1,63 @@
+name: Undeploy
+
+# Removes the vLLM deployment from GKE and tears down the GPU node pool.
+# Always run this after testing to stop GPU costs (~$0.22/hr for L4 spot).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_NAME: {{PROJECT_NAME}}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Delete deployment
+        run: |
+          kubectl delete deployment vllm -n "$PROJECT_NAME" --ignore-not-found
+          kubectl delete service vllm -n "$PROJECT_NAME" --ignore-not-found
+          echo "Deployment removed."
+
+      - name: Restore GPU node pool
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          echo "Triggering gke-restore-gpu (namespace=$PROJECT_NAME)"
+          gh workflow run gke-restore-gpu.yaml \
+            --repo miramar-labs-org/miramar-platform-gcp \
+            --field namespace="$PROJECT_NAME"
+          echo "GPU restore triggered. Pool will be torn down shortly."
+
+      - name: Summary
+        run: |
+          {
+            echo "## Undeploy: $PROJECT_NAME"
+            echo "vLLM deployment removed. GPU node pool restore triggered."
+            echo "GPU costs stopped."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,221 @@
+name: Deploy
+
+# Expands a GPU node pool (L4 spot), deploys the vLLM serving pod to GKE,
+# and runs smoke tests from smoke_test_prompts.jsonl.
+# Run undeploy.yaml when done to tear down the GPU pool and stop costs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: GAR image tag to deploy (default: latest)
+        required: false
+        default: latest
+      manifest_uri:
+        description: GCS manifest URI (overrides serving-config.yaml adapter.manifest_uri if set)
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_NAME: {{PROJECT_NAME}}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+  GAR_REPO: ${{ vars.GAR_REPO }}
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve manifest URI
+        id: manifest
+        run: |
+          MANIFEST_URI="${{ inputs.manifest_uri }}"
+          if [[ -z "$MANIFEST_URI" ]]; then
+            MANIFEST_URI=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['adapter']['manifest_uri'])
+          ")
+          fi
+          if [[ -z "$MANIFEST_URI" ]]; then
+            echo "ERROR: manifest_uri not set in serving-config.yaml and not provided as input."
+            exit 1
+          fi
+          echo "uri=$MANIFEST_URI" >> "$GITHUB_OUTPUT"
+          echo "Manifest URI: $MANIFEST_URI"
+
+      - name: Validate manifest
+        run: |
+          MANIFEST_URI="${{ steps.manifest.outputs.uri }}"
+          gsutil cp "$MANIFEST_URI" /tmp/manifest.json
+          python3 -c "
+          import json, sys
+          with open('/tmp/manifest.json') as f:
+              m = json.load(f)
+          errors = []
+          if not m.get('eval_passed'):
+              errors.append('eval_passed is not true')
+          if not m.get('safety_passed'):
+              errors.append('safety_passed is not true')
+          if errors:
+              print('MANIFEST VALIDATION FAILED:', '; '.join(errors))
+              sys.exit(1)
+          print(f\"Manifest valid: {m['project']} / {m['run_id']}\")
+          print(f\"  base_model_id: {m['base_model_id']}\")
+          print(f\"  adapter_uri:   {m['adapter_uri']}\")
+          "
+          # Export for later steps
+          python3 -c "
+          import json
+          with open('/tmp/manifest.json') as f:
+              m = json.load(f)
+          print(f\"BASE_MODEL_ID={m['base_model_id']}\")
+          print(f\"ADAPTER_URI={m['adapter_uri']}\")
+          " >> "$GITHUB_ENV"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Expand GPU node pool (L4 spot)
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          echo "Triggering gke-expand-gpu (nvidia-l4, spot=true, namespace=$PROJECT_NAME)"
+          gh workflow run gke-expand-gpu.yaml \
+            --repo miramar-labs-org/miramar-platform-gcp \
+            --field namespace="$PROJECT_NAME" \
+            --field gpu_type=nvidia-l4 \
+            --field spot=true
+          echo "Waiting for GPU node pool to be ready..."
+          for i in $(seq 1 40); do
+            NODE=$(kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4 \
+              --no-headers 2>/dev/null | grep -c "Ready" || true)
+            if [[ "$NODE" -ge 1 ]]; then
+              echo "GPU node ready."
+              break
+            fi
+            echo "Waiting... ($i/40)"
+            sleep 15
+          done
+          kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Ensure HF_TOKEN secret
+        run: |
+          if ! kubectl get secret hf-token -n "$PROJECT_NAME" > /dev/null 2>&1; then
+            echo "Creating hf-token secret in namespace $PROJECT_NAME"
+            kubectl create secret generic hf-token \
+              --from-literal=token="${{ secrets.HF_TOKEN }}" \
+              -n "$PROJECT_NAME"
+          else
+            echo "hf-token secret already exists"
+          fi
+
+      - name: Build image URI
+        id: image_uri
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}:${TAG}"
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      - name: Substitute and apply manifest
+        run: |
+          SERVED_MODEL_NAME=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['model']['served_model_name'])
+          ")
+          # Strip namespace doc (prevents re-apply conflict), substitute placeholders
+          grep -v '^kind: Namespace' k8s/vllm.yaml \
+            | grep -v '^  name: {{PROJECT_NAME}}$' \
+            | grep -v '^apiVersion: v1$' \
+            | sed '/^---$/{ N; /^---\n---$/d }' \
+            | sed "s|IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" \
+            | sed "s|GCS_MANIFEST_URI_PLACEHOLDER|${{ steps.manifest.outputs.uri }}|g" \
+            | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
+            | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | kubectl apply -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
+
+      - name: Smoke test
+        run: |
+          # Port-forward in background
+          kubectl port-forward svc/vllm 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          SERVED_MODEL_NAME=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['model']['served_model_name'])
+          ")
+
+          # Models endpoint
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          models=[m['id'] for m in d.get('data',[])]
+          print('Models:', models)
+          "
+
+          # Run prompts from smoke_test_prompts.jsonl
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"${SERVED_MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}],\"max_tokens\":100}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'][:80])" 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Manifest | \`${{ steps.manifest.outputs.uri }}\` |"
+            echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
