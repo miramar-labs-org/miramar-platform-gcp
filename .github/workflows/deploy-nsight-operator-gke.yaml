@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, wsl2]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
