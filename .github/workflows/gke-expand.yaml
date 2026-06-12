@@ -26,7 +26,7 @@ env:
 
 jobs:
   expand:
-    runs-on: [self-hosted, dgx]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

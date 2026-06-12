@@ -44,7 +44,7 @@ env:
 
 jobs:
   destroy:
-    runs-on: [self-hosted, dgx]
+    runs-on: ubuntu-latest
     steps:
       - name: Validate confirmation
         run: |
