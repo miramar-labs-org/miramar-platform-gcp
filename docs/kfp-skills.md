@@ -39,6 +39,59 @@ After this finishes, invoke `/kfp-monitor <run-name>` to start the monitoring lo
 
 ---
 
+---
+
+## Optional integrations
+
+### Weights & Biases
+
+The `kfp-ft-eval` template has built-in, opt-in W&B support. Enable it in `config.yaml`:
+
+```yaml
+wandb:
+  enabled: true
+  project: "my-project"   # W&B project name
+  entity: ""              # W&B team/org (leave blank for personal account)
+```
+
+`WANDB_API_KEY` is already injected into KFP pods from the `mlabs-api-keys` K8s secret — no
+additional setup required. When enabled:
+
+- **`fine_tune`** — calls `wandb.init()` before training and logs step metrics (loss, grad_norm,
+  lr, token accuracy) via `report_to=["mlflow", "wandb"]` in `SFTConfig`. Calls `wandb.finish()`
+  after the MLflow log block.
+- **`deployment_gate`** — logs a final summary run (`baseline_accuracy`, `postft_accuracy`,
+  `accuracy_delta`, `baseline_safety_score`, `safety_score`, `gate_pass`) before the pass/fail
+  check. Errors are caught and printed — the gate result is unaffected.
+
+W&B is fully opt-in. Both components behave identically when `wandb.enabled: false` (the default).
+
+### Slack notifications
+
+`/kfp-monitor` sends a one-line Slack summary on every terminal pipeline completion (PASS or FAIL).
+Set the webhook URL once in `~/.zshrc`:
+
+```bash
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+```
+
+Example messages:
+```
+✅ *PASS* — biomistral-7b-onc / run-001
+Accuracy: 0.45 → 0.52 (+15.6%)
+Safety: 4.5 → 4.6 (+0.1)
+Train loss: 0.82 | MLflow: http://localhost:5000
+
+❌ *FAIL* — biomistral-7b-onc / run-001
+Accuracy: 0.45 → 0.41 (−8.9%) ✗
+Safety: 4.5 → 4.6 ✓
+```
+
+Fires on every chunk terminal completion for chunked runs, not just the last. Degrades silently
+if `SLACK_WEBHOOK_URL` is unset or if the `curl` POST fails.
+
+---
+
 ## `/kfp-monitor [run-name]`
 
 **Monitors a running pipeline — checks pods, logs, and MLflow; appends timestamped entries to

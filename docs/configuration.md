@@ -112,6 +112,12 @@ Each self-hosted runner machine also needs the same PATs as local shell env vars
 | `GITHUB_ORG_GHCR_PAT` | `read:packages` | Pull `mlabs-runner` from GHCR |
 | `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Manage self-hosted runners, update `WSL2_DISTROS`, push `.github/workflows/` files to new repos. The `workflow` scope is required by GitHub whenever a push includes files under `.github/workflows/` — e.g. the **Create Project** workflow. Also used by **Delete Project** (`delete_repo` scope required). |
 
+The following optional host env var is used by the `/kfp-monitor` slash command (add to `~/.zshrc`):
+
+| Variable | Purpose |
+| --- | --- |
+| `SLACK_WEBHOOK_URL` | Incoming webhook URL for Slack notifications. When set, `/kfp-monitor` POSTs a one-line summary to Slack on every terminal pipeline completion (PASS or FAIL). Degrades silently if unset. See [kfp-skills.md — Slack notifications](kfp-skills.md#slack-notifications). |
+
 **Dashboard dispatch token** — `DASHBOARD_DISPATCH_TOKEN` is injected into the dashboard HTML when **Deploy Platform Dashboard** runs, so the 🗑 delete button works without any browser input. It is a fine-grained PAT scoped to Actions write on this repo only — safe to embed in public HTML because it can only trigger workflow dispatches, not delete repos directly. The actual deletion is performed by `delete-project.yaml` using the runner's `GITHUB_ORG_ADMIN_PAT`.
 
 Example:
