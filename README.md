@@ -135,9 +135,14 @@ Project templates generate complete repos with:
 | Documentation | README, `CLAUDE.md`, blog draft scaffolding |
 | Deployment hooks | Kubeflow, GCP, and local service integration patterns |
 
-The first production template is a **Kubeflow Pipelines fine-tuning project**. It supports on-prem fine-tuning and evaluation where PHI remains local, then promotes only approved PHI-free model artifacts to GCP for inference.
+Live templates:
 
-Planned templates include RAG systems, evaluation harnesses, NeMo/NIM workflows, agentic AI projects, and additional clinical AI deployment patterns.
+| Type | Purpose |
+| --- | --- |
+| `kfp-ft-eval` | Kubeflow Pipelines eval-first fine-tuning — 6-step eval-gate pipeline; training and PHI stay on DGX |
+| `llm-serving-vllm` | vLLM LoRA adapter serving on GKE L4 spot — consumes the artifact bundle published by a `kfp-ft-eval` project |
+
+The two templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
 
 ---
 
@@ -170,6 +175,46 @@ with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
 ```
 
 Full details: [docs/kfp-skills.md — Nsight Profiling in KFP](docs/kfp-skills.md#nsight-profiling-in-kfp) · [docs/dgx.md — GPU Profiling](docs/dgx.md#gpu-profiling)
+
+---
+
+## Model Serving
+
+After a `kfp-ft-eval` run passes the deployment gate, the adapter is published to GCS and served via vLLM on GKE:
+
+```
+kfp-ft-eval run PASS
+  → publish-adapter.yaml  (dgx)  → gs://miramar-platform-ft-adapters/<project>/<run>/
+      manifest.json               ↓
+      adapter/               deploy.yaml  (wsl2, GKE L4 spot)
+      eval/                       ↓
+      model_card.md          vLLM pod  →  OpenAI-compatible /v1/chat/completions
+      smoke_test_prompts.jsonl    (stable alias: served_model_name)
+```
+
+Key properties:
+- **Manifest gate** — `deploy.yaml` reads `manifest.json` and blocks if `eval_passed` or `safety_passed` is false
+- **Stable alias** — clients use `served_model_name` (e.g. `biomistral-onc`), never raw model paths
+- **Cost control** — L4 spot GPU pool (~$0.22/hr) is expanded on deploy and torn down on undeploy; never left running
+- **PHI boundary** — training, eval, and publish all run on DGX; only approved non-PHI artifacts reach GCP
+
+```bash
+# After gate PASS on the FT project:
+gh workflow run publish-adapter.yaml --field run_name=run-001
+
+# In the serving project:
+gh workflow run build-push.yaml
+gh workflow run deploy.yaml --field manifest_uri=gs://miramar-platform-ft-adapters/.../manifest.json
+
+# Test:
+kubectl port-forward svc/vllm 8000:8000 -n <project>
+curl http://localhost:8000/v1/models
+
+# Always undeploy when done:
+gh workflow run undeploy.yaml
+```
+
+Full details: [docs/workflows.md — Model Serving](docs/workflows.md#model-serving-llm-serving-vllm-projects)
 
 ---
 
@@ -211,6 +256,7 @@ Detailed operational procedures live in focused docs:
 | Workflow catalog | [docs/workflows.md](docs/workflows.md) |
 | DGX local AI stack | [docs/dgx.md](docs/dgx.md), [dgx/README.md](dgx/README.md) |
 | GPU profiling + AI analysis | [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp), [docs/dgx.md](docs/dgx.md#gpu-profiling) |
+| Model serving (vLLM on GKE) | [docs/workflows.md](docs/workflows.md#model-serving-llm-serving-vllm-projects) |
 | WSL2 environments | [wsl2/README.md](wsl2/README.md), [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md) |
 | SSH topology | [docs/ssh-runbook.md](docs/ssh-runbook.md) |
 | Shared DGX/WSL2 folder | [docs/shared.md](docs/shared.md) |
@@ -225,6 +271,7 @@ Common entry points:
 | Scale GKE/GPU capacity | [docs/workflows.md](docs/workflows.md), [docs/gpu-quota-request.md](docs/gpu-quota-request.md) |
 | Deploy DGX AI services | [docs/dgx.md](docs/dgx.md) |
 | Profile a KFP pipeline stage | [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp) |
+| Publish adapter + serve on GKE | [docs/workflows.md](docs/workflows.md#model-serving-llm-serving-vllm-projects) |
 | Provision WSL2 distros | [wsl2/README.md](wsl2/README.md) |
 | Troubleshoot SSH | [docs/ssh-runbook.md](docs/ssh-runbook.md) |
 
