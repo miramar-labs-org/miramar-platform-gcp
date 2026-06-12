@@ -1,6 +1,7 @@
 project_id       = "miramar-platform"
-region           = "us-central1"
+region           = "us-west1"
 cluster_name     = "miramar-shared-gke"
-cluster_zone     = "us-central1-b"
-gpu_machine_type = "n1-standard-4"
-gpu_type         = "nvidia-tesla-t4"
+cluster_zone     = "us-west1-b"
+gpu_machine_type = "g2-standard-8"
+gpu_type         = "nvidia-l4"
+spot             = true
