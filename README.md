@@ -307,6 +307,10 @@ Common entry points:
 | [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
 | [Terraform](https://www.terraform.io) | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs) |
 | [GKE](https://cloud.google.com/kubernetes-engine) | — | [docs](https://cloud.google.com/kubernetes-engine/docs) |
+| [Google Cloud Storage](https://cloud.google.com/storage) | — | [docs](https://cloud.google.com/storage/docs) |
+| [Google Artifact Registry](https://cloud.google.com/artifact-registry) | — | [docs](https://cloud.google.com/artifact-registry/docs) |
+| [vLLM](https://docs.vllm.ai/) | [vllm-project/vllm](https://github.com/vllm-project/vllm) | [docs](https://docs.vllm.ai/) |
+| [PEFT](https://huggingface.co/docs/peft) | [huggingface/peft](https://github.com/huggingface/peft) | [docs](https://huggingface.co/docs/peft) |
 | [Helm](https://helm.sh) | [helm/helm](https://github.com/helm/helm) | [docs](https://helm.sh/docs/) |
 | [GitHub Actions](https://github.com/features/actions) | — | [docs](https://docs.github.com/en/actions) |
 
