@@ -17,8 +17,8 @@ inference workloads across local GPU systems and cloud infrastructure.
 
 ## Platform implemented / planned
 
-| Capability                                       | Status        | Notes                                                                  |
-| ------------------------------------------------ | ------------- | ---------------------------------------------------------------------- |
+| Capability                                       | Status         | Notes                                                                  |
+| ------------------------------------------------ | -------------- | ---------------------------------------------------------------------- |
 | Multi-arch runner image (`mlabs-runner`)         | ✅ Done        | `linux/amd64` + `linux/arm64`; GHCR                                    |
 | DGX k3s cluster                                  | ✅ Done        | NVIDIA device plugin, nginx-ingress, CoreDNS patch                     |
 | AGX k3s cluster                                  | ✅ Done        | Same image as DGX; AGX currently offline                               |
@@ -74,33 +74,33 @@ The primary ML workflow is a pipeline from raw model to optimised production inf
 Stages 1–3 are the current template arc; Stage 4 is the planned optimisation path.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        DGX Spark (PHI boundary)                     │
-│                                                                     │
-│  Stage 1: Fine-tune + Eval      Stage 3 (planned): Optimize        │
-│  ─────────────────────────      ───────────────────────────        │
-│  kfp-ft-eval (KFP pipeline)     kfp-optimize (KFP pipeline)        │
-│  prepare → baseline_eval        prune → distill → quantize FP8     │
-│  → fine_tune → post_eval        (Model-Optimizer + Megatron)        │
-│  → safety_eval → gate           output: quantized merged checkpoint │
-│         │                                    │                      │
-│         ▼                                    ▼                      │
-│  Stage 2: Publish adapter        Stage 3b: Publish checkpoint       │
-│  publish-adapter.yaml            publish-adapter.yaml (same gate)   │
-│  eval_passed + safety_passed     eval_passed + safety_passed        │
-└──────────────┬──────────────────────────────┬───────────────────────┘
-               │ LoRA adapter + manifest → GCS │ quantized ckpt + manifest → GCS
-               ▼                               ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        GCP / GKE                                    │
-│                                                                     │
-│  Stage 2: vLLM Serve             Stage 4 (planned): NIM Serve      │
-│  ───────────────────             ──────────────────────────        │
-│  vllm-gcp project                nim-gcp project                   │
-│  vLLM + LoRA init container      NIM / TRT-LLM container           │
-│  L4 spot (expand / restore)      L4 spot (expand / restore)        │
-│  OpenAI-compatible API           OpenAI-compatible API             │
-└─────────────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------------+
+|                        DGX Spark (PHI boundary)                     |
+|                                                                     |
+|  Stage 1: Fine-tune + Eval      Stage 3 (planned): Optimize         |
+|  -------------------------      ---------------------------         |
+|  kfp-ft-eval (KFP pipeline)     kfp-optimize (KFP pipeline)         |
+|  prepare -> baseline_eval       prune -> distill -> quantize FP8    |
+|  -> fine_tune -> post_eval      (Model-Optimizer + Megatron)        |
+|  -> safety_eval -> gate         output: quantized merged checkpoint |
+|         |                                    |                      |
+|         v                                    v                      |
+|  Stage 2: Publish adapter        Stage 3b: Publish checkpoint       |
+|  publish-adapter.yaml            publish-adapter.yaml (same gate)   |
+|  eval_passed + safety_passed     eval_passed + safety_passed        |
++-------+----------------------------------------------+--------------+
+        |  LoRA adapter + manifest -> GCS              |  quantized ckpt + manifest -> GCS
+        v                                              v
++---------------------------------------------------------------------+
+|                        GCP / GKE                                    |
+|                                                                     |
+|  Stage 2: vLLM Serve             Stage 4 (planned): NIM Serve       |
+|  -------------------             --------------------------         |
+|  vllm-gcp project                nim-gcp project                    |
+|  vLLM + LoRA init container      NIM / TRT-LLM container            |
+|  L4 spot (expand / restore)      L4 spot (expand / restore)         |
+|  OpenAI-compatible API           OpenAI-compatible API              |
++---------------------------------------------------------------------+
 ```
 
 **PHI boundary**: PHI never leaves DGX. Only approved non-PHI model artifacts
@@ -201,8 +201,8 @@ GitHub is the source-of-truth control plane:
 
 ## Project types
 
-| Type           | Topic tag                  | Host badge | Status        | Description                                                                           |
-| -------------- | -------------------------- | ---------- | ------------- | ------------------------------------------------------------------------------------- |
+| Type           | Topic tag                  | Host badge | Status         | Description                                                                           |
+| -------------- | -------------------------- | ---------- | -------------- | ------------------------------------------------------------------------------------- |
 | `kfp-ft-eval`  | `miramar-kfp-ft-eval`      | dgx / agx  | ✅ Done        | 6-step eval-first fine-tuning + eval pipeline (KFP v2)                                |
 | `vllm-gcp`     | `miramar-llm-serving-vllm` | gcp        | 🔄 In progress | vLLM + LoRA adapter serving on GKE L4 spot                                            |
 | `kfp-optimize` | `miramar-kfp-optimize`     | dgx        | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint |

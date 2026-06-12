@@ -46,8 +46,8 @@ Sync GCP variables from Terraform after changing `gcp/terraform/terraform.tfvars
 | --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------ |
 | `GCP_PROJECT_ID`      | `miramar-platform`                 | synced from tfvars                                                                         |
 | `GKE_CLUSTER_NAME`    | `miramar-shared-gke`               | synced from tfvars                                                                         |
-| `GKE_ZONE`            | `us-central1-b`                    | synced from tfvars                                                                         |
-| `GCP_REGION`          | `us-central1`                      | synced from tfvars                                                                         |
+| `GKE_ZONE`            | `us-west1-b`                       | synced from tfvars                                                                         |
+| `GCP_REGION`          | `us-west1`                         | synced from tfvars                                                                         |
 | `GAR_REPO`            | `apps`                             | synced from tfvars                                                                         |
 | `GKE_STATE_BUCKET`    | `miramar-platform-cluster-state`   | set manually                                                                               |
 | `DGX_HOST_IP`         | `192.168.1.200`                    | static IP of DGX Spark                                                                     |

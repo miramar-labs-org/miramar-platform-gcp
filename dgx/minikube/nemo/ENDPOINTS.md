@@ -449,11 +449,11 @@ curl http://localhost:11434/v1/chat/completions \
 
 | Tag                            | Params | Active     | Quant  | Size  | tok/s  | Tool use | Best for         |
 | ------------------------------ | ------ | ---------- | ------ | ----- | ------ | -------- | ---------------- |
-| `llama3.3:70b-instruct-q4_K_M` | 70B    | 70B        | Q4_K_M | 43 GB | ~4.4   | ✅        | General, agentic |
+| `llama3.3:70b-instruct-q4_K_M` | 70B    | 70B        | Q4_K_M | 43 GB | ~4.4   | ✅       | General, agentic |
 | `deepseek-r1:70b`              | 70B    | 70B        | Q4_K_M | 43 GB | ~4.4   | CoT only | Reasoning, math  |
-| `qwen3:32b-q4_K_M`             | 32.8B  | 32.8B      | Q4_K_M | 20 GB | 9.4    | ✅        | Fast workhorse   |
-| `gpt-oss:20b`                  | 21B    | 3.6B (MoE) | MXFP4  | 14 GB | **58** | ✅        | Speed, coding    |
-| `qwen3-coder:30b-a3b-q4_K_M`   | 30B    | 3B (MoE)   | Q4_K_M | 19 GB | ~20    | ✅        | Code, 256K ctx   |
+| `qwen3:32b-q4_K_M`             | 32.8B  | 32.8B      | Q4_K_M | 20 GB | 9.4    | ✅       | Fast workhorse   |
+| `gpt-oss:20b`                  | 21B    | 3.6B (MoE) | MXFP4  | 14 GB | **58** | ✅       | Speed, coding    |
+| `qwen3-coder:30b-a3b-q4_K_M`   | 30B    | 3B (MoE)   | Q4_K_M | 19 GB | ~20    | ✅       | Code, 256K ctx   |
 
 ---
 

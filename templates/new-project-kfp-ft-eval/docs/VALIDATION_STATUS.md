@@ -9,8 +9,8 @@
 
 ## Current Status
 
-| Component              | Status                   |
-| ---------------------- | ------------------------ |
+| Component              | Status                    |
+| ---------------------- | ------------------------- |
 | `baseline_eval`        | 🔲 Not yet run            |
 | `fine_tune`            | 🔲 Not yet run            |
 | `post_finetune_eval`   | 🔲 Not yet run            |

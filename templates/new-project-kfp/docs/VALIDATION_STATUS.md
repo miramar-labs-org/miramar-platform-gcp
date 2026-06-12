@@ -8,8 +8,8 @@
 
 ## Current Status
 
-| Component   | Status        |
-| ----------- | ------------- |
+| Component   | Status         |
+| ----------- | -------------- |
 | `gpu_stage` | 🔲 Not yet run |
 
 **Project is in scaffolding phase.** Pipeline compiles; no runs have been executed yet.

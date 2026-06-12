@@ -195,3 +195,22 @@ gh secret set GITHUB_ORG_ADMIN_PAT --body "ghp_..."
 Or via **Settings → Secrets and variables → Actions → New repository secret**.
 
 See [configuration.md](configuration.md) for the full list of org-level secrets and variables.
+
+## ASCII box diagrams
+
+Always use plain ASCII characters in box diagrams: `+` for corners, `-` for horizontal lines,
+`|` for vertical lines, `->` for arrows, `v` for down arrows. Unicode box-drawing characters
+(`┌─│└┐┘→▼`) have ambiguous display widths across fonts and terminals — they appear misaligned
+for many readers even when `len()` reports equal lengths.
+
+After creating or editing any box diagram, verify all box lines have equal `len()`:
+
+```sh
+python3 -c "
+lines = open('docs/architecture.md').read().splitlines()
+in_b = False
+for i,l in enumerate(lines):
+    if l.strip()==''\`\`\`': in_b = not in_b; continue
+    if in_b and any(c in l for c in '+|'):
+        print(f'L{i+1} len={len(l)}')"
+```

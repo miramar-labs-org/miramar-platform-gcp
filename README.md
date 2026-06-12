@@ -194,8 +194,8 @@ kfp-ft-eval run PASS
 
 ### Serving arc stages
 
-| Stage                                                    | Template                                  | Status        |
-| -------------------------------------------------------- | ----------------------------------------- | ------------- |
+| Stage                                                    | Template                                  | Status         |
+| -------------------------------------------------------- | ----------------------------------------- | -------------- |
 | 1 — Fine-tune + eval gate                                | `kfp-ft-eval`                             | ✅ Implemented |
 | 1 — Publish adapter bundle to GCS                        | `publish-adapter.yaml` (in `kfp-ft-eval`) | ✅ Implemented |
 | 1 — Serve via vLLM on GKE L4 spot                        | `llm-serving-vllm`                        | ✅ Implemented |
