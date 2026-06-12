@@ -135,6 +135,7 @@ GKE_CLUSTER_ACTIVE=$(read_org_var "GKE_CLUSTER_ACTIVE")
 GKE_GPU_POOL_ACTIVE=$(read_org_var "GKE_GPU_POOL_ACTIVE")
 GKE_GPU_TYPE=$(read_org_var "GKE_GPU_TYPE")
 GKE_NODE_COUNT=$(read_org_var "GKE_NODE_COUNT")
+GKE_MACHINE_TYPE=$(read_org_var "GKE_MACHINE_TYPE")
 
 [[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
 [[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
@@ -182,7 +183,7 @@ MODEL_BUCKET_URL="https://console.cloud.google.com/storage/browser/${MODEL_BUCKE
 if [ "$GKE_CLUSTER_ACTIVE" = "true" ]; then
   GKE_CLUSTER_BADGE="<a href=\"https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}\" target=\"_blank\" class=\"ps-active\">${GKE_CLUSTER_NAME}</a>"
   GKE_ZONE_HTML="<code class=\"ps-value\">${GKE_ZONE}</code>"
-  GKE_NODE_TYPE_HTML='<code class="ps-value">e2-medium</code>'
+  GKE_NODE_TYPE_HTML="<code class=\"ps-value\">${GKE_MACHINE_TYPE:-e2-standard-4}</code>"
   GKE_BUCKET_HTML="<a href=\"${MODEL_BUCKET_URL}\" target=\"_blank\" class=\"ps-value\">${MODEL_BUCKET}</a>"
   GKE_GAR_HTML="<a href=\"${GAR_URL}\" target=\"_blank\" class=\"ps-value\">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</a>"
   if [ "$GKE_GPU_POOL_ACTIVE" = "true" ]; then
