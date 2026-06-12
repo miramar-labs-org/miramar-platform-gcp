@@ -57,18 +57,6 @@ def main():
     pipeline_name = os.path.basename(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
-    # ── Download model to HF cache ────────────────────────────────────────────
-    # huggingface-cli download is idempotent — skips files already present.
-    import pathlib as _pl
-    _hf_base = os.path.expanduser("~/shared/huggingface-kfp")
-    _model_id = (_cfg.get("model") or {}).get("id", "")
-    if _model_id and _model_id != "org/model":
-        _hf_hub = _pl.Path(_hf_base)
-        print(f"Downloading model: {_model_id}")
-        from huggingface_hub import snapshot_download as _snapshot_download
-        _snapshot_download(repo_id=_model_id, cache_dir=str(_hf_hub),
-                           token=os.environ.get("HF_TOKEN"))
-
     compiler.Compiler().compile(pipeline_func=pipeline_fn, package_path=pipeline_yaml)
     print(f"Compiled: {pipeline_yaml}")
 
