@@ -192,6 +192,19 @@ kfp-ft-eval run PASS
       smoke_test_prompts.jsonl    (stable alias: served_model_name)
 ```
 
+### Serving arc stages
+
+| Stage | Template | Status |
+| --- | --- | --- |
+| 1 — Fine-tune + eval gate | `kfp-ft-eval` | ✅ Implemented |
+| 1 — Publish adapter bundle to GCS | `publish-adapter.yaml` (in `kfp-ft-eval`) | ✅ Implemented |
+| 1 — Serve via vLLM on GKE L4 spot | `llm-serving-vllm` | ✅ Implemented |
+| 2 — Model router service (stable `/v1` API, multi-model) | `model-router-service` | 🔜 Planned |
+| 3 — GKE Gateway API route (external HTTPS) | — | 🔜 Planned |
+| 4 — Serve via NIM | `llm-serving-nim` | 🔜 Planned |
+| 5 — Serve via Triton + vLLM backend | `llm-serving-triton-vllm` | 🔜 Planned |
+| 6 — Serve via Triton + TensorRT-LLM backend | `llm-serving-triton-trtllm` | 🔜 Planned |
+
 Key properties:
 - **Manifest gate** — `deploy.yaml` reads `manifest.json` and blocks if `eval_passed` or `safety_passed` is false
 - **Stable alias** — clients use `served_model_name` (e.g. `biomistral-onc`), never raw model paths
