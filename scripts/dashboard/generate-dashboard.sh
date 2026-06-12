@@ -42,7 +42,7 @@ ROWS=""
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp-ft-eval") then "kfp-ft-eval" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp-ft-eval") then "kfp-ft-eval" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-llm-serving-vllm") then "vllm-gcp" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
@@ -57,7 +57,7 @@ while IFS= read -r repo_json; do
   serving_json=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
     "repos/${ORG}/${name}/actions/variables/GKE_SERVING_ACTIVE" 2>/dev/null) || serving_json="{}"
   serving=$(printf '%s' "$serving_json" | jq -r '.value // empty')
-  if [[ "$type" == "llm-serving-vllm" ]]; then
+  if [[ "$type" == "vllm-gcp" ]]; then
     if [[ "$serving" == "true" ]]; then
       serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed on GCP\">&#x25CF;</span>"
     else
@@ -283,6 +283,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-nemo     { background: #1a4731; color: #3fb950; }
   .badge-other    { background: #2d2b00; color: #d29922; }
   .badge-default  { background: #2d2b00; color: #d29922; }
+  .badge-vllm-gcp { background: #0c2a4a; color: #38bdf8; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
