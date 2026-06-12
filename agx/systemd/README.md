@@ -1,6 +1,6 @@
 # agx/systemd
 
-Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/). Identical stack to the DGX Spark — same service names, same host ports. Run the same `install.sh` / `uninstall.sh` scripts from this directory on the AGX host.
+Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/). Identical stack to the DGX Spark — same service names, same host ports. Run `install.sh` / `uninstall.sh` from this directory on the AGX host.
 
 | Service | Host port | Purpose |
 |---|---|---|
@@ -11,6 +11,7 @@ Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en
 | `kfp-api-portfwd.service` | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API) |
 | `nemo-portfwd.service` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` (`nemo.test`, `nim.test`, `data-store.test`) |
 | `qdrant-portfwd.service` | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (`qdrant-system`) |
+| `nsight-portfwd.service` | `8889` | `kubectl port-forward svc/nsight-operator-gateway:8888` (`nsight-operator`) |
 
 ## SSH tunnel from laptop
 
@@ -48,7 +49,7 @@ cd ~/git-miramar-labs-org/miramar-platform-gcp
 ./agx/systemd/install.sh
 ```
 
-The service unit files are symlinked from `dgx/systemd/` — the AGX stack is identical. `install.sh` copies them to `~/.config/systemd/user/`, enables linger, and starts all services.
+`install.sh` copies the service unit files from `dgx/systemd/` (AGX runs the identical stack on the same host ports) to `~/.config/systemd/user/`, enables linger, and starts all services. The SSH tunnel from the laptop uses offset local ports to allow the DGX and AGX tunnels to run simultaneously.
 
 ## Manage services
 
