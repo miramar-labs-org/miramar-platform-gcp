@@ -59,3 +59,8 @@ deployment:
 
 nsight_interpret:
   ollama_model: phi4
+
+# wandb:
+#   enabled: false
+#   project: ""    # W&B project to log runs to
+#   entity: ""     # W&B team/org (leave blank for personal account)

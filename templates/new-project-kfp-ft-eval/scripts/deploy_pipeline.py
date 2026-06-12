@@ -110,10 +110,14 @@ def main():
         except Exception as e:
             print(f"Note: could not set MLflow experiment description ({e})", file=sys.stderr)
 
+    _wandb = _cfg.get("wandb", {})
     run_response = client.create_run_from_pipeline_package(
         pipeline_file=pipeline_yaml,
         arguments={"run_id": run_name, "mlflow_experiment_name": pipeline_name,
-                   "chunk_index": chunk_index},
+                   "chunk_index": chunk_index,
+                   "wandb_enabled": _wandb.get("enabled", False),
+                   "wandb_project": _wandb.get("project", ""),
+                   "wandb_entity": _wandb.get("entity", "")},
         run_name=run_name,
         experiment_name=pipeline_name,
     )
