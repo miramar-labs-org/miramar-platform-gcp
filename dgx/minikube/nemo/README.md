@@ -9,17 +9,17 @@
 
 ## References
 
-| Technology | GitHub | Docs |
-|---|---|---|
-| [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) | — | [docs](https://docs.nvidia.com/nemo/microservices/latest/) · [API reference (25.12)](https://docs.nvidia.com/nemo/microservices/25.12.1/api/index.html) · [get started on minikube](https://docs.nvidia.com/nemo/microservices/25.12.1/get-started/index.html) |
-| [NeMo Framework](https://developer.nvidia.com/nemo-framework) | [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) | [docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html) |
-| [NIM](https://developer.nvidia.com/nim) | — | [docs](https://docs.nvidia.com/nim/) · [supported models](https://docs.nvidia.com/nim/large-language-models/1.15.0/supported-models.html) |
-| [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
-| [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
-| [Helm](https://helm.sh) | [helm/helm](https://github.com/helm/helm) | [docs](https://helm.sh/docs/) |
-| [Volcano](https://volcano.sh) | [volcano-sh/volcano](https://github.com/volcano-sh/volcano) | [docs](https://volcano.sh/) |
-| [NGC Catalog](https://catalog.ngc.nvidia.com/) | — | — |
-| [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) on HuggingFace | — | request access at link |
+| Technology                                                                                                 | GitHub                                                            | Docs                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/)                                          | —                                                                 | [docs](https://docs.nvidia.com/nemo/microservices/latest/) · [API reference (25.12)](https://docs.nvidia.com/nemo/microservices/25.12.1/api/index.html) · [get started on minikube](https://docs.nvidia.com/nemo/microservices/25.12.1/get-started/index.html) |
+| [NeMo Framework](https://developer.nvidia.com/nemo-framework)                                              | [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo)                     | [docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html)                                                                                                                                                                                 |
+| [NIM](https://developer.nvidia.com/nim)                                                                    | —                                                                 | [docs](https://docs.nvidia.com/nim/) · [supported models](https://docs.nvidia.com/nim/large-language-models/1.15.0/supported-models.html)                                                                                                                      |
+| [JupyterLab](https://jupyter.org)                                                                          | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/)                                                                                                                                                                                                                     |
+| [MLflow](https://mlflow.org)                                                                               | [mlflow/mlflow](https://github.com/mlflow/mlflow)                 | [docs](https://mlflow.org/docs/latest/index.html)                                                                                                                                                                                                              |
+| [Helm](https://helm.sh)                                                                                    | [helm/helm](https://github.com/helm/helm)                         | [docs](https://helm.sh/docs/)                                                                                                                                                                                                                                  |
+| [Volcano](https://volcano.sh)                                                                              | [volcano-sh/volcano](https://github.com/volcano-sh/volcano)       | [docs](https://volcano.sh/)                                                                                                                                                                                                                                    |
+| [NGC Catalog](https://catalog.ngc.nvidia.com/)                                                             | —                                                                 | —                                                                                                                                                                                                                                                              |
+| [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) on HuggingFace | —                                                                 | request access at link                                                                                                                                                                                                                                         |
 
 ## Deploying NeMo Microservices
 
@@ -56,11 +56,11 @@ nemo-nim-proxy-b5f6b5765-t7gcv                                    1/1     Runnin
 
 **Base URL**: `http://nemo.test` — NeMo microservices REST APIs
 
-| Endpoint | Service |
-|---|---|
-| `http://nemo.test` | All `/v1/*` APIs (entity-store, customizer, evaluator, deployment-management, core-api) |
-| `http://nim.test` | NIM Proxy — inference gateway |
-| `http://data-store.test` | NeMo Data Store — HuggingFace-compatible API |
+| Endpoint                 | Service                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| `http://nemo.test`       | All `/v1/*` APIs (entity-store, customizer, evaluator, deployment-management, core-api) |
+| `http://nim.test`        | NIM Proxy — inference gateway                                                           |
+| `http://data-store.test` | NeMo Data Store — HuggingFace-compatible API                                            |
 
 ```bash
 curl http://nim.test/v1/models
@@ -89,12 +89,12 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 8083:localhost:8082 -L 11435:localhost:11434 $USER@orin.local
 ```
 
-| Service | DGX URL | AGX URL |
-|---|---|---|
+| Service    | DGX URL                     | AGX URL                     |
+| ---------- | --------------------------- | --------------------------- |
 | JupyterLab | `http://localhost:8888/lab` | `http://localhost:8887/lab` |
-| MLflow | `http://localhost:5000` | `http://localhost:5001` |
-| NeMo / NIM | `http://nemo.test:8082` | `http://nemo.test:8083` |
-| Ollama | `http://localhost:11434` | `http://localhost:11435` |
+| MLflow     | `http://localhost:5000`     | `http://localhost:5001`     |
+| NeMo / NIM | `http://nemo.test:8082`     | `http://nemo.test:8083`     |
+| Ollama     | `http://localhost:11434`    | `http://localhost:11435`    |
 
 ## Python Client SDK
 

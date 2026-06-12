@@ -8,31 +8,31 @@
 
 ## Key files
 
-| File | Purpose |
-|---|---|
-| `notebook.ipynb` | Source of truth — define components in tagged cells, run the Build cell to regenerate `pipeline.py` |
-| `pipeline.py` | Generated from notebook — **do not edit manually** (gitignored) |
-| `scripts/build_pipeline.py` | Assemble `pipeline.py` from tagged notebook cells |
-| `scripts/deploy_pipeline.py` | Compile + submit a run |
-| `scripts/terminate_pipeline.py` | Called by Undeploy from KFP workflow |
-| `scripts/purge_kfp_mlflow.py` | Purge all runs + pipeline versions before redeploy |
+| File                            | Purpose                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `notebook.ipynb`                | Source of truth — define components in tagged cells, run the Build cell to regenerate `pipeline.py` |
+| `pipeline.py`                   | Generated from notebook — **do not edit manually** (gitignored)                                     |
+| `scripts/build_pipeline.py`     | Assemble `pipeline.py` from tagged notebook cells                                                   |
+| `scripts/deploy_pipeline.py`    | Compile + submit a run                                                                              |
+| `scripts/terminate_pipeline.py` | Called by Undeploy from KFP workflow                                                                |
+| `scripts/purge_kfp_mlflow.py`   | Purge all runs + pipeline versions before redeploy                                                  |
 
 ## Slash commands
 
-| Command | What it does |
-|---|---|
-| `/kfp-monitor [run-NNN]` | Self-paced monitoring loop — checks pods, appends to `runs/run-NNN.md` |
-| `/nsight-interpret [run-NNN\|path]` | Interpret an Nsight Systems `.nsys-rep` with an LLM |
+| Command                      | What it does                                                           |                                                     |
+| ---------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| `/kfp-monitor [run-NNN]`     | Self-paced monitoring loop — checks pods, appends to `runs/run-NNN.md` |                                                     |
+| `/nsight-interpret [run-NNN\ | path]`                                                                 | Interpret an Nsight Systems `.nsys-rep` with an LLM |
 
 ## Workflows
 
 Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** in
 [miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) first.
 
-| Workflow | Input | Effect |
-|---|---|---|
-| **Deploy to KFP** | `run_name` | Compile `pipeline.py` → upload → submit run |
-| **Undeploy from KFP** | `run_id` | Terminate a run |
+| Workflow              | Input      | Effect                                      |
+| --------------------- | ---------- | ------------------------------------------- |
+| **Deploy to KFP**     | `run_name` | Compile `pipeline.py` → upload → submit run |
+| **Undeploy from KFP** | `run_id`   | Terminate a run                             |
 
 ## Deploy cycle
 

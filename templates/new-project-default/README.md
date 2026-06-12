@@ -25,12 +25,12 @@ Add to your laptop's `/etc/hosts` (Windows: `C:\Windows\System32\drivers\etc\hos
 127.0.0.1 nemo.test nim.test data-store.test
 ```
 
-| Service | URL | Notes |
-|---|---|---|
-| JupyterLab | [http://localhost:8888](http://localhost:8888) | Notebook environment |
-| Kubernetes dashboard | [http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/](http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/) | Cluster state |
-| KFP UI | [http://localhost:8080](http://localhost:8080) | Kubeflow Pipelines UI |
-| KFP API | [http://localhost:8890/apis/v2beta1/healthz](http://localhost:8890/apis/v2beta1/healthz) | KFP REST API |
-| MLflow | [http://localhost:5000](http://localhost:5000) | Experiment tracking |
-| NeMo / NIM | [http://nemo.test:8082](http://nemo.test:8082) | NeMo Microservices + NIM inference |
-| Ollama | [http://localhost:11434](http://localhost:11434) | Local LLM inference |
+| Service              | URL                                                                                                                                                                                                                | Notes                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| JupyterLab           | [http://localhost:8888](http://localhost:8888)                                                                                                                                                                     | Notebook environment               |
+| Kubernetes dashboard | [http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/](http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/) | Cluster state                      |
+| KFP UI               | [http://localhost:8080](http://localhost:8080)                                                                                                                                                                     | Kubeflow Pipelines UI              |
+| KFP API              | [http://localhost:8890/apis/v2beta1/healthz](http://localhost:8890/apis/v2beta1/healthz)                                                                                                                           | KFP REST API                       |
+| MLflow               | [http://localhost:5000](http://localhost:5000)                                                                                                                                                                     | Experiment tracking                |
+| NeMo / NIM           | [http://nemo.test:8082](http://nemo.test:8082)                                                                                                                                                                     | NeMo Microservices + NIM inference |
+| Ollama               | [http://localhost:11434](http://localhost:11434)                                                                                                                                                                   | Local LLM inference                |

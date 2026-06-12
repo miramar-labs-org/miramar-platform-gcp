@@ -12,10 +12,10 @@ NeMo running on DGX — trigger **NeMo Deploy** in [miramar-platform-gcp](https:
 
 ## Workflows
 
-| Workflow | Input | Effect |
-|---|---|---|
-| **Deploy to NeMo** | `job_name` (optional override) | Submit training job from `job_config.yaml` |
-| **Undeploy from NeMo** | `job_name` | Cancel a training job |
+| Workflow               | Input                          | Effect                                     |
+| ---------------------- | ------------------------------ | ------------------------------------------ |
+| **Deploy to NeMo**     | `job_name` (optional override) | Submit training job from `job_config.yaml` |
+| **Undeploy from NeMo** | `job_name`                     | Cancel a training job                      |
 
 ## Project structure
 
@@ -151,11 +151,11 @@ The workflow calls `scripts/submit_job.py` and prints the job name + ID in the s
 
 ## API endpoints (after SSH tunnel + /etc/hosts)
 
-| Endpoint | URL | What it does |
-|---|---|---|
-| List jobs | [http://nemo.test:8082/v1/customization/jobs](http://nemo.test:8082/v1/customization/jobs) | All fine-tuning jobs |
-| List models | [http://nemo.test:8082/v1/models](http://nemo.test:8082/v1/models) | Available base models |
-| Data store health | [http://data-store.test:8082/v1/health](http://data-store.test:8082/v1/health) | Data store status |
-| NIM inference | [http://nim.test:8082/v1/models](http://nim.test:8082/v1/models) | Deployed NIM models |
-| JupyterLab | [http://localhost:8888](http://localhost:8888) | Notebook environment |
-| API reference | [NeMo 25.12 Swagger](https://docs.nvidia.com/nemo/microservices/25.12.1/api/index.html) | Full API docs for all NeMo endpoints |
+| Endpoint          | URL                                                                                        | What it does                         |
+| ----------------- | ------------------------------------------------------------------------------------------ | ------------------------------------ |
+| List jobs         | [http://nemo.test:8082/v1/customization/jobs](http://nemo.test:8082/v1/customization/jobs) | All fine-tuning jobs                 |
+| List models       | [http://nemo.test:8082/v1/models](http://nemo.test:8082/v1/models)                         | Available base models                |
+| Data store health | [http://data-store.test:8082/v1/health](http://data-store.test:8082/v1/health)             | Data store status                    |
+| NIM inference     | [http://nim.test:8082/v1/models](http://nim.test:8082/v1/models)                           | Deployed NIM models                  |
+| JupyterLab        | [http://localhost:8888](http://localhost:8888)                                             | Notebook environment                 |
+| API reference     | [NeMo 25.12 Swagger](https://docs.nvidia.com/nemo/microservices/25.12.1/api/index.html)    | Full API docs for all NeMo endpoints |

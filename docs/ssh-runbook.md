@@ -30,12 +30,12 @@ per-distro SSH identities for the normal lab topology.
 
 ## Machines
 
-| Machine | Hostname | DNS | SSH alias |
-| --- | --- | --- | --- |
-| DGX / Spark | `spark-79b7` | `spark-79b7.local` | `spark`, `dgx` |
-| Jetson Orin | `orin` | `orin.local` | `orin` |
-| MSI Windows laptop | `msi` | `msi.local` | `msi` |
-| WSL2 distro on MSI | distro name, for example `dev` | on-demand through Windows | `wsl2-<name>` |
+| Machine            | Hostname                       | DNS                       | SSH alias      |
+| ------------------ | ------------------------------ | ------------------------- | -------------- |
+| DGX / Spark        | `spark-79b7`                   | `spark-79b7.local`        | `spark`, `dgx` |
+| Jetson Orin        | `orin`                         | `orin.local`              | `orin`         |
+| MSI Windows laptop | `msi`                          | `msi.local`               | `msi`          |
+| WSL2 distro on MSI | distro name, for example `dev` | on-demand through Windows | `wsl2-<name>`  |
 
 ## Supported Paths
 
@@ -56,12 +56,12 @@ not a resident WSL2 peer mesh.
 
 ## Workflows
 
-| Workflow | Purpose |
-| --- | --- |
-| **Setup Shared SSH Store** | Initializes Spark's shared SSH store, symlinks Spark's local `.ssh`, and wires Orin to the same store. |
-| **WSL2 Provision** | Imports a WSL2 distro from the configured template, runs `firstboot.sh`, mounts the shared store, writes the `wsl2-<name>` alias, and registers the distro in `WSL2_DISTROS`. |
-| **WSL2 Verify SSH Topology** | Tests supported Spark, Orin, and WSL2 SSH paths. |
-| **WSL2 Unprovision** | Unregisters a WSL2 distro and removes it from `WSL2_DISTROS`. |
+| Workflow                     | Purpose                                                                                                                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Setup Shared SSH Store**   | Initializes Spark's shared SSH store, symlinks Spark's local `.ssh`, and wires Orin to the same store.                                                                        |
+| **WSL2 Provision**           | Imports a WSL2 distro from the configured template, runs `firstboot.sh`, mounts the shared store, writes the `wsl2-<name>` alias, and registers the distro in `WSL2_DISTROS`. |
+| **WSL2 Verify SSH Topology** | Tests supported Spark, Orin, and WSL2 SSH paths.                                                                                                                              |
+| **WSL2 Unprovision**         | Unregisters a WSL2 distro and removes it from `WSL2_DISTROS`.                                                                                                                 |
 
 Normal WSL2 provisioning sequence:
 
@@ -164,33 +164,33 @@ Create one Bitvise SSH profile per machine. The SSH connection for both profiles
 
 ### DGX (spark-79b7.local — 192.168.1.200)
 
-| Listen interface | Port | Destination host | Port | Comment |
-|---|---|---|---|---|
-| `127.0.0.1` | `8001` | `127.0.0.1` | `8001` | K8s dashboard |
-| `127.0.0.1` | `8888` | `127.0.0.1` | `8888` | JupyterLab |
-| `127.0.0.1` | `5000` | `127.0.0.1` | `5000` | MLflow |
-| `127.0.0.1` | `8080` | `127.0.0.1` | `8080` | KFP UI |
-| `127.0.0.1` | `8082` | `127.0.0.1` | `8082` | NeMo / NIM |
-| `127.0.0.1` | `8890` | `127.0.0.1` | `8890` | KFP API |
-| `127.0.0.1` | `11434` | `127.0.0.1` | `11434` | Ollama |
-| `127.0.0.1` | `6333` | `127.0.0.1` | `6333` | Qdrant REST |
-| `127.0.0.1` | `6334` | `127.0.0.1` | `6334` | Qdrant gRPC |
+| Listen interface | Port    | Destination host | Port    | Comment       |
+| ---------------- | ------- | ---------------- | ------- | ------------- |
+| `127.0.0.1`      | `8001`  | `127.0.0.1`      | `8001`  | K8s dashboard |
+| `127.0.0.1`      | `8888`  | `127.0.0.1`      | `8888`  | JupyterLab    |
+| `127.0.0.1`      | `5000`  | `127.0.0.1`      | `5000`  | MLflow        |
+| `127.0.0.1`      | `8080`  | `127.0.0.1`      | `8080`  | KFP UI        |
+| `127.0.0.1`      | `8082`  | `127.0.0.1`      | `8082`  | NeMo / NIM    |
+| `127.0.0.1`      | `8890`  | `127.0.0.1`      | `8890`  | KFP API       |
+| `127.0.0.1`      | `11434` | `127.0.0.1`      | `11434` | Ollama        |
+| `127.0.0.1`      | `6333`  | `127.0.0.1`      | `6333`  | Qdrant REST   |
+| `127.0.0.1`      | `6334`  | `127.0.0.1`      | `6334`  | Qdrant gRPC   |
 
 ### AGX (orin.local — 192.168.1.202)
 
 Local ports are offset so both profiles can run simultaneously without conflicts.
 
-| Listen interface | Port | Destination host | Port | Comment |
-|---|---|---|---|---|
-| `127.0.0.1` | `8002` | `127.0.0.1` | `8001` | K8s dashboard |
-| `127.0.0.1` | `8887` | `127.0.0.1` | `8888` | JupyterLab |
-| `127.0.0.1` | `5001` | `127.0.0.1` | `5000` | MLflow |
-| `127.0.0.1` | `8081` | `127.0.0.1` | `8080` | KFP UI |
-| `127.0.0.1` | `8083` | `127.0.0.1` | `8082` | NeMo / NIM |
-| `127.0.0.1` | `8891` | `127.0.0.1` | `8890` | KFP API |
-| `127.0.0.1` | `11435` | `127.0.0.1` | `11434` | Ollama |
-| `127.0.0.1` | `6335` | `127.0.0.1` | `6333` | Qdrant REST |
-| `127.0.0.1` | `6336` | `127.0.0.1` | `6334` | Qdrant gRPC |
+| Listen interface | Port    | Destination host | Port    | Comment       |
+| ---------------- | ------- | ---------------- | ------- | ------------- |
+| `127.0.0.1`      | `8002`  | `127.0.0.1`      | `8001`  | K8s dashboard |
+| `127.0.0.1`      | `8887`  | `127.0.0.1`      | `8888`  | JupyterLab    |
+| `127.0.0.1`      | `5001`  | `127.0.0.1`      | `5000`  | MLflow        |
+| `127.0.0.1`      | `8081`  | `127.0.0.1`      | `8080`  | KFP UI        |
+| `127.0.0.1`      | `8083`  | `127.0.0.1`      | `8082`  | NeMo / NIM    |
+| `127.0.0.1`      | `8891`  | `127.0.0.1`      | `8890`  | KFP API       |
+| `127.0.0.1`      | `11435` | `127.0.0.1`      | `11434` | Ollama        |
+| `127.0.0.1`      | `6335`  | `127.0.0.1`      | `6333`  | Qdrant REST   |
+| `127.0.0.1`      | `6336`  | `127.0.0.1`      | `6334`  | Qdrant gRPC   |
 
 ## Troubleshooting
 

@@ -32,17 +32,17 @@ ssh -L 8001:localhost:8001 \
     $USER@spark-79b7.local
 ```
 
-| Local port | Service |
-| --- | --- |
-| `8001` | Kubernetes dashboard proxy |
-| `8888` | JupyterLab |
-| `5000` | MLflow |
-| `8080` | Kubeflow Pipelines UI |
-| `8082` | NeMo / NIM / Data Store ingress |
-| `8890` | KFP REST API |
-| `11434` | Ollama API |
-| `6333` | Qdrant REST API + web UI (`/dashboard`) |
-| `6334` | Qdrant gRPC |
+| Local port | Service                                 |
+| ---------- | --------------------------------------- |
+| `8001`     | Kubernetes dashboard proxy              |
+| `8888`     | JupyterLab                              |
+| `5000`     | MLflow                                  |
+| `8080`     | Kubeflow Pipelines UI                   |
+| `8082`     | NeMo / NIM / Data Store ingress         |
+| `8890`     | KFP REST API                            |
+| `11434`    | Ollama API                              |
+| `6333`     | Qdrant REST API + web UI (`/dashboard`) |
+| `6334`     | Qdrant gRPC                             |
 
 See [../dgx/README.md](../dgx/README.md) and
 [../dgx/systemd/README.md](../dgx/systemd/README.md).
@@ -211,10 +211,10 @@ Actions -> NIM Undeploy
 
 Common DGX Spark models:
 
-| Model | org | nim_name |
-| --- | --- | --- |
-| Nemotron Nano 9B v2 | `nvidia` | `nvidia-nemotron-nano-9b-v2-dgx-spark` |
-| Llama 3.1 8B Instruct | `meta` | `llama-3.1-8b-instruct-dgx-spark` |
+| Model                 | org      | nim_name                               |
+| --------------------- | -------- | -------------------------------------- |
+| Nemotron Nano 9B v2   | `nvidia` | `nvidia-nemotron-nano-9b-v2-dgx-spark` |
+| Llama 3.1 8B Instruct | `meta`   | `llama-3.1-8b-instruct-dgx-spark`      |
 
 After deployment:
 

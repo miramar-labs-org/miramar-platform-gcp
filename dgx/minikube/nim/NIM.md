@@ -10,10 +10,10 @@ Sources: [NVIDIA NIM for LLMs — Supported Models](https://docs.nvidia.com/nim/
 
 These two NIMs can be deployed via the **NIM Deploy** GHA workflow or `deploy_nim.sh`:
 
-| Model | `nim_name` | `nim_org` | `image_tag` | Params | Quant | Tool Use | Context |
-|---|---|---|---|---|---|---|---|
-| Meta Llama 3.1 8B Instruct | `llama-3.1-8b-instruct-dgx-spark` | `meta` | `1.0.0-variant` | 8B | FP8 | No | — |
-| NVIDIA Nemotron Nano 9B v2 | `nvidia-nemotron-nano-9b-v2-dgx-spark` | `nvidia` | `1.0.0-variant` | 9B | FP8 (vLLM) | Yes (parallel) | — |
+| Model                      | `nim_name`                             | `nim_org` | `image_tag`     | Params | Quant      | Tool Use       | Context |
+| -------------------------- | -------------------------------------- | --------- | --------------- | ------ | ---------- | -------------- | ------- |
+| Meta Llama 3.1 8B Instruct | `llama-3.1-8b-instruct-dgx-spark`      | `meta`    | `1.0.0-variant` | 8B     | FP8        | No             | —       |
+| NVIDIA Nemotron Nano 9B v2 | `nvidia-nemotron-nano-9b-v2-dgx-spark` | `nvidia`  | `1.0.0-variant` | 9B     | FP8 (vLLM) | Yes (parallel) | —       |
 
 ### Meta Llama 3.1 8B Instruct
 
@@ -96,9 +96,9 @@ NGC: `catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/nvidia-nemotron-na
 
 ## Standalone Only (not deployable via NeMo/Kubernetes)
 
-| Model | `nim_org` | `nim_name` | `image_tag` | Params | Quant | Tool Use | Notes |
-|---|---|---|---|---|---|---|---|
-| Qwen3 32B | `qwen` | `qwen3-32b-dgx-spark` | `1.1.0-variant` | 32B | NVFP4 | Yes (parallel) | KServe/K8s not supported |
+| Model     | `nim_org` | `nim_name`            | `image_tag`     | Params | Quant | Tool Use       | Notes                    |
+| --------- | --------- | --------------------- | --------------- | ------ | ----- | -------------- | ------------------------ |
+| Qwen3 32B | `qwen`    | `qwen3-32b-dgx-spark` | `1.1.0-variant` | 32B    | NVFP4 | Yes (parallel) | KServe/K8s not supported |
 
 The Qwen3 32B variant explicitly does not support deployment via KServe or Kubernetes per NVIDIA release notes,
 which rules it out for NeMo Microservices on minikube. Run it as a standalone Docker container on the DGX host

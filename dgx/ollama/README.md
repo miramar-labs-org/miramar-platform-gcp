@@ -11,11 +11,11 @@ Ollama is installed on the DGX host via the **Ollama Update** GHA workflow (`upd
 
 ## GHA Workflows
 
-| Workflow | Purpose |
-|---|---|
-| **Ollama Deploy** (`deploy-ollama.yaml`) | Pull a model and load it into GPU memory. Blocks if another Ollama model is loaded or free memory < 15 GB. Writes `CURRENT_OLLAMA_MODEL` and `CURRENT_OLLAMA_VRAM_GB`. |
-| **Ollama Undeploy** (`undeploy-ollama.yaml`) | Unload the active model from GPU memory. Auto-detects if `model` input is left blank. |
-| **Ollama Update** (`update-ollama.yaml`) | Install or upgrade Ollama on the DGX host. |
+| Workflow                                     | Purpose                                                                                                                                                                |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ollama Deploy** (`deploy-ollama.yaml`)     | Pull a model and load it into GPU memory. Blocks if another Ollama model is loaded or free memory < 15 GB. Writes `CURRENT_OLLAMA_MODEL` and `CURRENT_OLLAMA_VRAM_GB`. |
+| **Ollama Undeploy** (`undeploy-ollama.yaml`) | Unload the active model from GPU memory. Auto-detects if `model` input is left blank.                                                                                  |
+| **Ollama Update** (`update-ollama.yaml`)     | Install or upgrade Ollama on the DGX host.                                                                                                                             |
 
 ```
 Actions → Ollama Deploy  → model: llama3.3:70b-instruct-q4_K_M
@@ -44,13 +44,13 @@ Source: [Ollama DGX Spark performance blog](https://ollama.com/blog/nvidia-spark
 
 ## Top 5 Models
 
-| # | Ollama tag | Params | Active | Quant | Size | Context | Tool use | tok/s (DGX) | Best for |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | `llama3.3:70b-instruct-q4_K_M` | 70B | 70B | Q4_K_M | 43 GB | 128K | Yes | ~4.4 | General, agentic, tool calling |
-| 2 | `deepseek-r1:70b` | 70B | 70B | Q4_K_M | 43 GB | 128K | CoT only | ~4.4 | Reasoning, math, planning |
-| 3 | `qwen3:32b-q4_K_M` | 32.8B | 32.8B | Q4_K_M | 20 GB | 131K | Yes | 9.4 | Fast workhorse, coding, agents |
-| 4 | `gpt-oss:20b` | 21B | 3.6B (MoE) | MXFP4 | 14 GB | 131K | Yes | **58** | Speed, coding, agentic |
-| 5 | `qwen3-coder:30b-a3b-q4_K_M` | 30B | 3B (MoE) | Q4_K_M | 19 GB | 256K | Yes | ~20 | Code, repo-level, SWE |
+| #   | Ollama tag                     | Params | Active     | Quant  | Size  | Context | Tool use | tok/s (DGX) | Best for                       |
+| --- | ------------------------------ | ------ | ---------- | ------ | ----- | ------- | -------- | ----------- | ------------------------------ |
+| 1   | `llama3.3:70b-instruct-q4_K_M` | 70B    | 70B        | Q4_K_M | 43 GB | 128K    | Yes      | ~4.4        | General, agentic, tool calling |
+| 2   | `deepseek-r1:70b`              | 70B    | 70B        | Q4_K_M | 43 GB | 128K    | CoT only | ~4.4        | Reasoning, math, planning      |
+| 3   | `qwen3:32b-q4_K_M`             | 32.8B  | 32.8B      | Q4_K_M | 20 GB | 131K    | Yes      | 9.4         | Fast workhorse, coding, agents |
+| 4   | `gpt-oss:20b`                  | 21B    | 3.6B (MoE) | MXFP4  | 14 GB | 131K    | Yes      | **58**      | Speed, coding, agentic         |
+| 5   | `qwen3-coder:30b-a3b-q4_K_M`   | 30B    | 3B (MoE)   | Q4_K_M | 19 GB | 256K    | Yes      | ~20         | Code, repo-level, SWE          |
 
 All five fit within the **100 GB model budget** (only one is loaded at a time; combined sizes are irrelevant).
 

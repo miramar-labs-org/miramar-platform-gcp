@@ -20,14 +20,14 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 11434:localhost:11434 aaron@spark-79b7.local
 ```
 
-| Service | URL |
-|---|---|
-| JupyterLab | http://localhost:8888 |
-| KFP UI | http://localhost:8080 |
-| KFP API | http://localhost:8890/apis/v2beta1/healthz |
-| MLflow | http://localhost:5000 |
-| NeMo / NIM | http://nemo.test:8082 |
-| Ollama | http://localhost:11434 |
+| Service    | URL                                        |
+| ---------- | ------------------------------------------ |
+| JupyterLab | http://localhost:8888                      |
+| KFP UI     | http://localhost:8080                      |
+| KFP API    | http://localhost:8890/apis/v2beta1/healthz |
+| MLflow     | http://localhost:5000                      |
+| NeMo / NIM | http://nemo.test:8082                      |
+| Ollama     | http://localhost:11434                     |
 
 ### AGX Orin
 
@@ -37,14 +37,14 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 11435:localhost:11434 aaron@orin.local
 ```
 
-| Service | URL |
-|---|---|
-| JupyterLab | http://localhost:8887 |
-| KFP UI | http://localhost:8081 |
-| KFP API | http://localhost:8891/apis/v2beta1/healthz |
-| MLflow | http://localhost:5001 |
-| NeMo / NIM | http://nemo.test:8083 |
-| Ollama | http://localhost:11435 |
+| Service    | URL                                        |
+| ---------- | ------------------------------------------ |
+| JupyterLab | http://localhost:8887                      |
+| KFP UI     | http://localhost:8081                      |
+| KFP API    | http://localhost:8891/apis/v2beta1/healthz |
+| MLflow     | http://localhost:5001                      |
+| NeMo / NIM | http://nemo.test:8083                      |
+| Ollama     | http://localhost:11435                     |
 
 Add to laptop `/etc/hosts`: `127.0.0.1 nemo.test nim.test data-store.test`
 

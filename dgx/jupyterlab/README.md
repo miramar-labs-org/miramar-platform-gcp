@@ -48,19 +48,19 @@ cd dgx/systemd
 
 ## What's included
 
-| Group | Packages |
-|---|---|
-| **JupyterLab** | `jupyterlab`, `jupyterlab-myst` (Markdown preview), `jupyterlab-git`, `jupyterlab-lsp` + `python-lsp-server` (completions), `jupyterlab-code-formatter` + `black` + `isort`, `ipywidgets`, `nbconvert` |
-| **ML core** | `numpy`, `scipy`, `scikit-learn`, `pandas`, `matplotlib`, `seaborn`, `plotly` |
-| **PyTorch** | `torch`, `torchvision`, `torchaudio` — installed separately (see above) |
-| **HuggingFace / LLM** | `transformers`, `datasets`, `huggingface_hub`, `tokenizers`, `accelerate`, `peft`, `trl` |
-| **NeMo** | `nemo-microservices` (client SDK) |
-| **KFP** | `kfp` (Kubeflow Pipelines SDK) |
-| **MLflow** | `mlflow` |
-| **Eval** | `lm-eval[api]` |
-| **NLP utilities** | `ftfy`, `beautifulsoup4`, `tiktoken` |
-| **Utilities** | `requests`, `httpx`, `pyyaml`, `python-dotenv`, `tqdm`, `rich` |
-| **Dev** | `pytest`, `pytest-asyncio` |
+| Group                 | Packages                                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **JupyterLab**        | `jupyterlab`, `jupyterlab-myst` (Markdown preview), `jupyterlab-git`, `jupyterlab-lsp` + `python-lsp-server` (completions), `jupyterlab-code-formatter` + `black` + `isort`, `ipywidgets`, `nbconvert` |
+| **ML core**           | `numpy`, `scipy`, `scikit-learn`, `pandas`, `matplotlib`, `seaborn`, `plotly`                                                                                                                          |
+| **PyTorch**           | `torch`, `torchvision`, `torchaudio` — installed separately (see above)                                                                                                                                |
+| **HuggingFace / LLM** | `transformers`, `datasets`, `huggingface_hub`, `tokenizers`, `accelerate`, `peft`, `trl`                                                                                                               |
+| **NeMo**              | `nemo-microservices` (client SDK)                                                                                                                                                                      |
+| **KFP**               | `kfp` (Kubeflow Pipelines SDK)                                                                                                                                                                         |
+| **MLflow**            | `mlflow`                                                                                                                                                                                               |
+| **Eval**              | `lm-eval[api]`                                                                                                                                                                                         |
+| **NLP utilities**     | `ftfy`, `beautifulsoup4`, `tiktoken`                                                                                                                                                                   |
+| **Utilities**         | `requests`, `httpx`, `pyyaml`, `python-dotenv`, `tqdm`, `rich`                                                                                                                                         |
+| **Dev**               | `pytest`, `pytest-asyncio`                                                                                                                                                                             |
 
 ## Working on projects
 

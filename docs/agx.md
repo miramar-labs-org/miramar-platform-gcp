@@ -28,17 +28,17 @@ ssh -L 8002:localhost:8001 \
     $USER@orin.local
 ```
 
-| Local port | AGX port | Service |
-| --- | --- | --- |
-| `8002` | `8001` | Kubernetes dashboard proxy |
-| `8887` | `8888` | JupyterLab |
-| `5001` | `5000` | MLflow |
-| `8081` | `8080` | Kubeflow Pipelines UI |
-| `8083` | `8082` | NeMo / NIM / Data Store ingress |
-| `8891` | `8890` | KFP REST API |
-| `11435` | `11434` | Ollama API |
-| `6335` | `6333` | Qdrant REST API + web UI (`/dashboard`) |
-| `6336` | `6334` | Qdrant gRPC |
+| Local port | AGX port | Service                                 |
+| ---------- | -------- | --------------------------------------- |
+| `8002`     | `8001`   | Kubernetes dashboard proxy              |
+| `8887`     | `8888`   | JupyterLab                              |
+| `5001`     | `5000`   | MLflow                                  |
+| `8081`     | `8080`   | Kubeflow Pipelines UI                   |
+| `8083`     | `8082`   | NeMo / NIM / Data Store ingress         |
+| `8891`     | `8890`   | KFP REST API                            |
+| `11435`    | `11434`  | Ollama API                              |
+| `6335`     | `6333`   | Qdrant REST API + web UI (`/dashboard`) |
+| `6336`     | `6334`   | Qdrant gRPC                             |
 
 See [../agx/systemd/README.md](../agx/systemd/README.md) for the service units.
 

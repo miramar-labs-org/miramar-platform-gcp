@@ -4,8 +4,8 @@
 
 ## What this module provisions
 
-| Resource | Notes |
-|---|---|
+| Resource                   | Notes                                                         |
+| -------------------------- | ------------------------------------------------------------- |
 | GPU node pool (`gpu-pool`) | Attached to the existing cluster; 1 node; `pd-standard` 50 GB |
 
 The cluster itself is **not** managed here. This module reads the cluster name and zone as variables and assumes the cluster already exists.
@@ -28,22 +28,22 @@ terraform init -backend-config="bucket=miramar-platform-cluster-state"
 
 ## Variables
 
-| Variable | Example | Purpose |
-|---|---|---|
-| `project_id` | `miramar-platform` | GCP project |
-| `region` | `us-central1` | Region |
-| `cluster_name` | `miramar-shared-gke` | Target cluster (must pre-exist) |
-| `cluster_zone` | `us-central1-b` | Zone of the cluster |
-| `gpu_machine_type` | `n1-standard-4` | Node machine type |
-| `gpu_type` | `nvidia-tesla-t4` | GPU accelerator type |
-| `spot` | `false` | Use Spot VMs (cheaper but preemptible) |
+| Variable           | Example              | Purpose                                |
+| ------------------ | -------------------- | -------------------------------------- |
+| `project_id`       | `miramar-platform`   | GCP project                            |
+| `region`           | `us-central1`        | Region                                 |
+| `cluster_name`     | `miramar-shared-gke` | Target cluster (must pre-exist)        |
+| `cluster_zone`     | `us-central1-b`      | Zone of the cluster                    |
+| `gpu_machine_type` | `n1-standard-4`      | Node machine type                      |
+| `gpu_type`         | `nvidia-tesla-t4`    | GPU accelerator type                   |
+| `spot`             | `false`              | Use Spot VMs (cheaper but preemptible) |
 
 Config in `gpu.tfvars`. The **Find GPU Capacity** workflow outputs ready-to-use values for `gpu_machine_type` and `gpu_type` based on live GCP quota.
 
 ## Outputs
 
-| Output | Value |
-|---|---|
+| Output          | Value                     |
+| --------------- | ------------------------- |
 | `gpu_pool_name` | Name of the GPU node pool |
 
 ## Usage
@@ -60,11 +60,11 @@ terraform destroy -var-file=gpu.tfvars  # remove pool
 
 ## References
 
-| Technology | GitHub | Docs |
-|---|---|---|
-| [Terraform](https://www.terraform.io) | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs) |
-| [GKE](https://cloud.google.com/kubernetes-engine) | — | [docs](https://cloud.google.com/kubernetes-engine/docs) |
-| [CUDA](https://developer.nvidia.com/cuda-toolkit) | — | [docs](https://docs.nvidia.com/cuda/) |
+| Technology                                        | GitHub                                                        | Docs                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| [Terraform](https://www.terraform.io)             | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs)  |
+| [GKE](https://cloud.google.com/kubernetes-engine) | —                                                             | [docs](https://cloud.google.com/kubernetes-engine/docs) |
+| [CUDA](https://developer.nvidia.com/cuda-toolkit) | —                                                             | [docs](https://docs.nvidia.com/cuda/)                   |
 
 ## Typical lifecycle
 

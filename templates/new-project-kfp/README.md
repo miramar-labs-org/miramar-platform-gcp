@@ -15,10 +15,10 @@ KFP running on DGX — trigger **Kubeflow Deploy** in [miramar-platform-gcp](htt
 
 ## Workflows
 
-| Workflow | Input | Effect |
-|---|---|---|
-| **Deploy to KFP** | `run_name` | Compile `pipeline.py` → upload → submit run; prints `run_id` |
-| **Undeploy from KFP** | `run_id` | Terminate a KFP run |
+| Workflow              | Input      | Effect                                                       |
+| --------------------- | ---------- | ------------------------------------------------------------ |
+| **Deploy to KFP**     | `run_name` | Compile `pipeline.py` → upload → submit run; prints `run_id` |
+| **Undeploy from KFP** | `run_id`   | Terminate a KFP run                                          |
 
 ## Project structure
 
@@ -135,8 +135,8 @@ The run ID is printed in the workflow summary.
 
 ## UI endpoints
 
-| UI | URL | Notes |
-|---|---|---|
-| KFP Pipelines | [http://localhost:8080](http://localhost:8080) | Requires SSH tunnel `-L 8080:localhost:8080` |
-| JupyterLab | [http://localhost:8888](http://localhost:8888) | Requires SSH tunnel `-L 8888:localhost:8888` |
+| UI                   | URL                                                                                                                                                                                                                | Notes                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| KFP Pipelines        | [http://localhost:8080](http://localhost:8080)                                                                                                                                                                     | Requires SSH tunnel `-L 8080:localhost:8080` |
+| JupyterLab           | [http://localhost:8888](http://localhost:8888)                                                                                                                                                                     | Requires SSH tunnel `-L 8888:localhost:8888` |
 | Kubernetes dashboard | [http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/](http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/) | Requires SSH tunnel `-L 8001:localhost:8001` |

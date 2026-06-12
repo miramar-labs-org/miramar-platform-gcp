@@ -9,34 +9,34 @@ DGX Spark (aarch64) and pushed to GHCR.
 
 Each KFP version has its own subdirectory containing patched Dockerfiles for that release (only components that need patches — everything else is built directly from the KFP source):
 
-| Version | Patched Dockerfiles |
-| --- | --- |
+| Version           | Patched Dockerfiles                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
 | [2.16.1](2.16.1/) | `Dockerfile.mlmd-server`, `Dockerfile.metadata-writer`, `Dockerfile.visualization-server`, `Dockerfile.api-server` |
 
 ## Published Images
 
 ### MLMD stack (no upstream arm64 images — built from custom Dockerfiles)
 
-| Image | GHCR package |
-| --- | --- |
+| Image                                                            | GHCR package                                                                                                                                |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ghcr.io/miramar-labs-org/ml_metadata_store_server:1.14.0-arm64` | [pkgs/container/ml_metadata_store_server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/ml_metadata_store_server) |
-| `ghcr.io/miramar-labs-org/kfp-metadata-writer:2.16.1-arm64` | [pkgs/container/kfp-metadata-writer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-writer) |
+| `ghcr.io/miramar-labs-org/kfp-metadata-writer:2.16.1-arm64`      | [pkgs/container/kfp-metadata-writer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-writer)           |
 
 ### KFP components (built natively from KFP source)
 
-| Image | GHCR package | Patched? |
-| --- | --- | --- |
-| `ghcr.io/miramar-labs-org/kfp-api-server:2.16.1-arm64` | [pkgs/container/kfp-api-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-api-server) | **Yes** — `$TARGETARCH` unset in plain `docker build`; Argo CLI URL hardcoded to arm64 |
-| `ghcr.io/miramar-labs-org/kfp-frontend:2.16.1-arm64` | [pkgs/container/kfp-frontend](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-frontend) | No |
-| `ghcr.io/miramar-labs-org/kfp-persistence-agent:2.16.1-arm64` | [pkgs/container/kfp-persistence-agent](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-persistence-agent) | No |
-| `ghcr.io/miramar-labs-org/kfp-scheduled-workflow-controller:2.16.1-arm64` | [pkgs/container/kfp-scheduled-workflow-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-scheduled-workflow-controller) | No |
-| `ghcr.io/miramar-labs-org/kfp-cache-server:2.16.1-arm64` | [pkgs/container/kfp-cache-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-cache-server) | No |
-| `ghcr.io/miramar-labs-org/kfp-cache-deployer:2.16.1-arm64` | [pkgs/container/kfp-cache-deployer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-cache-deployer) | No (`google-cloud-cli:alpine` base is multi-arch) |
-| `ghcr.io/miramar-labs-org/kfp-viewer-crd-controller:2.16.1-arm64` | [pkgs/container/kfp-viewer-crd-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-viewer-crd-controller) | No |
-| `ghcr.io/miramar-labs-org/kfp-metadata-envoy:2.16.1-arm64` | [pkgs/container/kfp-metadata-envoy](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-envoy) | No (`envoyproxy/envoy` is multi-arch) |
-| `ghcr.io/miramar-labs-org/kfp-visualization-server:2.16.1-arm64` | [pkgs/container/kfp-visualization-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-visualization-server) | **Yes** — gcloud SDK download URL hardcoded to `x86_64`; patched to use `arm` |
-| `ghcr.io/miramar-labs-org/kfp-driver:2.16.1-arm64` | [pkgs/container/kfp-driver](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-driver) | No (`CGO_ENABLED=0` static binary) |
-| `ghcr.io/miramar-labs-org/kfp-launcher:2.16.1-arm64` | [pkgs/container/kfp-launcher](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-launcher) | No (`CGO_ENABLED=0` static binary) |
+| Image                                                                     | GHCR package                                                                                                                                                  | Patched?                                                                               |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `ghcr.io/miramar-labs-org/kfp-api-server:2.16.1-arm64`                    | [pkgs/container/kfp-api-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-api-server)                                       | **Yes** — `$TARGETARCH` unset in plain `docker build`; Argo CLI URL hardcoded to arm64 |
+| `ghcr.io/miramar-labs-org/kfp-frontend:2.16.1-arm64`                      | [pkgs/container/kfp-frontend](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-frontend)                                           | No                                                                                     |
+| `ghcr.io/miramar-labs-org/kfp-persistence-agent:2.16.1-arm64`             | [pkgs/container/kfp-persistence-agent](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-persistence-agent)                         | No                                                                                     |
+| `ghcr.io/miramar-labs-org/kfp-scheduled-workflow-controller:2.16.1-arm64` | [pkgs/container/kfp-scheduled-workflow-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-scheduled-workflow-controller) | No                                                                                     |
+| `ghcr.io/miramar-labs-org/kfp-cache-server:2.16.1-arm64`                  | [pkgs/container/kfp-cache-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-cache-server)                                   | No                                                                                     |
+| `ghcr.io/miramar-labs-org/kfp-cache-deployer:2.16.1-arm64`                | [pkgs/container/kfp-cache-deployer](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-cache-deployer)                               | No (`google-cloud-cli:alpine` base is multi-arch)                                      |
+| `ghcr.io/miramar-labs-org/kfp-viewer-crd-controller:2.16.1-arm64`         | [pkgs/container/kfp-viewer-crd-controller](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-viewer-crd-controller)                 | No                                                                                     |
+| `ghcr.io/miramar-labs-org/kfp-metadata-envoy:2.16.1-arm64`                | [pkgs/container/kfp-metadata-envoy](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-metadata-envoy)                               | No (`envoyproxy/envoy` is multi-arch)                                                  |
+| `ghcr.io/miramar-labs-org/kfp-visualization-server:2.16.1-arm64`          | [pkgs/container/kfp-visualization-server](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-visualization-server)                   | **Yes** — gcloud SDK download URL hardcoded to `x86_64`; patched to use `arm`          |
+| `ghcr.io/miramar-labs-org/kfp-driver:2.16.1-arm64`                        | [pkgs/container/kfp-driver](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-driver)                                               | No (`CGO_ENABLED=0` static binary)                                                     |
+| `ghcr.io/miramar-labs-org/kfp-launcher:2.16.1-arm64`                      | [pkgs/container/kfp-launcher](https://github.com/miramar-labs-org/miramar-platform-gcp/pkgs/container/kfp-launcher)                                           | No (`CGO_ENABLED=0` static binary)                                                     |
 
 ## Why arm64 Images Are Missing Upstream
 
@@ -101,11 +101,11 @@ required for pipeline execution. Removed post-deploy in `deploy-kubeflow.sh`.
 
 KFP 2.16.1 uses intentionally different versions for the server and Python client:
 
-| Component | Version | Notes |
-|---|---|---|
-| `ml_metadata_store_server` (gRPC server) | `1.14.0` | C++ binary; pinned in KFP manifests |
-| `ml-metadata` Python package | `1.17.0` | Python client; pinned in `kfp-metadata-writer/requirements.txt` |
-| `kfp-metadata-writer` | `2.16.1` | KFP component version |
+| Component                                | Version  | Notes                                                           |
+| ---------------------------------------- | -------- | --------------------------------------------------------------- |
+| `ml_metadata_store_server` (gRPC server) | `1.14.0` | C++ binary; pinned in KFP manifests                             |
+| `ml-metadata` Python package             | `1.17.0` | Python client; pinned in `kfp-metadata-writer/requirements.txt` |
+| `kfp-metadata-writer`                    | `2.16.1` | KFP component version                                           |
 
 **Compatibility:** The server and Python client communicate over gRPC. The compatibility
 boundary is the protobuf schema. KFP 2.16.1 has validated this combination. Do NOT
@@ -249,12 +249,12 @@ Three-stage build:
 Builds all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) natively on
 the DGX. A `setup` job generates the build matrix from the `component` input.
 
-| Input | Default | Notes |
-|---|---|---|
-| `pipeline_version` | `2.16.1` | KFP version tag; also sets kfp-metadata-writer image tag |
-| `mlmd_server_version` | `1.14.0` | ml_metadata_store_server version |
-| `mlmd_wheel_version` | `1.17.0` | ml-metadata Python wheel version |
-| `component` | `` (blank) | Leave blank to build all 13; set to one name (e.g. `kfp-api-server` or `ml-metadata-server`) to rebuild a single image |
+| Input                 | Default    | Notes                                                                                                                  |
+| --------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `pipeline_version`    | `2.16.1`   | KFP version tag; also sets kfp-metadata-writer image tag                                                               |
+| `mlmd_server_version` | `1.14.0`   | ml_metadata_store_server version                                                                                       |
+| `mlmd_wheel_version`  | `1.17.0`   | ml-metadata Python wheel version                                                                                       |
+| `component`           | `` (blank) | Leave blank to build all 13; set to one name (e.g. `kfp-api-server` or `ml-metadata-server`) to rebuild a single image |
 
 **Expected duration:** MLMD jobs (~45–60 min first run; fast on Docker layer cache).
 Pure-Go KFP components are ~5 min each; `kfp-frontend` (Node.js) is the slowest at
@@ -330,11 +330,11 @@ shows artifact metadata — this confirms the full MLMD write path is working.
 
 ## References
 
-| Resource | Link |
-|---|---|
-| google/ml-metadata | [GitHub](https://github.com/google/ml-metadata) |
-| ml-metadata PR#188 (arm64, unmerged) | [PR](https://github.com/google/ml-metadata/pull/188) |
-| KFP arm64 tracking issue | [#12705](https://github.com/kubeflow/pipelines/issues/12705) |
-| KFP arm64 CI PR | [#12804](https://github.com/kubeflow/pipelines/pull/12804) |
-| deployKF community server image | `ghcr.io/deploykf/ml_metadata_store_server:1.14.0-deploykf.0` |
-| Bazelisk | [GitHub](https://github.com/bazelbuild/bazelisk) |
+| Resource                             | Link                                                          |
+| ------------------------------------ | ------------------------------------------------------------- |
+| google/ml-metadata                   | [GitHub](https://github.com/google/ml-metadata)               |
+| ml-metadata PR#188 (arm64, unmerged) | [PR](https://github.com/google/ml-metadata/pull/188)          |
+| KFP arm64 tracking issue             | [#12705](https://github.com/kubeflow/pipelines/issues/12705)  |
+| KFP arm64 CI PR                      | [#12804](https://github.com/kubeflow/pipelines/pull/12804)    |
+| deployKF community server image      | `ghcr.io/deploykf/ml_metadata_store_server:1.14.0-deploykf.0` |
+| Bazelisk                             | [GitHub](https://github.com/bazelbuild/bazelisk)              |

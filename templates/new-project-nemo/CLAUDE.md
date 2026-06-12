@@ -8,22 +8,22 @@
 
 ## Key files
 
-| File | Purpose |
-|---|---|
-| `job_config.yaml` | Training job parameters — model, epochs, dataset path |
-| `notebook.ipynb` | Interactive development: submit jobs, monitor status, inspect results |
-| `scripts/submit_job.py` | Called by Deploy to NeMo workflow; reads `job_config.yaml` |
-| `scripts/cancel_job.py` | Called by Undeploy from NeMo workflow |
+| File                    | Purpose                                                               |
+| ----------------------- | --------------------------------------------------------------------- |
+| `job_config.yaml`       | Training job parameters — model, epochs, dataset path                 |
+| `notebook.ipynb`        | Interactive development: submit jobs, monitor status, inspect results |
+| `scripts/submit_job.py` | Called by Deploy to NeMo workflow; reads `job_config.yaml`            |
+| `scripts/cancel_job.py` | Called by Undeploy from NeMo workflow                                 |
 
 ## Workflows
 
 Require NeMo running on DGX (`nemo-microservices` namespace). Trigger **NeMo Deploy** in
 [miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) first.
 
-| Workflow | Input | Effect |
-|---|---|---|
-| **Deploy to NeMo** | `job_name` (optional) | Submit training job from `job_config.yaml` |
-| **Undeploy from NeMo** | `job_name` | Cancel a job |
+| Workflow               | Input                 | Effect                                     |
+| ---------------------- | --------------------- | ------------------------------------------ |
+| **Deploy to NeMo**     | `job_name` (optional) | Submit training job from `job_config.yaml` |
+| **Undeploy from NeMo** | `job_name`            | Cancel a job                               |
 
 Click the **Open in JupyterLab** badge in the README to open `notebook.ipynb` directly (requires SSH tunnel).
 

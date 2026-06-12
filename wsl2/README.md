@@ -37,11 +37,11 @@ ssh wsl2-dev hostname
 
 ## Workflows
 
-| Workflow | Purpose |
-| --- | --- |
-| **WSL2 Provision** (`provision-wsl2.yaml`) | Imports a distro from the configured template, runs `firstboot.sh`, writes the shared SSH alias, and registers the distro in `WSL2_DISTROS`. |
-| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Tests supported Spark, Orin, and active WSL2 SSH paths. |
-| **WSL2 Unprovision** (`unprovision-wsl2.yaml`) | Unregisters a distro and optionally deletes `C:\wsl\<name>`. |
+| Workflow                                                  | Purpose                                                                                                                                      |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **WSL2 Provision** (`provision-wsl2.yaml`)                | Imports a distro from the configured template, runs `firstboot.sh`, writes the shared SSH alias, and registers the distro in `WSL2_DISTROS`. |
+| **WSL2 Verify SSH Topology** (`verify-ssh-topology.yaml`) | Tests supported Spark, Orin, and active WSL2 SSH paths.                                                                                      |
+| **WSL2 Unprovision** (`unprovision-wsl2.yaml`)            | Unregisters a distro and optionally deletes `C:\wsl\<name>`.                                                                                 |
 
 WSL2-to-WSL2 peer paths are intentionally not part of CI. Spark and Orin are the
 durable SSH control plane; WSL2 distros are on-demand endpoints.
@@ -77,15 +77,15 @@ wsl
 
 ## Secrets and Vars
 
-| Secret / Var | Value | Used by |
-| --- | --- | --- |
-| `WSL2_HOST` (secret) | Windows hostname or IP, for example `msi.local` | provision, verify, unprovision |
-| `WSL2_HOST_USER` (secret) | Windows SSH username | provision, verify, unprovision |
-| `WSL2_HOST_SSH_KEY` (secret) | Private key authorized on Windows | provision, verify, unprovision |
-| `DGX_HOST_SSH_KEY` (secret) | Spark private key used for distro auth and verification | provision, verify |
-| `DGX_HOST_IP` (var) | DGX static IP for SSH and CIFS | provision, setup, deploy workflows |
-| `DGX_HOST_USER` (var) | DGX / Samba username | provision |
-| `WSL2_DISTROS` (repo var) | `NONE` initially | Tracks active distro names |
+| Secret / Var                 | Value                                                   | Used by                            |
+| ---------------------------- | ------------------------------------------------------- | ---------------------------------- |
+| `WSL2_HOST` (secret)         | Windows hostname or IP, for example `msi.local`         | provision, verify, unprovision     |
+| `WSL2_HOST_USER` (secret)    | Windows SSH username                                    | provision, verify, unprovision     |
+| `WSL2_HOST_SSH_KEY` (secret) | Private key authorized on Windows                       | provision, verify, unprovision     |
+| `DGX_HOST_SSH_KEY` (secret)  | Spark private key used for distro auth and verification | provision, verify                  |
+| `DGX_HOST_IP` (var)          | DGX static IP for SSH and CIFS                          | provision, setup, deploy workflows |
+| `DGX_HOST_USER` (var)        | DGX / Samba username                                    | provision                          |
+| `WSL2_DISTROS` (repo var)    | `NONE` initially                                        | Tracks active distro names         |
 
 `DGX_SMB_PASSWORD` is not required by `WSL2 Provision`; Samba credentials are
 baked into the template by `rebuild-template.ps1`.
@@ -146,19 +146,19 @@ ssh -o BatchMode=yes wsl2-dev hostname
 
 Expected basic paths:
 
-| From | Command | Expected |
-| --- | --- | --- |
-| WSL2 | `ssh orin hostname` | `orin` |
-| WSL2 | `ssh spark hostname` | DGX hostname |
-| DGX | `ssh wsl2-dev hostname` | `dev` |
-| Orin | `ssh wsl2-dev hostname` | `dev` |
+| From | Command                 | Expected     |
+| ---- | ----------------------- | ------------ |
+| WSL2 | `ssh orin hostname`     | `orin`       |
+| WSL2 | `ssh spark hostname`    | DGX hostname |
+| DGX  | `ssh wsl2-dev hostname` | `dev`        |
+| Orin | `ssh wsl2-dev hostname` | `dev`        |
 
 ## References
 
-| Technology | GitHub | Docs |
-|---|---|---|
+| Technology                                             | GitHub                                            | Docs                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------- |
 | [WSL2](https://learn.microsoft.com/en-us/windows/wsl/) | [microsoft/WSL](https://github.com/microsoft/WSL) | [install guide](https://learn.microsoft.com/en-us/windows/wsl/install) |
-| [GitHub Actions](https://github.com/features/actions) | — | [docs](https://docs.github.com/en/actions) |
+| [GitHub Actions](https://github.com/features/actions)  | —                                                 | [docs](https://docs.github.com/en/actions)                             |
 
 - [TECHNICAL.md](TECHNICAL.md): architecture, lifecycle model, template rules,
   troubleshooting, and manual setup

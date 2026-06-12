@@ -2,10 +2,10 @@
 
 [![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})  [![last run](https://img.shields.io/badge/last%20run-pending-lightgrey)](runs/RUNS.md)
 
-| | |
-|---|---|
-| **Type** | KFP v2 eval-first fine-tuning pipeline |
-| **Model** | [{{HF_MODEL_ID}}](https://huggingface.co/{{HF_MODEL_ID}}) |
+| ----------- | ---------------------------------------------------------------------- |
+| ----------- | ---------------------------------------------------------------------- |
+| **Type**    | KFP v2 eval-first fine-tuning pipeline                                 |
+| **Model**   | [{{HF_MODEL_ID}}](https://huggingface.co/{{HF_MODEL_ID}})              |
 | **Dataset** | [{{HF_DATASET_ID}}](https://huggingface.co/datasets/{{HF_DATASET_ID}}) |
 
 <!-- One-line description of this project -->
@@ -53,31 +53,31 @@ download_model
 
 ## 3. config.yaml reference
 
-| Key | Type | Description |
-|---|---|---|
-| `model.id` | string | HuggingFace model ID (e.g. `google/medgemma-27b-it`) |
-| `datasets[].name` | string | Dataset name — must match a key in `FORMATTERS` and `LOADERS` |
-| `datasets[].hf_path` | string | HuggingFace dataset path |
-| `datasets[].hf_config` | string | Optional HF dataset config name |
-| `datasets[].trust_remote_code` | bool | Pass `trust_remote_code=True` to `load_dataset` |
-| `lora.r` | int | LoRA rank |
-| `lora.alpha` | int | LoRA alpha (scaling = alpha/r) |
-| `lora.dropout` | float | LoRA dropout |
-| `lora.target_modules` | list | Attention/MLP modules to adapt |
-| `training.num_epochs` | int | Fine-tuning epochs |
-| `training.learning_rate` | float | AdamW learning rate |
-| `training.batch_size` | int | Per-device batch size |
-| `training.gradient_accumulation_steps` | int | Gradient accumulation steps |
-| `training.max_seq_length` | int | Max token sequence length |
-| `training.val_size` | float | Fraction of data for validation |
-| `training.test_size` | float | Fraction of data for final test |
-| `eval.sample_size` | int | Number of val examples used for baseline/post-FT eval |
-| `eval.safety_sample_size` | int | Number of val examples used for LLM-judge eval |
-| `eval.accuracy_delta_threshold` | float | Max allowed accuracy regression (post-FT vs baseline) |
-| `eval.safety_score_threshold` | float | Min average judge score to pass gate |
-| `judge.model` | string | OpenAI model ID for LLM-as-judge (e.g. `gpt-4o`) |
-| `judge.system_prompt` | string | System prompt for the judge — must elicit JSON output |
-| `deployment.gcs_bucket` | string | GCS bucket for adapter upload on gate pass |
+| Key                                    | Type   | Description                                                   |
+| -------------------------------------- | ------ | ------------------------------------------------------------- |
+| `model.id`                             | string | HuggingFace model ID (e.g. `google/medgemma-27b-it`)          |
+| `datasets[].name`                      | string | Dataset name — must match a key in `FORMATTERS` and `LOADERS` |
+| `datasets[].hf_path`                   | string | HuggingFace dataset path                                      |
+| `datasets[].hf_config`                 | string | Optional HF dataset config name                               |
+| `datasets[].trust_remote_code`         | bool   | Pass `trust_remote_code=True` to `load_dataset`               |
+| `lora.r`                               | int    | LoRA rank                                                     |
+| `lora.alpha`                           | int    | LoRA alpha (scaling = alpha/r)                                |
+| `lora.dropout`                         | float  | LoRA dropout                                                  |
+| `lora.target_modules`                  | list   | Attention/MLP modules to adapt                                |
+| `training.num_epochs`                  | int    | Fine-tuning epochs                                            |
+| `training.learning_rate`               | float  | AdamW learning rate                                           |
+| `training.batch_size`                  | int    | Per-device batch size                                         |
+| `training.gradient_accumulation_steps` | int    | Gradient accumulation steps                                   |
+| `training.max_seq_length`              | int    | Max token sequence length                                     |
+| `training.val_size`                    | float  | Fraction of data for validation                               |
+| `training.test_size`                   | float  | Fraction of data for final test                               |
+| `eval.sample_size`                     | int    | Number of val examples used for baseline/post-FT eval         |
+| `eval.safety_sample_size`              | int    | Number of val examples used for LLM-judge eval                |
+| `eval.accuracy_delta_threshold`        | float  | Max allowed accuracy regression (post-FT vs baseline)         |
+| `eval.safety_score_threshold`          | float  | Min average judge score to pass gate                          |
+| `judge.model`                          | string | OpenAI model ID for LLM-as-judge (e.g. `gpt-4o`)              |
+| `judge.system_prompt`                  | string | System prompt for the judge — must elicit JSON output         |
+| `deployment.gcs_bucket`                | string | GCS bucket for adapter upload on gate pass                    |
 
 ---
 

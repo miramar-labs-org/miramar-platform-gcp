@@ -4,11 +4,11 @@ The DGX Spark exposes a Samba share used to pass intermediate artifacts
 (checkpoints, embeddings, datasets, etc.) between the `dgx` and `wsl2`
 runners during training workflows.
 
-| Machine | Path |
-|---|---|
-| DGX | `~/shared` |
-| WSL2 (Ubuntu) | `~/shared` |
-| Windows | `\\spark-79b7.local\shared` |
+| Machine       | Path                        |
+| ------------- | --------------------------- |
+| DGX           | `~/shared`                  |
+| WSL2 (Ubuntu) | `~/shared`                  |
+| Windows       | `\\spark-79b7.local\shared` |
 
 ---
 

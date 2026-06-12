@@ -6,11 +6,11 @@ Managed via the **Qdrant Deploy** / **Qdrant Undeploy** GHA workflows. Manual sc
 
 ## Endpoints
 
-| Interface | URL |
-|---|---|
-| REST API + Web UI | `http://localhost:6333` |
-| Web UI dashboard | `http://localhost:6333/dashboard` |
-| gRPC | `localhost:6334` |
+| Interface         | URL                               |
+| ----------------- | --------------------------------- |
+| REST API + Web UI | `http://localhost:6333`           |
+| Web UI dashboard  | `http://localhost:6333/dashboard` |
+| gRPC              | `localhost:6334`                  |
 
 Access requires the `qdrant-portfwd` systemd service (installed via `dgx/systemd/install.sh`) and an SSH tunnel from the laptop (`-L 6333:localhost:6333 -L 6334:localhost:6334`).
 

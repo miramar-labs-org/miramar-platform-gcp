@@ -6,12 +6,12 @@
 
 ## Key files
 
-| File | Purpose |
-|---|---|
-| `serving-config.yaml` | Project config — base model, stable alias, adapter manifest URI, vLLM settings, GKE deployment config |
-| `Dockerfile.serve` | Thin image (no model baked in) — model and adapter are injected at runtime |
-| `k8s/vllm.yaml` | K8s manifest — namespace, deployment (init container + vLLM), ClusterIP service |
-| `smoke_test_prompts.jsonl` | 3–5 prompts to run after deploy to confirm model is responding |
+| File                       | Purpose                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `serving-config.yaml`      | Project config — base model, stable alias, adapter manifest URI, vLLM settings, GKE deployment config |
+| `Dockerfile.serve`         | Thin image (no model baked in) — model and adapter are injected at runtime                            |
+| `k8s/vllm.yaml`            | K8s manifest — namespace, deployment (init container + vLLM), ClusterIP service                       |
+| `smoke_test_prompts.jsonl` | 3–5 prompts to run after deploy to confirm model is responding                                        |
 
 ## GPU cost
 
@@ -21,11 +21,11 @@ The L4 spot GPU node pool is **not persistent**. It is expanded on every `deploy
 
 ## Workflows
 
-| Workflow | Trigger | Effect |
-|---|---|---|
-| `build-push.yaml` | `workflow_dispatch` | Build `Dockerfile.serve` → push to GAR as `:latest` + commit SHA |
-| `deploy.yaml` | `workflow_dispatch` (inputs: `image_tag`, `manifest_uri`) | Expand L4 spot, deploy vLLM to GKE, run smoke tests |
-| `undeploy.yaml` | `workflow_dispatch` | Remove deployment, restore GPU node pool (stop costs) |
+| Workflow          | Trigger                                                   | Effect                                                           |
+| ----------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
+| `build-push.yaml` | `workflow_dispatch`                                       | Build `Dockerfile.serve` → push to GAR as `:latest` + commit SHA |
+| `deploy.yaml`     | `workflow_dispatch` (inputs: `image_tag`, `manifest_uri`) | Expand L4 spot, deploy vLLM to GKE, run smoke tests              |
+| `undeploy.yaml`   | `workflow_dispatch`                                       | Remove deployment, restore GPU node pool (stop costs)            |
 
 Run order: `build-push.yaml` (once, or on Dockerfile changes) → `deploy.yaml` → `undeploy.yaml`.
 

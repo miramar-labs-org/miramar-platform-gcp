@@ -4,12 +4,12 @@ NeMo Microservices deployment for the DGX Spark minikube cluster.
 
 ## Platform lifecycle — GHA workflows only
 
-| Workflow | Purpose |
-|---|---|
-| **NeMo Deploy** (`deploy-nemo.yaml`) | Helm install — namespace, secrets, Volcano, chart, pod wait, /etc/hosts DNS |
-| **NeMo Undeploy** (`undeploy-nemo.yaml`) | Helm uninstall, optional namespace delete, /etc/hosts cleanup |
-| **Minikube Setup** (`setup-minikube.yaml`) | Start cluster, enable addons, update kubeconfig secret |
-| **Minikube Stop/Pause/Resume** | Cluster lifecycle |
+| Workflow                                   | Purpose                                                                     |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| **NeMo Deploy** (`deploy-nemo.yaml`)       | Helm install — namespace, secrets, Volcano, chart, pod wait, /etc/hosts DNS |
+| **NeMo Undeploy** (`undeploy-nemo.yaml`)   | Helm uninstall, optional namespace delete, /etc/hosts cleanup               |
+| **Minikube Setup** (`setup-minikube.yaml`) | Start cluster, enable addons, update kubeconfig secret                      |
+| **Minikube Stop/Pause/Resume**             | Cluster lifecycle                                                           |
 
 No local shell scripts manage the platform lifecycle. Trigger all of the above from the GitHub Actions UI.
 
@@ -27,15 +27,15 @@ source ../nim/undeploy_nim.sh && undeploy_nim meta llama-3.1-8b-instruct-dgx-spa
 
 Same services run on both DGX and AGX — managed via `dgx/systemd/` and `agx/systemd/`.
 
-| Service | Port | What it does |
-|---|---|---|
-| `minikube` | — | Starts minikube on boot |
-| `dashboard` | `8001` | `kubectl proxy` → Kubernetes dashboard |
-| `jupyterlab` | `8888` | JupyterLab |
-| `mlflow-portfwd` | `5000` | `kubectl port-forward svc/mlflow-tracking` |
-| `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` (KFP UI) |
-| `kfp-api-portfwd` | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API) |
-| `nemo-portfwd` | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` — exposes `nemo.test`, `nim.test`, `data-store.test` |
+| Service            | Port   | What it does                                                                                                |
+| ------------------ | ------ | ----------------------------------------------------------------------------------------------------------- |
+| `minikube`         | —      | Starts minikube on boot                                                                                     |
+| `dashboard`        | `8001` | `kubectl proxy` → Kubernetes dashboard                                                                      |
+| `jupyterlab`       | `8888` | JupyterLab                                                                                                  |
+| `mlflow-portfwd`   | `5000` | `kubectl port-forward svc/mlflow-tracking`                                                                  |
+| `kubeflow-portfwd` | `8080` | `kubectl port-forward svc/ml-pipeline-ui` (KFP UI)                                                          |
+| `kfp-api-portfwd`  | `8890` | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                                                  |
+| `nemo-portfwd`     | `8082` | `kubectl port-forward svc/ingress-nginx-controller:80` — exposes `nemo.test`, `nim.test`, `data-store.test` |
 
 Access from laptop via SSH tunnel (DGX and AGX can run simultaneously on different local ports):
 

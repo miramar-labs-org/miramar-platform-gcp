@@ -114,13 +114,13 @@ MLflow UI for live charts: **http://localhost:5000**
 
 Adaptive cadence:
 
-| Phase | Interval |
-|---|---|
-| Model loading (no `Progress:` yet) | 5 min |
-| Inference < 50% | 20 min |
-| Inference 50–80% | 10 min |
-| Inference > 80% | 5 min |
-| Between pipeline stages | 2 min |
+| Phase                              | Interval |
+| ---------------------------------- | -------- |
+| Model loading (no `Progress:` yet) | 5 min    |
+| Inference < 50%                    | 20 min   |
+| Inference 50–80%                   | 10 min   |
+| Inference > 80%                    | 5 min    |
+| Between pipeline stages            | 2 min    |
 
 Stops automatically when all pods reach Completed or any pod reaches Error/Failed.
 

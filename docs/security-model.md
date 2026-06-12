@@ -12,14 +12,14 @@ This document describes the intended trust boundaries, identity model, secrets h
 
 ## Trust boundaries
 
-| Boundary | Trusted side | Untrusted or less-trusted side | Notes |
-|---|---|---|---|
-| GitHub repository | Reviewed code on protected branches | Arbitrary pull requests and unreviewed workflow edits | Workflow changes can alter deployment behavior. |
-| GitHub-hosted runners | Ephemeral Actions runtime | Local network and local GPU systems | Hosted runners should not receive direct local access. |
-| Self-hosted runners | Operator-controlled machines | Public internet and arbitrary workflow payloads | Self-hosted runners are powerful and must be scoped carefully. |
-| GCP project | IAM-managed cloud resources | External identities and unauthenticated clients | WIF should replace static service account keys. |
-| DGX/local Kubernetes | Local AI workloads and storage | Cloud-side jobs and external clients | Local cluster access should be mediated through runner controls and tunnels. |
-| Container registries | Signed or trusted images | Mutable tags and unverified downloads | Prefer immutable digests for critical deployments. |
+| Boundary              | Trusted side                        | Untrusted or less-trusted side                        | Notes                                                                        |
+| --------------------- | ----------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------- |
+| GitHub repository     | Reviewed code on protected branches | Arbitrary pull requests and unreviewed workflow edits | Workflow changes can alter deployment behavior.                              |
+| GitHub-hosted runners | Ephemeral Actions runtime           | Local network and local GPU systems                   | Hosted runners should not receive direct local access.                       |
+| Self-hosted runners   | Operator-controlled machines        | Public internet and arbitrary workflow payloads       | Self-hosted runners are powerful and must be scoped carefully.               |
+| GCP project           | IAM-managed cloud resources         | External identities and unauthenticated clients       | WIF should replace static service account keys.                              |
+| DGX/local Kubernetes  | Local AI workloads and storage      | Cloud-side jobs and external clients                  | Local cluster access should be mediated through runner controls and tunnels. |
+| Container registries  | Signed or trusted images            | Mutable tags and unverified downloads                 | Prefer immutable digests for critical deployments.                           |
 
 ## Identity model
 
@@ -58,14 +58,14 @@ Recommended controls:
 
 Secrets should live in the narrowest appropriate store:
 
-| Secret type | Preferred location |
-|---|---|
-| GitHub-to-GCP identity | Workload Identity Federation, not JSON keys. |
-| GitHub package publishing | GitHub token or scoped PAT only where unavoidable. |
-| NVIDIA/NGC credentials | GitHub Actions secret or host secret, never committed. |
-| SSH private keys | Local host secret or GitHub secret only when workflow access is required. |
-| Application runtime secrets | Kubernetes Secret, Secret Manager, or local sealed secret workflow. |
-| Terraform variables | Non-secret values in repo; secrets in GitHub, GCP Secret Manager, or local env. |
+| Secret type                 | Preferred location                                                              |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| GitHub-to-GCP identity      | Workload Identity Federation, not JSON keys.                                    |
+| GitHub package publishing   | GitHub token or scoped PAT only where unavoidable.                              |
+| NVIDIA/NGC credentials      | GitHub Actions secret or host secret, never committed.                          |
+| SSH private keys            | Local host secret or GitHub secret only when workflow access is required.       |
+| Application runtime secrets | Kubernetes Secret, Secret Manager, or local sealed secret workflow.             |
+| Terraform variables         | Non-secret values in repo; secrets in GitHub, GCP Secret Manager, or local env. |
 
 Do not echo secrets in workflow logs. For scripts, prefer explicit input validation and redacted logging.
 

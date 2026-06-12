@@ -8,27 +8,27 @@
 
 ## Key files
 
-| File | Purpose |
-|---|---|
-| `config.yaml` | Project config — model ID, datasets, LoRA params, eval thresholds, judge prompt |
-| `formatters.py` | Dataset formatters — one function per dataset, registered in `FORMATTERS` dict |
-| `loaders.py` | Dataset loaders — one lambda per dataset, registered in `LOADERS` dict |
-| `notebook.ipynb` | Source of truth — develop step logic here, run the Build cell to regenerate `pipeline.py` |
-| `pipeline.py` | Generated from notebook — **do not edit manually** (gitignored) |
-| `WORKBOOK.md` | Implementation checklist — every `USER CODE BLOCK` and helper file to fill in, with order and snippets |
-| `scripts/deploy_pipeline.py` | Compile, register, and submit a run (called by Deploy to KFP workflow) |
-| `scripts/terminate_pipeline.py` | Terminate a run by ID (called by Undeploy from KFP workflow) |
-| `runs/RUNS.md` | Run history — outcome, changes, and notes for every pipeline run |
-| `runs/run-NNN.md` | Periodic status log for run NNN, written by the monitoring loop |
+| File                            | Purpose                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `config.yaml`                   | Project config — model ID, datasets, LoRA params, eval thresholds, judge prompt                        |
+| `formatters.py`                 | Dataset formatters — one function per dataset, registered in `FORMATTERS` dict                         |
+| `loaders.py`                    | Dataset loaders — one lambda per dataset, registered in `LOADERS` dict                                 |
+| `notebook.ipynb`                | Source of truth — develop step logic here, run the Build cell to regenerate `pipeline.py`              |
+| `pipeline.py`                   | Generated from notebook — **do not edit manually** (gitignored)                                        |
+| `WORKBOOK.md`                   | Implementation checklist — every `USER CODE BLOCK` and helper file to fill in, with order and snippets |
+| `scripts/deploy_pipeline.py`    | Compile, register, and submit a run (called by Deploy to KFP workflow)                                 |
+| `scripts/terminate_pipeline.py` | Terminate a run by ID (called by Undeploy from KFP workflow)                                           |
+| `runs/RUNS.md`                  | Run history — outcome, changes, and notes for every pipeline run                                       |
+| `runs/run-NNN.md`               | Periodic status log for run NNN, written by the monitoring loop                                        |
 
 ## Slash commands
 
-| Command | What it does |
-|---|---|
-| `/kfp-deploy [run-NNN]` | Purge KFP, deploy next run, create `runs/run-NNN.md` |
-| `/kfp-monitor [run-NNN]` | Self-paced monitoring loop — checks pods + MLflow, appends to `runs/run-NNN.md` |
-| `/model-card [org/model-id]` | Fetch and display the HuggingFace model card (defaults to `base_model_id` from `config.yaml`) |
-| `/nsight-interpret [run-NNN\|path] [--ollama model]` | Interpret an Nsight Systems `.nsys-rep` report with an LLM — bottlenecks, idle time, optimization recommendations |
+| Command                      | What it does                                                                                  |                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `/kfp-deploy [run-NNN]`      | Purge KFP, deploy next run, create `runs/run-NNN.md`                                          |                                                                                                                   |
+| `/kfp-monitor [run-NNN]`     | Self-paced monitoring loop — checks pods + MLflow, appends to `runs/run-NNN.md`               |                                                                                                                   |
+| `/model-card [org/model-id]` | Fetch and display the HuggingFace model card (defaults to `base_model_id` from `config.yaml`) |                                                                                                                   |
+| `/nsight-interpret [run-NNN\ | path] [--ollama model]`                                                                       | Interpret an Nsight Systems `.nsys-rep` report with an LLM — bottlenecks, idle time, optimization recommendations |
 
 > **Nsight Operator — namespace label warning:** Do NOT label the kubeflow namespace with `nvidia-nsight-profile=enabled`. It injects nsys into ALL pods including KFP's DAG driver pods, which fail with `runAsNonRoot`. Use per-pod `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` in the pipeline definition only.
 
@@ -250,10 +250,10 @@ python3 scripts/deploy_pipeline.py --run-name run-003 --chunk-index N-1
 Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** in
 [miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) first.
 
-| Workflow | Input | Effect |
-|---|---|---|
-| **Deploy to KFP** | `run_name` | Compile `pipeline.py` → register → submit run |
-| **Undeploy from KFP** | `run_id` | Terminate a run |
+| Workflow              | Input      | Effect                                        |
+| --------------------- | ---------- | --------------------------------------------- |
+| **Deploy to KFP**     | `run_name` | Compile `pipeline.py` → register → submit run |
+| **Undeploy from KFP** | `run_id`   | Terminate a run                               |
 
 ## Component rules
 

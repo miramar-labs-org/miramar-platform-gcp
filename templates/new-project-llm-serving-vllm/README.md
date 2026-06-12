@@ -4,11 +4,11 @@ Serve a LoRA-adapted LLM via vLLM on GKE (L4 spot GPU) — part of the [Miramar 
 
 ## Workflows
 
-| Workflow | Trigger | Description |
-|---|---|---|
-| Build and Push | Manual | Build `Dockerfile.serve`, push to GAR |
-| Deploy | Manual | Expand L4 spot GPU, deploy vLLM, run smoke tests |
-| Undeploy | Manual | Remove deployment, restore GPU pool (stop costs) |
+| Workflow       | Trigger | Description                                      |
+| -------------- | ------- | ------------------------------------------------ |
+| Build and Push | Manual  | Build `Dockerfile.serve`, push to GAR            |
+| Deploy         | Manual  | Expand L4 spot GPU, deploy vLLM, run smoke tests |
+| Undeploy       | Manual  | Remove deployment, restore GPU pool (stop costs) |
 
 ## Quick start
 

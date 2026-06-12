@@ -4,15 +4,15 @@ Systemd user services for the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/pr
 
 AGX Orin runs the identical set of services — see [../../agx/systemd/README.md](../../agx/systemd/README.md) for AGX-specific tunnel port assignments.
 
-| Service | Port | Purpose |
-|---|---|---|
-| `dashboard.service` | `8001` | `kubectl proxy` for the k3s Kubernetes dashboard |
-| `jupyterlab.service` | `8888` | [JupyterLab](https://jupyter.org) (pyJLab environment) — no token required |
-| `mlflow-portfwd.service` | `5000` | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace |
-| `kubeflow-portfwd.service` | `8080` | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace |
-| `kfp-api-portfwd.service` | `8890` | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace |
-| `nemo-portfwd.service` | `8082` | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
-| `qdrant-portfwd.service` | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334) |
+| Service                    | Port        | Purpose                                                                                                                                                             |
+| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dashboard.service`        | `8001`      | `kubectl proxy` for the k3s Kubernetes dashboard                                                                                                                    |
+| `jupyterlab.service`       | `8888`      | [JupyterLab](https://jupyter.org) (pyJLab environment) — no token required                                                                                          |
+| `mlflow-portfwd.service`   | `5000`      | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace                                              |
+| `kubeflow-portfwd.service` | `8080`      | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace                                 |
+| `kfp-api-portfwd.service`  | `8890`      | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace                                                                  |
+| `nemo-portfwd.service`     | `8082`      | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
+| `qdrant-portfwd.service`   | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334)                 |
 
 k3s itself runs as a system-level service (`sudo systemctl start k3s` / `sudo systemctl stop k3s`) — not a user unit. The port-forward services above start after k3s is ready.
 
@@ -101,10 +101,10 @@ journalctl --user -u qdrant-portfwd -f
 
 ## References
 
-| Technology | GitHub | Docs |
-|---|---|---|
-| [k3s](https://k3s.io/) | [k3s-io/k3s](https://github.com/k3s-io/k3s) | [docs](https://docs.k3s.io/) |
-| [JupyterLab](https://jupyter.org) | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/) |
-| [MLflow](https://mlflow.org) | [mlflow/mlflow](https://github.com/mlflow/mlflow) | [docs](https://mlflow.org/docs/latest/index.html) |
-| [Qdrant](https://qdrant.tech) | [qdrant/qdrant](https://github.com/qdrant/qdrant) | [docs](https://qdrant.tech/documentation/) |
-| [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines) | [docs](https://www.kubeflow.org/docs/components/pipelines/) |
+| Technology                                      | GitHub                                                            | Docs                                                        |
+| ----------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| [k3s](https://k3s.io/)                          | [k3s-io/k3s](https://github.com/k3s-io/k3s)                       | [docs](https://docs.k3s.io/)                                |
+| [JupyterLab](https://jupyter.org)               | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/)                  |
+| [MLflow](https://mlflow.org)                    | [mlflow/mlflow](https://github.com/mlflow/mlflow)                 | [docs](https://mlflow.org/docs/latest/index.html)           |
+| [Qdrant](https://qdrant.tech)                   | [qdrant/qdrant](https://github.com/qdrant/qdrant)                 | [docs](https://qdrant.tech/documentation/)                  |
+| [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines)       | [docs](https://www.kubeflow.org/docs/components/pipelines/) |

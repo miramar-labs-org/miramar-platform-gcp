@@ -52,17 +52,17 @@ ssh -L 8002:localhost:8001 \
 
 ## Hosts at a glance
 
-| Host | Host port | DGX laptop port | AGX laptop port | What it is | Requires |
-|---|---|---|---|---|---|
-| `nim.test` | 80 | 8082 | 8083 | NIM inference gateway (OpenAI-compatible) | NeMo deployed + NIM deployed |
-| `nemo.test` | 80 | 8082 | 8083 | NeMo microservices REST API | NeMo deployed |
-| `data-store.test` | 80 | 8082 | 8083 | HuggingFace-compatible data/model store | NeMo deployed |
-| `localhost:11434` | 11434 | 11434 | 11435 | Ollama (host service, GPU-accelerated) | Ollama model loaded |
-| `localhost:8001` | 8001 | 8001 | 8002 | Kubernetes dashboard (via `kubectl proxy`) | minikube running |
-| `localhost:8888` | 8888 | 8888 | 8887 | JupyterLab | minikube running |
-| `localhost:5000` | 5000 | 5000 | 5001 | MLflow Tracking UI | NeMo + MLflow deployed |
-| `localhost:8080` | 8080 | 8080 | 8081 | Kubeflow Pipelines UI | KFP deployed |
-| `localhost:8890` | 8890 | 8890 | 8891 | KFP REST API (`/apis/v2beta1/...`) | KFP deployed |
+| Host              | Host port | DGX laptop port | AGX laptop port | What it is                                 | Requires                     |
+| ----------------- | --------- | --------------- | --------------- | ------------------------------------------ | ---------------------------- |
+| `nim.test`        | 80        | 8082            | 8083            | NIM inference gateway (OpenAI-compatible)  | NeMo deployed + NIM deployed |
+| `nemo.test`       | 80        | 8082            | 8083            | NeMo microservices REST API                | NeMo deployed                |
+| `data-store.test` | 80        | 8082            | 8083            | HuggingFace-compatible data/model store    | NeMo deployed                |
+| `localhost:11434` | 11434     | 11434           | 11435           | Ollama (host service, GPU-accelerated)     | Ollama model loaded          |
+| `localhost:8001`  | 8001      | 8001            | 8002            | Kubernetes dashboard (via `kubectl proxy`) | minikube running             |
+| `localhost:8888`  | 8888      | 8888            | 8887            | JupyterLab                                 | minikube running             |
+| `localhost:5000`  | 5000      | 5000            | 5001            | MLflow Tracking UI                         | NeMo + MLflow deployed       |
+| `localhost:8080`  | 8080      | 8080            | 8081            | Kubeflow Pipelines UI                      | KFP deployed                 |
+| `localhost:8890`  | 8890      | 8890            | 8891            | KFP REST API (`/apis/v2beta1/...`)         | KFP deployed                 |
 
 DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.1.200 fd66:3926:b096:10:4a98:7903:ca69:f3ee`). Source files: [`hosts.dgx`](hosts.dgx), [`agx/../../agx/minikube/nemo/hosts.agx`](../../../agx/minikube/nemo/hosts.agx).
 
@@ -447,13 +447,13 @@ curl http://localhost:11434/v1/chat/completions \
 
 ### Ollama model quick reference
 
-| Tag | Params | Active | Quant | Size | tok/s | Tool use | Best for |
-|---|---|---|---|---|---|---|---|
-| `llama3.3:70b-instruct-q4_K_M` | 70B | 70B | Q4_K_M | 43 GB | ~4.4 | ✅ | General, agentic |
-| `deepseek-r1:70b` | 70B | 70B | Q4_K_M | 43 GB | ~4.4 | CoT only | Reasoning, math |
-| `qwen3:32b-q4_K_M` | 32.8B | 32.8B | Q4_K_M | 20 GB | 9.4 | ✅ | Fast workhorse |
-| `gpt-oss:20b` | 21B | 3.6B (MoE) | MXFP4 | 14 GB | **58** | ✅ | Speed, coding |
-| `qwen3-coder:30b-a3b-q4_K_M` | 30B | 3B (MoE) | Q4_K_M | 19 GB | ~20 | ✅ | Code, 256K ctx |
+| Tag                            | Params | Active     | Quant  | Size  | tok/s  | Tool use | Best for         |
+| ------------------------------ | ------ | ---------- | ------ | ----- | ------ | -------- | ---------------- |
+| `llama3.3:70b-instruct-q4_K_M` | 70B    | 70B        | Q4_K_M | 43 GB | ~4.4   | ✅        | General, agentic |
+| `deepseek-r1:70b`              | 70B    | 70B        | Q4_K_M | 43 GB | ~4.4   | CoT only | Reasoning, math  |
+| `qwen3:32b-q4_K_M`             | 32.8B  | 32.8B      | Q4_K_M | 20 GB | 9.4    | ✅        | Fast workhorse   |
+| `gpt-oss:20b`                  | 21B    | 3.6B (MoE) | MXFP4  | 14 GB | **58** | ✅        | Speed, coding    |
+| `qwen3-coder:30b-a3b-q4_K_M`   | 30B    | 3B (MoE)   | Q4_K_M | 19 GB | ~20    | ✅        | Code, 256K ctx   |
 
 ---
 
@@ -547,15 +547,15 @@ export MLFLOW_TRACKING_URI=http://localhost:5000
 
 Always running via systemd on both hosts — no manual start needed.
 
-| Service | DGX URL | AGX URL |
-|---|---|---|
-| Kubernetes dashboard | `http://localhost:8001/...` | `http://localhost:8002/...` |
-| JupyterLab | `http://localhost:8888/lab` | `http://localhost:8887/lab` |
-| MLflow Tracking | `http://localhost:5000` | `http://localhost:5001` |
-| Kubeflow Pipelines UI | `http://localhost:8080` | `http://localhost:8081` |
-| KFP REST API | `http://localhost:8890/apis/v2beta1/healthz` | `http://localhost:8891/apis/v2beta1/healthz` |
-| NeMo / NIM / Data Store | `http://nemo.test:8082` | `http://nemo.test:8083` |
-| Ollama | `http://localhost:11434` | `http://localhost:11435` |
+| Service                 | DGX URL                                      | AGX URL                                      |
+| ----------------------- | -------------------------------------------- | -------------------------------------------- |
+| Kubernetes dashboard    | `http://localhost:8001/...`                  | `http://localhost:8002/...`                  |
+| JupyterLab              | `http://localhost:8888/lab`                  | `http://localhost:8887/lab`                  |
+| MLflow Tracking         | `http://localhost:5000`                      | `http://localhost:5001`                      |
+| Kubeflow Pipelines UI   | `http://localhost:8080`                      | `http://localhost:8081`                      |
+| KFP REST API            | `http://localhost:8890/apis/v2beta1/healthz` | `http://localhost:8891/apis/v2beta1/healthz` |
+| NeMo / NIM / Data Store | `http://nemo.test:8082`                      | `http://nemo.test:8083`                      |
+| Ollama                  | `http://localhost:11434`                     | `http://localhost:11435`                     |
 
 ```bash
 # MLflow tracking URI inside runner containers (resolves to local host on both machines)

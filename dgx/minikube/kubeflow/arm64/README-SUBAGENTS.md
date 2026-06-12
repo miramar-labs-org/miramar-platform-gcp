@@ -14,11 +14,11 @@ and puts the connective tissue on disk.
 
 ## The three layers
 
-| Layer | What it is | Solves |
-| --- | --- | --- |
-| **Plan file** | `KFP-ARM64-PORT-PLAN.md` — a dependency-ordered, per-component checklist on disk | Crossing session boundaries; the durable spine |
+| Layer         | What it is                                                                                                         | Solves                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| **Plan file** | `KFP-ARM64-PORT-PLAN.md` — a dependency-ordered, per-component checklist on disk                                   | Crossing session boundaries; the durable spine                |
 | **Sub-agent** | `arm64-builder` (`.claude/agents/arm64-builder.md`) — builds ONE image in its own context, returns a short summary | Verbose build output never touches the orchestrator's context |
-| **Handoff** | Your existing `/handoff` → vault system | When a single component's session itself runs long |
+| **Handoff**   | Your existing `/handoff` → vault system                                                                            | When a single component's session itself runs long            |
 
 Each layer is independent; together they let session 12 start as fresh as session 1.
 
@@ -118,8 +118,8 @@ to resume cleanly.
 
 ## Files
 
-| File | Location | Role |
-| --- | --- | --- |
-| `arm64-builder.md` | `.claude/agents/` (repo) | Sub-agent definition; committed with the repo |
-| `KFP-ARM64-PORT-PLAN.md` | `VAULT/handoffs/miramar-platform-gcp/` | The plan / cross-session spine |
-| handoff commands | `~/.claude/commands/` | `/handoff`, `/resume-handoff` for hard components |
+| File                     | Location                               | Role                                              |
+| ------------------------ | -------------------------------------- | ------------------------------------------------- |
+| `arm64-builder.md`       | `.claude/agents/` (repo)               | Sub-agent definition; committed with the repo     |
+| `KFP-ARM64-PORT-PLAN.md` | `VAULT/handoffs/miramar-platform-gcp/` | The plan / cross-session spine                    |
+| handoff commands         | `~/.claude/commands/`                  | `/handoff`, `/resume-handoff` for hard components |

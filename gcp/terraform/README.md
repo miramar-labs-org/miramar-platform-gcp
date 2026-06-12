@@ -4,11 +4,11 @@
 
 ## What this module provisions
 
-| Resource | Name | Notes |
-|---|---|---|
-| GKE Standard cluster | `miramar-shared-gke` | VPC-native, REGULAR release channel, deletion protection off |
-| Default node pool | `default-pool` | `e2-medium`, `pd-standard` 30 GB, single node |
-| Artifact Registry repo | `apps` | Docker format, `us-central1` |
+| Resource               | Name                 | Notes                                                        |
+| ---------------------- | -------------------- | ------------------------------------------------------------ |
+| GKE Standard cluster   | `miramar-shared-gke` | VPC-native, REGULAR release channel, deletion protection off |
+| Default node pool      | `default-pool`       | `e2-medium`, `pd-standard` 30 GB, single node                |
+| Artifact Registry repo | `apps`               | Docker format, `us-central1`                                 |
 
 ## What this module does NOT manage
 
@@ -43,34 +43,34 @@ This is a dev/experimental platform. Deletion protection would block `terraform 
 
 ## Variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `project_id` | `miramar-platform` | GCP project |
-| `region` | `us-central1` | Region for AR and cluster |
-| `zone` | `us-central1-b` | Zone for the node pool |
-| `cluster_name` | `miramar-shared-gke` | GKE cluster name |
-| `ar_repo` | `apps` | Artifact Registry repo name |
-| `node_pool_count` | `1` | Node count — treat as read-only; use GKE Expand/Restore workflows to change it |
+| Variable          | Default              | Purpose                                                                        |
+| ----------------- | -------------------- | ------------------------------------------------------------------------------ |
+| `project_id`      | `miramar-platform`   | GCP project                                                                    |
+| `region`          | `us-central1`        | Region for AR and cluster                                                      |
+| `zone`            | `us-central1-b`      | Zone for the node pool                                                         |
+| `cluster_name`    | `miramar-shared-gke` | GKE cluster name                                                               |
+| `ar_repo`         | `apps`               | Artifact Registry repo name                                                    |
+| `node_pool_count` | `1`                  | Node count — treat as read-only; use GKE Expand/Restore workflows to change it |
 
 **Source of truth:** `terraform.tfvars`. GitHub org variables are synced from it via `scripts/gha/sync-github-tf-vars.sh`. Never edit GitHub variables directly.
 
 ## Outputs
 
-| Output | Value |
-|---|---|
-| `cluster_name` | Cluster name |
-| `cluster_location` | Zone |
-| `node_pool_name` | `default-pool` |
-| `node_pool_count` | Current node count |
-| `ar_repository` | `{region}-docker.pkg.dev/{project_id}/{ar_repo}` |
+| Output             | Value                                            |
+| ------------------ | ------------------------------------------------ |
+| `cluster_name`     | Cluster name                                     |
+| `cluster_location` | Zone                                             |
+| `node_pool_name`   | `default-pool`                                   |
+| `node_pool_count`  | Current node count                               |
+| `ar_repository`    | `{region}-docker.pkg.dev/{project_id}/{ar_repo}` |
 
 ## References
 
-| Technology | GitHub | Docs |
-|---|---|---|
-| [Terraform](https://www.terraform.io) | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs) |
-| [GKE](https://cloud.google.com/kubernetes-engine) | — | [docs](https://cloud.google.com/kubernetes-engine/docs) |
-| [Artifact Registry](https://cloud.google.com/artifact-registry) | — | [docs](https://cloud.google.com/artifact-registry/docs) |
+| Technology                                                      | GitHub                                                        | Docs                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| [Terraform](https://www.terraform.io)                           | [hashicorp/terraform](https://github.com/hashicorp/terraform) | [docs](https://developer.hashicorp.com/terraform/docs)  |
+| [GKE](https://cloud.google.com/kubernetes-engine)               | —                                                             | [docs](https://cloud.google.com/kubernetes-engine/docs) |
+| [Artifact Registry](https://cloud.google.com/artifact-registry) | —                                                             | [docs](https://cloud.google.com/artifact-registry/docs) |
 
 ## Usage
 

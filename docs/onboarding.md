@@ -4,10 +4,10 @@ How to bring a new self-hosted runner machine into the Miramar platform alongsid
 
 Current machines and their labels:
 
-| Machine | Runner label | IP | Arch |
-|---|---|---|---|
-| DGX Spark | `dgx` | 192.168.1.200 | arm64 |
-| AGX Orin | `agx` | 192.168.1.202 | arm64 |
+| Machine   | Runner label | IP            | Arch  |
+| --------- | ------------ | ------------- | ----- |
+| DGX Spark | `dgx`        | 192.168.1.200 | arm64 |
+| AGX Orin  | `agx`        | 192.168.1.202 | arm64 |
 
 A new machine gets its own label (e.g. `dgx2`) and a corresponding variable prefix (`DGX2_*`).
 
@@ -90,11 +90,11 @@ loginctl enable-linger $USER
 
 Create these GitHub org-level variables (Settings → Actions → Variables, or via API):
 
-| Variable | Example value | Notes |
-|---|---|---|
-| `DGX2_HOST_IP` | `192.168.1.203` | Static IP of new machine |
-| `DGX2_HOST_USER` | `aaron` | SSH user |
-| `DGX2_VRAM_USEABLE` | `100` | Usable VRAM in GB (total minus system reservation) |
+| Variable            | Example value   | Notes                                              |
+| ------------------- | --------------- | -------------------------------------------------- |
+| `DGX2_HOST_IP`      | `192.168.1.203` | Static IP of new machine                           |
+| `DGX2_HOST_USER`    | `aaron`         | SSH user                                           |
+| `DGX2_VRAM_USEABLE` | `100`           | Usable VRAM in GB (total minus system reservation) |
 
 Seed the active-state variables to `false`:
 
@@ -173,15 +173,15 @@ Do this in a single PR so all workflows stay consistent.
 
 Each machine needs its own local port offset so multiple Bitvise tunnels can run simultaneously from the laptop:
 
-| Service | DGX | AGX | DGX2 (suggested) |
-|---|---|---|---|
-| K8s dashboard | 8001 | 8002 | 8003 |
-| JupyterLab | 8888 | 8887 | 8886 |
-| MLflow | 5000 | 5001 | 5002 |
-| KFP UI | 8080 | 8081 | 8079 |
-| NeMo / NIM | 8082 | 8083 | 8084 |
-| KFP API | 8890 | 8891 | 8892 |
-| Ollama | 11434 | 11435 | 11436 |
+| Service       | DGX   | AGX   | DGX2 (suggested) |
+| ------------- | ----- | ----- | ---------------- |
+| K8s dashboard | 8001  | 8002  | 8003             |
+| JupyterLab    | 8888  | 8887  | 8886             |
+| MLflow        | 5000  | 5001  | 5002             |
+| KFP UI        | 8080  | 8081  | 8079             |
+| NeMo / NIM    | 8082  | 8083  | 8084             |
+| KFP API       | 8890  | 8891  | 8892             |
+| Ollama        | 11434 | 11435 | 11436            |
 
 Add a Bitvise profile (or SSH alias) for the new machine using these local ports.
 

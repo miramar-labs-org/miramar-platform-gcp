@@ -35,11 +35,11 @@ Approval typically takes a few hours to 2 business days.
 
 Request quota in 2–3 geographically spread regions so there's always a fallback:
 
-| Region | Location |
-|---|---|
-| `us-east1` | South Carolina |
+| Region     | Location          |
+| ---------- | ----------------- |
+| `us-east1` | South Carolina    |
 | `us-east4` | Northern Virginia |
-| `us-west1` | Oregon |
+| `us-west1` | Oregon            |
 
 ## Justification text
 
