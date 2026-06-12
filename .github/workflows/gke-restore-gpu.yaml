@@ -8,7 +8,7 @@ on:
     inputs:
       namespace:
         description: Namespace to restore quota for
-        default: mlops-torch-triton-gke-pipeline
+        default: biomistral-7b-onc-llm-serving-vllm
         required: true
 
 permissions:
