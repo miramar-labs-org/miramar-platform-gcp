@@ -124,23 +124,28 @@ Implement using your model's chat template and the `instruction` / `response` fi
 
 ### 5d. `baseline_safety_eval` (Cell 8)
 
-Loads the base model (no adapter) and runs the same inference + judge loop as `safety_eval`.
-The stub's `parse_score`, model load, and judge loop are all TODO. Implement following the same
-pattern as `safety_eval` — the only difference is no `PeftModel` and no `ft_model` input.
+Loads the base model (no adapter) and runs the same inline inference + judge loop as `safety_eval`.
+`parse_score` is already available (injected from `utils.py`) — do not redefine it. `make_infer_fn`
+is **not** in scope (no `EVAL_HELPERS_INJECT` marker) — load the model and call `generate` directly.
+The only difference from `safety_eval`: no `PeftModel` and no `ft_model` input.
 
 ### 5e. `safety_eval` (Cell 14)
 
-**Gap A** — `parse_score()` definition: extract a numeric safety score from the judge LLM's
-JSON output. Returns a float (e.g. 1.0–5.0).
+**Gap A** — model loading: load the fine-tuned model (base model + `PeftModel` adapter from
+`ft_model.path`). `make_infer_fn` is **not** in scope — use inline generation. `parse_score`
+is already available from `utils.py` injection.
 
-**Gap B** — model loading + scoring loop: load the fine-tuned model, instantiate
-`client = OpenAI()`, run inference on a sample of `val_data`, call the judge LLM for each
-response, collect scores into `scores`, compute `avg_score`.
+**Gap B** — scoring loop: instantiate `client = OpenAI(base_url=judge_base_url, api_key="ollama")`,
+run inline inference on a sample of `val_data`, call the judge LLM for each response, collect
+scores into `scores`, compute `avg_score`.
 
 ---
 
 
 ## Implementation order
+
+> `download_model`, `prepare_dataset`, and `deployment_gate` are fully implemented by the template.
+> Everything below requires user code.
 
 Work through these in order — each step depends on the previous one:
 
@@ -148,10 +153,10 @@ Work through these in order — each step depends on the previous one:
 2. `formatters.py` + `loaders.py` — must compile before `prepare_dataset` can run
 3. `eval_helpers.py` (`extract_answer`, `_make_user_content`) — needed by all eval steps
 4. `baseline_eval` (Gap B) — get a baseline accuracy number before fine-tuning
-5. `baseline_safety_eval` — get a baseline safety score before fine-tuning
+5. `baseline_safety_eval` — inline inference + judge loop (no `make_infer_fn`; `parse_score` already in scope)
 6. `fine_tune` (Gap A: `to_chat`) — train the adapter
 7. `post_finetune_eval` (Gap A model loading + Gap B) — measure improvement
-8. `safety_eval` (Gap A: `parse_score`, Gap B: scoring loop) — gate before deployment
+8. `safety_eval` (Gap A: model loading inline, Gap B: scoring loop) — gate before deployment
 
 After implementing each step, run:
 ```sh

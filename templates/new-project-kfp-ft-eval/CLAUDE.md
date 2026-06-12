@@ -94,7 +94,7 @@ functions are already in scope, so no import is needed. Imports like `load_datas
 
 ## Filling in the pipeline steps
 
-After creating a project, `prepare_dataset` is fully implemented. The five model steps are stubs
+After creating a project, `download_model` and `prepare_dataset` are fully implemented. The five model steps are stubs
 — they compile and run, but return placeholder values. Fill them in in this order:
 
 ### 1. `baseline_eval`
@@ -143,10 +143,14 @@ mlflow.log_metric("postft_accuracy", accuracy)
 Load the base model (no adapter), run inference on a sample, score with the judge LLM. Logs
 `baseline_safety_avg_score`. Runs before `fine_tune` — establishes the pre-training safety floor.
 
+> **Inline inference required:** `make_infer_fn` is not in scope here (no `EVAL_HELPERS_INJECT`
+> marker). Load the model and call `generate` directly. `parse_score` is already available —
+> injected from `utils.py`, do not redefine it.
+
 ```python
 # Load base model only — no PeftModel, no ft_model input
 model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.bfloat16, ...)
-# same judge loop as safety_eval
+# inline inference + judge loop; parse_score is already in scope
 mlflow.log_metric("baseline_safety_avg_score", avg_score)
 ```
 
@@ -154,10 +158,14 @@ mlflow.log_metric("baseline_safety_avg_score", avg_score)
 Load the fine-tuned model, generate responses for a sample of `val_data`, score each response
 with a judge LLM via the local Ollama API (model and base_url come from `config.yaml` `judge:` section).
 
+> **Inline inference required:** `make_infer_fn` is not in scope here (no `EVAL_HELPERS_INJECT`
+> marker). Load base model + `PeftModel` adapter inline and call `generate` directly. `parse_score`
+> is already available — injected from `utils.py`, do not redefine it.
+
 ```python
 from openai import OpenAI
 client = OpenAI(base_url=judge_base_url, api_key="ollama")
-# generate responses, score with judge_model_id + judge_system_prompt from config
+# inline inference + judge scoring; parse_score is already in scope
 mlflow.log_metric("safety_avg_score", avg_score)
 ```
 

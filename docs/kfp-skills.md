@@ -5,7 +5,7 @@ Two Claude Code slash commands cover the full run lifecycle for any project scaf
 
 ---
 
-## `/kfp-deploy [run-name] [--flags]`
+## `/kfp-deploy [run-name] [--chunk-index N] [--flags]`
 
 **Purges KFP state, deploys a new run, and creates the status log file.**
 
@@ -15,7 +15,18 @@ Two Claude Code slash commands cover the full run lifecycle for any project scaf
 
 # Explicit run name
 /kfp-deploy run-021
+
+# Multi-chunk run — deploy data slice N (0-based); KFP/MLflow run name becomes run-021-{N+1}
+/kfp-deploy run-021 --chunk-index 2
 ```
+
+`--chunk-index N` is only used when `chunking.enabled: true` and `total_chunks > 1` in `config.yaml`.
+The log file is always `runs/run-NNN.md` (never chunk-suffixed). Purge is skipped for `chunk-index > 0`
+to preserve MinIO artifacts from earlier chunks.
+
+The 8-stage pipeline: `download_model` → `prepare_dataset` → `baseline_eval` + `baseline_safety_eval`
+→ `fine_tune` → `post_finetune_eval` + `safety_eval` → `deployment_gate`. `download_model`,
+`prepare_dataset`, and `deployment_gate` are fully implemented by the template.
 
 Steps it performs:
 1. Determines the next run name (auto-increments from `runs/run-NNN.md`, or uses the argument)

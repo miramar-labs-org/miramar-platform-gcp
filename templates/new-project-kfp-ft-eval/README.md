@@ -23,12 +23,12 @@ safety pass, then gates deployment on the results.
 
 **DAG:**
 ```
-prepare_dataset
-  --> baseline_eval
-  --> baseline_safety_eval
-  --> fine_tune
-        --> post_finetune_eval --> deployment_gate
-        --> safety_eval        -->
+download_model
+  --> prepare_dataset
+        --> baseline_eval     ---------> fine_tune
+        --> baseline_safety_eval ------> fine_tune
+                                              --> post_finetune_eval --> deployment_gate
+                                              --> safety_eval        -->
 ```
 
 > `fine_tune` runs after both baseline evals (not parallel) — on single-node k3s, GPU steps
