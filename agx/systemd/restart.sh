@@ -2,7 +2,7 @@
 set -euo pipefail
 # Restart all AGX user services in dependency order.
 
-SERVICES=(dashboard jupyterlab mlflow-portfwd)
+SERVICES=(dashboard jupyterlab)
 
 for svc in "${SERVICES[@]}"; do
     echo "Restarting ${svc}..."
