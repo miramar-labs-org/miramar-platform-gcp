@@ -1,28 +1,102 @@
 # Miramar Platform Architecture
 
-This document describes the current high-level architecture of the Miramar Labs hybrid AI platform. The platform combines local GPU systems, self-hosted GitHub Actions runners, Kubernetes on the DGX Spark, and Google Cloud infrastructure managed through Terraform.
+Hybrid on-premises + GCP AI platform for running fine-tuning, evaluation, and
+inference workloads across local GPU systems and cloud infrastructure.
+
+---
 
 ## Goals
 
-- Run GPU-heavy development, evaluation, and local AI services on owned hardware.
-- Use GitHub Actions as the common control plane for repeatable operations.
-- Use Google Cloud for shared Kubernetes, artifact hosting, Terraform state, and cloud-side platform workloads.
-- Keep sensitive local workloads and local network access on self-hosted runners rather than public hosted runners.
+- Run GPU-heavy fine-tuning, evaluation, and local AI services on owned hardware (DGX Spark, AGX Orin).
+- Use GitHub Actions as the common control plane for all lifecycle operations.
+- Use Google Cloud for shared Kubernetes, vLLM inference serving, artifact storage, and Terraform state.
+- Enforce a hard PHI boundary: all training and evaluation stays on DGX; only approved non-PHI model artifacts reach GCP.
 - Support both `amd64` and `arm64` hosts through one multi-architecture runner image.
+
+---
+
+## Platform implemented / planned
+
+| Capability | Status | Notes |
+|---|---|---|
+| Multi-arch runner image (`mlabs-runner`) | ✅ Done | `linux/amd64` + `linux/arm64`; GHCR |
+| DGX k3s cluster | ✅ Done | NVIDIA device plugin, nginx-ingress, CoreDNS patch |
+| AGX k3s cluster | ✅ Done | Same image as DGX; AGX currently offline |
+| NeMo Microservices (DGX) | ✅ Done | `nemo-microservices` namespace; exposes `nemo.test` / `nim.test` |
+| Kubeflow Pipelines (DGX + AGX) | ✅ Done | Native arm64 images built and patched |
+| MLflow + MinIO (DGX + AGX) | ✅ Done | `mlflow-system` namespace; port-forwarded at `:5000` |
+| Qdrant vector DB (DGX + AGX) | ✅ Done | `qdrant-system` namespace; REST `:6333`, gRPC `:6334` |
+| NIM inference (DGX) | ✅ Done | Blackwell-optimised models; auto-swap and rollback |
+| Ollama (DGX + AGX) | ✅ Done | Host systemd service; up to 100 GB model budget on DGX |
+| Nsight Operator (DGX) | ✅ Done | Helm (NGC devtools); UI port-forwarded at `:8889` |
+| Nsight Operator (AGX) | ✅ Done | Inactive until AGX comes back online |
+| Nsight Operator (GKE) | ✅ Done | Auto-installed by Platform Create; no persistent port-forward |
+| GKE Standard cluster | ✅ Done | `e2-standard-4`, single node, `us-west1-b` |
+| GKE transient GPU pool | ✅ Done | L4 spot (`g2-standard-8`), `us-west1-b`; expand/restore workflow pair |
+| kfp-ft-eval pipeline type | ✅ Done | 6-step eval-first fine-tuning; config-driven; MLflow tracking |
+| Adapter publish → GCS manifest | ✅ Done | `publish-adapter.yaml`; `eval_passed` + `safety_passed` gate |
+| vLLM LoRA adapter serving (GKE) | 🔄 In progress | `biomistral-7b-onc-llm-serving-vllm` first project; L4 spot |
+| Platform dashboard (GitHub Pages) | ✅ Done | Hourly refresh; per-machine service badges; project table |
+| Inference optimization (Nsight profiling of serving) | 📋 Planned | Profile vLLM on GKE L4 via Nsight Operator injection |
+| AGX back online | 📋 Planned | Waiting on hardware |
+| Additional serving projects | 📋 Planned | Per-model `vllm-gcp` projects following biomistral pattern |
+
+---
 
 ## Major components
 
 | Layer | Component | Responsibility |
 |---|---|---|
-| Source control | GitHub repository | Stores Terraform, workflows, runner image, scripts, and platform docs. |
-| CI/CD control plane | GitHub Actions | Runs lifecycle workflows for GCP, GKE, k3s, NeMo, NIM, MLflow, Ollama, and runner image builds. |
-| Runner substrate | `mlabs-runner` Docker image | Provides common tooling for self-hosted workflow execution across WSL2, DGX Spark, and Jetson/Orin hosts. |
-| Local GPU systems | WSL2 laptop, DGX Spark, Jetson AGX Orin | Provide GPU execution, local Kubernetes, local AI services, and architecture coverage. |
-| Local Kubernetes | DGX k3s | Runs local AI platform services such as NeMo Microservices, MLflow, NIM, and related support components. |
-| Cloud Kubernetes | GKE Standard | Provides shared GCP-hosted Kubernetes capacity for platform and application workloads. |
-| Artifact storage | GHCR and GCP Artifact Registry | Stores runner images and application/container artifacts. |
-| State storage | GCS | Stores Terraform state and GKE node-pool state/snapshots. |
-| Cloud authentication | Workload Identity Federation | Allows GitHub Actions to authenticate to GCP without long-lived service account keys. |
+| Source control | GitHub repository | Workflows, Terraform, runner image, scripts, platform docs |
+| CI/CD control plane | GitHub Actions | Lifecycle workflows for all platform operations |
+| Runner substrate | `mlabs-runner` Docker image | Common toolchain for self-hosted execution across WSL2, DGX, AGX |
+| Local GPU systems | DGX Spark (128 GB unified), AGX Orin (64 GB unified) | GPU fine-tuning, evaluation, local AI services |
+| Local Kubernetes | DGX/AGX k3s | NeMo, KFP, MLflow, Qdrant, Nsight Operator |
+| Cloud Kubernetes | GKE Standard (`e2-standard-4`) | vLLM inference serving; Nsight Operator |
+| Transient GPU pool | GKE L4 spot (`g2-standard-8`) | Brought up per-deploy, torn down after smoke test |
+| vLLM serving | GKE L4 + LoRA init container | Loads base model + adapter from GCS manifest at startup |
+| Artifact storage | GHCR + GCP Artifact Registry | Runner images; serving container images |
+| Model artifact store | GCS (`miramar-platform-ft-adapters`) | LoRA adapters + `manifest.json` gating artifacts |
+| State storage | GCS (`miramar-platform-cluster-state`) | Terraform state; GKE node-pool quota snapshots |
+| Experiment tracking | MLflow (DGX) | Fine-tuning runs, eval metrics, model registry |
+| Vector database | Qdrant (DGX/AGX) | Embeddings and retrieval for local AI services |
+| Cloud authentication | Workload Identity Federation | Keyless GitHub Actions → GCP auth |
+| Observability | Nsight Operator (DGX/AGX/GKE) | CUDA/NVTX profiling via pod injection; UI at `:8889` |
+| Platform dashboard | GitHub Pages | Live service badges, project table, create/delete controls |
+
+---
+
+## Fine-tune → Serve arc
+
+The primary ML workflow is a three-stage pipeline from raw model to live inference:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     DGX Spark (PHI boundary)            │
+│                                                         │
+│  1. Fine-tune + Eval  ──►  2. Publish adapter           │
+│     kfp-ft-eval               publish-adapter.yaml      │
+│     (KFP pipeline)            eval_passed gate          │
+│                               safety_passed gate        │
+└───────────────────────────────┬─────────────────────────┘
+                                │ manifest.json → GCS
+                                ▼
+┌─────────────────────────────────────────────────────────┐
+│                     GCP / GKE                           │
+│                                                         │
+│  3. vLLM Serve                                          │
+│     vllm-gcp project                                    │
+│     build-push → deploy → smoke test → undeploy         │
+│     L4 spot GPU pool (expand / restore)                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+**PHI boundary**: PHI never leaves DGX. Only approved non-PHI model artifacts
+(`manifest.json`, LoRA adapter weights) are pushed to GCS. The GCS manifest
+carries `eval_passed` and `safety_passed` flags — `deploy.yaml` will refuse to
+serve an adapter that failed either gate.
+
+---
 
 ## Control plane flow
 
@@ -31,113 +105,145 @@ flowchart TD
     Dev[Developer / Operator] --> GH[GitHub Repo]
     GH --> GHA[GitHub Actions]
 
-    GHA --> Hosted[GitHub-hosted runner]
+    GHA --> Hosted[ubuntu-latest runner]
     GHA --> SelfHosted[Self-hosted runners]
 
-    SelfHosted --> WSL2[WSL2 Laptop Runner amd64]
-    SelfHosted --> DGX[DGX Spark Runner arm64]
-    SelfHosted --> AGX[Jetson AGX Orin Runner arm64]
+    SelfHosted --> DGX[DGX Spark arm64]
+    SelfHosted --> AGX[AGX Orin arm64]
+    SelfHosted --> WSL2[WSL2 Laptop amd64]
 
-    Hosted --> WIF[Google Workload Identity Federation]
-    SelfHosted --> WIF
-    WIF --> GCP[Google Cloud Project]
+    Hosted --> WIF[Workload Identity Federation]
+    WIF --> GCP[GCP Project miramar-platform]
 
-    GCP --> GKE[GKE Standard Cluster]
-    GCP --> GAR[Artifact Registry apps]
-    GCP --> GCS[GCS State Buckets]
+    GCP --> GKE[GKE Standard Cluster us-west1-b]
+    GCP --> GAR[Artifact Registry]
+    GCP --> GCS[GCS Buckets]
 
-    DGX --> K3s[DGX k3s]
-    K3s --> Nemo[NeMo Microservices]
-    K3s --> MLflow[MLflow + MinIO]
-    K3s --> NIM[NVIDIA NIM]
+    GKE --> GPUPool[L4 Spot GPU Pool transient]
+    GKE --> NsightGKE[Nsight Operator]
+    GKE --> vLLM[vLLM + LoRA Adapter]
+
+    DGX --> K3sDGX[DGX k3s]
+    K3sDGX --> KFP[Kubeflow Pipelines]
+    K3sDGX --> NeMo[NeMo Microservices]
+    K3sDGX --> MLflow[MLflow + MinIO]
+    K3sDGX --> QdrantDGX[Qdrant]
+    K3sDGX --> NsightDGX[Nsight Operator]
+    DGX --> NIM[NVIDIA NIM]
     DGX --> Ollama[Ollama]
 
-    GH --> GHCR[GitHub Container Registry]
+    AGX --> K3sAGX[AGX k3s]
+    K3sAGX --> KFPAGX[Kubeflow Pipelines]
+    K3sAGX --> QdrantAGX[Qdrant]
+    K3sAGX --> OllamaAGX[Ollama]
+
+    GH --> GHCR[GHCR]
     GHCR --> SelfHosted
     GAR --> GKE
+    GCS --> vLLM
 ```
+
+---
 
 ## Deployment domains
 
-### Local domain
+### Local domain (DGX + AGX)
 
-The local domain is made up of physical machines controlled by the operator. These systems are used for GPU workloads, local Kubernetes operations, and workflows that require direct access to local services or local network addresses.
+Owned GPU hardware. All PHI workloads stay here. Self-hosted runners
+(`dgx`, `agx`) manage local Kubernetes via `kubectl` and Helm.
 
-Current local targets include:
+| Service | Namespace | DGX port | AGX port |
+|---|---|---|---|
+| Kubernetes Dashboard | — | 8001 | 8002 |
+| JupyterLab | — | 8888 | 8887 |
+| Kubeflow Pipelines UI | `kubeflow` | 8080 | 8081 |
+| KFP REST API | `kubeflow` | 8890 | 8891 |
+| NeMo / NIM | `nemo-microservices` | 8082 | 8083 |
+| MLflow | `mlflow-system` | 5000 | 5001 |
+| Qdrant REST | `qdrant-system` | 6333 | 6335 |
+| Qdrant gRPC | `qdrant-system` | 6334 | 6336 |
+| Ollama | host systemd | 11434 | 11435 |
+| Nsight Operator UI | `nsight-operator` | 8889 | 8892 |
 
-- WSL2 laptop runner for `amd64` testing and orchestration.
-- DGX Spark runner for local GPU workloads and DGX k3s management.
-- Jetson AGX Orin runner for `arm64` and edge-style GPU coverage.
+All services are reached via SSH tunnels from the laptop (Bitvise profiles in `win/`).
 
-### Cloud domain
+### Cloud domain (GKE)
 
-The cloud domain is the Google Cloud project. It provides shared platform resources that are easier to operate as managed services:
+GKE Standard cluster `miramar-shared-gke` in `us-west1-b`. Minimised for cost:
+single `e2-standard-4` node, no `LoadBalancer` services, no Cloud NAT.
 
-- GKE Standard cluster for cloud Kubernetes workloads.
-- Artifact Registry repository for application images.
-- GCS buckets for Terraform state and cluster/node-pool snapshots.
-- IAM and Workload Identity Federation for keyless GitHub Actions authentication.
+GPU workloads use a **transient L4 spot pool** (`g2-standard-8`, `nvidia-l4`):
+expanded immediately before a serving deploy, torn down after smoke tests pass.
+
+Access to running GKE services requires `kubectl port-forward` — no persistent tunnels.
 
 ### GitHub domain
 
-GitHub is the source-of-truth control plane for automation:
+GitHub is the source-of-truth control plane:
+- Repo content defines workflows, Terraform, scripts, and templates.
+- GitHub Actions triggers all operational workflows.
+- GHCR stores the multi-arch `mlabs-runner` image.
+- Org-level variables (`{MACHINE}_{SERVICE}_ACTIVE`, `GKE_*`) drive the platform dashboard.
 
-- Repository content defines workflows, Terraform, scripts, and runner image configuration.
-- GitHub Actions triggers operational workflows.
-- GHCR stores the multi-architecture `mlabs-runner` image.
-- Self-hosted runner registration determines where jobs execute.
+---
+
+## Project types
+
+| Type | Topic tag | Host badge | Description |
+|---|---|---|---|
+| `kfp-ft-eval` | `miramar-kfp-ft-eval` | dgx / agx | 6-step eval-first fine-tuning pipeline (KFP v2) |
+| `kfp` | `miramar-kfp` | dgx / agx | Generic KFP v2 pipeline stub |
+| `nemo` | `miramar-nemo` | dgx / agx | NeMo training job |
+| `vllm-gcp` | `miramar-llm-serving-vllm` | gcp | vLLM LoRA adapter serving on GKE L4 spot |
+| `default` | `miramar-default` | dgx / agx | Generic notebook + platform endpoint reference |
+
+---
 
 ## Workflow categories
 
-| Category | Examples | Execution target |
+| Category | Runner | Examples |
 |---|---|---|
-| Platform lifecycle | Create/destroy GCP platform, expand/restore GKE | GitHub Actions with GCP WIF. |
-| Runner image lifecycle | Build/publish `mlabs-runner` multi-arch image | GitHub Actions with Buildx/QEMU. |
-| Local Kubernetes lifecycle | Install and uninstall DGX k3s | DGX self-hosted runner. |
-| AI service lifecycle | Deploy/undeploy NeMo, NIM, MLflow, Ollama updates | DGX self-hosted runner and local Kubernetes. |
-| Capacity discovery | Find GPU capacity in GCP zones | GitHub Actions and GCP APIs. |
+| GCP platform lifecycle | `ubuntu-latest` (WIF) | Platform Create/Destroy, GKE Expand/Restore, GPU pool |
+| Nsight Operator (GKE) | `ubuntu-latest` (WIF) | Deploy/Undeploy Nsight Operator on GKE |
+| Runner image build | `ubuntu-latest` | Build + push multi-arch `mlabs-runner` to GHCR |
+| Local k3s lifecycle | `dgx` / `agx` | K3s Install/Uninstall |
+| Local AI services | `dgx` / `agx` | NeMo, KFP, MLflow, Qdrant, Nsight Operator deploy/undeploy |
+| NIM / Ollama | `dgx` / `agx` | Deploy, undeploy, model swap with rollback |
+| Project lifecycle | `dgx` / `agx` | Create Project, Delete Project |
+| vLLM serving | `ubuntu-latest` (WIF) | build-push, deploy (expand GPU → rollout → smoke test), undeploy |
+| Adapter publish | `dgx` | publish-adapter.yaml — eval gate → GCS manifest |
+| Dashboard | `ubuntu-latest` | Deploy GitHub Pages dashboard (hourly + on state-change) |
 
-## Runtime boundaries
+---
 
-- GitHub Actions is the orchestration layer, not the runtime for long-running AI services.
-- Local services run on the DGX or local Kubernetes and are reached through SSH tunnels or local network paths.
-- Cloud workloads run on GKE and use GCP-native identity and artifact services.
-- The runner container provides a consistent toolchain, but the host machine still supplies GPU drivers, NVIDIA container runtime support, network access, and local credentials/environment variables.
+## PHI boundary
 
-## Operational sequence
+All fine-tuning, evaluation, and optimisation runs on DGX. The only artifacts
+that cross to GCP are:
 
-A typical full local AI stack deployment follows this order:
+- LoRA adapter weights (non-PHI, model parameters only)
+- `manifest.json` (metadata: eval scores, safety flags, run ID)
 
-1. Start or verify the DGX self-hosted runner.
-2. Build or pull the current `mlabs-runner` image.
-3. Install or verify DGX k3s.
-4. Deploy NeMo Microservices.
-5. Deploy MLflow after NeMo is available.
-6. Deploy NIM workloads as needed.
-7. Open SSH tunnels for web UIs such as MLflow or Kubernetes Dashboard.
+PHI never leaves DGX under any circumstances. When real clinical data is
+involved, any LLM judge must also run locally on DGX — not via external APIs.
 
-A typical GCP platform lifecycle follows this order:
-
-1. Bootstrap or verify Workload Identity Federation and required service accounts.
-2. Sync GitHub Actions variables from Terraform variables.
-3. Run Terraform-backed platform create workflow.
-4. Build and push application images to Artifact Registry.
-5. Deploy workloads to GKE.
-6. Use expand/restore workflows to change node pool capacity when needed.
+---
 
 ## Design tradeoffs
 
-This repository is intentionally optimized for a hands-on hybrid lab/platform environment rather than a fully managed enterprise platform. Some decisions are deliberate:
+- **Self-hosted runners for local GPU work** — the only way to reach DGX/AGX hardware and local network services.
+- **`ubuntu-latest` for all GCP ops** — avoids dependency on self-hosted runner availability for cloud operations; Terraform installed via `hashicorp/setup-terraform@v3`.
+- **Transient GPU pool** — eliminates idle GPU spend; L4 spot at ~$0.22/hr is only active during a deploy/test cycle.
+- **Single shared GCP project** — keeps cloud setup simple; appropriate for a lab/platform environment.
+- **No LoadBalancer services on GKE** — keeps costs minimal; port-forward is sufficient for current workloads.
+- **DGX k3s for local AI** — keeps the full stack close to local GPUs and local storage without cloud egress.
 
-- Self-hosted runners are used to reach local GPUs and local networks.
-- A single shared GCP project keeps cloud setup simple.
-- The runner image is broad and tool-heavy so operational workflows can share a common execution environment.
-- DGX k3s keeps the local AI stack close to local GPUs and local storage.
-
-Future production hardening should focus on environment separation, private GKE networking, policy-as-code, image signing, vulnerability scanning, and stricter least-privilege boundaries.
+---
 
 ## Related docs
 
-- [Security model](security-model.md)
-- [System flows and diagrams](diagrams.md)
+- [Workflow catalog](workflows.md)
+- [GCP provisioning](gcp.md)
+- [DGX local AI stack](dgx.md)
+- [SSH topology and tunnels](ssh-runbook.md)
 - [Repository README](../README.md)
