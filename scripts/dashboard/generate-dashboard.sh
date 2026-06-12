@@ -173,13 +173,14 @@ AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 GAR_URL="https://console.cloud.google.com/artifacts/docker/${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}"
-GCS_BUCKET_URL="https://console.cloud.google.com/storage/browser/${GKE_STATE_BUCKET}?project=${GCP_PROJECT_ID}"
+MODEL_BUCKET="miramar-platform-ft-adapters"
+MODEL_BUCKET_URL="https://console.cloud.google.com/storage/browser/${MODEL_BUCKET}?project=${GCP_PROJECT_ID}"
 
 if [ "$GKE_CLUSTER_ACTIVE" = "true" ]; then
   GKE_CLUSTER_BADGE="<a href=\"https://console.cloud.google.com/kubernetes/list/overview?project=${GCP_PROJECT_ID}\" target=\"_blank\" class=\"ps-active\">${GKE_CLUSTER_NAME}</a>"
   GKE_ZONE_HTML="<code class=\"ps-value\">${GKE_ZONE}</code>"
   GKE_NODE_TYPE_HTML='<code class="ps-value">e2-medium</code>'
-  GKE_BUCKET_HTML="<a href=\"${GCS_BUCKET_URL}\" target=\"_blank\" class=\"ps-value\">${GKE_STATE_BUCKET}</a>"
+  GKE_BUCKET_HTML="<a href=\"${MODEL_BUCKET_URL}\" target=\"_blank\" class=\"ps-value\">${MODEL_BUCKET}</a>"
   GKE_GAR_HTML="<a href=\"${GAR_URL}\" target=\"_blank\" class=\"ps-value\">${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}</a>"
   if [ "$GKE_GPU_POOL_ACTIVE" = "true" ]; then
     GPU_LABEL="${GKE_GPU_TYPE:-gpu}"
@@ -198,7 +199,7 @@ else
   GKE_NODE_TYPE_HTML='<span class="ps-inactive">none</span>'
   GKE_CPU_BADGE='<span class="ps-inactive">none</span>'
   GKE_GPU_BADGE='<span class="ps-inactive">none</span>'
-  GKE_BUCKET_HTML='<span class="ps-inactive">none</span>'
+  GKE_BUCKET_HTML="<a href=\"${MODEL_BUCKET_URL}\" target=\"_blank\" class=\"ps-value\">${MODEL_BUCKET}</a>"
   GKE_GAR_HTML='<span class="ps-inactive">none</span>'
 fi
 
@@ -431,7 +432,7 @@ cat > "$OUTPUT" <<HTMLEOF
       ${GKE_GPU_BADGE}
     </div>
     <div class="ps-item ps-wide">
-      <div class="ps-label">State bucket</div>
+      <div class="ps-label">Model bucket</div>
       ${GKE_BUCKET_HTML}
     </div>
     <div class="ps-item ps-wide">
