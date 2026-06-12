@@ -75,6 +75,9 @@ jobs:
             echo "::notice::Quota snapshot saved to $STATE_PATH"
           fi
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Create GPU node pool
         working-directory: gcp/terraform-gpu
         run: |
