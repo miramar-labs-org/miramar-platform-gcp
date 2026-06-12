@@ -309,8 +309,12 @@ Common entry points:
 | [GKE](https://cloud.google.com/kubernetes-engine) | — | [docs](https://cloud.google.com/kubernetes-engine/docs) |
 | [Google Cloud Storage](https://cloud.google.com/storage) | — | [docs](https://cloud.google.com/storage/docs) |
 | [Google Artifact Registry](https://cloud.google.com/artifact-registry) | — | [docs](https://cloud.google.com/artifact-registry/docs) |
-| [vLLM](https://docs.vllm.ai/) | [vllm-project/vllm](https://github.com/vllm-project/vllm) | [docs](https://docs.vllm.ai/) |
+| [Hugging Face Transformers](https://huggingface.co/docs/transformers) | [huggingface/transformers](https://github.com/huggingface/transformers) | [docs](https://huggingface.co/docs/transformers) |
+| [TRL](https://huggingface.co/docs/trl) | [huggingface/trl](https://github.com/huggingface/trl) | [docs](https://huggingface.co/docs/trl) |
+| [Hugging Face Datasets](https://huggingface.co/docs/datasets) | [huggingface/datasets](https://github.com/huggingface/datasets) | [docs](https://huggingface.co/docs/datasets) |
 | [PEFT](https://huggingface.co/docs/peft) | [huggingface/peft](https://github.com/huggingface/peft) | [docs](https://huggingface.co/docs/peft) |
+| [vLLM](https://docs.vllm.ai/) | [vllm-project/vllm](https://github.com/vllm-project/vllm) | [docs](https://docs.vllm.ai/) |
+| [Weights & Biases](https://wandb.ai) | [wandb/wandb](https://github.com/wandb/wandb) | [docs](https://docs.wandb.ai/) |
 | [Helm](https://helm.sh) | [helm/helm](https://github.com/helm/helm) | [docs](https://helm.sh/docs/) |
 | [GitHub Actions](https://github.com/features/actions) | — | [docs](https://docs.github.com/en/actions) |
 
