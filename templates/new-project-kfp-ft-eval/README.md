@@ -94,7 +94,34 @@ Use **ML** experiment type (not *GenAI apps & agents*).
 
 ---
 
-## 5. Kubeflow Pipelines UI
+## 5. Optional integrations
+
+### Weights & Biases
+
+W&B integration is built in and opt-in. Enable it in `config.yaml`:
+
+```yaml
+wandb:
+  enabled: true
+  project: "{{PROJECT_NAME}}"
+  entity: ""   # leave blank for personal account
+```
+
+When enabled, `fine_tune` logs step-level metrics (loss, grad_norm, lr, token accuracy) to W&B alongside MLflow via `report_to: ["mlflow", "wandb"]`. Requires `WANDB_API_KEY` in the `mlabs-api-keys` K8s secret (already provisioned by the platform). Full details: [docs/kfp-skills.md — Weights & Biases](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/kfp-skills.md#weights--biases).
+
+### Slack notifications
+
+`/kfp-monitor` sends a one-line summary to Slack on every terminal pipeline result (PASS or FAIL). Set once in `~/.zshrc` on the DGX:
+
+```bash
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+```
+
+If unset, `/kfp-monitor` runs silently — no notification is sent.
+
+---
+
+## 6. Kubeflow Pipelines UI
 
 ```sh
 ssh -L 8080:localhost:8080 <user>@spark-79b7.local
@@ -110,7 +137,7 @@ is unreachable.
 
 ---
 
-## 6. GPU profiling (Nsight Operator)
+## 7. GPU profiling (Nsight Operator)
 
 The Nsight Operator is a cluster-level profiler — no code changes needed in components. To profile a stage, add a pod label in the pipeline definition:
 
