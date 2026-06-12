@@ -44,10 +44,6 @@ while IFS= read -r repo_json; do
   url=$(echo     "$repo_json" | jq -r '.html_url')
   type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp-ft-eval") then "kfp-ft-eval" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
-  sha=$(GH_TOKEN="$GH_TOKEN" gh api \
-    "repos/${ORG}/${name}/commits?per_page=1" 2>/dev/null \
-    | jq -r 'if type == "array" then (.[0].sha // "")[:7] else "" end' 2>/dev/null || echo "")
-
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
   # extract with jq separately to avoid concatenating error body with the fallback.
@@ -71,6 +67,13 @@ while IFS= read -r repo_json; do
     serving_html="<span class=\"serving-none\">—</span>"
   fi
 
+  # --- Results link (kfp-ft-eval only: runs/RUNS.md) ---
+  if [[ "$type" == "kfp-ft-eval" ]]; then
+    results_html="<a href=\"https://github.com/${ORG}/${name}/blob/main/runs/RUNS.md\" target=\"_blank\" class=\"results-link\">&#x1F4CA; Runs</a>"
+  else
+    results_html="<span class=\"serving-none\">—</span>"
+  fi
+
   # --- JupyterLab direct link — port depends on host (DGX=8888, AGX=8887) ---
   jl_port=8888; [[ "$host" == "agx" ]] && jl_port=8887
   jl_path="git-miramar-labs-org/projects/${name}/notebook.ipynb"
@@ -84,7 +87,7 @@ while IFS= read -r repo_json; do
   <td>${host_html}</td>
   <td>${serving_html}</td>
   <td>${jl_html}</td>
-  <td><code>${sha}</code></td>
+  <td>${results_html}</td>
   <td><button class=\"del-btn\" data-repo=\"${name}\" title=\"Delete ${name}\">&#x1F5D1;</button></td>
 </tr>
 "
@@ -284,6 +287,8 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
   .jl-link:hover { color: #ffa657; }
+  .results-link { color: #a78bfa; font-size: 0.8rem; white-space: nowrap; }
+  .results-link:hover { color: #c4b5fd; }
   .count { color: #8b949e; font-weight: normal; font-size: 1rem; }
   .footer { margin-top: 2rem; color: #484f58; font-size: 0.75rem; }
   .machine-section { margin-bottom: 1.25rem; }
@@ -489,7 +494,7 @@ cat > "$OUTPUT" <<HTMLEOF
     <th>Host</th>
     <th>Serving</th>
     <th>JupyterLab</th>
-    <th>SHA</th>
+    <th>Results</th>
     <th></th>
   </tr>
 </thead>
