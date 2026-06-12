@@ -1,0 +1,121 @@
+name: Nsight Operator Deploy (GKE)
+
+# Deploys the NVIDIA Nsight Operator into the nsight-operator namespace on
+# the miramar-shared-gke cluster via Helm from the NGC devtools registry.
+#
+# After deploy, access the Nsight Operator UI via:
+#   kubectl port-forward svc/nsight-operator-ui 8889:8888 -n nsight-operator
+#
+# Prerequisites:
+#   - GKE cluster running (GCP Platform Create workflow)
+#   - NVIDIA_API_KEY org secret (NGC auth for Helm chart pull)
+#   - WIF_PROVIDER and GCP_SERVICE_ACCOUNT secrets set
+#
+# NOTE: after first deploy, verify the UI service name matches:
+#   kubectl get svc -n nsight-operator
+# The expected name is nsight-operator-ui; update port-forward command if it differs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chart_version:
+        description: Nsight Operator Helm chart version
+        default: "26.2.2"
+        required: false
+      label_kubeflow_namespace:
+        description: "Label kubeflow namespace with nvidia-nsight-profile=enabled — WARNING: injects nsys into ALL pods including KFP system pods (DAG driver etc.) which fail with runAsNonRoot. Leave false; use per-pod kubernetes.add_pod_label() in pipeline.py instead."
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, wsl2]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER_NAME }}
+          location: ${{ vars.GKE_ZONE }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Add NGC Helm repo
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          helm repo add nvidia-devtools https://helm.ngc.nvidia.com/nvidia/devtools \
+            --username='$oauthtoken' \
+            --password="${NVIDIA_API_KEY}" \
+            --force-update
+          helm repo update
+
+      - name: Install Nsight Operator
+        run: |
+          helm upgrade --install \
+            --wait \
+            --namespace nsight-operator \
+            --create-namespace \
+            --version "${{ inputs.chart_version }}" \
+            -f gke/nsight/values.yaml \
+            --timeout 10m \
+            nsight-operator \
+            nvidia-devtools/nsight-operator
+
+      - name: Wait for pods
+        run: kubectl get pods -n nsight-operator
+
+      - name: Label kubeflow namespace
+        if: ${{ inputs.label_kubeflow_namespace }}
+        run: |
+          kubectl label namespace kubeflow nvidia-nsight-profile=enabled --overwrite
+
+      - name: Set Nsight Operator active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_NSIGHT_OPERATOR_ACTIVE" \
+            -f name="GKE_NSIGHT_OPERATOR_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_NSIGHT_OPERATOR_ACTIVE" -f value="true" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          POD_COUNT=$(kubectl get pods -n nsight-operator --no-headers 2>/dev/null | grep -c . || echo 0)
+          KF_LABEL=$(kubectl get namespace kubeflow --show-labels 2>/dev/null | grep -o 'nvidia-nsight-profile=enabled' || echo 'not labeled')
+          {
+            echo "## Nsight Operator Deployed (GKE)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Cluster | \`${{ vars.GKE_CLUSTER_NAME }}\` |"
+            echo "| Zone | \`${{ vars.GKE_ZONE }}\` |"
+            echo "| Chart version | \`${{ inputs.chart_version }}\` |"
+            echo "| Namespace | \`nsight-operator\` |"
+            echo "| Pods | \`${POD_COUNT}\` |"
+            echo "| kubeflow label | \`${KF_LABEL}\` |"
+            echo ""
+            echo "Port-forward to access the UI:"
+            echo "\`\`\`"
+            echo "kubectl port-forward svc/nsight-operator-ui 8889:8888 -n nsight-operator"
+            echo "# http://localhost:8889"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

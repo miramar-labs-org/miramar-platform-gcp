@@ -109,6 +109,7 @@ DGX_KFP_ACTIVE=$(read_org_var "DGX_KFP_ACTIVE")
 DGX_OLLAMA_ACTIVE=$(read_org_var "DGX_OLLAMA_ACTIVE")
 DGX_MLFLOW_ACTIVE=$(read_org_var "DGX_MLFLOW_ACTIVE")
 DGX_QDRANT_ACTIVE=$(read_org_var "DGX_QDRANT_ACTIVE")
+DGX_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "DGX_NSIGHT_OPERATOR_ACTIVE")
 
 AGX_OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL_AGX")
 AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
@@ -121,6 +122,8 @@ AGX_KFP_ACTIVE=$(read_org_var "AGX_KFP_ACTIVE")
 AGX_OLLAMA_ACTIVE=$(read_org_var "AGX_OLLAMA_ACTIVE")
 AGX_MLFLOW_ACTIVE=$(read_org_var "AGX_MLFLOW_ACTIVE")
 AGX_QDRANT_ACTIVE=$(read_org_var "AGX_QDRANT_ACTIVE")
+AGX_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "AGX_NSIGHT_OPERATOR_ACTIVE")
+GKE_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "GKE_NSIGHT_OPERATOR_ACTIVE")
 
 GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
 GCP_REGION=$(read_org_var "GCP_REGION")
@@ -217,6 +220,10 @@ AGX_OLLAMA_BADGE=$([ "$AGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-ac
 AGX_K3S_BADGE=$([ "$AGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:443/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_MLFLOW_BADGE=$([ "$AGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5001" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_QDRANT_BADGE=$([ "$AGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6335/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+
+DGX_NSIGHT_BADGE=$([ "$DGX_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<a href="http://localhost:8889" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_NSIGHT_BADGE=$([ "$AGX_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<a href="http://localhost:8892" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+GKE_NSIGHT_BADGE=$([ "$GKE_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -354,6 +361,10 @@ cat > "$OUTPUT" <<HTMLEOF
       ${DGX_QDRANT_BADGE}
     </div>
     <div class="ps-item">
+      <div class="ps-label">Nsight</div>
+      ${DGX_NSIGHT_BADGE}
+    </div>
+    <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
       <code class="ps-value">${VRAM_USED_GB} GB</code>
     </div>
@@ -399,6 +410,10 @@ cat > "$OUTPUT" <<HTMLEOF
       ${AGX_QDRANT_BADGE}
     </div>
     <div class="ps-item">
+      <div class="ps-label">Nsight</div>
+      ${AGX_NSIGHT_BADGE}
+    </div>
+    <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
       <code class="ps-value">${AGX_VRAM_USED_GB} GB</code>
     </div>
@@ -430,6 +445,10 @@ cat > "$OUTPUT" <<HTMLEOF
     <div class="ps-item">
       <div class="ps-label">GPU pool</div>
       ${GKE_GPU_BADGE}
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">Nsight</div>
+      ${GKE_NSIGHT_BADGE}
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">Model bucket</div>

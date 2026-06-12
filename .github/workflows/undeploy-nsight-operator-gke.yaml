@@ -1,0 +1,79 @@
+name: Nsight Operator Undeploy (GKE)
+
+# Removes the NVIDIA Nsight Operator from the miramar-shared-gke cluster.
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_namespace:
+        description: "Delete the nsight-operator namespace after uninstall"
+        type: boolean
+        default: true
+        required: false
+      unlabel_kubeflow_namespace:
+        description: "Remove nvidia-nsight-profile=enabled label from kubeflow namespace"
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, wsl2]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER_NAME }}
+          location: ${{ vars.GKE_ZONE }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Uninstall Nsight Operator
+        run: |
+          helm uninstall nsight-operator -n nsight-operator --ignore-not-found || true
+
+      - name: Delete namespace
+        if: ${{ inputs.delete_namespace }}
+        run: |
+          kubectl delete namespace nsight-operator --ignore-not-found
+
+      - name: Remove kubeflow namespace label
+        if: ${{ inputs.unlabel_kubeflow_namespace }}
+        run: |
+          kubectl label namespace kubeflow nvidia-nsight-profile- || true
+
+      - name: Clear Nsight Operator active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_NSIGHT_OPERATOR_ACTIVE" \
+            -f name="GKE_NSIGHT_OPERATOR_ACTIVE" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_NSIGHT_OPERATOR_ACTIVE" -f value="false" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Nsight Operator Undeployed (GKE)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Cluster | \`${{ vars.GKE_CLUSTER_NAME }}\` |"
+            echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
+            echo "| kubeflow unlabeled | \`${{ inputs.unlabel_kubeflow_namespace }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

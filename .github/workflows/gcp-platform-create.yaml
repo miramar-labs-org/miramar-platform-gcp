@@ -127,6 +127,33 @@ jobs:
       - name: Apply K8s namespaces and RBAC
         run: zsh ./gcp/create-miramar-platform.zsh 2>&1 | tee /tmp/create.log
 
+      - name: Add NGC Helm repo
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          helm repo add nvidia-devtools https://helm.ngc.nvidia.com/nvidia/devtools \
+            --username='$oauthtoken' \
+            --password="${NVIDIA_API_KEY}" \
+            --force-update
+          helm repo update
+
+      - name: Install Nsight Operator
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          helm upgrade --install \
+            --wait \
+            --namespace nsight-operator \
+            --create-namespace \
+            -f gke/nsight/values.yaml \
+            --timeout 5m \
+            nsight-operator \
+            nvidia-devtools/nsight-operator
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_NSIGHT_OPERATOR_ACTIVE" \
+            -f name="GKE_NSIGHT_OPERATOR_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_NSIGHT_OPERATOR_ACTIVE" -f value="true" -f visibility="all"
+
       - name: Show cluster state
         run: |
           echo "--- Nodes ---"

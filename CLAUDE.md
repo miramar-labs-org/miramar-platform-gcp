@@ -113,7 +113,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 
 | Workflow | File | Purpose |
 |---|---|---|
-| GCP Platform Create | `gcp-platform-create.yaml` | `terraform apply` (GKE + AR) then K8s namespaces + RBAC |
+| GCP Platform Create | `gcp-platform-create.yaml` | `terraform apply` (GKE + AR), K8s namespaces + RBAC, then auto-installs Nsight Operator (sets `GKE_NSIGHT_OPERATOR_ACTIVE`) |
 | GCP Platform Destroy | `gcp-platform-destroy.yaml` | `terraform destroy`, gcloud fallback, optionally delete project |
 | GKE Expand | `gke-expand.yaml` | Snapshot pool state to GCS, scale up node count |
 | GKE Restore | `gke-restore.yaml` | Read saved state from GCS, restore node count |
@@ -130,6 +130,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Qdrant Undeploy | `undeploy-qdrant.yaml` | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` |
 | Nsight Operator Deploy | `deploy-nsight-operator.yaml` | Install Nsight Operator via Helm (NGC devtools registry); optionally labels kubeflow namespace for pod injection; starts `nsight-portfwd.service` (UI at port 8889); writes `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner` (dgx/agx), `chart_version`, `label_kubeflow_namespace` |
 | Nsight Operator Undeploy | `undeploy-nsight-operator.yaml` | Helm uninstall Nsight Operator; stops `nsight-portfwd.service`; optionally removes kubeflow injection label and namespace; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner`, `delete_namespace`, `unlabel_kubeflow_namespace` |
+| Nsight Operator Deploy GKE | `deploy-nsight-operator-gke.yaml` | Install Nsight Operator on GKE via Helm (NGC devtools registry); `wsl2` runner; WIF + GKE credentials; dynamic PVC (no static PV); sets `GKE_NSIGHT_OPERATOR_ACTIVE`. Access via `kubectl port-forward svc/nsight-operator-ui 8889:8888 -n nsight-operator`. Inputs: `chart_version`, `label_kubeflow_namespace` |
+| Nsight Operator Undeploy GKE | `undeploy-nsight-operator-gke.yaml` | Helm uninstall Nsight Operator from GKE; optionally deletes namespace and removes kubeflow label; clears `GKE_NSIGHT_OPERATOR_ACTIVE`. Inputs: `delete_namespace`, `unlabel_kubeflow_namespace` |
 | MLflow Deploy | `deploy-mlflow.yaml` | Deploy MLflow + MinIO into mlflow-system; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow, MinIO, and mlflow-system namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner` |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml` | Build all 13 KFP arm64 images (11 KFP components + 2 MLMD/Bazel) on DGX. Optional `component` input to rebuild a single image. ~45-60 min for MLMD on first run. Images are reusable on AGX (both linux/arm64). |
@@ -179,6 +181,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_KFP_ACTIVE` | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx) |
 | `DGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (dgx) | Nsight Operator Undeploy (dgx) |
 | `AGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (agx) | Nsight Operator Undeploy (agx) |
+| `GKE_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy GKE; GCP Platform Create | Nsight Operator Undeploy GKE |
 | `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx) | Ollama Undeploy (dgx), rollback |
 | `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback |
 | `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU | GKE Restore GPU |
