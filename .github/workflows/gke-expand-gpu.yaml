@@ -65,6 +65,8 @@ jobs:
           STATE_PATH="gs://$CLUSTER_STATE_BUCKET/gke/quota-${{ inputs.namespace }}.json"
           if gcloud storage ls "$STATE_PATH" > /dev/null 2>&1; then
             echo "::notice::Quota snapshot already exists — skipping save (already expanded)"
+          elif ! kubectl get namespace "${{ inputs.namespace }}" > /dev/null 2>&1; then
+            echo "::notice::Namespace ${{ inputs.namespace }} does not exist yet — skipping quota snapshot (namespace will be created by deploy)"
           else
             kubectl get resourcequota namespace-quota \
               -n "${{ inputs.namespace }}" \

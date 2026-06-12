@@ -207,6 +207,18 @@ jobs:
           echo "Smoke tests: $PASS passed, $FAIL failed"
           [[ $FAIL -eq 0 ]] || exit 1
 
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/GKE_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="GKE_SERVING_ACTIVE" -f value="true"
+
       - name: Summary
         if: always()
         run: |

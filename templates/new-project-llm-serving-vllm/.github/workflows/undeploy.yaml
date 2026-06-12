@@ -54,6 +54,14 @@ jobs:
             --field namespace="$PROJECT_NAME"
           echo "GPU restore triggered. Pool will be torn down shortly."
 
+      - name: Clear serving state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/GKE_SERVING_ACTIVE" \
+            -f value="false" 2>/dev/null || true
+
       - name: Summary
         run: |
           {

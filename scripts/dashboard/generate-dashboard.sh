@@ -57,6 +57,20 @@ while IFS= read -r repo_json; do
   [[ -z "$host" || "$host" == "null" ]] && host="dgx"
   host_html="<span class=\"badge badge-${host}\">${host}</span>"
 
+  # --- GCP serving state (llm-serving-vllm projects only) ---
+  serving_json=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+    "repos/${ORG}/${name}/actions/variables/GKE_SERVING_ACTIVE" 2>/dev/null) || serving_json="{}"
+  serving=$(printf '%s' "$serving_json" | jq -r '.value // empty')
+  if [[ "$type" == "llm-serving-vllm" ]]; then
+    if [[ "$serving" == "true" ]]; then
+      serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed on GCP\">&#x25CF;</span>"
+    else
+      serving_html="<span class=\"serving-dot serving-off\" title=\"Not deployed\">&#x25CF;</span>"
+    fi
+  else
+    serving_html="<span class=\"serving-none\">—</span>"
+  fi
+
   # --- JupyterLab direct link — port depends on host (DGX=8888, AGX=8887) ---
   jl_port=8888; [[ "$host" == "agx" ]] && jl_port=8887
   jl_path="git-miramar-labs-org/projects/${name}/notebook.ipynb"
@@ -68,6 +82,7 @@ while IFS= read -r repo_json; do
   <td><span class=\"badge badge-${type}\">${type}</span></td>
   <td>${desc}</td>
   <td>${host_html}</td>
+  <td>${serving_html}</td>
   <td>${jl_html}</td>
   <td><code>${sha}</code></td>
   <td><button class=\"del-btn\" data-repo=\"${name}\" title=\"Delete ${name}\">&#x1F5D1;</button></td>
@@ -292,6 +307,10 @@ cat > "$OUTPUT" <<HTMLEOF
   .ps-active { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #1a4731; color: #3fb950; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
   a.ps-active:hover { text-decoration: underline; }
   .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
+  .serving-dot { font-size: 1rem; font-weight: bold; }
+  .serving-on  { color: #22c55e; }
+  .serving-off { color: #ef4444; }
+  .serving-none { color: #484f58; }
   .del-btn { background: none; border: none; cursor: pointer; color: #c0392b; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
   .del-btn:hover { color: #f85149; background: #3d1212; }
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
@@ -468,6 +487,7 @@ cat > "$OUTPUT" <<HTMLEOF
     <th>Type</th>
     <th>Description</th>
     <th>Host</th>
+    <th>Serving</th>
     <th>JupyterLab</th>
     <th>SHA</th>
     <th></th>
