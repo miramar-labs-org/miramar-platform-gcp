@@ -68,6 +68,9 @@ jobs:
           EOF
           fi
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Delete GPU node pool
         id: del_pool
         working-directory: gcp/terraform-gpu

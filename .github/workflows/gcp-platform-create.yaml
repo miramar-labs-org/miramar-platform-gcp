@@ -89,6 +89,9 @@ jobs:
             echo "Bucket gs://miramar-platform-ft-adapters already exists"
           fi
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Terraform Init
         working-directory: gcp/terraform
         run: terraform init -backend-config="bucket=$CLUSTER_STATE_BUCKET"
