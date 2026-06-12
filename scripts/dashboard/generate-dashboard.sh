@@ -64,7 +64,7 @@ while IFS= read -r repo_json; do
       serving_html="<span class=\"serving-dot serving-off\" title=\"Not deployed\">&#x25CF;</span>"
     fi
   else
-    serving_html="<span class=\"serving-none\">—</span>"
+    serving_html="<span class=\"serving-dot serving-off\" title=\"Not a serving project\">&#x25CF;</span>"
   fi
 
   # --- Results link (kfp-ft-eval only: runs/RUNS.md) ---
