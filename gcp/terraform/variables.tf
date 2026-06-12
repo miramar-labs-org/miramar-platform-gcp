@@ -21,3 +21,7 @@ variable "ar_repo" {
 variable "node_pool_count" {
   type = number
 }
+
+variable "machine_type" {
+  type = string
+}

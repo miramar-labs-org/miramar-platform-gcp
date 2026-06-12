@@ -41,6 +41,7 @@ set_var GCP_REGION       "$(tfvar region)"
 set_var GKE_ZONE         "$(tfvar zone)"
 set_var GKE_CLUSTER_NAME "$(tfvar cluster_name)"
 set_var GAR_REPO         "$(tfvar ar_repo)"
+set_var GKE_MACHINE_TYPE "$(tfvar machine_type)"
 
 echo ""
 echo "Done. GKE_STATE_BUCKET is not managed by this script — update manually if needed."
