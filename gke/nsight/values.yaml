@@ -1,0 +1,24 @@
+# Nsight Operator Helm values — GKE (miramar-shared-gke)
+# GKE uses dynamic storage provisioning — no static PV required.
+# The StatefulSet PVC binds to the cluster's default StorageClass automatically.
+# (On k3s/DGX, a static hostPath PV is created before helm install — not needed here.)
+
+nsight-injector:
+  # privileged: required for hardware GPU trace.
+  privileged: true
+
+  nsightToolConfig:
+    # Match python3 processes (KFP component scripts)
+    injectionIncludePatterns:
+      - ".*python3.*"
+    # Core profiling flags.
+    # NOTE: In process hook injection mode, COLLECT_CUDA_TRACE=false is expected —
+    # it means nsys uses hardware trace (not software CUPTI) for GPU-side kernel
+    # records. The hardware trace captures a single ~1.89s snapshot at CUDA init time.
+    # CPU-side CUDA API trace (CUPTI_ACTIVITY_KIND_RUNTIME) and NVTX events are
+    # captured continuously for the full collection window.
+    nsightToolArgs: >-
+      --trace=cuda,nvtx,cublas,cudnn
+      --sample=none
+      --cuda-flush-interval=100
+      --force-overwrite=true
