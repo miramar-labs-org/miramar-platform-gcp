@@ -54,17 +54,25 @@ while IFS= read -r repo_json; do
   host_html="<span class=\"badge badge-${host}\">${host}</span>"
 
   # --- Serving state (serving-vllm projects only — check all three hosts) ---
+  # For serving-vllm: host column shows WHERE it's deployed (or --); overrides PROJECT_HOST.
   if [[ "$type" == "serving-vllm" ]]; then
-    serving="false"
+    active_host=""
+    declare -A _svar_map=([GKE_SERVING_ACTIVE]=gke [DGX_SERVING_ACTIVE]=dgx [AGX_SERVING_ACTIVE]=agx)
     for svar in GKE_SERVING_ACTIVE DGX_SERVING_ACTIVE AGX_SERVING_ACTIVE; do
       sval=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
         "repos/${ORG}/${name}/actions/variables/${svar}" \
         --jq '.value // empty' 2>/dev/null || true)
-      [[ "$sval" == "true" ]] && serving="true" && break
+      if [[ "$sval" == "true" ]]; then
+        active_host="${_svar_map[$svar]}"
+        break
+      fi
     done
-    if [[ "$serving" == "true" ]]; then
-      serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed\">&#x25CF;</span>"
+    unset _svar_map
+    if [[ -n "$active_host" ]]; then
+      host_html="<span class=\"badge badge-${active_host}\">${active_host}</span>"
+      serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed on ${active_host}\">&#x25CF;</span>"
     else
+      host_html="<span class=\"badge badge-none\">--</span>"
       serving_html="<span class=\"serving-dot serving-off\" title=\"Not deployed\">&#x25CF;</span>"
     fi
   else
@@ -291,6 +299,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .badge-gcp      { background: #2a1f0a; color: #fbbf24; }
+  .badge-none     { background: #1c2128; color: #484f58; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }
   .jl-link:hover { color: #ffa657; }
   .results-link { color: #a78bfa; font-size: 0.8rem; white-space: nowrap; }
