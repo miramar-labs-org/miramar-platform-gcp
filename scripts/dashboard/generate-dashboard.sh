@@ -79,8 +79,9 @@ while IFS= read -r repo_json; do
     serving_html="<span class=\"serving-dot serving-off\" title=\"Not a serving project\">&#x25CF;</span>"
   fi
 
-  # --- Results link (ft-eval only: runs/RUNS.md) ---
-  if [[ "$type" == "ft-eval" ]]; then
+  # --- Results link (ft-eval only, and only once runs/ dir exists — created by /kfp-deploy) ---
+  if [[ "$type" == "ft-eval" ]] && \
+     GH_TOKEN="$ADMIN_TOKEN" gh api "repos/${ORG}/${name}/contents/runs" &>/dev/null; then
     results_html="<a href=\"https://github.com/${ORG}/${name}/blob/main/runs/RUNS.md\" target=\"_blank\" class=\"results-link\">&#x1F4CA; Runs</a>"
   else
     results_html="<span class=\"serving-none\">—</span>"
