@@ -146,7 +146,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          for var_name in GKE_CLUSTER_ACTIVE GKE_GPU_POOL_ACTIVE; do
+          for var_name in GKE_CLUSTER_ACTIVE GKE_GPU_POOL_ACTIVE GKE_NSIGHT_OPERATOR_ACTIVE; do
             gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var_name}" \
               -f name="${var_name}" -f value="false" -f visibility="all" \
             || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
