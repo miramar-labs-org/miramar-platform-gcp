@@ -15,7 +15,7 @@ on:
         type: choice
         options: [gke, dgx, agx]
       image_tag:
-        description: Image tag to deploy (default: latest)
+        description: "Image tag to deploy (default: latest)"
         required: false
         default: latest
 
