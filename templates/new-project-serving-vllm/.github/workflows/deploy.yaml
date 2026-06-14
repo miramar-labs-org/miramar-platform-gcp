@@ -13,7 +13,10 @@ on:
         required: false
         default: dgx
         type: choice
-        options: [gke, dgx, agx]
+        options:
+          - gke
+          - dgx
+          - agx
       image_tag:
         description: "Image tag to deploy (default: latest)"
         required: false
@@ -24,7 +27,7 @@ permissions:
   id-token: write
 
 env:
-  PROJECT_NAME: {{PROJECT_NAME}}
+  PROJECT_NAME: "{{PROJECT_NAME}}"
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   GCP_REGION: ${{ vars.GCP_REGION }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}

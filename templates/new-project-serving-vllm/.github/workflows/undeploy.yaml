@@ -11,14 +11,17 @@ on:
         required: false
         default: dgx
         type: choice
-        options: [gke, dgx, agx]
+        options:
+          - gke
+          - dgx
+          - agx
 
 permissions:
   contents: read
   id-token: write
 
 env:
-  PROJECT_NAME: {{PROJECT_NAME}}
+  PROJECT_NAME: "{{PROJECT_NAME}}"
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
   GKE_ZONE: ${{ vars.GKE_ZONE }}

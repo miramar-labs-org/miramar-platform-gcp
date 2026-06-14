@@ -17,7 +17,10 @@ on:
         required: false
         default: dgx
         type: choice
-        options: [gke, dgx, agx]
+        options:
+          - gke
+          - dgx
+          - agx
 
 permissions:
   contents: read
@@ -25,7 +28,7 @@ permissions:
   packages: write
 
 env:
-  PROJECT_NAME: {{PROJECT_NAME}}
+  PROJECT_NAME: "{{PROJECT_NAME}}"
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   GCP_REGION: ${{ vars.GCP_REGION }}
   GAR_REPO: ${{ vars.GAR_REPO }}
