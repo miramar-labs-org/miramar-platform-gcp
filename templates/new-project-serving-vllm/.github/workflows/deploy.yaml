@@ -1,6 +1,7 @@
 name: Deploy
 
 # Deploys the vLLM serving pod to GKE (L4 spot, GAR image) or K3s on DGX/AGX (GHCR image).
+# The adapter is baked into the image — no GCS, no init container, no gsutil.
 # Registry is inferred from host: gke=GAR, dgx/agx=GHCR.
 # Run undeploy.yaml when done to stop costs (GKE) or free GPU memory (K3s).
 
@@ -17,9 +18,6 @@ on:
         description: Image tag to deploy (default: latest)
         required: false
         default: latest
-      manifest_uri:
-        description: GCS manifest URI (overrides serving-config.yaml adapter.manifest_uri if set)
-        required: false
 
 permissions:
   contents: read
@@ -49,52 +47,10 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Resolve manifest URI
-        id: manifest
+      - name: Get base model ID
         run: |
-          MANIFEST_URI="${{ inputs.manifest_uri }}"
-          if [[ -z "$MANIFEST_URI" ]]; then
-            MANIFEST_URI=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['adapter']['manifest_uri'])
-          ")
-          fi
-          if [[ -z "$MANIFEST_URI" ]]; then
-            echo "ERROR: manifest_uri not set in serving-config.yaml and not provided as input."
-            exit 1
-          fi
-          echo "uri=$MANIFEST_URI" >> "$GITHUB_OUTPUT"
-          echo "Manifest URI: $MANIFEST_URI"
-
-      - name: Validate manifest
-        run: |
-          MANIFEST_URI="${{ steps.manifest.outputs.uri }}"
-          gsutil cp "$MANIFEST_URI" /tmp/manifest.json
-          python3 -c "
-          import json, sys
-          with open('/tmp/manifest.json') as f:
-              m = json.load(f)
-          errors = []
-          if not m.get('eval_passed'):
-              errors.append('eval_passed is not true')
-          if not m.get('safety_passed'):
-              errors.append('safety_passed is not true')
-          if errors:
-              print('MANIFEST VALIDATION FAILED:', '; '.join(errors))
-              sys.exit(1)
-          print(f\"Manifest valid: {m['project']} / {m['run_id']}\")
-          print(f\"  base_model_id: {m['base_model_id']}\")
-          print(f\"  adapter_uri:   {m['adapter_uri']}\")
-          "
-          python3 -c "
-          import json
-          with open('/tmp/manifest.json') as f:
-              m = json.load(f)
-          print(f\"BASE_MODEL_ID={m['base_model_id']}\")
-          print(f\"ADAPTER_URI={m['adapter_uri']}\")
-          " >> "$GITHUB_ENV"
+          BASE_MODEL_ID=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['base_model_id'])")
+          echo "BASE_MODEL_ID=${BASE_MODEL_ID}" >> "$GITHUB_ENV"
 
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v2
@@ -149,18 +105,12 @@ jobs:
 
       - name: Substitute and apply manifest
         run: |
-          SERVED_MODEL_NAME=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['model']['served_model_name'])
-          ")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['served_model_name'])")
           grep -v '^kind: Namespace' k8s/vllm.yaml \
             | grep -v '^  name: {{PROJECT_NAME}}$' \
             | grep -v '^apiVersion: v1$' \
             | sed '/^---$/{ N; /^---\n---$/d }' \
             | sed "s|IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" \
-            | sed "s|GCS_MANIFEST_URI_PLACEHOLDER|${{ steps.manifest.outputs.uri }}|g" \
             | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
             | kubectl apply -f -
@@ -175,12 +125,7 @@ jobs:
           sleep 5
           trap "kill $PF_PID 2>/dev/null || true" EXIT
 
-          SERVED_MODEL_NAME=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['model']['served_model_name'])
-          ")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['served_model_name'])")
 
           curl -sf http://localhost:18000/v1/models | python3 -c "
           import json,sys
@@ -228,7 +173,6 @@ jobs:
             echo "## Deploy: $PROJECT_NAME (GKE)"
             echo "| | |"
             echo "|---|---|"
-            echo "| Manifest | \`${{ steps.manifest.outputs.uri }}\` |"
             echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
             echo "| Namespace | \`$PROJECT_NAME\` |"
             echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
@@ -240,68 +184,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP (WIF)
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Resolve manifest URI
-        id: manifest
+      - name: Get base model ID
         run: |
-          MANIFEST_URI="${{ inputs.manifest_uri }}"
-          if [[ -z "$MANIFEST_URI" ]]; then
-            MANIFEST_URI=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['adapter']['manifest_uri'])
-          ")
-          fi
-          if [[ -z "$MANIFEST_URI" ]]; then
-            echo "ERROR: manifest_uri not set in serving-config.yaml and not provided as input."
-            exit 1
-          fi
-          echo "uri=$MANIFEST_URI" >> "$GITHUB_OUTPUT"
-          echo "Manifest URI: $MANIFEST_URI"
-
-      - name: Validate manifest
-        run: |
-          MANIFEST_URI="${{ steps.manifest.outputs.uri }}"
-          gsutil cp "$MANIFEST_URI" /tmp/manifest.json
-          python3 -c "
-          import json, sys
-          with open('/tmp/manifest.json') as f:
-              m = json.load(f)
-          errors = []
-          if not m.get('eval_passed'):
-              errors.append('eval_passed is not true')
-          if not m.get('safety_passed'):
-              errors.append('safety_passed is not true')
-          if errors:
-              print('MANIFEST VALIDATION FAILED:', '; '.join(errors))
-              sys.exit(1)
-          print(f\"Manifest valid: {m['project']} / {m['run_id']}\")
-          print(f\"  base_model_id: {m['base_model_id']}\")
-          print(f\"  adapter_uri:   {m['adapter_uri']}\")
-          "
-          python3 -c "
-          import json
-          with open('/tmp/manifest.json') as f:
-              m = json.load(f)
-          print(f\"BASE_MODEL_ID={m['base_model_id']}\")
-          print(f\"ADAPTER_URI={m['adapter_uri']}\")
-          " >> "$GITHUB_ENV"
-
-      - name: Pull adapter to host
-        run: |
-          mkdir -p "/tmp/vllm-adapters/${PROJECT_NAME}"
-          gsutil -m cp -r "${ADAPTER_URI}/*" "/tmp/vllm-adapters/${PROJECT_NAME}/"
-          echo "Adapter files:"
-          ls -lh "/tmp/vllm-adapters/${PROJECT_NAME}/"
+          BASE_MODEL_ID=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['base_model_id'])")
+          echo "BASE_MODEL_ID=${BASE_MODEL_ID}" >> "$GITHUB_ENV"
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
@@ -331,12 +217,7 @@ jobs:
 
       - name: Substitute and apply K3s manifest
         run: |
-          SERVED_MODEL_NAME=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['model']['served_model_name'])
-          ")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['served_model_name'])")
           sed "s|GHCR_IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm-k3s.yaml \
             | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
@@ -352,12 +233,7 @@ jobs:
           sleep 5
           trap "kill $PF_PID 2>/dev/null || true" EXIT
 
-          SERVED_MODEL_NAME=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['model']['served_model_name'])
-          ")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['served_model_name'])")
 
           curl -sf http://localhost:18000/v1/models | python3 -c "
           import json,sys
@@ -405,7 +281,6 @@ jobs:
             echo "## Deploy: $PROJECT_NAME (DGX K3s)"
             echo "| | |"
             echo "|---|---|"
-            echo "| Manifest | \`${{ steps.manifest.outputs.uri }}\` |"
             echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
             echo "| Namespace | \`$PROJECT_NAME\` |"
             echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
@@ -417,68 +292,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP (WIF)
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Resolve manifest URI
-        id: manifest
+      - name: Get base model ID
         run: |
-          MANIFEST_URI="${{ inputs.manifest_uri }}"
-          if [[ -z "$MANIFEST_URI" ]]; then
-            MANIFEST_URI=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['adapter']['manifest_uri'])
-          ")
-          fi
-          if [[ -z "$MANIFEST_URI" ]]; then
-            echo "ERROR: manifest_uri not set in serving-config.yaml and not provided as input."
-            exit 1
-          fi
-          echo "uri=$MANIFEST_URI" >> "$GITHUB_OUTPUT"
-          echo "Manifest URI: $MANIFEST_URI"
-
-      - name: Validate manifest
-        run: |
-          MANIFEST_URI="${{ steps.manifest.outputs.uri }}"
-          gsutil cp "$MANIFEST_URI" /tmp/manifest.json
-          python3 -c "
-          import json, sys
-          with open('/tmp/manifest.json') as f:
-              m = json.load(f)
-          errors = []
-          if not m.get('eval_passed'):
-              errors.append('eval_passed is not true')
-          if not m.get('safety_passed'):
-              errors.append('safety_passed is not true')
-          if errors:
-              print('MANIFEST VALIDATION FAILED:', '; '.join(errors))
-              sys.exit(1)
-          print(f\"Manifest valid: {m['project']} / {m['run_id']}\")
-          print(f\"  base_model_id: {m['base_model_id']}\")
-          print(f\"  adapter_uri:   {m['adapter_uri']}\")
-          "
-          python3 -c "
-          import json
-          with open('/tmp/manifest.json') as f:
-              m = json.load(f)
-          print(f\"BASE_MODEL_ID={m['base_model_id']}\")
-          print(f\"ADAPTER_URI={m['adapter_uri']}\")
-          " >> "$GITHUB_ENV"
-
-      - name: Pull adapter to host
-        run: |
-          mkdir -p "/tmp/vllm-adapters/${PROJECT_NAME}"
-          gsutil -m cp -r "${ADAPTER_URI}/*" "/tmp/vllm-adapters/${PROJECT_NAME}/"
-          echo "Adapter files:"
-          ls -lh "/tmp/vllm-adapters/${PROJECT_NAME}/"
+          BASE_MODEL_ID=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['base_model_id'])")
+          echo "BASE_MODEL_ID=${BASE_MODEL_ID}" >> "$GITHUB_ENV"
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
@@ -508,12 +325,7 @@ jobs:
 
       - name: Substitute and apply K3s manifest
         run: |
-          SERVED_MODEL_NAME=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['model']['served_model_name'])
-          ")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['served_model_name'])")
           sed "s|GHCR_IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm-k3s.yaml \
             | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
@@ -529,12 +341,7 @@ jobs:
           sleep 5
           trap "kill $PF_PID 2>/dev/null || true" EXIT
 
-          SERVED_MODEL_NAME=$(python3 -c "
-          import yaml
-          with open('serving-config.yaml') as f:
-              cfg = yaml.safe_load(f)
-          print(cfg['model']['served_model_name'])
-          ")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['model']['served_model_name'])")
 
           curl -sf http://localhost:18000/v1/models | python3 -c "
           import json,sys
@@ -582,7 +389,6 @@ jobs:
             echo "## Deploy: $PROJECT_NAME (AGX K3s)"
             echo "| | |"
             echo "|---|---|"
-            echo "| Manifest | \`${{ steps.manifest.outputs.uri }}\` |"
             echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
             echo "| Namespace | \`$PROJECT_NAME\` |"
             echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"

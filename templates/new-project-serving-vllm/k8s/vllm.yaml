@@ -18,24 +18,6 @@ spec:
       labels:
         app: vllm
     spec:
-      initContainers:
-        - name: pull-adapter
-          image: google/cloud-sdk:slim
-          command:
-            - /bin/bash
-            - -c
-            - |
-              set -euo pipefail
-              echo "Fetching manifest from GCS_MANIFEST_URI_PLACEHOLDER"
-              gsutil cp GCS_MANIFEST_URI_PLACEHOLDER /adapter/manifest.json
-              ADAPTER_URI=$(python3 -c "import json; d=json.load(open('/adapter/manifest.json')); print(d['adapter_uri'])")
-              echo "Pulling adapter from $ADAPTER_URI"
-              gsutil -m cp -r "${ADAPTER_URI}/*" /adapter/
-              echo "Adapter pull complete:"
-              ls -lh /adapter/
-          volumeMounts:
-            - name: adapter
-              mountPath: /adapter
       containers:
         - name: vllm
           image: IMAGE_PLACEHOLDER
@@ -82,8 +64,6 @@ spec:
             periodSeconds: 30
             failureThreshold: 5
           volumeMounts:
-            - name: adapter
-              mountPath: /adapter
             - name: hf-cache
               mountPath: /tmp/hf-cache
       nodeSelector:
@@ -93,8 +73,6 @@ spec:
           operator: Exists
           effect: NoSchedule
       volumes:
-        - name: adapter
-          emptyDir: {}
         - name: hf-cache
           emptyDir: {}
 ---

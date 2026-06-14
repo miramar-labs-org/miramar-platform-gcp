@@ -6,7 +6,7 @@ model:
   served_model_name: "{{SERVED_MODEL_NAME}}"   # stable alias exposed to clients (e.g. biomistral-onc)
 
 adapter:
-  manifest_uri: ""   # gs://miramar-platform-ft-adapters/<project>/<run>/manifest.json
+  ft_project: ""   # name of the ft-eval project repo (e.g. qwen25-7b-arc-ft-eval-pipeline)
   max_lora_rank: 16
 
 vllm:
@@ -16,7 +16,6 @@ vllm:
   port: 8000
 
 deployment:
-  target: gke
   namespace: "{{PROJECT_NAME}}"
   gpu_type: nvidia-l4
   spot: true

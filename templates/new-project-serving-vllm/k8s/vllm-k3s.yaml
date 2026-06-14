@@ -61,8 +61,6 @@ spec:
             periodSeconds: 30
             failureThreshold: 5
           volumeMounts:
-            - name: adapter
-              mountPath: /adapter
             - name: hf-cache
               mountPath: /tmp/hf-cache
       tolerations:
@@ -70,10 +68,6 @@ spec:
           operator: Exists
           effect: NoSchedule
       volumes:
-        - name: adapter
-          hostPath:
-            path: /tmp/vllm-adapters/{{PROJECT_NAME}}
-            type: DirectoryOrCreate
         - name: hf-cache
           emptyDir: {}
 ---

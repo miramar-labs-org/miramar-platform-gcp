@@ -173,6 +173,12 @@ mlflow.log_metric("safety_avg_score", avg_score)
 Already implemented. Verify the metric keys it reads (`baseline_accuracy`, `postft_accuracy`,
 `safety_avg_score`, `baseline_safety_avg_score`) match what your eval steps actually log.
 
+On gate pass, writes `gate_result.json` to the HF cache PVC at:
+`/root/.cache/huggingface/runs/{pipeline_name}/{run_id}/gate_result.json`
+
+This file is picked up by the serving project's `build-push.yaml` to find the latest
+gate-passing adapter and bundle it into the Docker image.
+
 ### Edit → build → deploy cycle
 
 After implementing each step:

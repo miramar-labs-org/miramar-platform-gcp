@@ -1,8 +1,13 @@
 name: Build and Push
 
-# Builds the vLLM serving image and pushes to the registry for the target host.
-# GKE uses GAR (amd64, ubuntu-latest runner). DGX/AGX use GHCR (wsl2 runner).
-# Run this once before the first deploy, and again only when Dockerfile.serve changes.
+# Builds the vLLM serving image (with adapter baked in) and pushes to the registry.
+# Scans ~/shared/huggingface-kfp/runs/<ft_project>/ for the latest gate-passing run,
+# stages the adapter into the Docker build context, then builds and pushes.
+#
+# Both jobs run on wsl2 — it has SMB access to DGX shared storage where gate results live.
+# GKE images go to GAR; DGX/AGX images go to GHCR.
+#
+# Run this after the ft-eval gate passes, and again if Dockerfile.serve changes.
 
 on:
   workflow_dispatch:
@@ -28,7 +33,7 @@ env:
 jobs:
   build-push-gar:
     if: inputs.host == 'gke'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, wsl2]
     steps:
       - uses: actions/checkout@v4
 
@@ -44,13 +49,55 @@ jobs:
       - name: Configure Docker for GAR
         run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
 
+      - name: Find latest gate-passing run
+        run: |
+          FT_PROJECT=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['adapter']['ft_project'])")
+          if [[ -z "$FT_PROJECT" ]]; then
+            echo "ERROR: adapter.ft_project is not set in serving-config.yaml"
+            exit 1
+          fi
+          SHARED="${HOME}/shared/huggingface-kfp"
+          GATE_DIR="${SHARED}/runs/${FT_PROJECT}"
+          if [[ ! -d "$GATE_DIR" ]]; then
+            echo "ERROR: gate dir not found: ${GATE_DIR}"
+            echo "Run the ft-eval pipeline and wait for the gate to pass."
+            exit 1
+          fi
+          RESULT=$(GATE_DIR="$GATE_DIR" python3 -c "
+          import json, os, pathlib, sys
+          gates = sorted(pathlib.Path(os.environ['GATE_DIR']).glob('*/gate_result.json'))
+          for g in reversed(gates):
+              r = json.loads(g.read_text())
+              if r.get('eval_passed') and r.get('safety_passed'):
+                  print(json.dumps(r)); sys.exit(0)
+          sys.exit(1)
+          " 2>/dev/null || true)
+          if [[ -z "$RESULT" ]]; then
+            echo "ERROR: No gate-passing run found for ${FT_PROJECT}."
+            echo "Run the ft-eval pipeline and ensure gate passes before building the serving image."
+            exit 1
+          fi
+          ADAPTER_REL=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['adapter_rel_path'])" <<< "$RESULT")
+          RUN_ID=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['run_id'])" <<< "$RESULT")
+          ADAPTER_PATH="${SHARED}/${ADAPTER_REL}"
+          echo "Using adapter from ${RUN_ID}: ${ADAPTER_PATH}"
+          echo "ADAPTER_PATH=${ADAPTER_PATH}" >> "$GITHUB_ENV"
+          echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
+
+      - name: Stage adapter into build context
+        run: |
+          rm -rf adapter/
+          cp -r "${ADAPTER_PATH}/" adapter/
+          echo "Staged adapter files:"
+          ls -lh adapter/
+
       - name: Set image URI
         id: image
         run: |
           IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}"
           COMMIT_SHA="${{ github.sha }}"
           echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
-          echo "tag=${COMMIT_SHA::8}" >> "$GITHUB_OUTPUT"
+          echo "tag=${RUN_ID}-${COMMIT_SHA::8}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         run: |
@@ -65,6 +112,10 @@ jobs:
           docker push "${IMAGE_URI}:${TAG}"
           echo "Pushed ${IMAGE_URI}:${TAG}"
 
+      - name: Clean up staged adapter
+        if: always()
+        run: rm -rf adapter/
+
       - name: Summary
         run: |
           {
@@ -73,6 +124,7 @@ jobs:
             echo "|---|---|"
             echo "| Project | \`$PROJECT_NAME\` |"
             echo "| Registry | GAR |"
+            echo "| FT Run | \`${RUN_ID}\` |"
             echo "| Image | \`${{ steps.image.outputs.uri }}:${{ steps.image.outputs.tag }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -83,7 +135,49 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        run: echo "${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Find latest gate-passing run
+        run: |
+          FT_PROJECT=$(python3 -c "import yaml; cfg=yaml.safe_load(open('serving-config.yaml')); print(cfg['adapter']['ft_project'])")
+          if [[ -z "$FT_PROJECT" ]]; then
+            echo "ERROR: adapter.ft_project is not set in serving-config.yaml"
+            exit 1
+          fi
+          SHARED="${HOME}/shared/huggingface-kfp"
+          GATE_DIR="${SHARED}/runs/${FT_PROJECT}"
+          if [[ ! -d "$GATE_DIR" ]]; then
+            echo "ERROR: gate dir not found: ${GATE_DIR}"
+            echo "Run the ft-eval pipeline and wait for the gate to pass."
+            exit 1
+          fi
+          RESULT=$(GATE_DIR="$GATE_DIR" python3 -c "
+          import json, os, pathlib, sys
+          gates = sorted(pathlib.Path(os.environ['GATE_DIR']).glob('*/gate_result.json'))
+          for g in reversed(gates):
+              r = json.loads(g.read_text())
+              if r.get('eval_passed') and r.get('safety_passed'):
+                  print(json.dumps(r)); sys.exit(0)
+          sys.exit(1)
+          " 2>/dev/null || true)
+          if [[ -z "$RESULT" ]]; then
+            echo "ERROR: No gate-passing run found for ${FT_PROJECT}."
+            echo "Run the ft-eval pipeline and ensure gate passes before building the serving image."
+            exit 1
+          fi
+          ADAPTER_REL=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['adapter_rel_path'])" <<< "$RESULT")
+          RUN_ID=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['run_id'])" <<< "$RESULT")
+          ADAPTER_PATH="${SHARED}/${ADAPTER_REL}"
+          echo "Using adapter from ${RUN_ID}: ${ADAPTER_PATH}"
+          echo "ADAPTER_PATH=${ADAPTER_PATH}" >> "$GITHUB_ENV"
+          echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
+
+      - name: Stage adapter into build context
+        run: |
+          rm -rf adapter/
+          cp -r "${ADAPTER_PATH}/" adapter/
+          echo "Staged adapter files:"
+          ls -lh adapter/
 
       - name: Set image URI
         id: image
@@ -91,7 +185,7 @@ jobs:
           IMAGE_URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}"
           COMMIT_SHA="${{ github.sha }}"
           echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
-          echo "tag=${COMMIT_SHA::8}" >> "$GITHUB_OUTPUT"
+          echo "tag=${RUN_ID}-${COMMIT_SHA::8}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         run: |
@@ -106,6 +200,10 @@ jobs:
           docker push "${IMAGE_URI}:${TAG}"
           echo "Pushed ${IMAGE_URI}:${TAG}"
 
+      - name: Clean up staged adapter
+        if: always()
+        run: rm -rf adapter/
+
       - name: Summary
         run: |
           {
@@ -114,5 +212,6 @@ jobs:
             echo "|---|---|"
             echo "| Project | \`$PROJECT_NAME\` |"
             echo "| Registry | GHCR |"
+            echo "| FT Run | \`${RUN_ID}\` |"
             echo "| Image | \`${{ steps.image.outputs.uri }}:${{ steps.image.outputs.tag }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

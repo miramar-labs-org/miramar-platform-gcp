@@ -8,10 +8,10 @@
 
 | File                       | Purpose                                                                                               |
 | -------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `serving-config.yaml`      | Project config — base model, stable alias, adapter manifest URI, vLLM settings                        |
-| `Dockerfile.serve`         | Thin image (no model baked in) — model and adapter are injected at runtime                            |
-| `k8s/vllm.yaml`            | GKE manifest — namespace, deployment (init container + vLLM), ClusterIP service                       |
-| `k8s/vllm-k3s.yaml`        | K3s manifest — deployment (hostPath adapter, no init container), ClusterIP service                    |
+| `serving-config.yaml`      | Project config — base model, stable alias, adapter source (ft_project), vLLM settings                |
+| `Dockerfile.serve`         | Thin image — adapter baked in at `/adapter/` at build time; base model fetched from HF Hub at runtime |
+| `k8s/vllm.yaml`            | GKE manifest — namespace, deployment (vLLM), ClusterIP service                                       |
+| `k8s/vllm-k3s.yaml`        | K3s manifest — deployment (vLLM, GHCR image pull), ClusterIP service                                 |
 | `smoke_test_prompts.jsonl` | 3–5 prompts to run after deploy to confirm model is responding                                        |
 
 ## GPU cost
@@ -22,31 +22,39 @@ On K3s (DGX/AGX), there is no node pool cost — but the GPU is occupied while t
 
 ## Workflows
 
-| Workflow          | Inputs                                              | Effect                                                                      |
-| ----------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
-| `build-push.yaml` | `host` (gke\|dgx\|agx, default: dgx)               | Build `Dockerfile.serve` → push to GAR (gke) or GHCR (dgx/agx) as `:latest` + SHA |
-| `deploy.yaml`     | `host` (gke\|dgx\|agx, default: dgx), `image_tag`, `manifest_uri` | Deploy vLLM to target host (registry inferred from host), run smoke tests |
-| `undeploy.yaml`   | `host` (gke\|dgx\|agx, default: dgx)               | Remove deployment; GKE also restores GPU node pool                          |
+| Workflow          | Inputs                                              | Effect                                                                                    |
+| ----------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `build-push.yaml` | `host` (gke\|dgx\|agx, default: dgx)               | Find latest gate-passing run from `ft_project`, bake adapter into image, push to registry |
+| `deploy.yaml`     | `host` (gke\|dgx\|agx, default: dgx), `image_tag`  | Deploy vLLM to target host (registry inferred from host), run smoke tests                 |
+| `undeploy.yaml`   | `host` (gke\|dgx\|agx, default: dgx)               | Remove deployment; GKE also restores GPU node pool                                        |
 
-Run order: `build-push.yaml` (once, or on Dockerfile changes) → `deploy.yaml` → `undeploy.yaml`.
+Run order: `build-push.yaml` (once after ft-eval gate passes, or on Dockerfile changes) → `deploy.yaml` → `undeploy.yaml`.
 
-## Adapter manifest
+## Adapter source
 
-The `manifest_uri` in `serving-config.yaml` points to a `manifest.json` produced by the `publish-adapter.yaml`
-workflow in the fine-tuning project. The deploy workflow validates `eval_passed` and `safety_passed` from
-the manifest — deploy will fail if either is false.
+The adapter is baked into the Docker image at build time — it is not pulled at runtime.
 
-To serve a different run's adapter, update `adapter.manifest_uri` in `serving-config.yaml` and re-run `deploy.yaml`.
+`build-push.yaml` reads `adapter.ft_project` from `serving-config.yaml`, then scans
+`~/shared/huggingface-kfp/runs/<ft_project>/*/gate_result.json` (via SMB on the wsl2 runner)
+for the most recent run where `eval_passed == true` and `safety_passed == true`. It copies
+that adapter into the Docker build context and runs `docker build`, producing an image that
+contains the adapter at `/adapter/`.
+
+The image tag encodes the ft run: `<run_id>-<commit_sha[:8]>` (e.g. `run-001-a1b2c3d4`).
+
+If no gate-passing run exists, `build-push.yaml` fails with a clear error. Run the ft-eval
+pipeline and wait for the gate to pass before building the serving image.
 
 ## Stable model alias
 
-Clients always use the stable `served_model_name` alias (e.g. `biomistral-onc`), never the raw model path.
+Clients always use the stable `served_model_name` alias (e.g. `qwen25-arc`), never the raw model path.
 This allows swapping adapters or base models without changing client code.
 
 ## Cold-start time
 
 First deploy downloads the base model from HuggingFace Hub into the pod's `/tmp/hf-cache` volume.
 This takes **5–10 minutes** depending on model size and network conditions.
+The adapter is already in the image at `/adapter/` — no additional download needed at startup.
 Subsequent deploys within the same node lifecycle reuse the downloaded weights.
 
 ## Port-forward access (local testing)
@@ -68,19 +76,13 @@ On K3s (DGX/AGX), run this on the DGX/AGX host or forward through an SSH tunnel.
 
 ## Adapter swap procedure
 
-To serve a different adapter (e.g. run-002 after run-001):
+To serve a different adapter (e.g. after a new ft-eval run passes the gate):
 
-1. Run `publish-adapter.yaml` on the FT project for the new run
-2. Update `serving-config.yaml`:
-   ```yaml
-   adapter:
-     manifest_uri: gs://miramar-platform-ft-adapters/<project>/<run>/manifest.json
-   ```
-3. Commit and push
-4. Run `deploy.yaml` (a new rollout replaces the running pod)
+1. Run `build-push.yaml` — it automatically finds the latest gate-passing run and bakes it in
+2. Run `deploy.yaml` with the new image tag (or use `latest`)
 
-On GKE, the init container re-fetches the manifest and pulls the new adapter on startup.
-On K3s, the deploy workflow pre-fetches the adapter to `/tmp/vllm-adapters/{{PROJECT_NAME}}/` on the host.
+No config edits needed — `build-push.yaml` always picks the latest passing run automatically.
+To pin a specific run, pass a specific image tag to `deploy.yaml`.
 
 ## Namespace
 
