@@ -20,7 +20,6 @@ spec:
       labels:
         name: nvidia-device-plugin-ds
     spec:
-      runtimeClassName: runc
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists
