@@ -101,7 +101,18 @@ def main():
                 _exp_id = _mlflow_api("POST", "/experiments/create", {"name": pipeline_name})["experiment_id"]
             except _uerr.HTTPError as _e:
                 if _e.code == 400:
-                    _exp_id = _mlflow_api("GET", f"/experiments/get-by-name?experiment_name={pipeline_name}")["experiment"]["experiment_id"]
+                    _exp = _mlflow_api("GET", f"/experiments/get-by-name?experiment_name={pipeline_name}").get("experiment")
+                    if _exp:
+                        _exp_id = _exp["experiment_id"]
+                    else:
+                        # Soft-deleted — restore it so the run can log to it
+                        _all = _mlflow_api("POST", "/experiments/search", {"max_results": 200, "view_type": "DELETED_ONLY"})
+                        _match = [e for e in _all.get("experiments", []) if e["name"] == pipeline_name]
+                        if _match:
+                            _exp_id = _match[0]["experiment_id"]
+                            _mlflow_api("POST", "/experiments/restore", {"experiment_id": _exp_id})
+                        else:
+                            raise
                 else:
                     raise
             _mlflow_api("POST", "/experiments/set-experiment-tag",

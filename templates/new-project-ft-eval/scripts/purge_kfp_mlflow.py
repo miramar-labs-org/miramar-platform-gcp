@@ -124,32 +124,24 @@ def purge_argo_workflows():
 
 
 def purge_mlflow():
-    """Delete all MLflow runs for this project; preserve the experiment container.
-
-    Deleting the experiment with MLflow's soft-delete leaves it in a state where
-    mlflow.set_experiment() raises "cannot set a deleted experiment" on the next
-    run. The experiment is a stable named scope — only its runs need purging.
-    If the experiment is soft-deleted, restore it so the next run can use it.
-    """
+    """Delete all MLflow runs and the experiment container for this project."""
     ename = urllib.parse.quote(PIPELINE_NAME, safe="")
     resp = mlflow_api("GET", f"/experiments/get-by-name?experiment_name={ename}")
     exp = resp.get("experiment")
     if not exp:
-        # Check if it exists but is soft-deleted
+        # Check if already soft-deleted
         all_resp = mlflow_api("POST", "/experiments/search",
                               {"max_results": 200, "view_type": "DELETED_ONLY"})
-        deleted = [e for e in all_resp.get("experiments", [])
-                   if e["name"] == PIPELINE_NAME]
-        if deleted:
-            eid = deleted[0]["experiment_id"]
-            mlflow_api("POST", "/experiments/restore", {"experiment_id": eid})
-            print(f"  Restored soft-deleted MLflow experiment (id={eid})")
-            exp = deleted[0]
-        else:
+        deleted_exps = [e for e in all_resp.get("experiments", [])
+                        if e["name"] == PIPELINE_NAME]
+        if not deleted_exps:
             print("  No MLflow experiment found — nothing to delete.")
             return
+        # Already soft-deleted — nothing more to do
+        print(f"  MLflow experiment already deleted.")
+        return
     eid = exp["experiment_id"]
-    deleted = 0
+    n_runs = 0
     page_token = None
     while True:
         body = {"experiment_ids": [eid], "max_results": 1000}
@@ -158,11 +150,12 @@ def purge_mlflow():
         runs_resp = mlflow_api("POST", "/runs/search", body)
         for run in runs_resp.get("runs", []):
             mlflow_api("POST", "/runs/delete", {"run_id": run["info"]["run_id"]})
-            deleted += 1
+            n_runs += 1
         page_token = runs_resp.get("next_page_token")
         if not page_token:
             break
-    print(f"  Deleted {deleted} MLflow run(s) (experiment container preserved)")
+    mlflow_api("POST", "/experiments/delete", {"experiment_id": eid})
+    print(f"  Deleted {n_runs} MLflow run(s) and experiment: {PIPELINE_NAME}")
 
 
 print(f"Purging KFP state for '{PIPELINE_NAME}'...")
