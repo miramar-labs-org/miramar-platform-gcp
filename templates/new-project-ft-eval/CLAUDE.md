@@ -36,6 +36,8 @@ Full docs: [miramar-platform-gcp/docs/kfp-skills.md](https://github.com/miramar-
 
 ## Editing config.yaml
 
+**`eval.system_message` — HARD RULE:** copy this VERBATIM from the model card or technical report for the specific model you are using. Do NOT invent a system prompt. An incorrect system message invalidates baseline accuracy — the delta between baseline and post-FT becomes meaningless.
+
 `config.yaml` drives the pipeline parameter defaults. After editing:
 
 1. Open `notebook.ipynb` and run the **Build → `pipeline.py`** cell (notebook imports config at pipeline cell run time)
