@@ -20,6 +20,7 @@ spec:
       labels:
         name: nvidia-device-plugin-ds
     spec:
+      runtimeClassName: runc
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists
@@ -35,13 +36,7 @@ spec:
           volumeMounts:
             - name: device-plugin
               mountPath: /var/lib/kubelet/device-plugins
-            - name: nvidia-libs
-              mountPath: /usr/lib/aarch64-linux-gnu
-              readOnly: true
       volumes:
         - name: device-plugin
           hostPath:
             path: /var/lib/kubelet/device-plugins
-        - name: nvidia-libs
-          hostPath:
-            path: /usr/lib/aarch64-linux-gnu
