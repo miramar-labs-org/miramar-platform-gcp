@@ -1,10 +1,17 @@
 name: Undeploy
 
-# Removes the vLLM deployment from GKE and tears down the GPU node pool.
-# Always run this after testing to stop GPU costs (~$0.22/hr for L4 spot).
+# Removes the vLLM deployment from GKE (and tears down the GPU node pool) or K3s on DGX/AGX.
+# Always run this after testing to stop GPU costs (GKE ~$0.22/hr for L4 spot) or free GPU memory (K3s).
 
 on:
   workflow_dispatch:
+    inputs:
+      host:
+        description: Deployment target to undeploy (gke, dgx, agx)
+        required: false
+        default: gke
+        type: choice
+        options: [gke, dgx, agx]
 
 permissions:
   contents: read
@@ -17,7 +24,8 @@ env:
   GKE_ZONE: ${{ vars.GKE_ZONE }}
 
 jobs:
-  undeploy:
+  undeploy-gke:
+    if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +73,71 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "## Undeploy: $PROJECT_NAME"
+            echo "## Undeploy: $PROJECT_NAME (GKE)"
             echo "vLLM deployment removed. GPU node pool restore triggered."
             echo "GPU costs stopped."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  undeploy-dgx:
+    if: inputs.host == 'dgx'
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Delete deployment
+        run: |
+          kubectl delete deployment vllm -n "$PROJECT_NAME" --ignore-not-found
+          kubectl delete service vllm -n "$PROJECT_NAME" --ignore-not-found
+          echo "Deployment removed."
+
+      - name: Remove adapter files
+        run: |
+          rm -rf "/tmp/vllm-adapters/${PROJECT_NAME}/"
+          echo "Adapter files removed."
+
+      - name: Clear serving state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_SERVING_ACTIVE" \
+            -f value="false" 2>/dev/null || true
+
+      - name: Summary
+        run: |
+          {
+            echo "## Undeploy: $PROJECT_NAME (DGX K3s)"
+            echo "vLLM deployment removed. Adapter files cleaned. GPU memory freed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  undeploy-agx:
+    if: inputs.host == 'agx'
+    runs-on: [self-hosted, agx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Delete deployment
+        run: |
+          kubectl delete deployment vllm -n "$PROJECT_NAME" --ignore-not-found
+          kubectl delete service vllm -n "$PROJECT_NAME" --ignore-not-found
+          echo "Deployment removed."
+
+      - name: Remove adapter files
+        run: |
+          rm -rf "/tmp/vllm-adapters/${PROJECT_NAME}/"
+          echo "Adapter files removed."
+
+      - name: Clear serving state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_SERVING_ACTIVE" \
+            -f value="false" 2>/dev/null || true
+
+      - name: Summary
+        run: |
+          {
+            echo "## Undeploy: $PROJECT_NAME (AGX K3s)"
+            echo "vLLM deployment removed. Adapter files cleaned. GPU memory freed."
           } >> "$GITHUB_STEP_SUMMARY"

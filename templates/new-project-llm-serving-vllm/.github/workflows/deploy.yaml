@@ -1,14 +1,25 @@
 name: Deploy
 
-# Expands a GPU node pool (L4 spot), deploys the vLLM serving pod to GKE,
-# and runs smoke tests from smoke_test_prompts.jsonl.
-# Run undeploy.yaml when done to tear down the GPU pool and stop costs.
+# Deploys the vLLM serving pod to GKE (L4 spot) or K3s on DGX/AGX.
+# Run undeploy.yaml when done to stop costs (GKE) or free GPU memory (K3s).
 
 on:
   workflow_dispatch:
     inputs:
+      host:
+        description: Deployment target (gke, dgx, agx)
+        required: false
+        default: gke
+        type: choice
+        options: [gke, dgx, agx]
+      registry:
+        description: Image registry (gar=GAR, ghcr=GHCR); GKE always uses GAR
+        required: false
+        default: gar
+        type: choice
+        options: [gar, ghcr]
       image_tag:
-        description: GAR image tag to deploy (default: latest)
+        description: Image tag to deploy (default: latest)
         required: false
         default: latest
       manifest_uri:
@@ -28,7 +39,8 @@ env:
   GAR_REPO: ${{ vars.GAR_REPO }}
 
 jobs:
-  deploy:
+  deploy-gke:
+    if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +93,6 @@ jobs:
           print(f\"  base_model_id: {m['base_model_id']}\")
           print(f\"  adapter_uri:   {m['adapter_uri']}\")
           "
-          # Export for later steps
           python3 -c "
           import json
           with open('/tmp/manifest.json') as f:
@@ -149,7 +160,6 @@ jobs:
               cfg = yaml.safe_load(f)
           print(cfg['model']['served_model_name'])
           ")
-          # Strip namespace doc (prevents re-apply conflict), substitute placeholders
           grep -v '^kind: Namespace' k8s/vllm.yaml \
             | grep -v '^  name: {{PROJECT_NAME}}$' \
             | grep -v '^apiVersion: v1$' \
@@ -165,7 +175,6 @@ jobs:
 
       - name: Smoke test
         run: |
-          # Port-forward in background
           kubectl port-forward svc/vllm 18000:8000 -n "$PROJECT_NAME" &
           PF_PID=$!
           sleep 5
@@ -178,7 +187,6 @@ jobs:
           print(cfg['model']['served_model_name'])
           ")
 
-          # Models endpoint
           curl -sf http://localhost:18000/v1/models | python3 -c "
           import json,sys
           d=json.load(sys.stdin)
@@ -186,7 +194,6 @@ jobs:
           print('Models:', models)
           "
 
-          # Run prompts from smoke_test_prompts.jsonl
           PASS=0; FAIL=0
           while IFS= read -r line; do
             [[ -z "$line" ]] && continue
@@ -223,7 +230,369 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Deploy: $PROJECT_NAME"
+            echo "## Deploy: $PROJECT_NAME (GKE)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Manifest | \`${{ steps.manifest.outputs.uri }}\` |"
+            echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-dgx:
+    if: inputs.host == 'dgx'
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve manifest URI
+        id: manifest
+        run: |
+          MANIFEST_URI="${{ inputs.manifest_uri }}"
+          if [[ -z "$MANIFEST_URI" ]]; then
+            MANIFEST_URI=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['adapter']['manifest_uri'])
+          ")
+          fi
+          if [[ -z "$MANIFEST_URI" ]]; then
+            echo "ERROR: manifest_uri not set in serving-config.yaml and not provided as input."
+            exit 1
+          fi
+          echo "uri=$MANIFEST_URI" >> "$GITHUB_OUTPUT"
+          echo "Manifest URI: $MANIFEST_URI"
+
+      - name: Validate manifest
+        run: |
+          MANIFEST_URI="${{ steps.manifest.outputs.uri }}"
+          gsutil cp "$MANIFEST_URI" /tmp/manifest.json
+          python3 -c "
+          import json, sys
+          with open('/tmp/manifest.json') as f:
+              m = json.load(f)
+          errors = []
+          if not m.get('eval_passed'):
+              errors.append('eval_passed is not true')
+          if not m.get('safety_passed'):
+              errors.append('safety_passed is not true')
+          if errors:
+              print('MANIFEST VALIDATION FAILED:', '; '.join(errors))
+              sys.exit(1)
+          print(f\"Manifest valid: {m['project']} / {m['run_id']}\")
+          print(f\"  base_model_id: {m['base_model_id']}\")
+          print(f\"  adapter_uri:   {m['adapter_uri']}\")
+          "
+          python3 -c "
+          import json
+          with open('/tmp/manifest.json') as f:
+              m = json.load(f)
+          print(f\"BASE_MODEL_ID={m['base_model_id']}\")
+          print(f\"ADAPTER_URI={m['adapter_uri']}\")
+          " >> "$GITHUB_ENV"
+
+      - name: Pull adapter to host
+        run: |
+          mkdir -p "/tmp/vllm-adapters/${PROJECT_NAME}"
+          gsutil -m cp -r "${ADAPTER_URI}/*" "/tmp/vllm-adapters/${PROJECT_NAME}/"
+          echo "Adapter files:"
+          ls -lh "/tmp/vllm-adapters/${PROJECT_NAME}/"
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Ensure HF_TOKEN secret
+        run: |
+          kubectl create secret generic hf-token \
+            --from-literal=token="${{ secrets.HF_TOKEN }}" \
+            -n "$PROJECT_NAME" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Ensure GHCR pull secret
+        run: |
+          kubectl create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username=miramar-labs-org \
+            --docker-password="${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
+            -n "$PROJECT_NAME" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Build image URI
+        id: image_uri
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          if [[ "${{ inputs.registry }}" == "ghcr" ]]; then
+            URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}:${TAG}"
+          else
+            URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}:${TAG}"
+          fi
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      - name: Substitute and apply K3s manifest
+        run: |
+          SERVED_MODEL_NAME=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['model']['served_model_name'])
+          ")
+          sed "s|GHCR_IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm-k3s.yaml \
+            | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
+            | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | kubectl apply -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/vllm 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          SERVED_MODEL_NAME=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['model']['served_model_name'])
+          ")
+
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          models=[m['id'] for m in d.get('data',[])]
+          print('Models:', models)
+          "
+
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"${SERVED_MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}],\"max_tokens\":100}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'][:80])" 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="DGX_SERVING_ACTIVE" -f value="true"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME (DGX K3s)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Manifest | \`${{ steps.manifest.outputs.uri }}\` |"
+            echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-agx:
+    if: inputs.host == 'agx'
+    runs-on: [self-hosted, agx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve manifest URI
+        id: manifest
+        run: |
+          MANIFEST_URI="${{ inputs.manifest_uri }}"
+          if [[ -z "$MANIFEST_URI" ]]; then
+            MANIFEST_URI=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['adapter']['manifest_uri'])
+          ")
+          fi
+          if [[ -z "$MANIFEST_URI" ]]; then
+            echo "ERROR: manifest_uri not set in serving-config.yaml and not provided as input."
+            exit 1
+          fi
+          echo "uri=$MANIFEST_URI" >> "$GITHUB_OUTPUT"
+          echo "Manifest URI: $MANIFEST_URI"
+
+      - name: Validate manifest
+        run: |
+          MANIFEST_URI="${{ steps.manifest.outputs.uri }}"
+          gsutil cp "$MANIFEST_URI" /tmp/manifest.json
+          python3 -c "
+          import json, sys
+          with open('/tmp/manifest.json') as f:
+              m = json.load(f)
+          errors = []
+          if not m.get('eval_passed'):
+              errors.append('eval_passed is not true')
+          if not m.get('safety_passed'):
+              errors.append('safety_passed is not true')
+          if errors:
+              print('MANIFEST VALIDATION FAILED:', '; '.join(errors))
+              sys.exit(1)
+          print(f\"Manifest valid: {m['project']} / {m['run_id']}\")
+          print(f\"  base_model_id: {m['base_model_id']}\")
+          print(f\"  adapter_uri:   {m['adapter_uri']}\")
+          "
+          python3 -c "
+          import json
+          with open('/tmp/manifest.json') as f:
+              m = json.load(f)
+          print(f\"BASE_MODEL_ID={m['base_model_id']}\")
+          print(f\"ADAPTER_URI={m['adapter_uri']}\")
+          " >> "$GITHUB_ENV"
+
+      - name: Pull adapter to host
+        run: |
+          mkdir -p "/tmp/vllm-adapters/${PROJECT_NAME}"
+          gsutil -m cp -r "${ADAPTER_URI}/*" "/tmp/vllm-adapters/${PROJECT_NAME}/"
+          echo "Adapter files:"
+          ls -lh "/tmp/vllm-adapters/${PROJECT_NAME}/"
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Ensure HF_TOKEN secret
+        run: |
+          kubectl create secret generic hf-token \
+            --from-literal=token="${{ secrets.HF_TOKEN }}" \
+            -n "$PROJECT_NAME" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Ensure GHCR pull secret
+        run: |
+          kubectl create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username=miramar-labs-org \
+            --docker-password="${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
+            -n "$PROJECT_NAME" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Build image URI
+        id: image_uri
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          if [[ "${{ inputs.registry }}" == "ghcr" ]]; then
+            URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}:${TAG}"
+          else
+            URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}:${TAG}"
+          fi
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      - name: Substitute and apply K3s manifest
+        run: |
+          SERVED_MODEL_NAME=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['model']['served_model_name'])
+          ")
+          sed "s|GHCR_IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm-k3s.yaml \
+            | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
+            | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | kubectl apply -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/vllm 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          SERVED_MODEL_NAME=$(python3 -c "
+          import yaml
+          with open('serving-config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['model']['served_model_name'])
+          ")
+
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          models=[m['id'] for m in d.get('data',[])]
+          print('Models:', models)
+          "
+
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"${SERVED_MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}],\"max_tokens\":100}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'][:80])" 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="AGX_SERVING_ACTIVE" -f value="true"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME (AGX K3s)"
             echo "| | |"
             echo "|---|---|"
             echo "| Manifest | \`${{ steps.manifest.outputs.uri }}\` |"

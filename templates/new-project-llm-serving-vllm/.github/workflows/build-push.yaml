@@ -1,14 +1,22 @@
 name: Build and Push
 
-# Builds the vLLM serving image (amd64 for GKE) and pushes to GAR.
+# Builds the vLLM serving image and pushes to GAR (for GKE) or GHCR (for K3s on DGX/AGX).
 # Run this once before the first deploy, and again only when Dockerfile.serve changes.
 
 on:
   workflow_dispatch:
+    inputs:
+      registry:
+        description: Image registry (gar=GAR/GKE, ghcr=GHCR/K3s)
+        required: false
+        default: gar
+        type: choice
+        options: [gar, ghcr]
 
 permissions:
   contents: read
   id-token: write
+  packages: write
 
 env:
   PROJECT_NAME: {{PROJECT_NAME}}
@@ -17,7 +25,8 @@ env:
   GAR_REPO: ${{ vars.GAR_REPO }}
 
 jobs:
-  build-push:
+  build-push-gar:
+    if: inputs.registry == 'gar'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,5 +71,47 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Project | \`$PROJECT_NAME\` |"
+            echo "| Registry | GAR |"
+            echo "| Image | \`${{ steps.image.outputs.uri }}:${{ steps.image.outputs.tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-push-ghcr:
+    if: inputs.registry == 'ghcr'
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Set image URI
+        id: image
+        run: |
+          IMAGE_URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}"
+          COMMIT_SHA="${{ github.sha }}"
+          echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+          echo "tag=${COMMIT_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          IMAGE_URI="${{ steps.image.outputs.uri }}"
+          TAG="${{ steps.image.outputs.tag }}"
+          docker build \
+            --cache-from "${IMAGE_URI}:latest" \
+            -t "${IMAGE_URI}:latest" \
+            -t "${IMAGE_URI}:${TAG}" \
+            -f Dockerfile.serve .
+          docker push "${IMAGE_URI}:latest"
+          docker push "${IMAGE_URI}:${TAG}"
+          echo "Pushed ${IMAGE_URI}:${TAG}"
+
+      - name: Summary
+        run: |
+          {
+            echo "## Build and Push Complete"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Project | \`$PROJECT_NAME\` |"
+            echo "| Registry | GHCR |"
             echo "| Image | \`${{ steps.image.outputs.uri }}:${{ steps.image.outputs.tag }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

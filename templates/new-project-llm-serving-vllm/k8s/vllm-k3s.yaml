@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: {{PROJECT_NAME}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: vllm
+          image: GHCR_IMAGE_PLACEHOLDER
+          args:
+            - --model=BASE_MODEL_ID_PLACEHOLDER
+            - --served-model-name=SERVED_MODEL_NAME_PLACEHOLDER
+            - --enable-lora
+            - --lora-modules
+            - SERVED_MODEL_NAME_PLACEHOLDER=/adapter
+            - --max-lora-rank=16
+            - --dtype=bfloat16
+            - --gpu-memory-utilization=0.90
+            - --max-model-len=2048
+            - --host=0.0.0.0
+            - --port=8000
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+            - name: HF_HOME
+              value: /tmp/hf-cache
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: adapter
+              mountPath: /adapter
+            - name: hf-cache
+              mountPath: /tmp/hf-cache
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - name: adapter
+          hostPath:
+            path: /tmp/vllm-adapters/{{PROJECT_NAME}}
+            type: DirectoryOrCreate
+        - name: hf-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm
+  namespace: {{PROJECT_NAME}}
+spec:
+  type: ClusterIP
+  selector:
+    app: vllm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
