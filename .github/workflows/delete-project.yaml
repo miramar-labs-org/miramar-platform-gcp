@@ -1,7 +1,8 @@
 name: Delete Project
 
 # Permanently deletes a miramar-labs-org repository created by the Create Project workflow.
-# Also cleans up: blog draft PR/branch, local clone on host, JupyterLab kernel.
+# Also cleans up: blog draft PR/branch, local clone on host, JupyterLab kernel,
+# shared HF adapter cache, K3s adapter host path, K3s containerd images, GHCR package.
 #
 # Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) — requires
 # delete_repo scope which GITHUB_TOKEN does not have.
@@ -134,6 +135,21 @@ jobs:
               git -C "${BLOG_DIR}" pull --ff-only origin main 2>/dev/null || true
               echo "Blog local clone reset to main"
             fi
+            SHARED_ADAPTERS="${HOME}/shared/huggingface-kfp/adapters/${PROJECT_NAME}"
+            if [ -d "${SHARED_ADAPTERS}" ]; then
+              rm -rf "${SHARED_ADAPTERS}"
+              echo "Removed shared HF adapters: ${SHARED_ADAPTERS}"
+            fi
+            K3S_ADAPTERS="/tmp/vllm-adapters/${PROJECT_NAME}"
+            if [ -d "${K3S_ADAPTERS}" ]; then
+              rm -rf "${K3S_ADAPTERS}"
+              echo "Removed K3s adapter cache: ${K3S_ADAPTERS}"
+            fi
+            K3S_IMAGES=$(sudo k3s ctr images ls -q 2>/dev/null | grep "${PROJECT_NAME}" || true)
+            if [ -n "${K3S_IMAGES}" ]; then
+              echo "${K3S_IMAGES}" | xargs sudo k3s ctr images rm 2>/dev/null || true
+              echo "Removed K3s images for ${PROJECT_NAME}"
+            fi
         run: |
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "WARNING: no SSH key — skipping host cleanup" >&2
@@ -143,6 +159,26 @@ jobs:
             | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
                 "${HOST_USER}@${HOST_ADDR:-localhost}" \
                 env PROJECT_NAME="${PROJECT_NAME}" bash
+
+      - name: Delete GHCR package
+        continue-on-error: true
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          VERSIONS=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            "orgs/miramar-labs-org/packages/container/${PROJECT_NAME}/versions" \
+            --jq '.[].id' 2>/dev/null || true)
+          if [ -n "${VERSIONS}" ]; then
+            while IFS= read -r version_id; do
+              GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+                "orgs/miramar-labs-org/packages/container/${PROJECT_NAME}/versions/${version_id}" \
+                2>/dev/null || true
+            done <<< "${VERSIONS}"
+            echo "Deleted GHCR package: ghcr.io/miramar-labs-org/${PROJECT_NAME}"
+          else
+            echo "No GHCR package found for ${PROJECT_NAME} (skip)"
+          fi
 
       - name: Summary
         env:
@@ -158,6 +194,10 @@ jobs:
             echo "| Blog draft | closed + branch deleted |"
             echo "| Local clone | removed from \`~/git-miramar-labs-org/projects/${PROJECT_NAME}\` |"
             echo "| Kernel | unregistered from JupyterLab |"
+            echo "| HF adapter cache | removed from \`~/shared/huggingface-kfp/adapters/${PROJECT_NAME}\` |"
+            echo "| K3s adapter cache | removed from \`/tmp/vllm-adapters/${PROJECT_NAME}\` |"
+            echo "| K3s images | removed from containerd image store |"
+            echo "| GHCR package | \`ghcr.io/miramar-labs-org/${PROJECT_NAME}\` deleted |"
             echo ""
             echo "The platform dashboard will refresh within minutes."
           } >> "$GITHUB_STEP_SUMMARY"
