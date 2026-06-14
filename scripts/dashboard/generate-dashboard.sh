@@ -42,7 +42,7 @@ ROWS=""
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-kfp-ft-eval") then "kfp-ft-eval" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-llm-serving-vllm") then "vllm-gcp" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
@@ -53,13 +53,17 @@ while IFS= read -r repo_json; do
   [[ -z "$host" || "$host" == "null" ]] && host="dgx"
   host_html="<span class=\"badge badge-${host}\">${host}</span>"
 
-  # --- GCP serving state (llm-serving-vllm projects only) ---
-  serving_json=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-    "repos/${ORG}/${name}/actions/variables/GKE_SERVING_ACTIVE" 2>/dev/null) || serving_json="{}"
-  serving=$(printf '%s' "$serving_json" | jq -r '.value // empty')
-  if [[ "$type" == "vllm-gcp" ]]; then
+  # --- Serving state (serving-vllm projects only — check all three hosts) ---
+  if [[ "$type" == "serving-vllm" ]]; then
+    serving="false"
+    for svar in GKE_SERVING_ACTIVE DGX_SERVING_ACTIVE AGX_SERVING_ACTIVE; do
+      sval=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+        "repos/${ORG}/${name}/actions/variables/${svar}" \
+        --jq '.value // empty' 2>/dev/null || true)
+      [[ "$sval" == "true" ]] && serving="true" && break
+    done
     if [[ "$serving" == "true" ]]; then
-      serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed on GCP\">&#x25CF;</span>"
+      serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed\">&#x25CF;</span>"
     else
       serving_html="<span class=\"serving-dot serving-off\" title=\"Not deployed\">&#x25CF;</span>"
     fi
@@ -67,8 +71,8 @@ while IFS= read -r repo_json; do
     serving_html="<span class=\"serving-dot serving-off\" title=\"Not a serving project\">&#x25CF;</span>"
   fi
 
-  # --- Results link (kfp-ft-eval only: runs/RUNS.md) ---
-  if [[ "$type" == "kfp-ft-eval" ]]; then
+  # --- Results link (ft-eval only: runs/RUNS.md) ---
+  if [[ "$type" == "ft-eval" ]]; then
     results_html="<a href=\"https://github.com/${ORG}/${name}/blob/main/runs/RUNS.md\" target=\"_blank\" class=\"results-link\">&#x1F4CA; Runs</a>"
   else
     results_html="<span class=\"serving-none\">—</span>"
@@ -279,11 +283,11 @@ cat > "$OUTPUT" <<HTMLEOF
     border-radius: 2em; font-size: 0.75rem; font-weight: 600;
   }
   .badge-kfp          { background: #0c2d6b; color: #79c0ff; }
-  .badge-kfp-ft-eval  { background: #1a1a4f; color: #a78bfa; }
-  .badge-nemo     { background: #1a4731; color: #3fb950; }
-  .badge-other    { background: #2d2b00; color: #d29922; }
-  .badge-default  { background: #2d2b00; color: #d29922; }
-  .badge-vllm-gcp { background: #0c2a4a; color: #38bdf8; }
+  .badge-ft-eval      { background: #1a1a4f; color: #a78bfa; }
+  .badge-serving-vllm { background: #0c2a4a; color: #38bdf8; }
+  .badge-nemo         { background: #1a4731; color: #3fb950; }
+  .badge-other        { background: #2d2b00; color: #d29922; }
+  .badge-default      { background: #2d2b00; color: #d29922; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .badge-gcp      { background: #2a1f0a; color: #fbbf24; }
@@ -516,7 +520,8 @@ ${ROWS}
     <select id="np-type">
       <option value="default">default &mdash; generic notebook</option>
       <option value="kfp">kfp &mdash; Kubeflow pipeline stub</option>
-      <option value="kfp-ft-eval">kfp-ft-eval &mdash; KFP eval-first fine-tuning pipeline</option>
+      <option value="ft-eval">ft-eval &mdash; KFP eval-first fine-tuning pipeline</option>
+      <option value="serving-vllm">serving-vllm &mdash; vLLM LoRA adapter serving</option>
       <option value="nemo">nemo &mdash; NeMo training job</option>
     </select>
     <label class="modal-label" for="np-host">Host *</label>

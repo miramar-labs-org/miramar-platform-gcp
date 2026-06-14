@@ -10,7 +10,7 @@ on:
       host:
         description: Deployment target (gke, dgx, agx)
         required: false
-        default: gke
+        default: dgx
         type: choice
         options: [gke, dgx, agx]
       image_tag:

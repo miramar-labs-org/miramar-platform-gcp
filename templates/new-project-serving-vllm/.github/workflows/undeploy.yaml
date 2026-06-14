@@ -9,7 +9,7 @@ on:
       host:
         description: Deployment target to undeploy (gke, dgx, agx)
         required: false
-        default: gke
+        default: dgx
         type: choice
         options: [gke, dgx, agx]
 

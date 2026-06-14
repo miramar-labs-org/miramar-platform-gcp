@@ -10,7 +10,7 @@ on:
       host:
         description: Deployment target (determines registry — gke=GAR, dgx/agx=GHCR)
         required: false
-        default: gke
+        default: dgx
         type: choice
         options: [gke, dgx, agx]
 
