@@ -31,8 +31,8 @@ inference workloads across local GPU systems and cloud infrastructure.
 | Nsight Operator (DGX)                            | ✅ Done        | Helm (NGC devtools); UI port-forwarded at `:8889`                      |
 | Nsight Operator (AGX)                            | ✅ Done        | Inactive until AGX comes back online                                   |
 | Nsight Operator (GKE)                            | ✅ Done        | Auto-installed by Platform Create; no persistent port-forward          |
-| GKE Standard cluster                             | ✅ Done        | `e2-standard-4`, single node, `us-west1-b`                             |
-| GKE transient GPU pool                           | ✅ Done        | L4 on-demand (`g2-standard-8`), `us-west1-b`; expand/restore workflow pair |
+| GKE Standard cluster                             | ✅ Done        | `e2-standard-4`, single node, `us-east1-b`                             |
+| GKE transient GPU pool                           | ✅ Done        | L4 spot (`g2-standard-8`), `us-east1-b`; expand/restore workflow pair  |
 | kfp-ft-eval pipeline type                        | ✅ Done        | 6-step eval-first fine-tuning; config-driven; MLflow tracking          |
 | Adapter publish → GCS manifest                   | ✅ Done        | `publish-adapter.yaml`; `eval_passed` + `safety_passed` gate           |
 | vLLM LoRA adapter serving (GKE)                  | 🔄 In progress | `biomistral-7b-onc-llm-serving-vllm` first project; L4 spot            |
@@ -127,7 +127,7 @@ flowchart TD
     Hosted --> WIF[Workload Identity Federation]
     WIF --> GCP[GCP Project miramar-platform]
 
-    GCP --> GKE[GKE Standard Cluster us-west1-b]
+    GCP --> GKE[GKE Standard Cluster us-east1-b]
     GCP --> GAR[Artifact Registry]
     GCP --> GCS[GCS Buckets]
 
@@ -181,7 +181,7 @@ All services are reached via SSH tunnels from the laptop (Bitvise profiles in `w
 
 ### Cloud domain (GKE)
 
-GKE Standard cluster `miramar-shared-gke` in `us-west1-b`. Minimised for cost:
+GKE Standard cluster `miramar-shared-gke` in `us-east1-b`. Minimised for cost:
 single `e2-standard-4` node, no `LoadBalancer` services, no Cloud NAT.
 
 GPU workloads use a **transient L4 spot pool** (`g2-standard-8`, `nvidia-l4`):
