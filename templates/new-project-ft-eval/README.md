@@ -2,7 +2,7 @@
 
 [![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})  [![last run](https://img.shields.io/badge/last%20run-pending-lightgrey)](runs/RUNS.md)
 
-| ----------- | ---------------------------------------------------------------------- |
+| | |
 | ----------- | ---------------------------------------------------------------------- |
 | **Type**    | KFP v2 eval-first fine-tuning pipeline                                 |
 | **Model**   | [{{HF_MODEL_ID}}](https://huggingface.co/{{HF_MODEL_ID}})              |
