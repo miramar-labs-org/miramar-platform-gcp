@@ -4,8 +4,8 @@ name: Build and Push
 # Scans ~/shared/huggingface-kfp/runs/<ft_project>/ for the latest gate-passing run,
 # stages the adapter into the Docker build context, then builds and pushes.
 #
-# Both jobs run on wsl2 — it has SMB access to DGX shared storage where gate results live.
-# GKE images go to GAR; DGX/AGX images go to GHCR.
+# GAR job runs on wsl2 — SMB access to DGX shared storage, amd64 for GKE images.
+# GHCR job runs on dgx — native arm64, direct ~/shared/ access (no SMB needed).
 #
 # Run this after the ft-eval gate passes, and again if Dockerfile.serve changes.
 
@@ -130,7 +130,7 @@ jobs:
 
   build-push-ghcr:
     if: inputs.host == 'dgx' || inputs.host == 'agx'
-    runs-on: [self-hosted, wsl2]
+    runs-on: [self-hosted, dgx]
     steps:
       - uses: actions/checkout@v4
 
