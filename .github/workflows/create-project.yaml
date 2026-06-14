@@ -5,9 +5,9 @@ name: Create Project
 #
 # default          — generic notebook + platform endpoint reference
 # kfp              — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
-# kfp-ft-eval      — KFP v2 eval-first fine-tuning pipeline, config-driven 6-step scaffold
+# ft-eval      — KFP v2 eval-first fine-tuning pipeline, config-driven 6-step scaffold
 # nemo             — NeMo training job config, notebook, deploy/undeploy NeMo workflows
-# llm-serving-vllm — vLLM LoRA adapter serving on GKE (L4 spot); build-push/deploy/undeploy workflows
+# serving-vllm — vLLM LoRA adapter serving on GKE (L4 spot); build-push/deploy/undeploy workflows
 #
 # The host input sets which machine (dgx/agx) the project lives on:
 #   - controls which runner clones the repo on creation
@@ -25,7 +25,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, kfp-ft-eval, nemo, llm-serving-vllm]
+        options: [default, kfp, ft-eval, nemo, serving-vllm]
         default: default
         required: true
       host:
@@ -49,15 +49,15 @@ on:
         default: "ipykernel ipywidgets numpy pandas matplotlib seaborn scikit-learn tqdm transformers datasets huggingface_hub evaluate accelerate openai anthropic mlflow qdrant-client pyyaml requests python-dotenv nvidia-ml-py"
         required: false
       hf_model_id:
-        description: "HuggingFace model ID (kfp-ft-eval only, e.g. Qwen/Qwen2.5-7B-Instruct)"
+        description: "HuggingFace model ID (ft-eval only, e.g. Qwen/Qwen2.5-7B-Instruct)"
         default: "org/model"
         required: false
       hf_dataset_id:
-        description: "HuggingFace dataset ID (kfp-ft-eval only, e.g. allenai/ai2_arc)"
+        description: "HuggingFace dataset ID (ft-eval only, e.g. allenai/ai2_arc)"
         default: "org/dataset"
         required: false
       served_model_name:
-        description: "Stable model alias for the API (llm-serving-vllm only, e.g. biomistral-onc)"
+        description: "Stable model alias for the API (serving-vllm only, e.g. biomistral-onc)"
         default: "my-model"
         required: false
 
@@ -113,8 +113,8 @@ jobs:
           HOST: ${{ inputs.host }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          # llm-serving-vllm workloads run on GCP regardless of scaffolding runner
-          [[ "$PROJECT_TYPE" == "llm-serving-vllm" ]] && HOST="gcp"
+          # serving-vllm workloads run on GCP regardless of scaffolding runner
+          [[ "$PROJECT_TYPE" == "serving-vllm" ]] && HOST="gcp"
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
             -X PATCH "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
             -f value="${HOST}" 2>/dev/null || \
@@ -170,7 +170,7 @@ jobs:
           # (which would break the YAML block scalar).
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           WF="${ORG_URL}/actions/workflows"
-          if [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
+          if [ "${PROJECT_TYPE}" = "ft-eval" ]; then
             BADGE_2="[![Deploy to KFP](${WF}/deploy-to-kfp.yaml/badge.svg)](${WF}/deploy-to-kfp.yaml)"
             BADGE_3="[![Undeploy from KFP](${WF}/undeploy-from-kfp.yaml/badge.svg)](${WF}/undeploy-from-kfp.yaml)"
           elif [ "${PROJECT_TYPE}" = "kfp" ]; then
@@ -183,7 +183,7 @@ jobs:
             BADGE_3="[![Undeploy from NeMo](${WF}/undeploy-nemo.yaml/badge.svg)](${WF}/undeploy-nemo.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
-          elif [ "${PROJECT_TYPE}" = "llm-serving-vllm" ]; then
+          elif [ "${PROJECT_TYPE}" = "serving-vllm" ]; then
             BADGE_2="[![Build and Push](${WF}/build-push.yaml/badge.svg)](${WF}/build-push.yaml)"
             BADGE_3="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
             BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
@@ -195,7 +195,7 @@ jobs:
           # type-specific packages (kfp or nemo-microservices).
           REQS="${{ inputs.requirements }}"
           [[ "${PROJECT_TYPE}" = "kfp" ]] && REQS="${REQS} kfp>=2.0.0"
-          [[ "${PROJECT_TYPE}" = "kfp-ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes"
+          [[ "${PROJECT_TYPE}" = "ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes"
           [[ "${PROJECT_TYPE}" = "nemo" ]] && REQS="${REQS} nemo-microservices"
           printf '%s\n' ${REQS} > requirements.txt
 
@@ -313,18 +313,18 @@ jobs:
               "\`\`\`python" "# TODO: pipeline.py excerpt" "\`\`\`" "" \
               "## Results" "" "<!-- TODO: run results, metrics, KFP UI screenshots -->" "" \
               "## Next steps" "" "<!-- TODO -->")
-          elif [ "${PROJECT_TYPE}" = "llm-serving-vllm" ]; then
+          elif [ "${PROJECT_TYPE}" = "serving-vllm" ]; then
             CATS="miramar vllm serving gke"
             BODY=$(printf '%s\n' \
               "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
-              "**Platform:** GKE via [Miramar Platform](${DASHBOARD_URL})" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
               "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
               "## Serving stack" "" \
               "| | |" "|---|---|" \
               "| Base model | <!-- TODO --> |" \
               "| LoRA adapter | <!-- TODO: FT project + run --> |" \
               "| Inference engine | vLLM |" \
-              "| GPU | L4 spot (24 GB) |" \
+              "| Host | <!-- TODO: DGX Spark / AGX Orin / GKE L4 --> |" \
               "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
               "## Deployment" "" \
               "\`\`\`bash" \
@@ -335,7 +335,7 @@ jobs:
               "## Smoke test results" "" \
               "<!-- TODO: sample prompts and responses -->" "" \
               "## Next steps" "" "<!-- TODO -->")
-          elif [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
+          elif [ "${PROJECT_TYPE}" = "ft-eval" ]; then
             CATS="miramar kubeflow fine-tuning"
             BODY=$(printf '%s\n' \
               "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
@@ -449,7 +449,7 @@ jobs:
               echo "1. Edit \`pipeline.py\` to define your pipeline components"
               echo "2. Trigger **Deploy to KFP** to compile and submit a run"
               echo "3. Prerequisites: **Kubeflow Deploy** must be running on \`${HOST}\`"
-            elif [ "${PROJECT_TYPE}" = "kfp-ft-eval" ]; then
+            elif [ "${PROJECT_TYPE}" = "ft-eval" ]; then
               echo "### Next steps"
               echo "1. Edit \`config.yaml\` — set model ID, datasets, thresholds, and judge prompt"
               echo "2. Edit \`formatters.py\` — add one formatter per dataset, register in \`FORMATTERS\`"
@@ -458,12 +458,12 @@ jobs:
               echo "5. Run the **Build → \`pipeline.py\`** cell"
               echo "6. Trigger **Deploy to KFP** to compile and submit a run"
               echo "7. Prerequisites: **Kubeflow Deploy** must be running on \`${HOST}\`"
-            elif [ "${PROJECT_TYPE}" = "llm-serving-vllm" ]; then
+            elif [ "${PROJECT_TYPE}" = "serving-vllm" ]; then
               echo "### Next steps"
               echo "1. Set \`adapter.manifest_uri\` in \`serving-config.yaml\` — run \`publish-adapter.yaml\` on the FT project first"
-              echo "2. Trigger **Build and Push** to build and push the serving image to GAR"
-              echo "3. Trigger **Deploy** to expand L4 spot GPU pool, start vLLM, and run smoke tests"
-              echo "4. Trigger **Undeploy** when done to stop GPU costs"
+              echo "2. Trigger **Build and Push** with \`host=dgx\` (GHCR) or \`host=gke\` (GAR)"
+              echo "3. Trigger **Deploy** with \`host=dgx|agx\` (K3s) or \`host=gke\` (L4 spot)"
+              echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
               echo ""
               echo "Prerequisites: \`gcp-platform-create.yaml\` must have run to provision \`gs://miramar-platform-ft-adapters\`"
             else

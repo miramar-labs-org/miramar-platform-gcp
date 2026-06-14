@@ -24,11 +24,9 @@ On K3s (DGX/AGX), there is no node pool cost — but the GPU is occupied while t
 
 | Workflow          | Inputs                                              | Effect                                                                      |
 | ----------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
-| `build-push.yaml` | `registry` (gar\|ghcr, default: gar)               | Build `Dockerfile.serve` → push to GAR (gar) or GHCR (ghcr) as `:latest` + SHA |
-| `deploy.yaml`     | `host` (gke\|dgx\|agx, default: gke), `registry` (gar\|ghcr, default: gar), `image_tag`, `manifest_uri` | Deploy vLLM to target host, run smoke tests |
+| `build-push.yaml` | `host` (gke\|dgx\|agx, default: gke)               | Build `Dockerfile.serve` → push to GAR (gke) or GHCR (dgx/agx) as `:latest` + SHA |
+| `deploy.yaml`     | `host` (gke\|dgx\|agx, default: gke), `image_tag`, `manifest_uri` | Deploy vLLM to target host (registry inferred from host), run smoke tests |
 | `undeploy.yaml`   | `host` (gke\|dgx\|agx, default: gke)               | Remove deployment; GKE also restores GPU node pool                          |
-
-**Registry mapping:** use `registry=gar` with `host=gke`; use `registry=ghcr` with `host=dgx` or `host=agx`.
 
 Run order: `build-push.yaml` (once, or on Dockerfile changes) → `deploy.yaml` → `undeploy.yaml`.
 

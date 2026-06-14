@@ -1,6 +1,7 @@
 name: Deploy
 
-# Deploys the vLLM serving pod to GKE (L4 spot) or K3s on DGX/AGX.
+# Deploys the vLLM serving pod to GKE (L4 spot, GAR image) or K3s on DGX/AGX (GHCR image).
+# Registry is inferred from host: gke=GAR, dgx/agx=GHCR.
 # Run undeploy.yaml when done to stop costs (GKE) or free GPU memory (K3s).
 
 on:
@@ -12,12 +13,6 @@ on:
         default: gke
         type: choice
         options: [gke, dgx, agx]
-      registry:
-        description: Image registry (gar=GAR, ghcr=GHCR); GKE always uses GAR
-        required: false
-        default: gar
-        type: choice
-        options: [gar, ghcr]
       image_tag:
         description: Image tag to deploy (default: latest)
         required: false
@@ -331,11 +326,7 @@ jobs:
         id: image_uri
         run: |
           TAG="${{ inputs.image_tag }}"
-          if [[ "${{ inputs.registry }}" == "ghcr" ]]; then
-            URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}:${TAG}"
-          else
-            URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}:${TAG}"
-          fi
+          URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}:${TAG}"
           echo "uri=$URI" >> "$GITHUB_OUTPUT"
 
       - name: Substitute and apply K3s manifest
@@ -512,11 +503,7 @@ jobs:
         id: image_uri
         run: |
           TAG="${{ inputs.image_tag }}"
-          if [[ "${{ inputs.registry }}" == "ghcr" ]]; then
-            URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}:${TAG}"
-          else
-            URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}:${TAG}"
-          fi
+          URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}:${TAG}"
           echo "uri=$URI" >> "$GITHUB_OUTPUT"
 
       - name: Substitute and apply K3s manifest

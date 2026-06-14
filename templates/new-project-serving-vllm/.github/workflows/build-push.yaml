@@ -1,17 +1,18 @@
 name: Build and Push
 
-# Builds the vLLM serving image and pushes to GAR (for GKE) or GHCR (for K3s on DGX/AGX).
+# Builds the vLLM serving image and pushes to the registry for the target host.
+# GKE uses GAR (amd64, ubuntu-latest runner). DGX/AGX use GHCR (wsl2 runner).
 # Run this once before the first deploy, and again only when Dockerfile.serve changes.
 
 on:
   workflow_dispatch:
     inputs:
-      registry:
-        description: Image registry (gar=GAR/GKE, ghcr=GHCR/K3s)
+      host:
+        description: Deployment target (determines registry — gke=GAR, dgx/agx=GHCR)
         required: false
-        default: gar
+        default: gke
         type: choice
-        options: [gar, ghcr]
+        options: [gke, dgx, agx]
 
 permissions:
   contents: read
@@ -26,7 +27,7 @@ env:
 
 jobs:
   build-push-gar:
-    if: inputs.registry == 'gar'
+    if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +77,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-push-ghcr:
-    if: inputs.registry == 'ghcr'
+    if: inputs.host == 'dgx' || inputs.host == 'agx'
     runs-on: [self-hosted, wsl2]
     steps:
       - uses: actions/checkout@v4
