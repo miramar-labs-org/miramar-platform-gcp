@@ -128,6 +128,7 @@ jobs:
           HF_MODEL_ID: ${{ inputs.hf_model_id }}
           HF_DATASET_ID: ${{ inputs.hf_dataset_id }}
           SERVED_MODEL_NAME: ${{ inputs.served_model_name }}
+          DESCRIPTION: ${{ inputs.description }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
