@@ -140,7 +140,7 @@ Live templates:
 | Type               | Purpose                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `ft-eval`       | Kubeflow Pipelines eval-first fine-tuning — 8-stage eval-gate pipeline; training and PHI stay on DGX     |
-| `serving-vllm`  | vLLM LoRA adapter serving on GKE L4 spot — consumes the artifact bundle published by a `ft-eval` project |
+| `serving-vllm`  | vLLM LoRA adapter serving on GKE L4 spot or local DGX Spark — consumes the artifact bundle published by a `ft-eval` project |
 
 The two templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
 
