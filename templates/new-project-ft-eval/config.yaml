@@ -54,9 +54,6 @@ chunking:
   chunk_index: 0       # which slice to train on — overridden at deploy time via --chunk-index
   shuffle_seed: 42     # fixed seed: same shuffle order every run so slices don't overlap
 
-deployment:
-  gcs_bucket: miramar-platform-ft-adapters
-
 nsight_interpret:
   ollama_model: phi4
 

@@ -77,7 +77,6 @@ download_model
 | `eval.safety_score_threshold`          | float  | Min average judge score to pass gate                          |
 | `judge.model`                          | string | OpenAI model ID for LLM-as-judge (e.g. `gpt-4o`)              |
 | `judge.system_prompt`                  | string | System prompt for the judge — must elicit JSON output         |
-| `deployment.gcs_bucket`                | string | GCS bucket for adapter upload on gate pass                    |
 
 ---
 
