@@ -208,6 +208,15 @@ fi
 [[ -S /run/avahi-daemon/socket ]] && \
     DOCKER_VOLS+=(-v /run/avahi-daemon/socket:/run/avahi-daemon/socket)
 
+# Mount the HuggingFace KFP shared storage so serving workflows can access
+# gate results and adapters produced by ft-eval pipelines.
+# Skipped if the directory doesn't exist yet on this host.
+if [[ -d "${HOME}/shared/huggingface-kfp" ]]; then
+    DOCKER_VOLS+=(
+        -v "${HOME}/shared/huggingface-kfp:/home/runner/shared/huggingface-kfp"
+    )
+fi
+
 # Mount the shared SSH store as the runner's ~/.ssh so any workflow can SSH
 # to lab machines using config aliases and the host's identity directly.
 # ~/shared/ssh holds config, known_hosts, authorized_keys (canonical shared store).
