@@ -90,17 +90,21 @@ NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` i
 | `AGX_QDRANT_ACTIVE`   | Qdrant Deploy (agx)   | Qdrant Undeploy (agx)           |
 | `DGX_KFP_ACTIVE`      | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx)         |
 | `AGX_KFP_ACTIVE`      | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx)         |
-| `DGX_OLLAMA_ACTIVE`   | Ollama Deploy (dgx)   | Ollama Undeploy (dgx), rollback |
-| `AGX_OLLAMA_ACTIVE`   | Ollama Deploy (agx)   | Ollama Undeploy (agx), rollback |
-| `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU        | GKE Restore GPU                 |
+| `DGX_OLLAMA_ACTIVE`          | Ollama Deploy (dgx)                             | Ollama Undeploy (dgx), rollback |
+| `AGX_OLLAMA_ACTIVE`          | Ollama Deploy (agx)                             | Ollama Undeploy (agx), rollback |
+| `DGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (dgx)                    | Nsight Operator Undeploy (dgx)  |
+| `AGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (agx)                    | Nsight Operator Undeploy (agx)  |
+| `GKE_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy GKE; GCP Platform Create | Nsight Operator Undeploy GKE    |
+| `GKE_GPU_POOL_ACTIVE`        | GKE Expand GPU                                  | GKE Restore GPU                 |
 
 **GCP pool org variables** (drive the CPU/GPU pool badges on the dashboard):
 
-| Variable              | Set by                            | Reset by                    | Default |
-| --------------------- | --------------------------------- | --------------------------- | ------- |
-| `GKE_NODE_COUNT`      | GKE Expand (expanded count)       | GKE Restore (resets to `1`) | `1`     |
-| `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU                    | GKE Restore GPU             | `false` |
-| `GKE_GPU_TYPE`        | GKE Expand GPU (e.g. `nvidia-l4`) | GKE Restore GPU             | `none`  |
+| Variable              | Set by                                                      | Reset by                                        | Default |
+| --------------------- | ----------------------------------------------------------- | ----------------------------------------------- | ------- |
+| `GKE_CLUSTER_ACTIVE`  | GCP Platform Create                                         | GCP Platform Destroy (resets to `false`)        | `false` |
+| `GKE_NODE_COUNT`      | GKE Expand (value: target node count)                       | GKE Restore (resets to `1`), GCP Platform Destroy | `1`   |
+| `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU                                              | GKE Restore GPU, GCP Platform Destroy           | `false` |
+| `GKE_GPU_TYPE`        | GKE Expand GPU (value: accelerator type, e.g. `nvidia-l4`) | GKE Restore GPU, GCP Platform Destroy           | `none`  |
 
 On a fresh install, seed the active state with `gh api` PATCH→POST upserts using `GITHUB_ORG_ADMIN_PAT` to reflect actual current state.
 
@@ -124,9 +128,9 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/),
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `default`          | Notebook + platform endpoint reference                                                                                                                                                                                                                                                                                                                                                                | —                                          |
 | `kfp`              | KFP v2 pipeline stub, notebook, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges                                                                                                                                                                                                                                                                                                         | `kfp>=2.0.0`                               |
-| `ft-eval`          | KFP v2 eval-first fine-tuning pipeline: 6 `@dsl.component` steps (prepare_dataset → baseline_eval → baseline_safety_eval → fine_tune → post_finetune_eval → safety_eval → deployment_gate), config-driven via `config.yaml` + `formatters.py` + `loaders.py`, Build cell to regenerate `pipeline.py`, `deploy-kfp.yaml` / `undeploy-kfp.yaml` workflows + CI badges. Topic tag `miramar-ft-eval`. | `kfp>=2.0.0`                               |
-| `nemo`             | NeMo training config, notebook, `deploy-nemo.yaml` / `undeploy-nemo.yaml` workflows + CI badges                                                                                                                                                                                                                                                                                                       | `nemo-microservices`                       |
-| `llm-serving-vllm` | vLLM LoRA adapter serving on GKE L4 spot: `serving-config.yaml` (base model, stable alias, manifest URI), `Dockerfile.serve`, `k8s/vllm.yaml` (init container pulls adapter from GCS, main container runs vLLM), `build-push.yaml` / `deploy.yaml` / `undeploy.yaml` workflows + CI badges, `smoke_test_prompts.jsonl`                                                                                | —                                          |
+| `ft-eval`          | KFP v2 eval-first fine-tuning pipeline: 8-stage pipeline (download_model → prepare_dataset → baseline_eval → baseline_safety_eval → fine_tune → post_finetune_eval → safety_eval → deployment_gate), config-driven via `config.yaml` + `formatters.py` + `loaders.py`, Build cell to regenerate `pipeline.py`, `deploy-to-kfp.yaml` / `undeploy-from-kfp.yaml` workflows + CI badges. Topic tag `miramar-ft-eval`. | `kfp>=2.0.0`                               |
+| `nemo`             | NeMo training config, notebook, `deploy-nemo.yaml` / `undeploy-nemo.yaml` workflows + CI badges                                                                                                                                                                                                                                                                                                             | `nemo-microservices`                       |
+| `serving-vllm`     | vLLM LoRA adapter serving on GKE L4 spot: `serving-config.yaml` (base model, stable alias, manifest URI), `Dockerfile.serve`, `k8s/vllm.yaml` (init container pulls adapter from GCS, main container runs vLLM), `build-push.yaml` / `deploy.yaml` / `undeploy.yaml` workflows + CI badges, `smoke_test_prompts.jsonl`                                                                                      | —                                          |
 
 ### Model serving (llm-serving-vllm projects)
 

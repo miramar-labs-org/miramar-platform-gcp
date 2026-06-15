@@ -45,13 +45,13 @@ Full lifecycle template arc for clinical ML on the Miramar platform. Each projec
 
 ---
 
-## ARC-Challenge Pipeline (qwen25-7b-arc-kfp-ft-eval-pipeline)
+## ARC-Challenge Pipeline (qwen25-7b-arc-ft-eval-pipeline)
 
-Next steps after run-004 (PASS, accuracy 0.8919→0.9099):
+Next steps after run-001 (PASS, accuracy 0.9009→0.9189):
 
-- **Nsight profiling** — `fine_tune` is ~572s; profile with `nsys profile` in a run-005 deploy, then run `/nsight-interpret` to find bottlenecks.
+- **Nsight profiling** — `fine_tune` is ~594s; profile with `--profile-finetune` in a run-002 deploy, then run `/nsight-interpret` to find bottlenecks.
 - **FP8 quantization** — quantize the LoRA adapter with `hf_ptq.py` (FP8 W8A8) and run a post-compression accuracy check to measure the compression delta vs BF16.
-- **GKE serving** — scaffold a `kfp` type project to deploy a GKE vLLM serving pipeline for the fine-tuned model.
+- **GKE serving** — scaffold a `serving-vllm` type project to deploy a GKE vLLM serving pipeline for the fine-tuned model.
 - **Increase dataset size** — currently only ARC-Challenge train split (~2.5k examples); mixing in ARC-Easy or other reasoning datasets could push accuracy higher.
 
 ---

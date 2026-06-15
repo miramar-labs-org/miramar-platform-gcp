@@ -139,8 +139,8 @@ Live templates:
 
 | Type               | Purpose                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `ft-eval`          | Kubeflow Pipelines eval-first fine-tuning — 6-step eval-gate pipeline; training and PHI stay on DGX      |
-| `llm-serving-vllm` | vLLM LoRA adapter serving on GKE L4 spot — consumes the artifact bundle published by a `ft-eval` project |
+| `ft-eval`       | Kubeflow Pipelines eval-first fine-tuning — 8-stage eval-gate pipeline; training and PHI stay on DGX     |
+| `serving-vllm`  | vLLM LoRA adapter serving on GKE L4 spot — consumes the artifact bundle published by a `ft-eval` project |
 
 The two templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
 
@@ -198,7 +198,7 @@ ft-eval run PASS
 | -------------------------------------------------------- | ----------------------------------------- | -------------- |
 | 1 — Fine-tune + eval gate                                | `ft-eval`                             | ✅ Implemented |
 | 1 — Publish adapter bundle to GCS                        | `publish-adapter.yaml` (in `ft-eval`) | ✅ Implemented |
-| 1 — Serve via vLLM on GKE L4 spot                        | `llm-serving-vllm`                        | ✅ Implemented |
+| 1 — Serve via vLLM on GKE L4 spot                        | `serving-vllm`                            | ✅ Implemented |
 | 2 — Model router service (stable `/v1` API, multi-model) | `model-router-service`                    | 🔜 Planned     |
 | 3 — GKE Gateway API route (external HTTPS)               | —                                         | 🔜 Planned     |
 | 4 — Serve via NIM                                        | `llm-serving-nim`                         | 🔜 Planned     |

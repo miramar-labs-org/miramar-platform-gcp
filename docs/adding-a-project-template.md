@@ -1,7 +1,7 @@
 # Adding a New Project Template
 
 A project type is a named template that **Create Project** can instantiate. Adding one
-requires changes in five places. The existing `kfp-finetune` type is the best reference.
+requires changes in five places. The existing `ft-eval` type is the best reference.
 
 ---
 
@@ -28,7 +28,7 @@ Files in `.github/workflows/` inside the template are included automatically.
 **a. Input enum** (`inputs.project_type.options`, line ~27):
 
 ```yaml
-options: [default, kfp, kfp-finetune, nemo, <type>]
+options: [default, kfp, ft-eval, nemo, serving-vllm, <type>]
 ```
 
 **b. CI badge injection** (line ~147) — add a branch for your type if it has
@@ -44,7 +44,7 @@ deploy/undeploy workflows. Follow the `kfp` or `nemo` branch as a model: set
 
 **d. Blog post body** (`Draft blog post` step, line ~246) — add an `elif` branch
 that sets `CATS` (Jekyll categories) and `BODY` (post content). Follow the
-`kfp-finetune` branch as a model:
+`ft-eval` branch as a model:
 
 ```bash
 elif [ "${PROJECT_TYPE}" = "<type>" ]; then
@@ -58,7 +58,7 @@ fi
 
 Include the standard `**Platform:**` and `**Repo:**` header lines that reference
 `${HW}`, `${DASHBOARD_URL}`, `${PROJECT_NAME}`, and `${REPO_URL}` — copy them
-from the `kfp-finetune` branch in the same step.
+from the `ft-eval` branch in the same step.
 
 **e. Summary / next steps** (`Summary` step, line ~382):
 
@@ -77,9 +77,9 @@ the generic `miramar-kfp` check if the type is a sub-variant of an existing fami
 
 ```bash
 type=$(echo "$repo_json" | jq -r '.topics |
-  if   index("miramar-<type>")       then "<type>"
-  elif index("miramar-kfp-finetune") then "kfp-finetune"
-  elif index("miramar-kfp")          then "kfp"
+  if   index("miramar-<type>")   then "<type>"
+  elif index("miramar-ft-eval") then "ft-eval"
+  elif index("miramar-kfp")     then "kfp"
   ...
   else "other" end')
 ```
@@ -93,7 +93,7 @@ the `Set repository topics` step), so the topic name is always `miramar-<type>`.
 .badge-<type> { background: #rrggbb; color: #rrggbb; }
 ```
 
-Pick a colour not already used: `kfp` = blue, `kfp-finetune` = teal,
+Pick a colour not already used: `kfp` = blue, `ft-eval` = teal,
 `nemo` = green, `default`/`other` = amber.
 
 **c. New Project modal dropdown** (`<select id="np-type">`) — add an option so

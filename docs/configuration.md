@@ -76,8 +76,12 @@ Drive the green/red dashboard badges. Set by deploy workflows, cleared by undepl
 | `AGX_QDRANT_ACTIVE` | Qdrant Deploy (agx)   | Qdrant Undeploy (agx)           |
 | `DGX_KFP_ACTIVE`    | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx)         |
 | `AGX_KFP_ACTIVE`    | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx)         |
-| `DGX_OLLAMA_ACTIVE` | Ollama Deploy (dgx)   | Ollama Undeploy (dgx), rollback |
-| `AGX_OLLAMA_ACTIVE` | Ollama Deploy (agx)   | Ollama Undeploy (agx), rollback |
+| `DGX_OLLAMA_ACTIVE`          | Ollama Deploy (dgx)                             | Ollama Undeploy (dgx), rollback |
+| `AGX_OLLAMA_ACTIVE`          | Ollama Deploy (agx)                             | Ollama Undeploy (agx), rollback |
+| `DGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (dgx)                    | Nsight Operator Undeploy (dgx)  |
+| `AGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (agx)                    | Nsight Operator Undeploy (agx)  |
+| `GKE_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy GKE; GCP Platform Create | Nsight Operator Undeploy GKE    |
+| `GKE_GPU_POOL_ACTIVE`        | GKE Expand GPU                                  | GKE Restore GPU                 |
 
 ### Repo-Level Variables
 

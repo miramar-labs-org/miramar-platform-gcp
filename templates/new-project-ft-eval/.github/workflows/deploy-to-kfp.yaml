@@ -1,7 +1,7 @@
 name: Deploy to KFP
 
 # Compiles pipeline.py, registers it in KFP, and submits a run.
-# Prerequisites: KFP must be running on the DGX minikube cluster.
+# Prerequisites: KFP must be running on the DGX k3s cluster.
 # See: https://github.com/miramar-labs-org/miramar-platform-gcp — Kubeflow Deploy workflow.
 
 on:
@@ -28,15 +28,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up kubeconfig
-        run: |
-          docker network connect minikube "$(cat /etc/hostname)" 2>/dev/null || true
-          sudo chmod -R a+rX "${HOME}/.minikube"
-          TMP_KC=$(mktemp)
-          sed "s|/home/[^/]*/\.minikube/|${HOME}/.minikube/|g" \
-              "${HOME}/.kube/config" > "${TMP_KC}"
-          echo "KUBECONFIG=${TMP_KC}" >> "${GITHUB_ENV}"
 
       - name: Verify cluster access
         run: kubectl get nodes
