@@ -160,6 +160,7 @@ jobs:
               -e "s|{{HF_MODEL_ID}}|${HF_MODEL_ID}|g" \
               -e "s|{{HF_DATASET_ID}}|${HF_DATASET_ID}|g" \
               -e "s|{{SERVED_MODEL_NAME}}|${SERVED_MODEL_NAME}|g" \
+              -e "s|{{DESCRIPTION}}|${DESCRIPTION}|g" \
             {} +
 
           # Inject CI workflow badges after the title line for kfp and nemo types.

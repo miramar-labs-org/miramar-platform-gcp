@@ -8,10 +8,7 @@
 | **Model**   | [{{HF_MODEL_ID}}](https://huggingface.co/{{HF_MODEL_ID}})              |
 | **Dataset** | [{{HF_DATASET_ID}}](https://huggingface.co/datasets/{{HF_DATASET_ID}}) |
 
-<!-- One-line description of this project -->
-
-> **Validation status:** Pipeline is in scaffolding phase — no runs yet. Status tracked in
-> [docs/VALIDATION_STATUS.md](docs/VALIDATION_STATUS.md).
+{{DESCRIPTION}}
 
 ---
 
