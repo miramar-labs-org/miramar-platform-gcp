@@ -475,7 +475,7 @@ jobs:
             persistentVolumeReclaimPolicy: Retain
             storageClassName: ""
             hostPath:
-              path: /home/${HOST_USER}/shared/huggingface-kfp/hub
+              path: /home/${HOST_USER}/shared/huggingface-kfp
           EOF
           kubectl get pv nsight-reports &>/dev/null || kubectl apply -f - <<EOF
           apiVersion: v1

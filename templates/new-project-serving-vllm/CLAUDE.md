@@ -35,7 +35,7 @@ Run order: `build-push.yaml` (once after ft-eval gate passes, or on Dockerfile c
 The adapter is baked into the Docker image at build time — it is not pulled at runtime.
 
 `build-push.yaml` reads `adapter.ft_project` from `serving-config.yaml`, then scans
-`~/shared/huggingface-kfp/hub/runs/<ft_project>/*/gate_result.json` (via SMB on the wsl2 runner)
+`~/shared/huggingface-kfp/runs/<ft_project>/*/gate_result.json` (via SMB on the wsl2 runner)
 for the most recent run where `eval_passed == true` and `safety_passed == true`. It copies
 that adapter into the Docker build context and runs `docker build`, producing an image that
 contains the adapter at `/adapter/`.
