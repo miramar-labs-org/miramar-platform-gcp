@@ -2,7 +2,7 @@
 
 [![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})
 
-<!-- One-line description of this project -->
+{{DESCRIPTION}}
 
 ## Platform endpoints
 

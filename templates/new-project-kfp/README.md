@@ -2,10 +2,7 @@
 
 [![Open in JupyterLab](https://img.shields.io/badge/Open%20in-JupyterLab-F37626?logo=jupyter&logoColor=white)]({{JL_URL}})
 
-<!-- One-line description of this project -->
-
-> **Validation status:** Pipeline is in scaffolding phase — no runs yet. Status tracked in
-> [docs/VALIDATION_STATUS.md](docs/VALIDATION_STATUS.md).
+{{DESCRIPTION}}
 
 **Type**: Kubeflow Pipelines
 
