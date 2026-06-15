@@ -33,7 +33,7 @@ inference workloads across local GPU systems and cloud infrastructure.
 | Nsight Operator (GKE)                            | ✅ Done        | Auto-installed by Platform Create; no persistent port-forward          |
 | GKE Standard cluster                             | ✅ Done        | `e2-standard-4`, single node, `us-east1-b`                             |
 | GKE transient GPU pool                           | ✅ Done        | L4 on-demand (`g2-standard-8`), `us-east1-b`; expand/restore workflow pair |
-| kfp-ft-eval pipeline type                        | ✅ Done        | 6-step eval-first fine-tuning; config-driven; MLflow tracking          |
+| ft-eval pipeline type                            | ✅ Done        | 6-step eval-first fine-tuning; config-driven; MLflow tracking          |
 | Adapter publish → GCS manifest                   | ✅ Done        | `publish-adapter.yaml`; `eval_passed` + `safety_passed` gate           |
 | vLLM LoRA adapter serving (GKE)                  | 🔄 In progress | `biomistral-7b-onc-llm-serving-vllm` first project; L4 spot            |
 | Platform dashboard (GitHub Pages)                | ✅ Done        | Hourly refresh; per-machine service badges; project table              |
@@ -79,7 +79,7 @@ Stages 1–3 are the current template arc; Stage 4 is the planned optimisation p
 |                                                                     |
 |  Stage 1: Fine-tune + Eval      Stage 3 (planned): Optimize         |
 |  -------------------------      ---------------------------         |
-|  kfp-ft-eval (KFP pipeline)     kfp-optimize (KFP pipeline)         |
+|  ft-eval (KFP pipeline)         kfp-optimize (KFP pipeline)         |
 |  prepare -> baseline_eval       prune -> distill -> quantize FP8    |
 |  -> fine_tune -> post_eval      (Model-Optimizer + Megatron)        |
 |  -> safety_eval -> gate         output: quantized merged checkpoint |
@@ -203,7 +203,7 @@ GitHub is the source-of-truth control plane:
 
 | Type           | Topic tag                  | Host badge | Status         | Description                                                                           |
 | -------------- | -------------------------- | ---------- | -------------- | ------------------------------------------------------------------------------------- |
-| `kfp-ft-eval`  | `miramar-kfp-ft-eval`      | dgx / agx  | ✅ Done        | 6-step eval-first fine-tuning + eval pipeline (KFP v2)                                |
+| `ft-eval`      | `miramar-ft-eval`          | dgx / agx  | ✅ Done        | 6-step eval-first fine-tuning + eval pipeline (KFP v2)                                |
 | `vllm-gcp`     | `miramar-llm-serving-vllm` | gcp        | 🔄 In progress | vLLM + LoRA adapter serving on GKE L4 spot                                            |
 | `kfp-optimize` | `miramar-kfp-optimize`     | dgx        | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint |
 | `nim-gcp`      | `miramar-nim-gcp`          | gcp        | 📋 Planned     | NIM / TRT-LLM serving of quantized checkpoint on GKE L4 spot; replaces LoRA + vLLM    |

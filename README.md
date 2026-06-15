@@ -139,8 +139,8 @@ Live templates:
 
 | Type               | Purpose                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `kfp-ft-eval`      | Kubeflow Pipelines eval-first fine-tuning — 6-step eval-gate pipeline; training and PHI stay on DGX          |
-| `llm-serving-vllm` | vLLM LoRA adapter serving on GKE L4 spot — consumes the artifact bundle published by a `kfp-ft-eval` project |
+| `ft-eval`          | Kubeflow Pipelines eval-first fine-tuning — 6-step eval-gate pipeline; training and PHI stay on DGX      |
+| `llm-serving-vllm` | vLLM LoRA adapter serving on GKE L4 spot — consumes the artifact bundle published by a `ft-eval` project |
 
 The two templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
 
@@ -148,7 +148,7 @@ The two templates form a complete fine-tune → serve arc. PHI stays on DGX thro
 
 ## GPU Profiling & AI-Assisted Analysis
 
-Projects scaffolded from the `kfp-ft-eval` template include first-class Nsight Systems profiling
+Projects scaffolded from the `ft-eval` template include first-class Nsight Systems profiling
 with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
 
 - **Per-component profiling in KFP** — any pipeline stage can be profiled with a single pod
@@ -180,10 +180,10 @@ Full details: [docs/kfp-skills.md — Nsight Profiling in KFP](docs/kfp-skills.m
 
 ## Model Serving
 
-After a `kfp-ft-eval` run passes the deployment gate, the adapter is published to GCS and served via vLLM on GKE:
+After a `ft-eval` run passes the deployment gate, the adapter is published to GCS and served via vLLM on GKE:
 
 ```
-kfp-ft-eval run PASS
+ft-eval run PASS
   → publish-adapter.yaml  (dgx)  → gs://miramar-platform-ft-adapters/<project>/<run>/
       manifest.json               ↓
       adapter/               deploy.yaml  (wsl2, GKE L4 spot)
@@ -196,8 +196,8 @@ kfp-ft-eval run PASS
 
 | Stage                                                    | Template                                  | Status         |
 | -------------------------------------------------------- | ----------------------------------------- | -------------- |
-| 1 — Fine-tune + eval gate                                | `kfp-ft-eval`                             | ✅ Implemented |
-| 1 — Publish adapter bundle to GCS                        | `publish-adapter.yaml` (in `kfp-ft-eval`) | ✅ Implemented |
+| 1 — Fine-tune + eval gate                                | `ft-eval`                             | ✅ Implemented |
+| 1 — Publish adapter bundle to GCS                        | `publish-adapter.yaml` (in `ft-eval`) | ✅ Implemented |
 | 1 — Serve via vLLM on GKE L4 spot                        | `llm-serving-vllm`                        | ✅ Implemented |
 | 2 — Model router service (stable `/v1` API, multi-model) | `model-router-service`                    | 🔜 Planned     |
 | 3 — GKE Gateway API route (external HTTPS)               | —                                         | 🔜 Planned     |

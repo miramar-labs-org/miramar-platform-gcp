@@ -1,7 +1,7 @@
 # KFP Slash Commands
 
 Two Claude Code slash commands cover the full run lifecycle for any project scaffolded from the
-`kfp-ft-eval` template. Both auto-detect the project from the current directory.
+`ft-eval` template. Both auto-detect the project from the current directory.
 
 ---
 
@@ -45,7 +45,7 @@ After this finishes, invoke `/kfp-monitor <run-name>` to start the monitoring lo
 
 ### Weights & Biases
 
-The `kfp-ft-eval` template has built-in, opt-in W&B support. Enable it in `config.yaml`:
+The `ft-eval` template has built-in, opt-in W&B support. Enable it in `config.yaml`:
 
 ```yaml
 wandb:
