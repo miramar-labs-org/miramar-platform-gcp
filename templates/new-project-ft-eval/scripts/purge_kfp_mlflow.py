@@ -124,12 +124,14 @@ def purge_argo_workflows():
 
 
 def purge_mlflow():
-    """Delete all MLflow runs and the experiment container for this project."""
+    """Delete all MLflow runs for this project. The experiment container is intentionally
+    preserved — MLflow soft-deletes experiments, and a soft-deleted experiment cannot be
+    reused by name, which would break mlflow.set_experiment() on the next run."""
     ename = urllib.parse.quote(PIPELINE_NAME, safe="")
     resp = mlflow_api("GET", f"/experiments/get-by-name?experiment_name={ename}")
     exp = resp.get("experiment")
     if not exp:
-        # Check if already soft-deleted
+        # Check if soft-deleted and restore if so — self-heal the broken state
         all_resp = mlflow_api("POST", "/experiments/search",
                               {"max_results": 200, "view_type": "DELETED_ONLY"})
         deleted_exps = [e for e in all_resp.get("experiments", [])
@@ -137,9 +139,10 @@ def purge_mlflow():
         if not deleted_exps:
             print("  No MLflow experiment found — nothing to delete.")
             return
-        # Already soft-deleted — nothing more to do
-        print(f"  MLflow experiment already deleted.")
-        return
+        eid = deleted_exps[0]["experiment_id"]
+        mlflow_api("POST", "/experiments/restore", {"experiment_id": eid})
+        print(f"  Restored soft-deleted MLflow experiment: {PIPELINE_NAME} ({eid})")
+        exp = deleted_exps[0]
     eid = exp["experiment_id"]
     n_runs = 0
     page_token = None
@@ -154,8 +157,7 @@ def purge_mlflow():
         page_token = runs_resp.get("next_page_token")
         if not page_token:
             break
-    mlflow_api("POST", "/experiments/delete", {"experiment_id": eid})
-    print(f"  Deleted {n_runs} MLflow run(s) and experiment: {PIPELINE_NAME}")
+    print(f"  Deleted {n_runs} MLflow run(s) — experiment container preserved: {PIPELINE_NAME}")
 
 
 print(f"Purging KFP state for '{PIPELINE_NAME}'...")
