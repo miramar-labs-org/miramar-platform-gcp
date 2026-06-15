@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}}
 
-Serve a LoRA-adapted LLM via vLLM on GKE (L4 spot GPU) or K3s (DGX/AGX) — part of the [Miramar serving architecture](https://github.com/miramar-labs-org/miramar-platform-gcp).
+{{DESCRIPTION}}
 
 ## Workflows
 

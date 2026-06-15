@@ -60,7 +60,7 @@ jobs:
             exit 1
           fi
           SHARED="${HOME}/shared/huggingface-kfp"
-          GATE_DIR="${SHARED}/runs/${FT_PROJECT}"
+          GATE_DIR="${SHARED}/hub/runs/${FT_PROJECT}"
           if [[ ! -d "$GATE_DIR" ]]; then
             echo "ERROR: gate dir not found: ${GATE_DIR}"
             echo "Run the ft-eval pipeline and wait for the gate to pass."
@@ -148,7 +148,7 @@ jobs:
             exit 1
           fi
           SHARED="${HOME}/shared/huggingface-kfp"
-          GATE_DIR="${SHARED}/runs/${FT_PROJECT}"
+          GATE_DIR="${SHARED}/hub/runs/${FT_PROJECT}"
           if [[ ! -d "$GATE_DIR" ]]; then
             echo "ERROR: gate dir not found: ${GATE_DIR}"
             echo "Run the ft-eval pipeline and wait for the gate to pass."
