@@ -77,8 +77,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
-            -f name="GKE_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true
+          gh api --method DELETE "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
+            2>/dev/null || true
           OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_ACTIVE" \
             --jq '.value // empty' 2>/dev/null || true)
           if [[ "$OWUI_ACTIVE" == "true" ]]; then
@@ -127,8 +127,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
-            -f name="DGX_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true
+          gh api --method DELETE "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
+            2>/dev/null || true
           OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
             --jq '.value // empty' 2>/dev/null || true)
           if [[ "$OWUI_ACTIVE" == "true" ]]; then
@@ -176,8 +176,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
-            -f name="AGX_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true
+          gh api --method DELETE "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
+            2>/dev/null || true
           OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
             --jq '.value // empty' 2>/dev/null || true)
           if [[ "$OWUI_ACTIVE" == "true" ]]; then
