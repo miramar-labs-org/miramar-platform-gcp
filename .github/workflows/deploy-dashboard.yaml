@@ -30,6 +30,10 @@ on:
       - "Qdrant Undeploy"
       - "Open WebUI Deploy"
       - "Open WebUI Undeploy"
+      - "Nsight Operator Deploy"
+      - "Nsight Operator Undeploy"
+      - "Nsight Operator Deploy (GKE)"
+      - "Nsight Operator Undeploy (GKE)"
     types: [completed]
 
 permissions:
