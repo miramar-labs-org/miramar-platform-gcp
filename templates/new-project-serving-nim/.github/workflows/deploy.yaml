@@ -63,6 +63,30 @@ jobs:
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
+      - name: Unserve Ollama
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          LOADED=$(curl -s http://localhost:11434/api/ps 2>/dev/null \
+            | jq -r '.models[0].name // empty' || true)
+          if [[ -n "$LOADED" ]]; then
+            curl -s -X POST http://localhost:11434/api/generate \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"$LOADED\",\"keep_alive\":0}" > /dev/null || true
+            echo "Unloaded Ollama model: $LOADED"
+          else
+            echo "No Ollama model loaded — skipping"
+          fi
+          gh api -X PATCH \
+            "repos/miramar-labs-org/miramar-platform-gcp/actions/variables/CURRENT_OLLAMA_MODEL" \
+            -f value="none" 2>/dev/null || true
+          gh api -X PATCH \
+            "repos/miramar-labs-org/miramar-platform-gcp/actions/variables/CURRENT_OLLAMA_VRAM_GB" \
+            -f value="0" 2>/dev/null || true
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OLLAMA_ACTIVE" \
+            -f name="DGX_OLLAMA_ACTIVE" -f value="false" -f visibility="all" 2>/dev/null || true
+
       - name: Substitute and apply K3s manifest
         run: |
           sed "s|NIM_ORG_PLACEHOLDER|${NIM_ORG}|g" k8s/nim-k3s.yaml \

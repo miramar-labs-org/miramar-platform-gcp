@@ -221,14 +221,14 @@ AGX_VRAM_AVAIL_GB=$(( AGX_VRAM_USEABLE - AGX_VRAM_USED_GB ))
 (( AGX_VRAM_AVAIL_GB < 0 )) && AGX_VRAM_AVAIL_GB=0
 
 NIM_CLASS="ps-value";    [[ "$NIM_MODEL"    == "none" ]] && NIM_CLASS="ps-value ps-none"
-OLLAMA_MODEL_BADGE=$( [[ "$OLLAMA_MODEL" != "none" ]] \
+OLLAMA_MODEL_BADGE=$( [[ "$DGX_OLLAMA_ACTIVE" == "true" ]] \
   && echo "<span class=\"ps-active\">${OLLAMA_MODEL}</span>" \
   || echo "<span class=\"ps-inactive\">${OLLAMA_MODEL}</span>" )
 VRAM_AVAIL_CLASS="ps-value"
 (( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 AGX_NIM_CLASS="ps-value";    [[ "$AGX_NIM_MODEL"    == "none" ]] && AGX_NIM_CLASS="ps-value ps-none"
-AGX_OLLAMA_MODEL_BADGE=$( [[ "$AGX_OLLAMA_MODEL" != "none" ]] \
+AGX_OLLAMA_MODEL_BADGE=$( [[ "$AGX_OLLAMA_ACTIVE" == "true" ]] \
   && echo "<span class=\"ps-active\">${AGX_OLLAMA_MODEL}</span>" \
   || echo "<span class=\"ps-inactive\">${AGX_OLLAMA_MODEL}</span>" )
 AGX_VRAM_AVAIL_CLASS="ps-value"
