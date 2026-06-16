@@ -39,6 +39,8 @@ echo "    Found ${REPO_COUNT} repos tagged miramar-project"
 
 # Build HTML rows in a bash loop so we can augment each repo with live workflow status
 ROWS=""
+DGX_VLLM_TOTAL_GB=0
+AGX_VLLM_TOTAL_GB=0
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
@@ -68,6 +70,22 @@ while IFS= read -r repo_json; do
       fi
     done
     unset _svar_map
+    if [[ -n "$active_host" ]]; then
+      case "$active_host" in
+        dgx)
+          _vllm_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+            "repos/${ORG}/${name}/actions/variables/DGX_VLLM_VRAM_GB" \
+            --jq '.value // "0"' 2>/dev/null || echo 0)
+          DGX_VLLM_TOTAL_GB=$(( DGX_VLLM_TOTAL_GB + ${_vllm_gb:-0} ))
+          ;;
+        agx)
+          _vllm_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+            "repos/${ORG}/${name}/actions/variables/AGX_VLLM_VRAM_GB" \
+            --jq '.value // "0"' 2>/dev/null || echo 0)
+          AGX_VLLM_TOTAL_GB=$(( AGX_VLLM_TOTAL_GB + ${_vllm_gb:-0} ))
+          ;;
+      esac
+    fi
     if [[ -n "$active_host" ]]; then
       host_html="<span class=\"badge badge-${active_host}\">${active_host}</span>"
       serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed on ${active_host}\">&#x25CF;</span>"
@@ -189,11 +207,11 @@ GKE_MACHINE_TYPE=$(read_org_var "GKE_MACHINE_TYPE")
 [[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
 [[ -z "$GKE_NODE_COUNT" ]] && GKE_NODE_COUNT="1"
 
-VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB ))
+VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB + DGX_VLLM_TOTAL_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
 (( VRAM_AVAIL_GB < 0 )) && VRAM_AVAIL_GB=0
 
-AGX_VRAM_USED_GB=$(( AGX_NIM_VRAM_GB + AGX_OLLAMA_VRAM_GB ))
+AGX_VRAM_USED_GB=$(( AGX_NIM_VRAM_GB + AGX_OLLAMA_VRAM_GB + AGX_VLLM_TOTAL_GB ))
 AGX_VRAM_AVAIL_GB=$(( AGX_VRAM_USEABLE - AGX_VRAM_USED_GB ))
 (( AGX_VRAM_AVAIL_GB < 0 )) && AGX_VRAM_AVAIL_GB=0
 
@@ -299,6 +317,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-default      { background: #2d2b00; color: #d29922; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
+  .badge-gke      { background: #0f2a1a; color: #4ade80; }
   .badge-gcp      { background: #2a1f0a; color: #fbbf24; }
   .badge-none     { background: #1c2128; color: #484f58; }
   .jl-link { color: #f0883e; font-size: 0.8rem; white-space: nowrap; }

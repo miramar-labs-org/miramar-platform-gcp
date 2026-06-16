@@ -93,6 +93,14 @@ jobs:
           kubectl delete service vllm -n "$PROJECT_NAME" --ignore-not-found
           echo "Deployment removed."
 
+      - name: Clear vLLM VRAM
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_VLLM_VRAM_GB" \
+            -f value="0" 2>/dev/null || true
+
       - name: Clear serving state
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
@@ -119,6 +127,14 @@ jobs:
           kubectl delete deployment vllm -n "$PROJECT_NAME" --ignore-not-found
           kubectl delete service vllm -n "$PROJECT_NAME" --ignore-not-found
           echo "Deployment removed."
+
+      - name: Clear vLLM VRAM
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_VLLM_VRAM_GB" \
+            -f value="0" 2>/dev/null || true
 
       - name: Clear serving state
         env:

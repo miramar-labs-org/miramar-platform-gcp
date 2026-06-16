@@ -5,6 +5,8 @@ metadata:
   namespace: {{PROJECT_NAME}}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: vllm
@@ -13,6 +15,7 @@ spec:
       labels:
         app: vllm
     spec:
+      enableServiceLinks: false
       imagePullSecrets:
         - name: ghcr-pull
       containers:
@@ -25,7 +28,7 @@ spec:
             - SERVED_MODEL_NAME_PLACEHOLDER=/adapter
             - --max-lora-rank=16
             - --dtype=bfloat16
-            - --gpu-memory-utilization=0.90
+            - --gpu-memory-utilization=0.80
             - --max-model-len=2048
             - --host=0.0.0.0
             - --port=8000
@@ -36,7 +39,7 @@ spec:
                   name: hf-token
                   key: token
             - name: HF_HOME
-              value: /tmp/hf-cache
+              value: /hf-cache
           ports:
             - containerPort: 8000
               name: http
@@ -62,14 +65,16 @@ spec:
             failureThreshold: 5
           volumeMounts:
             - name: hf-cache
-              mountPath: /tmp/hf-cache
+              mountPath: /hf-cache
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists
           effect: NoSchedule
       volumes:
         - name: hf-cache
-          emptyDir: {}
+          hostPath:
+            path: /home/aaron/shared/huggingface-kfp
+            type: Directory
 ---
 apiVersion: v1
 kind: Service

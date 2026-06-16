@@ -115,7 +115,7 @@ jobs:
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
-        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=1800s
 
       - name: Smoke test
         run: |
@@ -226,7 +226,7 @@ jobs:
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
-        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=1800s
 
       - name: Smoke test
         run: |
@@ -275,6 +275,23 @@ jobs:
           gh api --method POST \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
             -f name="DGX_SERVING_ACTIVE" -f value="true"
+
+      - name: Record vLLM VRAM
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          VLLM_MiB=$(nvidia-smi --query-compute-apps=process_name,used_memory \
+            --format=csv,noheader 2>/dev/null \
+            | grep -i "vllm" \
+            | awk -F',' '{gsub(/[^0-9]/,"",$2); sum+=$2} END{print sum+0}' || echo 0)
+          VLLM_GB=$(( ${VLLM_MiB:-0} / 1024 ))
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_VLLM_VRAM_GB" \
+            -f value="${VLLM_GB}" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="DGX_VLLM_VRAM_GB" -f value="${VLLM_GB}"
 
       - name: Summary
         if: always()
@@ -337,7 +354,7 @@ jobs:
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
-        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=1800s
 
       - name: Smoke test
         run: |
@@ -386,6 +403,23 @@ jobs:
           gh api --method POST \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
             -f name="AGX_SERVING_ACTIVE" -f value="true"
+
+      - name: Record vLLM VRAM
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          VLLM_MiB=$(nvidia-smi --query-compute-apps=process_name,used_memory \
+            --format=csv,noheader 2>/dev/null \
+            | grep -i "vllm" \
+            | awk -F',' '{gsub(/[^0-9]/,"",$2); sum+=$2} END{print sum+0}' || echo 0)
+          VLLM_GB=$(( ${VLLM_MiB:-0} / 1024 ))
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_VLLM_VRAM_GB" \
+            -f value="${VLLM_GB}" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="AGX_VLLM_VRAM_GB" -f value="${VLLM_GB}"
 
       - name: Summary
         if: always()
