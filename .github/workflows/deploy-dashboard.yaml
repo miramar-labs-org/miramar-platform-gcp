@@ -28,6 +28,8 @@ on:
       - "GCP Platform Destroy"
       - "Qdrant Deploy"
       - "Qdrant Undeploy"
+      - "Open WebUI Deploy"
+      - "Open WebUI Undeploy"
     types: [completed]
 
 permissions:
