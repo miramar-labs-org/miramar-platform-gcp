@@ -175,6 +175,7 @@ AGX_MLFLOW_ACTIVE=$(read_org_var "AGX_MLFLOW_ACTIVE")
 AGX_QDRANT_ACTIVE=$(read_org_var "AGX_QDRANT_ACTIVE")
 AGX_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "AGX_NSIGHT_OPERATOR_ACTIVE")
 AGX_OPENWEBUI_ACTIVE=$(read_org_var "AGX_OPENWEBUI_ACTIVE")
+AGX_OPENWEBUI_API_URL=$(read_org_var "AGX_OPENWEBUI_API_URL")
 GKE_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "GKE_NSIGHT_OPERATOR_ACTIVE")
 GKE_OPENWEBUI_ACTIVE=$(read_org_var "GKE_OPENWEBUI_ACTIVE")
 
@@ -220,12 +221,16 @@ AGX_VRAM_AVAIL_GB=$(( AGX_VRAM_USEABLE - AGX_VRAM_USED_GB ))
 (( AGX_VRAM_AVAIL_GB < 0 )) && AGX_VRAM_AVAIL_GB=0
 
 NIM_CLASS="ps-value";    [[ "$NIM_MODEL"    == "none" ]] && NIM_CLASS="ps-value ps-none"
-OLLAMA_CLASS="ps-value"; [[ "$OLLAMA_MODEL" == "none" ]] && OLLAMA_CLASS="ps-value ps-none"
+OLLAMA_MODEL_BADGE=$( [[ "$DGX_OLLAMA_ACTIVE" == "true" && "$OLLAMA_MODEL" != "none" ]] \
+  && echo "<span class=\"ps-active\">${OLLAMA_MODEL}</span>" \
+  || echo "<span class=\"ps-inactive\">${OLLAMA_MODEL}</span>" )
 VRAM_AVAIL_CLASS="ps-value"
 (( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 AGX_NIM_CLASS="ps-value";    [[ "$AGX_NIM_MODEL"    == "none" ]] && AGX_NIM_CLASS="ps-value ps-none"
-AGX_OLLAMA_CLASS="ps-value"; [[ "$AGX_OLLAMA_MODEL" == "none" ]] && AGX_OLLAMA_CLASS="ps-value ps-none"
+AGX_OLLAMA_MODEL_BADGE=$( [[ "$AGX_OLLAMA_ACTIVE" == "true" && "$AGX_OLLAMA_MODEL" != "none" ]] \
+  && echo "<span class=\"ps-active\">${AGX_OLLAMA_MODEL}</span>" \
+  || echo "<span class=\"ps-inactive\">${AGX_OLLAMA_MODEL}</span>" )
 AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
@@ -284,6 +289,8 @@ AGX_OPENWEBUI_BADGE=$([ "$AGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="htt
 GKE_OPENWEBUI_BADGE=$([ "$GKE_OPENWEBUI_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 OPENWEBUI_API_CLASS="ps-value"; [[ -z "$DGX_OPENWEBUI_API_URL" ]] && OPENWEBUI_API_CLASS="ps-value ps-none"
 OPENWEBUI_API_DISPLAY="${DGX_OPENWEBUI_API_URL:-ollama (default)}"
+AGX_OPENWEBUI_API_CLASS="ps-value"; [[ -z "$AGX_OPENWEBUI_API_URL" ]] && AGX_OPENWEBUI_API_CLASS="ps-value ps-none"
+AGX_OPENWEBUI_API_DISPLAY="${AGX_OPENWEBUI_API_URL:-ollama (default)}"
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -415,12 +422,8 @@ cat > "$OUTPUT" <<HTMLEOF
       ${DGX_OLLAMA_BADGE}
     </div>
     <div class="ps-item ps-wide">
-      <div class="ps-label">NIM model</div>
-      <code class="${NIM_CLASS}">${NIM_MODEL}</code>
-    </div>
-    <div class="ps-item ps-wide">
       <div class="ps-label">Ollama model</div>
-      <code class="${OLLAMA_CLASS}">${OLLAMA_MODEL}</code>
+      ${OLLAMA_MODEL_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">k3s</div>
@@ -439,11 +442,11 @@ cat > "$OUTPUT" <<HTMLEOF
       ${DGX_NSIGHT_BADGE}
     </div>
     <div class="ps-item">
-      <div class="ps-label">Open WebUI</div>
+      <div class="ps-label">OpenUI</div>
       ${DGX_OPENWEBUI_BADGE}
     </div>
     <div class="ps-item ps-wide">
-      <div class="ps-label">WebUI backend</div>
+      <div class="ps-label">OpenUI backend</div>
       <code class="${OPENWEBUI_API_CLASS}">${OPENWEBUI_API_DISPLAY}</code>
     </div>
     <div class="ps-item">
@@ -472,12 +475,8 @@ cat > "$OUTPUT" <<HTMLEOF
       ${AGX_OLLAMA_BADGE}
     </div>
     <div class="ps-item ps-wide">
-      <div class="ps-label">NIM model</div>
-      <code class="${AGX_NIM_CLASS}">${AGX_NIM_MODEL}</code>
-    </div>
-    <div class="ps-item ps-wide">
       <div class="ps-label">Ollama model</div>
-      <code class="${AGX_OLLAMA_CLASS}">${AGX_OLLAMA_MODEL}</code>
+      ${AGX_OLLAMA_MODEL_BADGE}
     </div>
     <div class="ps-item">
       <div class="ps-label">k3s</div>
@@ -496,8 +495,12 @@ cat > "$OUTPUT" <<HTMLEOF
       ${AGX_NSIGHT_BADGE}
     </div>
     <div class="ps-item">
-      <div class="ps-label">Open WebUI</div>
+      <div class="ps-label">OpenUI</div>
       ${AGX_OPENWEBUI_BADGE}
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">OpenUI backend</div>
+      <code class="${AGX_OPENWEBUI_API_CLASS}">${AGX_OPENWEBUI_API_DISPLAY}</code>
     </div>
     <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
@@ -537,7 +540,7 @@ cat > "$OUTPUT" <<HTMLEOF
       ${GKE_NSIGHT_BADGE}
     </div>
     <div class="ps-item">
-      <div class="ps-label">Open WebUI</div>
+      <div class="ps-label">OpenUI</div>
       ${GKE_OPENWEBUI_BADGE}
     </div>
     <div class="ps-item ps-wide">
@@ -567,7 +570,7 @@ cat > "$OUTPUT" <<HTMLEOF
 ${ROWS}
 </tbody>
 </table>
-<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. k3s Dashboard: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335. Open WebUI: DGX 8084 / AGX 8085.</p>
+<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. k3s Dashboard: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335. OpenUI: DGX 8084 / AGX 8085.</p>
 
 <div class="modal-overlay" id="new-proj-modal">
   <div class="modal">
