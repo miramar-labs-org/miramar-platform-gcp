@@ -288,9 +288,13 @@ DGX_OPENWEBUI_BADGE=$([ "$DGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="htt
 AGX_OPENWEBUI_BADGE=$([ "$AGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="http://localhost:8085" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 GKE_OPENWEBUI_BADGE=$([ "$GKE_OPENWEBUI_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 OPENWEBUI_API_CLASS="ps-value"; [[ -z "$DGX_OPENWEBUI_API_URL" ]] && OPENWEBUI_API_CLASS="ps-value ps-none"
-OPENWEBUI_API_DISPLAY="${DGX_OPENWEBUI_API_URL:-ollama (default)}"
+[[ -n "$DGX_OPENWEBUI_API_URL" ]] \
+  && OPENWEBUI_API_DISPLAY=$(echo "$DGX_OPENWEBUI_API_URL" | sed 's|http://[^.]*\.\([^.]*\)\..*|\1|') \
+  || OPENWEBUI_API_DISPLAY="ollama (default)"
 AGX_OPENWEBUI_API_CLASS="ps-value"; [[ -z "$AGX_OPENWEBUI_API_URL" ]] && AGX_OPENWEBUI_API_CLASS="ps-value ps-none"
-AGX_OPENWEBUI_API_DISPLAY="${AGX_OPENWEBUI_API_URL:-ollama (default)}"
+[[ -n "$AGX_OPENWEBUI_API_URL" ]] \
+  && AGX_OPENWEBUI_API_DISPLAY=$(echo "$AGX_OPENWEBUI_API_URL" | sed 's|http://[^.]*\.\([^.]*\)\..*|\1|') \
+  || AGX_OPENWEBUI_API_DISPLAY="ollama (default)"
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
