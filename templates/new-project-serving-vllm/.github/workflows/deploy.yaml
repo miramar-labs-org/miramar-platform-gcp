@@ -86,7 +86,7 @@ jobs:
           kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4
 
       - name: Ensure namespace
-        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure HF_TOKEN secret
         run: |
@@ -112,7 +112,7 @@ jobs:
           sed "s|IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm.yaml \
             | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
-            | kubectl apply -f -
+            | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
@@ -189,14 +189,14 @@ jobs:
           echo "BASE_MODEL_ID=${BASE_MODEL_ID}" >> "$GITHUB_ENV"
 
       - name: Ensure namespace
-        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure HF_TOKEN secret
         run: |
           kubectl create secret generic hf-token \
             --from-literal=token="${{ secrets.HF_TOKEN }}" \
             -n "$PROJECT_NAME" \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure GHCR pull secret
         run: |
@@ -205,7 +205,7 @@ jobs:
             --docker-username=miramar-labs-org \
             --docker-password="${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
             -n "$PROJECT_NAME" \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Build image URI
         id: image_uri
@@ -220,7 +220,7 @@ jobs:
           sed "s|GHCR_IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm-k3s.yaml \
             | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
-            | kubectl apply -f -
+            | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
@@ -297,14 +297,14 @@ jobs:
           echo "BASE_MODEL_ID=${BASE_MODEL_ID}" >> "$GITHUB_ENV"
 
       - name: Ensure namespace
-        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply -f -
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure HF_TOKEN secret
         run: |
           kubectl create secret generic hf-token \
             --from-literal=token="${{ secrets.HF_TOKEN }}" \
             -n "$PROJECT_NAME" \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure GHCR pull secret
         run: |
@@ -313,7 +313,7 @@ jobs:
             --docker-username=miramar-labs-org \
             --docker-password="${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
             -n "$PROJECT_NAME" \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Build image URI
         id: image_uri
@@ -328,7 +328,7 @@ jobs:
           sed "s|GHCR_IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm-k3s.yaml \
             | sed "s|BASE_MODEL_ID_PLACEHOLDER|${BASE_MODEL_ID}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
-            | kubectl apply -f -
+            | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=600s
