@@ -554,11 +554,11 @@ ${ROWS}
       <option value="default">default &mdash; generic notebook</option>
       <option value="kfp">kfp &mdash; Kubeflow pipeline stub</option>
       <option value="ft-eval">ft-eval &mdash; KFP eval-first fine-tuning pipeline</option>
+      <option value="nemo-ft-eval">nemo-ft-eval &mdash; NeMo Customizer fine-tuning + eval</option>
       <option value="serving-vllm">serving-vllm &mdash; vLLM LoRA adapter serving</option>
       <option value="serving-nim">serving-nim &mdash; NIM model serving (DGX + GKE)</option>
       <option value="serving-trt-fp8">serving-trt-fp8 &mdash; vLLM + FP8 quantized model</option>
       <option value="serving-trt-engine">serving-trt-engine &mdash; TRT-LLM engine serving</option>
-      <option value="nemo">nemo &mdash; NeMo training job</option>
     </select>
     <label class="modal-label" for="np-host">Host *</label>
     <select id="np-host">

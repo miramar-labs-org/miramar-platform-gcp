@@ -6,7 +6,7 @@ name: Create Project
 # default          — generic notebook + platform endpoint reference
 # kfp              — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
 # ft-eval      — KFP v2 eval-first fine-tuning pipeline, config-driven 6-step scaffold
-# nemo             — NeMo training job config, notebook, deploy/undeploy NeMo workflows
+# nemo-ft-eval     — NeMo Customizer fine-tuning + eval pipeline, parity with ft-eval
 # serving-vllm — vLLM LoRA adapter serving on GKE (L4 spot); build-push/deploy/undeploy workflows
 #
 # The host input sets which machine (dgx/agx) the project lives on:
@@ -25,7 +25,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, nemo]
+        options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine]
         default: default
         required: true
       host:
@@ -164,23 +164,18 @@ jobs:
               -e "s|{{DESCRIPTION}}|${DESCRIPTION}|g" \
             {} +
 
-          # Inject CI workflow badges after the title line for kfp and nemo types.
+          # Inject CI workflow badges after the title line for kfp-type projects.
           # (default type has no CI badges — the JupyterLab button is in the template itself.)
           # Each badge is a separate variable so no line falls to column 0
           # (which would break the YAML block scalar).
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           WF="${ORG_URL}/actions/workflows"
-          if [ "${PROJECT_TYPE}" = "ft-eval" ]; then
+          if [ "${PROJECT_TYPE}" = "ft-eval" ] || [ "${PROJECT_TYPE}" = "nemo-ft-eval" ]; then
             BADGE_2="[![Deploy to KFP](${WF}/deploy-to-kfp.yaml/badge.svg)](${WF}/deploy-to-kfp.yaml)"
             BADGE_3="[![Undeploy from KFP](${WF}/undeploy-from-kfp.yaml/badge.svg)](${WF}/undeploy-from-kfp.yaml)"
           elif [ "${PROJECT_TYPE}" = "kfp" ]; then
             BADGE_2="[![Deploy to KFP](${WF}/deploy-kfp.yaml/badge.svg)](${WF}/deploy-kfp.yaml)"
             BADGE_3="[![Undeploy from KFP](${WF}/undeploy-kfp.yaml/badge.svg)](${WF}/undeploy-kfp.yaml)"
-            { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
-            mv README.tmp README.md
-          elif [ "${PROJECT_TYPE}" = "nemo" ]; then
-            BADGE_2="[![Deploy to NeMo](${WF}/deploy-nemo.yaml/badge.svg)](${WF}/deploy-nemo.yaml)"
-            BADGE_3="[![Undeploy from NeMo](${WF}/undeploy-nemo.yaml/badge.svg)](${WF}/undeploy-nemo.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
           elif [ "${PROJECT_TYPE}" = "serving-vllm" ]; then
@@ -213,7 +208,7 @@ jobs:
           REQS="${{ inputs.requirements }}"
           [[ "${PROJECT_TYPE}" = "kfp" ]] && REQS="${REQS} kfp>=2.0.0"
           [[ "${PROJECT_TYPE}" = "ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes"
-          [[ "${PROJECT_TYPE}" = "nemo" ]] && REQS="${REQS} nemo-microservices"
+          [[ "${PROJECT_TYPE}" = "nemo-ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes nemo-microservices"
           printf '%s\n' ${REQS} > requirements.txt
 
           git add .
@@ -299,22 +294,30 @@ jobs:
             -f ref="refs/heads/${BRANCH}" -f sha="${MAIN_SHA}" 2>/dev/null \
           || echo "Branch already exists, continuing."
 
-          if [ "${PROJECT_TYPE}" = "nemo" ]; then
-            CATS="miramar nemo fine-tuning"
+          if [ "${PROJECT_TYPE}" = "nemo-ft-eval" ]; then
+            CATS="miramar nemo kubeflow fine-tuning"
             BODY=$(printf '%s\n' \
               "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
               "**Platform:** ${HW} via [Miramar Platform](${DASHBOARD_URL})" \
               "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
-              "## Training setup" "" "<!-- TODO: NeMo version, training framework -->" "" \
-              "## Model and dataset" "" \
+              "## Pipeline" "" "<!-- TODO: base model, dataset, NeMo customization setup -->" "" \
+              "## Steps" "" \
+              "| Step | Description |" "|------|-------------|" \
+              "| \`prepare_dataset\` | <!-- TODO --> |" \
+              "| \`baseline_eval\` | <!-- TODO --> |" \
+              "| \`fine_tune\` | NeMo Customizer async job |" \
+              "| \`export_adapter\` | NeMo → HF PEFT adapter |" \
+              "| \`post_finetune_eval\` | <!-- TODO --> |" \
+              "| \`safety_eval\` | <!-- TODO --> |" \
+              "| \`deployment_gate\` | <!-- TODO --> |" "" \
+              "## Configuration" "" \
               "| Parameter | Value |" "|-----------|-------|" \
-              "| Base model | <!-- TODO --> |" "| Dataset | <!-- TODO --> |" \
+              "| Base model (NeMo) | <!-- TODO --> |" "| Base model (HF eval) | <!-- TODO --> |" \
+              "| Dataset(s) | <!-- TODO --> |" \
               "| Epochs | <!-- TODO --> |" "| Batch size | <!-- TODO --> |" "" \
-              "## LoRA configuration" "" "<!-- TODO: rank, alpha, target modules -->" "" \
-              "\`\`\`yaml" "# excerpt from job_config.yaml" "\`\`\`" "" \
               "## Evaluation results" "" \
-              "| Metric | Base model | Fine-tuned |" "|--------|------------|------------|" \
-              "| <!-- TODO --> | | |" "" \
+              "| Metric | Base | Fine-tuned |" "|--------|------|------------|" \
+              "| Accuracy | | |" "| Safety score | | |" "" \
               "## Next steps" "" "<!-- TODO -->")
           elif [ "${PROJECT_TYPE}" = "kfp" ]; then
             CATS="miramar kubeflow pipelines"
@@ -569,11 +572,17 @@ jobs:
               echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
               echo ""
               echo "Prerequisites: Compiled TRT-LLM engines must exist at \`~/shared/huggingface-kfp/engines/<project>/<run_id>/engine_<target>/\`"
-            else
+            elif [ "${PROJECT_TYPE}" = "nemo-ft-eval" ]; then
               echo "### Next steps"
-              echo "1. Edit \`job_config.yaml\` — set model, dataset path, hyperparameters"
-              echo "2. Trigger **Deploy to NeMo** to submit the job"
-              echo "3. Prerequisites: **NeMo Deploy** must be running on \`${HOST}\`"
+              echo "1. Edit \`config.yaml\` — set \`model.id\` (NeMo catalog), \`model.hf_id\` (HuggingFace), \`nemo.base_url\`, datasets, thresholds"
+              echo "2. Edit \`formatters.py\` / \`loaders.py\` — add one formatter/loader per dataset"
+              echo "3. Open \`notebook.ipynb\` and implement the NeMo-specific USER CODE BLOCKs (see WORKBOOK.md)"
+              echo "4. Run the **Build → \`pipeline.py\`** cell in the notebook"
+              echo "5. Trigger **Deploy to KFP** to compile and submit a run"
+              echo ""
+              echo "Prerequisites: **Kubeflow Deploy** + **NeMo Deploy** must be running on \`${HOST}\`"
+            else
+              echo "No additional next steps."
             fi
             if [[ -n "${BLOG_PR_URL:-}" ]]; then
               echo ""

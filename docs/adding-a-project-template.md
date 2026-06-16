@@ -28,11 +28,11 @@ Files in `.github/workflows/` inside the template are included automatically.
 **a. Input enum** (`inputs.project_type.options`, line ~27):
 
 ```yaml
-options: [default, kfp, ft-eval, nemo, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, <type>]
+options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, <type>]
 ```
 
 **b. CI badge injection** (line ~147) — add a branch for your type if it has
-deploy/undeploy workflows. Follow the `kfp` or `nemo` branch as a model: set
+deploy/undeploy workflows. Follow the `kfp` or `nemo-ft-eval` branch as a model: set
 `BADGE_2` and `BADGE_3` to GitHub Actions badge markdown pointing at
 `deploy-<type>.yaml` and `undeploy-<type>.yaml` respectively.
 
@@ -94,7 +94,7 @@ the `Set repository topics` step), so the topic name is always `miramar-<type>`.
 ```
 
 Pick a colour not already used: `kfp` = blue, `ft-eval` = teal,
-`nemo` = green, `default`/`other` = amber, `serving-vllm` = purple,
+`nemo-ft-eval` = dark green (purple label), `default`/`other` = amber, `serving-vllm` = purple,
 `serving-nim` = dark cyan, `serving-trt-fp8` = olive green, `serving-trt-engine` = orange.
 
 **c. New Project modal dropdown** (`<select id="np-type">`) — add an option so

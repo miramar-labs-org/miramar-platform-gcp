@@ -217,7 +217,7 @@ GitHub is the source-of-truth control plane:
 | `serving-trt-engine` | `miramar-serving-trt-engine`   | dgx / agx / gcp | ✅ Done        | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot |
 | `kfp-optimize`       | `miramar-kfp-optimize`         | dgx             | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint    |
 | `kfp`                | `miramar-kfp`                  | dgx / agx       | ✅ Done        | Generic KFP v2 pipeline stub                                                             |
-| `nemo`               | `miramar-nemo`                 | dgx / agx       | ✅ Done        | NeMo training job                                                                        |
+| `nemo-ft-eval`       | `miramar-nemo-ft-eval`         | dgx / agx       | ✅ Done        | NeMo Customizer fine-tuning + eval pipeline (parity with ft-eval, `export_adapter` stage) |
 | `default`            | `miramar-default`              | dgx / agx       | ✅ Done        | Generic notebook + platform endpoint reference                                           |
 
 ---
