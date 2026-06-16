@@ -58,6 +58,20 @@ jobs:
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_SERVING_ACTIVE" \
             -f value="false" 2>/dev/null || true
 
+      - name: Reset Open WebUI backend to Ollama
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
+            -f name="DGX_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=dgx
+          fi
+
       - name: Summary
         run: |
           {
@@ -95,6 +109,20 @@ jobs:
           gh api --method PATCH \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_SERVING_ACTIVE" \
             -f value="false" 2>/dev/null || true
+
+      - name: Reset Open WebUI backend to Ollama
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
+            -f name="AGX_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=agx
+          fi
 
       - name: Summary
         run: |
@@ -148,6 +176,20 @@ jobs:
           gh api --method PATCH \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/GKE_SERVING_ACTIVE" \
             -f value="false" 2>/dev/null || true
+
+      - name: Reset Open WebUI backend to Ollama
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
+            -f name="GKE_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=gke
+          fi
 
       - name: Summary
         run: |

@@ -155,6 +155,24 @@ jobs:
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
             -f name="DGX_VLLM_VRAM_GB" -f value="${VLLM_GB}"
 
+      - name: Update Open WebUI backend URL
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          BACKEND_URL="http://vllm.${PROJECT_NAME}.svc.cluster.local:8000/v1"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
+            -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=dgx
+          fi
+
       - name: Summary
         if: always()
         run: |
@@ -284,6 +302,24 @@ jobs:
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
             -f name="AGX_VLLM_VRAM_GB" -f value="${VLLM_GB}"
 
+      - name: Update Open WebUI backend URL
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          BACKEND_URL="http://vllm.${PROJECT_NAME}.svc.cluster.local:8000/v1"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
+            -f name="AGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="AGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=agx
+          fi
+
       - name: Summary
         if: always()
         run: |
@@ -411,6 +447,24 @@ jobs:
           gh api --method POST \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
             -f name="GKE_SERVING_ACTIVE" -f value="true"
+
+      - name: Update Open WebUI backend URL
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          BACKEND_URL="http://vllm.${PROJECT_NAME}.svc.cluster.local:8000/v1"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
+            -f name="GKE_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=gke
+          fi
 
       - name: Summary
         if: always()

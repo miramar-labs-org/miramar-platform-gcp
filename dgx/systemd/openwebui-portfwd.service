@@ -1,0 +1,30 @@
+[Unit]
+Description=kubectl port-forward Open WebUI (8084 -> svc/openwebui:8080)
+After=network-online.target k3s.service
+Wants=network-online.target k3s.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=HOME=%h
+Environment=KUBECONFIG=%h/.kube/config
+
+# Wait until the service exists and has at least one ready endpoint
+ExecStartPre=/usr/bin/bash -lc '\
+/usr/local/bin/kubectl -n openwebui get svc openwebui >/dev/null || { echo "svc/openwebui not found"; exit 1; }; \
+for i in {1..60}; do \
+  ip=$(/usr/local/bin/kubectl -n openwebui get endpoints openwebui \
+    -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
+  if [ -n "$ip" ]; then exit 0; fi; \
+  sleep 2; \
+done; \
+echo "Timed out waiting for ready endpoints for svc/openwebui"; \
+/usr/local/bin/kubectl -n openwebui get endpoints openwebui -o wide || true; \
+exit 1'
+
+ExecStart=/usr/local/bin/kubectl -n openwebui port-forward svc/openwebui 8084:8080 --address 0.0.0.0
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -61,7 +61,7 @@ docs/              # Architecture and runbooks
 | `scripts/gha/sync-github-tf-vars.sh`              | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Never edit GitHub vars directly — edit tfvars and re-sync.                      |
 | `scripts/gha/launch-runner.sh` / `stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. Idempotent.                                                                    |
 | `scripts/gha/flush-queues.sh`                     | Cancel all in-progress, queued, and waiting workflow runs                                                                                     |
-| `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the eight systemd user services (used on both DGX and AGX)                                                                  |
+| `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the nine systemd user services (used on both DGX and AGX)                                                                   |
 | `wsl2/bootstrap.sh`                               | One-time setup for a fresh WSL2 template base. Run inside the clean template before exporting.                                                |
 | `wsl2/rebuild-template.ps1`                       | Rebuild the configured template tarball. Params: `-SmbPassword` (required). Run after changing `bootstrap.sh` or rotating the Samba password. |
 | `wsl2/firstboot.sh`                               | One-shot provisioning inside a new distro via `wsl -d NAME --user root -- bash`. Sets hostname, sshd port, calls `setup-shared-ssh.sh`.       |
@@ -128,6 +128,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NIM Undeploy                 | `undeploy-nim.yaml`                 | Undeploy NIM via NeMo API; 404 is a no-op; clears `CURRENT_NIM_MODEL[_AGX]`. Inputs: `runner`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Qdrant Deploy                | `deploy-qdrant.yaml`                | Deploy Qdrant vector database into k3s `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner` (dgx/agx)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Qdrant Undeploy              | `undeploy-qdrant.yaml`              | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Open WebUI Deploy            | `deploy-openwebui.yaml`             | Deploy Open WebUI chat interface on DGX K3s, AGX K3s, or GKE; reads `{MACHINE}_OPENWEBUI_API_URL` org var to wire active serving backend (falls back to Ollama-only on K3s); installs `openwebui-portfwd.service` (port 8084); writes `{MACHINE}_OPENWEBUI_ACTIVE` org var. Inputs: `host` (dgx/agx/gke) |
+| Open WebUI Undeploy          | `undeploy-openwebui.yaml`           | Remove Open WebUI deployment; stops `openwebui-portfwd.service` on K3s hosts; clears `{MACHINE}_OPENWEBUI_ACTIVE`. Does NOT touch `_SERVING_ACTIVE` or `_OPENWEBUI_API_URL` variables. Inputs: `host` |
 | Nsight Operator Deploy       | `deploy-nsight-operator.yaml`       | Install Nsight Operator via Helm (NGC devtools registry); optionally labels kubeflow namespace for pod injection; starts `nsight-portfwd.service` (UI at port 8889); writes `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner` (dgx/agx), `chart_version`, `label_kubeflow_namespace`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Nsight Operator Undeploy     | `undeploy-nsight-operator.yaml`     | Helm uninstall Nsight Operator; stops `nsight-portfwd.service`; optionally removes kubeflow injection label and namespace; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` org var. Inputs: `runner`, `delete_namespace`, `unlabel_kubeflow_namespace`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Nsight Operator Deploy GKE   | `deploy-nsight-operator-gke.yaml`   | Install Nsight Operator on GKE via Helm (NGC devtools registry); `wsl2` runner; WIF + GKE credentials; dynamic PVC (no static PV); sets `GKE_NSIGHT_OPERATOR_ACTIVE`. Access via `kubectl port-forward svc/nsight-operator-ui 8889:8888 -n nsight-operator`. Inputs: `chart_version`, `label_kubeflow_namespace`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -184,7 +186,20 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `GKE_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy GKE; GCP Platform Create | Nsight Operator Undeploy GKE    |
 | `DGX_OLLAMA_ACTIVE`          | Ollama Deploy (dgx)                             | Ollama Undeploy (dgx), rollback |
 | `AGX_OLLAMA_ACTIVE`          | Ollama Deploy (agx)                             | Ollama Undeploy (agx), rollback |
+| `DGX_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (dgx)                         | Open WebUI Undeploy (dgx)       |
+| `AGX_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (agx)                         | Open WebUI Undeploy (agx)       |
+| `GKE_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (gke)                         | Open WebUI Undeploy (gke)       |
 | `GKE_GPU_POOL_ACTIVE`        | GKE Expand GPU                                  | GKE Restore GPU                 |
+
+**Open WebUI backend URL org variables** (set automatically by serving project deploy/undeploy workflows):
+
+| Variable               | Set by                        | Cleared by                             | Default |
+| ---------------------- | ----------------------------- | -------------------------------------- | ------- |
+| `DGX_OPENWEBUI_API_URL` | serving-xxx deploy (dgx job) | serving-xxx undeploy (dgx job) → `""` | `""`    |
+| `AGX_OPENWEBUI_API_URL` | serving-xxx deploy (agx job) | serving-xxx undeploy (agx job) → `""` | `""`    |
+| `GKE_OPENWEBUI_API_URL` | serving-xxx deploy (gke job) | serving-xxx undeploy (gke job) → `""` | `""`    |
+
+When a serving project deploys, it sets `{MACHINE}_OPENWEBUI_API_URL` to the in-cluster backend URL and (if `{MACHINE}_OPENWEBUI_ACTIVE=true`) triggers `deploy-openwebui.yaml` to repoint the running UI. When a serving project undeploys, it clears the URL to `""` and triggers a redeploy, reverting Open WebUI to Ollama-only.
 
 **GCP pool org variables** (drive the CPU/GPU pool badges on the dashboard):
 
@@ -235,7 +250,7 @@ To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`
 
 ## Local AI stack (DGX + AGX)
 
-Both DGX Spark and AGX Orin run the identical eight systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
+Both DGX Spark and AGX Orin run the identical nine systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
 
 | Service            | Host port   | Purpose                                                                      |
 | ------------------ | ----------- | ---------------------------------------------------------------------------- |
@@ -247,6 +262,7 @@ Both DGX Spark and AGX Orin run the identical eight systemd user services on boo
 | `nemo-portfwd`     | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
 | `qdrant-portfwd`   | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC)          |
 | `nsight-portfwd`   | `8889`      | `kubectl port-forward svc/nsight-operator-ui:8888` (Nsight Operator UI)      |
+| `openwebui-portfwd` | `8084`     | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat over Ollama / vLLM) |
 
 **SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop:
 
@@ -262,6 +278,7 @@ Both DGX Spark and AGX Orin run the identical eight systemd user services on boo
 | Qdrant REST        | `6333`         | `6335`         |
 | Qdrant gRPC        | `6334`         | `6336`         |
 | Nsight Operator UI | `8889`         | `8892`         |
+| Open WebUI         | `8084`         | `8085`         |
 
 ```sh
 # DGX Spark (spark-79b7.local)
@@ -269,6 +286,7 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
     -L 11434:localhost:11434 -L 6333:localhost:6333 -L 6334:localhost:6334 \
     -L 8889:localhost:8889 \
+    -L 8084:localhost:8084 \
     aaron@spark-79b7.local
 
 # AGX Orin (orin.local)
@@ -276,6 +294,7 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
     -L 11435:localhost:11434 -L 6335:localhost:6333 -L 6336:localhost:6334 \
     -L 8892:localhost:8889 \
+    -L 8085:localhost:8084 \
     aaron@orin.local
 ```
 

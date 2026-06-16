@@ -1,0 +1,321 @@
+name: Open WebUI Deploy
+
+# Deploys Open WebUI as a platform service on DGX K3s, AGX K3s, or GKE.
+# Reads {MACHINE}_OPENWEBUI_API_URL org variable to wire the active serving backend.
+# If no backend is set, falls back to Ollama-only (K3s) or no-backend (GKE).
+# Access: http://localhost:8084 via the openwebui-portfwd.service systemd unit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "Target host (dgx, agx, gke)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+          - gke
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+
+jobs:
+  deploy-dgx:
+    if: inputs.host == 'dgx'
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Set up SSH
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Read OpenWebUI API URL
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ -n "$API_URL" ]]; then
+            echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
+            echo "ENABLE_OPENAI_API=true"          >> "$GITHUB_ENV"
+          else
+            echo "OPENAI_API_BASE_URL="            >> "$GITHUB_ENV"
+            echo "ENABLE_OPENAI_API=false"         >> "$GITHUB_ENV"
+          fi
+
+      - name: Ensure namespace
+        run: kubectl create namespace openwebui --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Substitute and apply K3s manifest
+        run: |
+          sed "s|OPENAI_API_BASE_URL_PLACEHOLDER|${OPENAI_API_BASE_URL}|g" dgx/k3s/openwebui/openwebui.yaml \
+            | sed "s|ENABLE_OPENAI_API_PLACEHOLDER|${ENABLE_OPENAI_API}|g" \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/openwebui -n openwebui --timeout=600s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/openwebui 18084:8080 -n openwebui &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+          curl -sf http://localhost:18084/health
+          echo "Health check passed."
+
+      - name: Stop existing port-forward service (frees port for restart)
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'systemctl --user stop openwebui-portfwd.service 2>/dev/null || true'
+
+      - name: Check port 8084 availability
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'ss -tlnp | grep -q ":8084 " && echo "ERROR: port 8084 is in use by another process" && exit 1 || echo "Port 8084 is free"'
+
+      - name: Install port-forward service on host
+        run: |
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            dgx/systemd/openwebui-portfwd.service \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}:~/.config/systemd/user/openwebui-portfwd.service"
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'systemctl --user daemon-reload && systemctl --user enable --now openwebui-portfwd.service'
+
+      - name: Verify port-forward service
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'systemctl --user is-active openwebui-portfwd.service'
+
+      - name: Set Open WebUI active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
+            -f name="DGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="DGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Open WebUI Deployed (DGX)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Namespace | \`openwebui\` |"
+            echo "| OpenAI backend | \`${OPENAI_API_BASE_URL:-none (Ollama-only)}\` |"
+            echo "| Ollama backend | \`http://host.k3s.internal:11434\` |"
+            echo ""
+            echo "Access: \`http://localhost:8084\`"
+            echo ""
+            echo "SSH tunnel from laptop: \`ssh -L 8084:localhost:8084 ${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-agx:
+    if: inputs.host == 'agx'
+    runs-on: [self-hosted, agx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Set up SSH
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${{ vars.AGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Read OpenWebUI API URL
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ -n "$API_URL" ]]; then
+            echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
+            echo "ENABLE_OPENAI_API=true"          >> "$GITHUB_ENV"
+          else
+            echo "OPENAI_API_BASE_URL="            >> "$GITHUB_ENV"
+            echo "ENABLE_OPENAI_API=false"         >> "$GITHUB_ENV"
+          fi
+
+      - name: Ensure namespace
+        run: kubectl create namespace openwebui --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Substitute and apply K3s manifest
+        run: |
+          sed "s|OPENAI_API_BASE_URL_PLACEHOLDER|${OPENAI_API_BASE_URL}|g" dgx/k3s/openwebui/openwebui.yaml \
+            | sed "s|ENABLE_OPENAI_API_PLACEHOLDER|${ENABLE_OPENAI_API}|g" \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/openwebui -n openwebui --timeout=600s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/openwebui 18084:8080 -n openwebui &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+          curl -sf http://localhost:18084/health
+          echo "Health check passed."
+
+      - name: Stop existing port-forward service (frees port for restart)
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
+            'systemctl --user stop openwebui-portfwd.service 2>/dev/null || true'
+
+      - name: Check port 8084 availability
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
+            'ss -tlnp | grep -q ":8084 " && echo "ERROR: port 8084 is in use by another process" && exit 1 || echo "Port 8084 is free"'
+
+      - name: Install port-forward service on host
+        run: |
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            dgx/systemd/openwebui-portfwd.service \
+            "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}:~/.config/systemd/user/openwebui-portfwd.service"
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
+            'systemctl --user daemon-reload && systemctl --user enable --now openwebui-portfwd.service'
+
+      - name: Verify port-forward service
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
+            'systemctl --user is-active openwebui-portfwd.service'
+
+      - name: Set Open WebUI active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
+            -f name="AGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="AGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Open WebUI Deployed (AGX)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Namespace | \`openwebui\` |"
+            echo "| OpenAI backend | \`${OPENAI_API_BASE_URL:-none (Ollama-only)}\` |"
+            echo "| Ollama backend | \`http://host.k3s.internal:11434\` |"
+            echo ""
+            echo "Access: \`http://localhost:8084\`"
+            echo ""
+            echo "SSH tunnel from laptop: \`ssh -L 8085:localhost:8084 ${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-gke:
+    if: inputs.host == 'gke'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Read OpenWebUI API URL
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ -n "$API_URL" ]]; then
+            echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
+            echo "ENABLE_OPENAI_API=true"          >> "$GITHUB_ENV"
+          else
+            echo "OPENAI_API_BASE_URL="            >> "$GITHUB_ENV"
+            echo "ENABLE_OPENAI_API=false"         >> "$GITHUB_ENV"
+          fi
+
+      - name: Ensure namespace
+        run: kubectl create namespace openwebui --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Substitute and apply GKE manifest
+        run: |
+          sed "s|OPENAI_API_BASE_URL_PLACEHOLDER|${OPENAI_API_BASE_URL}|g" gke/openwebui/openwebui.yaml \
+            | sed "s|ENABLE_OPENAI_API_PLACEHOLDER|${ENABLE_OPENAI_API}|g" \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/openwebui -n openwebui --timeout=600s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/openwebui 18084:8080 -n openwebui &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+          curl -sf http://localhost:18084/health
+          echo "Health check passed."
+
+      - name: Set Open WebUI active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_ACTIVE" \
+            -f name="GKE_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Open WebUI Deployed (GKE)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Namespace | \`openwebui\` |"
+            echo "| OpenAI backend | \`${OPENAI_API_BASE_URL:-none}\` |"
+            echo ""
+            echo "Access: \`kubectl port-forward svc/openwebui 8084:8080 -n openwebui\`"
+            echo "Then open: \`http://localhost:8084\`"
+          } >> "$GITHUB_STEP_SUMMARY"

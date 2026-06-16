@@ -159,6 +159,8 @@ DGX_OLLAMA_ACTIVE=$(read_org_var "DGX_OLLAMA_ACTIVE")
 DGX_MLFLOW_ACTIVE=$(read_org_var "DGX_MLFLOW_ACTIVE")
 DGX_QDRANT_ACTIVE=$(read_org_var "DGX_QDRANT_ACTIVE")
 DGX_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "DGX_NSIGHT_OPERATOR_ACTIVE")
+DGX_OPENWEBUI_ACTIVE=$(read_org_var "DGX_OPENWEBUI_ACTIVE")
+DGX_OPENWEBUI_API_URL=$(read_org_var "DGX_OPENWEBUI_API_URL")
 
 AGX_OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL_AGX")
 AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
@@ -172,7 +174,9 @@ AGX_OLLAMA_ACTIVE=$(read_org_var "AGX_OLLAMA_ACTIVE")
 AGX_MLFLOW_ACTIVE=$(read_org_var "AGX_MLFLOW_ACTIVE")
 AGX_QDRANT_ACTIVE=$(read_org_var "AGX_QDRANT_ACTIVE")
 AGX_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "AGX_NSIGHT_OPERATOR_ACTIVE")
+AGX_OPENWEBUI_ACTIVE=$(read_org_var "AGX_OPENWEBUI_ACTIVE")
 GKE_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "GKE_NSIGHT_OPERATOR_ACTIVE")
+GKE_OPENWEBUI_ACTIVE=$(read_org_var "GKE_OPENWEBUI_ACTIVE")
 
 GCP_PROJECT_ID=$(read_org_var "GCP_PROJECT_ID")
 GCP_REGION=$(read_org_var "GCP_REGION")
@@ -274,6 +278,12 @@ AGX_QDRANT_BADGE=$([ "$AGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://lo
 DGX_NSIGHT_BADGE=$([ "$DGX_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<a href="http://localhost:8889" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_NSIGHT_BADGE=$([ "$AGX_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<a href="http://localhost:8892" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 GKE_NSIGHT_BADGE=$([ "$GKE_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
+
+DGX_OPENWEBUI_BADGE=$([ "$DGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="http://localhost:8084" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+AGX_OPENWEBUI_BADGE=$([ "$AGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="http://localhost:8085" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
+GKE_OPENWEBUI_BADGE=$([ "$GKE_OPENWEBUI_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
+OPENWEBUI_API_CLASS="ps-value"; [[ -z "$DGX_OPENWEBUI_API_URL" ]] && OPENWEBUI_API_CLASS="ps-value ps-none"
+OPENWEBUI_API_DISPLAY="${DGX_OPENWEBUI_API_URL:-ollama (default)}"
 
 cat > "$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
@@ -429,6 +439,14 @@ cat > "$OUTPUT" <<HTMLEOF
       ${DGX_NSIGHT_BADGE}
     </div>
     <div class="ps-item">
+      <div class="ps-label">Open WebUI</div>
+      ${DGX_OPENWEBUI_BADGE}
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">WebUI backend</div>
+      <code class="${OPENWEBUI_API_CLASS}">${OPENWEBUI_API_DISPLAY}</code>
+    </div>
+    <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
       <code class="ps-value">${VRAM_USED_GB} GB</code>
     </div>
@@ -478,6 +496,10 @@ cat > "$OUTPUT" <<HTMLEOF
       ${AGX_NSIGHT_BADGE}
     </div>
     <div class="ps-item">
+      <div class="ps-label">Open WebUI</div>
+      ${AGX_OPENWEBUI_BADGE}
+    </div>
+    <div class="ps-item">
       <div class="ps-label">VRAM Used</div>
       <code class="ps-value">${AGX_VRAM_USED_GB} GB</code>
     </div>
@@ -514,6 +536,10 @@ cat > "$OUTPUT" <<HTMLEOF
       <div class="ps-label">Nsight</div>
       ${GKE_NSIGHT_BADGE}
     </div>
+    <div class="ps-item">
+      <div class="ps-label">Open WebUI</div>
+      ${GKE_OPENWEBUI_BADGE}
+    </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">Model bucket</div>
       ${GKE_BUCKET_HTML}
@@ -541,7 +567,7 @@ cat > "$OUTPUT" <<HTMLEOF
 ${ROWS}
 </tbody>
 </table>
-<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. k3s Dashboard: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335.</p>
+<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. k3s Dashboard: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335. Open WebUI: DGX 8084 / AGX 8085.</p>
 
 <div class="modal-overlay" id="new-proj-modal">
   <div class="modal">

@@ -1,0 +1,169 @@
+name: Open WebUI Undeploy
+
+# Removes the Open WebUI deployment from DGX K3s, AGX K3s, or GKE.
+# Stops the openwebui-portfwd.service systemd unit on K3s hosts.
+# Does NOT touch any _SERVING_ACTIVE or _OPENWEBUI_API_URL variables —
+# those belong to serving project repos and are managed independently.
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "Target host (dgx, agx, gke)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+          - gke
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+
+jobs:
+  undeploy-dgx:
+    if: inputs.host == 'dgx'
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Set up SSH
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Stop port-forward service
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
+            'systemctl --user disable --now openwebui-portfwd.service 2>/dev/null || true'
+
+      - name: Delete deployment and service
+        run: |
+          kubectl delete deployment openwebui -n openwebui --ignore-not-found
+          kubectl delete service openwebui -n openwebui --ignore-not-found
+
+      - name: Clear Open WebUI active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
+            -f name="DGX_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="DGX_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Open WebUI Undeployed (DGX)"
+            echo "openwebui-portfwd.service stopped and disabled."
+            echo "Deployment and service removed from namespace \`openwebui\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  undeploy-agx:
+    if: inputs.host == 'agx'
+    runs-on: [self-hosted, agx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Set up SSH
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${{ vars.AGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Stop port-forward service
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
+            'systemctl --user disable --now openwebui-portfwd.service 2>/dev/null || true'
+
+      - name: Delete deployment and service
+        run: |
+          kubectl delete deployment openwebui -n openwebui --ignore-not-found
+          kubectl delete service openwebui -n openwebui --ignore-not-found
+
+      - name: Clear Open WebUI active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
+            -f name="AGX_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="AGX_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Open WebUI Undeployed (AGX)"
+            echo "openwebui-portfwd.service stopped and disabled."
+            echo "Deployment and service removed from namespace \`openwebui\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  undeploy-gke:
+    if: inputs.host == 'gke'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Delete deployment and service
+        run: |
+          kubectl delete deployment openwebui -n openwebui --ignore-not-found
+          kubectl delete service openwebui -n openwebui --ignore-not-found
+
+      - name: Clear Open WebUI active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_ACTIVE" \
+            -f name="GKE_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Open WebUI Undeployed (GKE)"
+            echo "Deployment and service removed from namespace \`openwebui\`."
+          } >> "$GITHUB_STEP_SUMMARY"

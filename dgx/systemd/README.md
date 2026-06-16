@@ -13,6 +13,7 @@ AGX Orin runs the identical set of services — see [../../agx/systemd/README.md
 | `kfp-api-portfwd.service`  | `8890`      | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace                                                                  |
 | `nemo-portfwd.service`     | `8082`      | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
 | `qdrant-portfwd.service`   | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334)                 |
+| `openwebui-portfwd.service` | `8084`     | `kubectl port-forward` — proxies `svc/openwebui:8080` in the `openwebui` namespace; [Open WebUI](https://github.com/open-webui/open-webui) chat interface over Ollama / vLLM |
 
 k3s itself runs as a system-level service (`sudo systemctl start k3s` / `sudo systemctl stop k3s`) — not a user unit. The port-forward services above start after k3s is ready.
 
@@ -30,6 +31,7 @@ ssh -L 8001:localhost:8001 \
     -L 11434:localhost:11434 \
     -L 6333:localhost:6333 \
     -L 6334:localhost:6334 \
+    -L 8084:localhost:8084 \
     <user>@spark-79b7.local
 ```
 
@@ -83,6 +85,7 @@ journalctl --user -u kubeflow-portfwd -f
 journalctl --user -u kfp-api-portfwd -f
 journalctl --user -u nemo-portfwd -f
 journalctl --user -u qdrant-portfwd -f
+journalctl --user -u openwebui-portfwd -f
 ```
 
 ## Notes
