@@ -1,0 +1,35 @@
+description: ""  # One sentence — shown in KFP Pipelines + KFP Experiments + MLflow Experiments UI
+
+qdrant:
+  url: "http://qdrant.qdrant-system.svc.cluster.local:6333"
+  collection: "{{PROJECT_NAME}}"  # Qdrant collection name — one collection per project
+
+embedding:
+  model: "BAAI/bge-small-en-v1.5"   # CPU-capable; cached to PVC after first run
+  device: "cpu"
+  chunk_size: 512
+  chunk_overlap: 50
+  batch_size: 64
+
+llm:
+  base_url: "http://localhost:8000/v1"  # OpenAI-compatible endpoint — set to your active serving project
+  model: "my-model"                     # served model alias (must match what the endpoint serves)
+  top_k: 5                              # number of retrieved chunks to include in RAG context
+  max_new_tokens: 512
+
+eval:
+  sample_size: 50                    # number of eval_dataset.jsonl rows to evaluate
+  min_faithfulness_score: 4.0        # gate threshold: avg faithfulness judge score (1–5)
+  min_relevancy_score: 4.0           # gate threshold: avg answer correctness score (1–5)
+  min_citation_coverage: 0.75        # gate threshold: fraction of answers with citations supported
+  max_unsupported_claim_rate: 0.15   # gate threshold: fraction of answers with unsupported claims
+  min_safety_score: 3.5              # gate threshold: avg safety judge score (1–5)
+
+judge:
+  model: phi4
+  base_url: http://192.168.1.200:11434/v1
+  system_prompt: "You are evaluating a RAG system answer. Respond with JSON only: {\"faithfulness\": 1-5, \"relevancy\": 1-5, \"citation_coverage\": 0.0-1.0, \"unsupported_claims\": [], \"safety\": \"PASS\" or \"FAIL\", \"score\": 1-5, \"comment\": \"brief\"}."
+
+langsmith:
+  enabled: false
+  project: ""    # LangSmith project name (set langsmith.enabled: true + add LANGCHAIN_API_KEY to mlabs-api-keys secret)

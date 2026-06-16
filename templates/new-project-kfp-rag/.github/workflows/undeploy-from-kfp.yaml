@@ -1,0 +1,37 @@
+name: Undeploy from KFP
+
+# Terminates a Kubeflow Pipelines run by ID.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: KFP run ID to terminate (shown in deploy-to-kfp summary or the KFP UI)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Terminate run
+        env:
+          KFP_HOST: http://localhost:8890
+          RUN_ID: ${{ inputs.run_id }}
+        run: python3 scripts/terminate_pipeline.py
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## KFP Run Terminated"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Run ID | \`${{ inputs.run_id }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

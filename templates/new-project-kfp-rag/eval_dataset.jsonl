@@ -1,0 +1,3 @@
+{"question": "TODO: replace with a domain question your documents can answer", "reference_answer": "TODO: the correct answer based on your documents", "gold_doc_ids": [], "required_facts": ["TODO: key facts the answer must include"]}
+{"question": "TODO: second domain question", "reference_answer": "TODO", "gold_doc_ids": [], "required_facts": []}
+{"question": "TODO: third domain question", "reference_answer": "TODO", "gold_doc_ids": [], "required_facts": []}
