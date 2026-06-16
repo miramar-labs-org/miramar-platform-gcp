@@ -47,8 +47,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
-            --jq '.value // empty' 2>/dev/null || true)
+          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
             echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
             echo "ENABLE_OPENAI_API=true"          >> "$GITHUB_ENV"
@@ -153,8 +152,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
-            --jq '.value // empty' 2>/dev/null || true)
+          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
             echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
             echo "ENABLE_OPENAI_API=true"          >> "$GITHUB_ENV"
@@ -266,8 +264,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
-            --jq '.value // empty' 2>/dev/null || true)
+          API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
             echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
             echo "ENABLE_OPENAI_API=true"          >> "$GITHUB_ENV"
