@@ -25,7 +25,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, ft-eval, nemo, serving-vllm]
+        options: [default, kfp, ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, nemo]
         default: default
         required: true
       host:
@@ -189,6 +189,23 @@ jobs:
             BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "serving-nim" ]; then
+            BADGE_2="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
+            BADGE_3="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "serving-trt-fp8" ]; then
+            BADGE_2="[![Build and Push](${WF}/build-push.yaml/badge.svg)](${WF}/build-push.yaml)"
+            BADGE_3="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
+            BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "serving-trt-engine" ]; then
+            BADGE_2="[![Build and Push](${WF}/build-push.yaml/badge.svg)](${WF}/build-push.yaml)"
+            BADGE_3="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
+            BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
           fi
 
           # Write requirements.txt: start from workflow input, then append
@@ -335,6 +352,69 @@ jobs:
               "## Smoke test results" "" \
               "<!-- TODO: sample prompts and responses -->" "" \
               "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "serving-nim" ]; then
+            CATS="miramar nim serving dgx"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Serving stack" "" \
+              "| | |" "|---|---|" \
+              "| NIM model | <!-- TODO: org/model-name --> |" \
+              "| Inference engine | NIM |" \
+              "| Host | <!-- TODO: DGX Spark / GKE L4 --> |" \
+              "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
+              "## Deployment" "" \
+              "\`\`\`bash" \
+              "curl http://localhost:8000/v1/models" \
+              "curl -X POST http://localhost:8000/v1/chat/completions \\\\" \
+              "  -d '{\"model\":\"<!-- TODO -->\",\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'" \
+              "\`\`\`" "" \
+              "## Smoke test results" "" \
+              "<!-- TODO: sample prompts and responses -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "serving-trt-fp8" ]; then
+            CATS="miramar tensorrt fp8 serving quantization"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Serving stack" "" \
+              "| | |" "|---|---|" \
+              "| FP8 checkpoint | <!-- TODO: compression project + run --> |" \
+              "| Inference engine | vLLM + FP8 quantization |" \
+              "| Host | <!-- TODO: DGX Spark / AGX Orin / GKE L4 --> |" \
+              "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
+              "## Deployment" "" \
+              "\`\`\`bash" \
+              "curl http://localhost:8000/v1/models" \
+              "curl -X POST http://localhost:8000/v1/chat/completions \\\\" \
+              "  -d '{\"model\":\"<!-- TODO -->\",\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'" \
+              "\`\`\`" "" \
+              "## Smoke test results" "" \
+              "<!-- TODO: sample prompts and responses -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "serving-trt-engine" ]; then
+            CATS="miramar tensorrt trt-llm engine serving"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Serving stack" "" \
+              "| | |" "|---|---|" \
+              "| TRT-LLM engine | <!-- TODO: compression project + run --> |" \
+              "| Inference engine | tensorrt_llm.serve |" \
+              "| Host | <!-- TODO: DGX Spark (gb10) / AGX Orin (sm87) / GKE L4 --> |" \
+              "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
+              "## Deployment" "" \
+              "\`\`\`bash" \
+              "curl http://localhost:8000/v1/models" \
+              "curl -X POST http://localhost:8000/v1/chat/completions \\\\" \
+              "  -d '{\"model\":\"<!-- TODO -->\",\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'" \
+              "\`\`\`" "" \
+              "## Smoke test results" "" \
+              "<!-- TODO: sample prompts and responses -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
           elif [ "${PROJECT_TYPE}" = "ft-eval" ]; then
             CATS="miramar kubeflow fine-tuning"
             BODY=$(printf '%s\n' \
@@ -466,6 +546,29 @@ jobs:
               echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
               echo ""
               echo "Prerequisites: \`gcp-platform-create.yaml\` must have run to provision \`gs://miramar-platform-ft-adapters\`"
+            elif [ "${PROJECT_TYPE}" = "serving-nim" ]; then
+              echo "### Next steps"
+              echo "1. Fill in \`serving-config.yaml\` — set \`nim.org\`, \`nim.model_name\`, \`nim.dgx_image_tag\`, \`nim.gke_image_tag\`"
+              echo "2. Trigger **Deploy** with \`host=dgx\` (K3s) or \`host=gke\` (L4 spot)"
+              echo "3. Trigger **Undeploy** when done to stop costs / free GPU memory"
+              echo ""
+              echo "Prerequisites: \`secrets.NGC_API_KEY\` must be set (org-level secret)"
+            elif [ "${PROJECT_TYPE}" = "serving-trt-fp8" ]; then
+              echo "### Next steps"
+              echo "1. Fill in \`serving-config.yaml\` — set \`compression.project\` and \`compression.run_id\`"
+              echo "2. For GKE: Trigger **Build and Push** to bake FP8 checkpoint into GAR image"
+              echo "3. Trigger **Deploy** with \`host=dgx|agx\` (hostPath) or \`host=gke\` (baked image)"
+              echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
+              echo ""
+              echo "Prerequisites: FP8 checkpoint must exist at \`~/shared/huggingface-kfp/quantization/<project>/<run_id>/\`"
+            elif [ "${PROJECT_TYPE}" = "serving-trt-engine" ]; then
+              echo "### Next steps"
+              echo "1. Fill in \`serving-config.yaml\` — set \`compression.project\` and \`compression.run_id\`"
+              echo "2. For GKE: Trigger **Build and Push** to bake \`engine_l4/\` into GAR image"
+              echo "3. Trigger **Deploy** with \`host=dgx\` (engine_gb10) / \`host=agx\` (engine_sm87) / \`host=gke\` (engine_l4)"
+              echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
+              echo ""
+              echo "Prerequisites: Compiled TRT-LLM engines must exist at \`~/shared/huggingface-kfp/engines/<project>/<run_id>/engine_<target>/\`"
             else
               echo "### Next steps"
               echo "1. Edit \`job_config.yaml\` — set model, dataset path, hyperparameters"

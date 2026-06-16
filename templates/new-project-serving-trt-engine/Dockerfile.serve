@@ -1,0 +1,3 @@
+FROM nvcr.io/nvidia/tensorrt-llm:latest
+# engine_l4/ staged from local shared storage by build-push.yaml
+COPY engine/ /engine/

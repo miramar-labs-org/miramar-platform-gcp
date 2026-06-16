@@ -1,0 +1,3 @@
+{"prompt": "What is the capital of France?", "expected_keywords": ["Paris"]}
+{"prompt": "In one sentence, what is machine learning?", "expected_keywords": []}
+{"prompt": "What is 2 + 2?", "expected_keywords": ["4"]}

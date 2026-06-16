@@ -1,0 +1,425 @@
+name: Deploy
+
+# Deploys the FP8-quantized vLLM serving pod to GKE (L4 spot, baked GAR image)
+# or K3s on DGX/AGX (hostPath from shared storage — no image build needed).
+# FP8 checkpoint is served from local quantization/<project>/<run_id>/ directory.
+# Run undeploy.yaml when done to stop costs (GKE) or free GPU memory (K3s).
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: Deployment target (dgx, agx, gke)
+        required: false
+        default: dgx
+        type: choice
+        options:
+          - dgx
+          - agx
+          - gke
+      image_tag:
+        description: "Image tag to deploy (default: latest) — GKE only"
+        required: false
+        default: latest
+      run_id:
+        description: "Compression run to mount (e.g. run-001, or 'latest' to auto-detect) — DGX/AGX only"
+        required: false
+        default: latest
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_NAME: "{{PROJECT_NAME}}"
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+  GAR_REPO: ${{ vars.GAR_REPO }}
+
+jobs:
+  deploy-dgx:
+    if: inputs.host == 'dgx'
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Read config
+        run: |
+          COMPRESSION_PROJECT=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['project'])")
+          CONFIG_RUN_ID=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['run_id'])")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
+          echo "COMPRESSION_PROJECT=${COMPRESSION_PROJECT}" >> "$GITHUB_ENV"
+          echo "CONFIG_RUN_ID=${CONFIG_RUN_ID}" >> "$GITHUB_ENV"
+          echo "SERVED_MODEL_NAME=${SERVED_MODEL_NAME}" >> "$GITHUB_ENV"
+
+      - name: Resolve model path
+        run: |
+          INPUT_RUN_ID="${{ inputs.run_id }}"
+          RUN_ID="${INPUT_RUN_ID:-$CONFIG_RUN_ID}"
+          SHARED="${HOME}/shared/huggingface-kfp"
+          BASE_DIR="${SHARED}/quantization/${COMPRESSION_PROJECT}"
+          if [[ "$RUN_ID" == "latest" ]]; then
+            RUN_ID=$(ls -1t "${BASE_DIR}/" 2>/dev/null | head -1)
+            if [[ -z "$RUN_ID" ]]; then
+              echo "ERROR: No run directories in ${BASE_DIR}/"
+              exit 1
+            fi
+            echo "Auto-detected run: ${RUN_ID}"
+          fi
+          MODEL_PATH="${BASE_DIR}/${RUN_ID}"
+          if [[ ! -d "$MODEL_PATH" ]]; then
+            echo "ERROR: Model path not found: ${MODEL_PATH}"
+            exit 1
+          fi
+          echo "Using model: ${MODEL_PATH}"
+          echo "MODEL_PATH=${MODEL_PATH}" >> "$GITHUB_ENV"
+          echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Substitute and apply manifest
+        run: |
+          sed "s|MODEL_PATH_PLACEHOLDER|${MODEL_PATH}|g" k8s/vllm-trt-fp8-k3s.yaml \
+            | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=1800s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/vllm 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          models=[m['id'] for m in d.get('data',[])]
+          print('Models:', models)
+          "
+
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"${SERVED_MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}],\"max_tokens\":100}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'][:80])" 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="DGX_SERVING_ACTIVE" -f value="true"
+
+      - name: Record VRAM
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          VLLM_MiB=$(nvidia-smi --query-compute-apps=process_name,used_memory \
+            --format=csv,noheader 2>/dev/null \
+            | grep -i "vllm" \
+            | awk -F',' '{gsub(/[^0-9]/,"",$2); sum+=$2} END{print sum+0}' || echo 0)
+          VLLM_GB=$(( ${VLLM_MiB:-0} / 1024 ))
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_VLLM_VRAM_GB" \
+            -f value="${VLLM_GB}" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="DGX_VLLM_VRAM_GB" -f value="${VLLM_GB}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME (DGX K3s)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Compression run | \`${RUN_ID}\` |"
+            echo "| Model path | \`${MODEL_PATH}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-agx:
+    if: inputs.host == 'agx'
+    runs-on: [self-hosted, agx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Read config
+        run: |
+          COMPRESSION_PROJECT=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['project'])")
+          CONFIG_RUN_ID=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['run_id'])")
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
+          echo "COMPRESSION_PROJECT=${COMPRESSION_PROJECT}" >> "$GITHUB_ENV"
+          echo "CONFIG_RUN_ID=${CONFIG_RUN_ID}" >> "$GITHUB_ENV"
+          echo "SERVED_MODEL_NAME=${SERVED_MODEL_NAME}" >> "$GITHUB_ENV"
+
+      - name: Resolve model path
+        run: |
+          INPUT_RUN_ID="${{ inputs.run_id }}"
+          RUN_ID="${INPUT_RUN_ID:-$CONFIG_RUN_ID}"
+          SHARED="${HOME}/shared/huggingface-kfp"
+          BASE_DIR="${SHARED}/quantization/${COMPRESSION_PROJECT}"
+          if [[ "$RUN_ID" == "latest" ]]; then
+            RUN_ID=$(ls -1t "${BASE_DIR}/" 2>/dev/null | head -1)
+            if [[ -z "$RUN_ID" ]]; then
+              echo "ERROR: No run directories in ${BASE_DIR}/"
+              exit 1
+            fi
+            echo "Auto-detected run: ${RUN_ID}"
+          fi
+          MODEL_PATH="${BASE_DIR}/${RUN_ID}"
+          if [[ ! -d "$MODEL_PATH" ]]; then
+            echo "ERROR: Model path not found: ${MODEL_PATH}"
+            exit 1
+          fi
+          echo "Using model: ${MODEL_PATH}"
+          echo "MODEL_PATH=${MODEL_PATH}" >> "$GITHUB_ENV"
+          echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Substitute and apply manifest
+        run: |
+          sed "s|MODEL_PATH_PLACEHOLDER|${MODEL_PATH}|g" k8s/vllm-trt-fp8-k3s.yaml \
+            | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=1800s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/vllm 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          models=[m['id'] for m in d.get('data',[])]
+          print('Models:', models)
+          "
+
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"${SERVED_MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}],\"max_tokens\":100}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'][:80])" 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="AGX_SERVING_ACTIVE" -f value="true"
+
+      - name: Record VRAM
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          VLLM_MiB=$(nvidia-smi --query-compute-apps=process_name,used_memory \
+            --format=csv,noheader 2>/dev/null \
+            | grep -i "vllm" \
+            | awk -F',' '{gsub(/[^0-9]/,"",$2); sum+=$2} END{print sum+0}' || echo 0)
+          VLLM_GB=$(( ${VLLM_MiB:-0} / 1024 ))
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_VLLM_VRAM_GB" \
+            -f value="${VLLM_GB}" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="AGX_VLLM_VRAM_GB" -f value="${VLLM_GB}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME (AGX K3s)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Compression run | \`${RUN_ID}\` |"
+            echo "| Model path | \`${MODEL_PATH}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-gke:
+    if: inputs.host == 'gke'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read config
+        run: |
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
+          echo "SERVED_MODEL_NAME=${SERVED_MODEL_NAME}" >> "$GITHUB_ENV"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Expand GPU node pool (L4 spot)
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          echo "Triggering gke-expand-gpu (nvidia-l4, spot=true, namespace=$PROJECT_NAME)"
+          gh workflow run gke-expand-gpu.yaml \
+            --repo miramar-labs-org/miramar-platform-gcp \
+            --field namespace="$PROJECT_NAME" \
+            --field gpu_type=nvidia-l4 \
+            --field spot=true
+          echo "Waiting for GPU node pool to be ready..."
+          for i in $(seq 1 40); do
+            NODE=$(kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4 \
+              --no-headers 2>/dev/null | grep -c "Ready" || true)
+            if [[ "$NODE" -ge 1 ]]; then
+              echo "GPU node ready."
+              break
+            fi
+            echo "Waiting... ($i/40)"
+            sleep 15
+          done
+          kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Build image URI
+        id: image_uri
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}:${TAG}"
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      - name: Substitute and apply manifest
+        run: |
+          sed "s|IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/vllm-trt-fp8.yaml \
+            | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/vllm -n "$PROJECT_NAME" --timeout=1800s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/vllm 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 5
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          models=[m['id'] for m in d.get('data',[])]
+          print('Models:', models)
+          "
+
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"${SERVED_MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}],\"max_tokens\":100}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'][:80])" 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/GKE_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="GKE_SERVING_ACTIVE" -f value="true"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME (GKE)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Port-forward | \`kubectl port-forward svc/vllm 8000:8000 -n $PROJECT_NAME\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

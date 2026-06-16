@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trtllm
+  namespace: {{PROJECT_NAME}}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: trtllm
+  template:
+    metadata:
+      labels:
+        app: trtllm
+    spec:
+      enableServiceLinks: false
+      imagePullSecrets:
+        - name: nvcr-pull
+      containers:
+        - name: trtllm-serve
+          image: nvcr.io/nvidia/tensorrt-llm:latest
+          command: ["python3", "-m", "tensorrt_llm.serve"]
+          args:
+            - --model_dir=/engine
+            - --host=0.0.0.0
+            - --port=8000
+            - --served_model_name=SERVED_MODEL_NAME_PLACEHOLDER
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: 4
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+          readinessProbe:
+            httpGet:
+              path: /v1/health/ready
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /v1/health/live
+              port: 8000
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: engine
+              mountPath: /engine
+              readOnly: true
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - name: engine
+          hostPath:
+            path: ENGINE_PATH_PLACEHOLDER
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trtllm
+  namespace: {{PROJECT_NAME}}
+spec:
+  type: ClusterIP
+  selector:
+    app: trtllm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

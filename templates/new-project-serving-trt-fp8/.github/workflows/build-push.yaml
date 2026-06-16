@@ -1,0 +1,110 @@
+name: Build and Push (GKE)
+
+# Builds the FP8-vLLM serving image (checkpoint baked in) and pushes to GAR.
+# Copies the FP8 checkpoint from shared storage into the Docker build context,
+# then builds from Dockerfile.serve.
+# Only needed for GKE deployment — DGX/AGX use hostPath from shared storage directly.
+# Run after the compression pipeline produces a quantization/<project>/<run_id>/ directory.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Compression run to bake in (e.g. run-001, or 'latest' to auto-detect)"
+        required: false
+        default: latest
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_NAME: "{{PROJECT_NAME}}"
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GAR_REPO: ${{ vars.GAR_REPO }}
+
+jobs:
+  build-push-gar:
+    runs-on: [self-hosted, wsl2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GAR
+        run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
+
+      - name: Resolve model path
+        run: |
+          COMPRESSION_PROJECT=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['project'])")
+          RUN_ID="${{ inputs.run_id }}"
+          SHARED="${HOME}/shared/huggingface-kfp"
+          BASE_DIR="${SHARED}/quantization/${COMPRESSION_PROJECT}"
+          if [[ "$RUN_ID" == "latest" ]]; then
+            RUN_ID=$(ls -1t "${BASE_DIR}/" 2>/dev/null | head -1)
+            if [[ -z "$RUN_ID" ]]; then
+              echo "ERROR: No run directories found in ${BASE_DIR}/"
+              exit 1
+            fi
+            echo "Auto-detected latest run: ${RUN_ID}"
+          fi
+          MODEL_PATH="${BASE_DIR}/${RUN_ID}"
+          if [[ ! -d "$MODEL_PATH" ]]; then
+            echo "ERROR: Model path not found: ${MODEL_PATH}"
+            exit 1
+          fi
+          echo "Using model: ${MODEL_PATH}"
+          echo "MODEL_PATH=${MODEL_PATH}" >> "$GITHUB_ENV"
+          echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
+          echo "COMPRESSION_PROJECT=${COMPRESSION_PROJECT}" >> "$GITHUB_ENV"
+
+      - name: Stage model into build context
+        run: |
+          rm -rf model/
+          cp -r "${MODEL_PATH}/" model/
+          echo "Staged model files ($(du -sh model/ | cut -f1))"
+
+      - name: Set image URI
+        id: image
+        run: |
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}"
+          COMMIT_SHA="${{ github.sha }}"
+          echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+          echo "tag=${RUN_ID}-${COMMIT_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          IMAGE_URI="${{ steps.image.outputs.uri }}"
+          TAG="${{ steps.image.outputs.tag }}"
+          docker build \
+            --cache-from "${IMAGE_URI}:latest" \
+            -t "${IMAGE_URI}:latest" \
+            -t "${IMAGE_URI}:${TAG}" \
+            -f Dockerfile.serve .
+          docker push "${IMAGE_URI}:latest"
+          docker push "${IMAGE_URI}:${TAG}"
+          echo "Pushed ${IMAGE_URI}:${TAG}"
+
+      - name: Clean up staged model
+        if: always()
+        run: rm -rf model/
+
+      - name: Summary
+        run: |
+          {
+            echo "## Build and Push Complete"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Project | \`$PROJECT_NAME\` |"
+            echo "| Compression run | \`${RUN_ID}\` |"
+            echo "| Source | \`${COMPRESSION_PROJECT}\` |"
+            echo "| Image | \`${{ steps.image.outputs.uri }}:${{ steps.image.outputs.tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

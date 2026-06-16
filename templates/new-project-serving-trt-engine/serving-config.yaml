@@ -1,0 +1,16 @@
+runtime:
+  kind: trtllm-serve
+
+model:
+  served_model_name: "{{SERVED_MODEL_NAME}}"
+
+compression:
+  project: ""   # name of the compression pipeline repo (e.g. qwen25-7b-trt-compression)
+  run_id: "latest"   # run directory name, or "latest" to auto-detect most recent
+
+trtllm:
+  port: 8000
+
+deployment:
+  namespace: "{{PROJECT_NAME}}"
+  gpu_count: 1
