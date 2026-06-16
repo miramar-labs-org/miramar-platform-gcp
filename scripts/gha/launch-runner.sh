@@ -196,6 +196,7 @@ if [[ "${DEFAULT_LABELS}" == *"dgx"* || "${DEFAULT_LABELS}" == *"agx"* ]]; then
     # Ensure host kubeconfig dir exists (k3s writes here after install).
     mkdir -p "${HOME}/.kube"
     DOCKER_VOLS+=(
+        -v "${HOME}/.kube:/home/runner/.kube"
         -v /usr/local/bin:/host-bin
     )
 fi
