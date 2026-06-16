@@ -196,14 +196,16 @@ ft-eval run PASS
 
 | Stage                                                    | Template                                  | Status         |
 | -------------------------------------------------------- | ----------------------------------------- | -------------- |
-| 1 — Fine-tune + eval gate                                | `ft-eval`                             | ✅ Implemented |
-| 1 — Publish adapter bundle to GCS                        | `publish-adapter.yaml` (in `ft-eval`) | ✅ Implemented |
-| 1 — Serve via vLLM on GKE L4 spot                        | `serving-vllm`                            | ✅ Implemented |
-| 2 — Model router service (stable `/v1` API, multi-model) | `model-router-service`                    | 🔜 Planned     |
-| 3 — GKE Gateway API route (external HTTPS)               | —                                         | 🔜 Planned     |
-| 4 — Serve via NIM                                        | `llm-serving-nim`                         | 🔜 Planned     |
-| 5 — Serve via Triton + vLLM backend                      | `llm-serving-triton-vllm`                 | 🔜 Planned     |
-| 6 — Serve via Triton + TensorRT-LLM backend              | `llm-serving-triton-trtllm`               | 🔜 Planned     |
+| 1 — Fine-tune + eval gate                                | `ft-eval`                                 | ✅ Implemented |
+| 1 — Publish adapter bundle to GCS                        | `publish-adapter.yaml` (in `ft-eval`)     | ✅ Implemented |
+| 2 — Serve via vLLM + LoRA adapter (DGX/AGX/GKE)         | `serving-vllm`                            | ✅ Implemented |
+| 3 — Serve via NIM (DGX/AGX/GKE)                         | `serving-nim`                             | ✅ Implemented |
+| 4 — Serve FP8-quantized checkpoint via vLLM (DGX/AGX/GKE) | `serving-trt-fp8`                       | ✅ Implemented |
+| 5 — Serve compiled TRT-LLM engine (DGX/AGX/GKE)         | `serving-trt-engine`                      | ✅ Implemented |
+| 6 — Model router service (stable `/v1` API, multi-model) | `model-router-service`                    | 🔜 Planned     |
+| 7 — GKE Gateway API route (external HTTPS)               | —                                         | 🔜 Planned     |
+| 8 — Serve via Triton + vLLM backend                      | `serving-triton-vllm`                     | 🔜 Planned     |
+| 9 — Serve via Triton + TensorRT-LLM backend              | `serving-triton-trtllm`                   | 🔜 Planned     |
 
 Key properties:
 - **Manifest gate** — `deploy.yaml` reads `manifest.json` and blocks if `eval_passed` or `safety_passed` is false
@@ -227,7 +229,7 @@ curl http://localhost:8000/v1/models
 gh workflow run undeploy.yaml
 ```
 
-Full details: [docs/workflows.md — Model Serving](docs/workflows.md#model-serving-llm-serving-vllm-projects)
+Full details: [docs/workflows.md — Model Serving](docs/workflows.md#model-serving-serving--projects)
 
 ---
 

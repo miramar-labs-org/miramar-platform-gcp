@@ -35,13 +35,14 @@ inference workloads across local GPU systems and cloud infrastructure.
 | GKE transient GPU pool                           | ✅ Done        | L4 on-demand (`g2-standard-8`), `us-east1-b`; expand/restore workflow pair |
 | ft-eval pipeline type                            | ✅ Done        | 6-step eval-first fine-tuning; config-driven; MLflow tracking          |
 | Adapter publish → GCS manifest                   | ✅ Done        | `publish-adapter.yaml`; `eval_passed` + `safety_passed` gate           |
-| vLLM LoRA adapter serving (GKE)                  | 🔄 In progress | `biomistral-7b-onc-llm-serving-vllm` first project; L4 spot            |
+| vLLM LoRA adapter serving (DGX/AGX/GKE)          | ✅ Done        | `serving-vllm` template; LoRA adapter baked into image; L4 spot on GKE |
+| NIM serving (DGX/AGX/GKE)                        | ✅ Done        | `serving-nim` template; stock NGC NIM images; nvcr-pull secret         |
+| FP8-quantized vLLM serving (DGX/AGX/GKE)         | ✅ Done        | `serving-trt-fp8` template; `--quantization=fp8` via vLLM              |
+| TRT-LLM engine serving (DGX/AGX/GKE)             | ✅ Done        | `serving-trt-engine` template; `tensorrt_llm.serve`; per-arch engines  |
 | Platform dashboard (GitHub Pages)                | ✅ Done        | Hourly refresh; per-machine service badges; project table              |
 | Nsight profiling of vLLM serving                 | 📋 Planned     | Profile vLLM on GKE L4 via Nsight Operator pod injection               |
 | Inference optimization pipeline (`kfp-optimize`) | 📋 Planned     | Prune → distill → quantize (FP8) on DGX; KFP pipeline type             |
-| NIM / TRT-LLM serving (`nim-gcp`)                | 📋 Planned     | Serve quantized merged checkpoint via NIM on GKE; replaces LoRA + vLLM |
 | AGX back online                                  | 📋 Planned     | Waiting on hardware                                                    |
-| Additional serving projects                      | 📋 Planned     | Per-model `vllm-gcp` projects following biomistral pattern             |
 
 ---
 
@@ -71,36 +72,42 @@ inference workloads across local GPU systems and cloud infrastructure.
 ## Fine-tune → Serve arc
 
 The primary ML workflow is a pipeline from raw model to optimised production inference.
-Stages 1–3 are the current template arc; Stage 4 is the planned optimisation path.
+Stages 1–2 are the current implemented arc; Stage 3 is the planned optimisation path.
 
 ```
-+---------------------------------------------------------------------+
-|                        DGX Spark (PHI boundary)                     |
-|                                                                     |
-|  Stage 1: Fine-tune + Eval      Stage 3 (planned): Optimize         |
-|  -------------------------      ---------------------------         |
-|  ft-eval (KFP pipeline)         kfp-optimize (KFP pipeline)         |
-|  prepare -> baseline_eval       prune -> distill -> quantize FP8    |
-|  -> fine_tune -> post_eval      (Model-Optimizer + Megatron)        |
-|  -> safety_eval -> gate         output: quantized merged checkpoint |
-|         |                                    |                      |
-|         v                                    v                      |
-|  Stage 2: Publish adapter        Stage 3b: Publish checkpoint       |
-|  publish-adapter.yaml            publish-adapter.yaml (same gate)   |
-|  eval_passed + safety_passed     eval_passed + safety_passed        |
-+-------+----------------------------------------------+--------------+
-        |  LoRA adapter + manifest -> GCS              |  quantized ckpt + manifest -> GCS
-        v                                              v
-+---------------------------------------------------------------------+
-|                        GCP / GKE                                    |
-|                                                                     |
-|  Stage 2: vLLM Serve             Stage 4 (planned): NIM Serve       |
-|  -------------------             --------------------------         |
-|  vllm-gcp project                nim-gcp project                    |
-|  vLLM + LoRA init container      NIM / TRT-LLM container            |
-|  L4 spot (expand / restore)      L4 spot (expand / restore)         |
-|  OpenAI-compatible API           OpenAI-compatible API              |
-+---------------------------------------------------------------------+
++------------------------------------------------------------------------+
+|                        DGX Spark (PHI boundary)                        |
+|                                                                        |
+|  Stage 1: Fine-tune + Eval       Stage 3 (planned): Optimize           |
+|  -------------------------       ---------------------------           |
+|  ft-eval (KFP pipeline)          kfp-optimize (KFP pipeline)           |
+|  prepare -> baseline_eval        prune -> distill -> quantize FP8      |
+|  -> fine_tune -> post_eval       (Model-Optimizer + Megatron)          |
+|  -> safety_eval -> gate          output: quantized merged checkpoint   |
+|         |                                     |                        |
+|         v                                     v                        |
+|  Stage 1b: Publish adapter       Stage 3b: Publish checkpoint          |
+|  publish-adapter.yaml            publish-adapter.yaml (same gate)      |
+|  eval_passed + safety_passed     eval_passed + safety_passed           |
++--------+-----------------------------------------+--------------------+
+         |  LoRA adapter + manifest -> GCS          |  quantized ckpt -> local / GCS
+         v                                          v
++------------------------------------------------------------------------+
+|                  DGX/AGX (K3s) + GKE L4 spot                          |
+|                                                                        |
+|  Stage 2a: vLLM Serve (serving-vllm)                                  |
+|  vLLM + LoRA init container; OpenAI-compatible API                     |
+|                                                                        |
+|  Stage 2b: NIM Serve (serving-nim)                                     |
+|  Stock NGC NIM image; no build step; nvcr-pull secret                  |
+|                                                                        |
+|  Stage 2c: FP8 vLLM Serve (serving-trt-fp8)                           |
+|  vLLM --quantization=fp8; hostPath on DGX/AGX, GAR image on GKE       |
+|                                                                        |
+|  Stage 2d: TRT-LLM Engine Serve (serving-trt-engine)                  |
+|  tensorrt_llm.serve; per-arch engines (gb10/sm87/l4)                   |
+|  L4 spot (expand / restore) on GKE; K3s on DGX/AGX                    |
++------------------------------------------------------------------------+
 ```
 
 **PHI boundary**: PHI never leaves DGX. Only approved non-PHI model artifacts
@@ -201,15 +208,17 @@ GitHub is the source-of-truth control plane:
 
 ## Project types
 
-| Type           | Topic tag                  | Host badge | Status         | Description                                                                           |
-| -------------- | -------------------------- | ---------- | -------------- | ------------------------------------------------------------------------------------- |
-| `ft-eval`      | `miramar-ft-eval`          | dgx / agx  | ✅ Done        | 6-step eval-first fine-tuning + eval pipeline (KFP v2)                                |
-| `vllm-gcp`     | `miramar-llm-serving-vllm` | gcp        | 🔄 In progress | vLLM + LoRA adapter serving on GKE L4 spot                                            |
-| `kfp-optimize` | `miramar-kfp-optimize`     | dgx        | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint |
-| `nim-gcp`      | `miramar-nim-gcp`          | gcp        | 📋 Planned     | NIM / TRT-LLM serving of quantized checkpoint on GKE L4 spot; replaces LoRA + vLLM    |
-| `kfp`          | `miramar-kfp`              | dgx / agx  | ✅ Done        | Generic KFP v2 pipeline stub                                                          |
-| `nemo`         | `miramar-nemo`             | dgx / agx  | ✅ Done        | NeMo training job                                                                     |
-| `default`      | `miramar-default`          | dgx / agx  | ✅ Done        | Generic notebook + platform endpoint reference                                        |
+| Type                 | Topic tag                      | Host badge      | Status         | Description                                                                              |
+| -------------------- | ------------------------------ | --------------- | -------------- | ---------------------------------------------------------------------------------------- |
+| `ft-eval`            | `miramar-ft-eval`              | dgx / agx       | ✅ Done        | 6-step eval-first fine-tuning + eval pipeline (KFP v2)                                   |
+| `serving-vllm`       | `miramar-llm-serving-vllm`     | dgx / agx / gcp | ✅ Done        | vLLM + LoRA adapter serving on DGX/AGX (K3s) or GKE L4 spot                             |
+| `serving-nim`        | `miramar-serving-nim`          | dgx / agx / gcp | ✅ Done        | Stock NGC NIM model serving on DGX/AGX (K3s) or GKE L4 spot                             |
+| `serving-trt-fp8`    | `miramar-serving-trt-fp8`      | dgx / agx / gcp | ✅ Done        | FP8-quantized checkpoint served via vLLM on DGX/AGX (K3s) or GKE L4 spot                |
+| `serving-trt-engine` | `miramar-serving-trt-engine`   | dgx / agx / gcp | ✅ Done        | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot |
+| `kfp-optimize`       | `miramar-kfp-optimize`         | dgx             | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint    |
+| `kfp`                | `miramar-kfp`                  | dgx / agx       | ✅ Done        | Generic KFP v2 pipeline stub                                                             |
+| `nemo`               | `miramar-nemo`                 | dgx / agx       | ✅ Done        | NeMo training job                                                                        |
+| `default`            | `miramar-default`              | dgx / agx       | ✅ Done        | Generic notebook + platform endpoint reference                                           |
 
 ---
 

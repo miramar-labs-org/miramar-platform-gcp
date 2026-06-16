@@ -28,7 +28,7 @@ Files in `.github/workflows/` inside the template are included automatically.
 **a. Input enum** (`inputs.project_type.options`, line ~27):
 
 ```yaml
-options: [default, kfp, ft-eval, nemo, serving-vllm, <type>]
+options: [default, kfp, ft-eval, nemo, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, <type>]
 ```
 
 **b. CI badge injection** (line ~147) — add a branch for your type if it has
@@ -94,7 +94,8 @@ the `Set repository topics` step), so the topic name is always `miramar-<type>`.
 ```
 
 Pick a colour not already used: `kfp` = blue, `ft-eval` = teal,
-`nemo` = green, `default`/`other` = amber.
+`nemo` = green, `default`/`other` = amber, `serving-vllm` = purple,
+`serving-nim` = dark cyan, `serving-trt-fp8` = olive green, `serving-trt-engine` = orange.
 
 **c. New Project modal dropdown** (`<select id="np-type">`) — add an option so
 the dashboard's "+ New Project" button exposes the new type:
@@ -117,7 +118,22 @@ Add a row to the **Create Project** workflow table describing the new type:
 
 ## 5. `docs/workflows.md`
 
-Update the Create Project entry there too (same one-liner).
+Update the Create Project entry and the **Project types** table (add a row for the new type).
+Add per-project workflow rows under the **Model serving** section if the new type has deploy/undeploy workflows.
+
+---
+
+## 6. `docs/architecture.md`
+
+Add a row to both tables:
+- **Platform implemented / planned** — mark the capability and its status
+- **Project types** — type name, topic tag, host badges, status, one-line description
+
+---
+
+## 7. `docs/index.md`
+
+If the new type introduces a new operator area (e.g. a new serving mechanism), add a row to the source-of-truth map pointing at the template directory.
 
 ---
 
@@ -127,5 +143,7 @@ Update the Create Project entry there too (same one-liner).
 - [ ] `create-project.yaml` — input enum, badge, packages, blog body, summary
 - [ ] `generate-dashboard.sh` — topic detection, badge CSS, New Project modal option
 - [ ] `CLAUDE.md` — Create Project table row
-- [ ] `docs/workflows.md` — Create Project entry
+- [ ] `docs/workflows.md` — Create Project entry + Project types table row + serving workflow rows
+- [ ] `docs/architecture.md` — capability row + project types row
+- [ ] `docs/index.md` — source-of-truth map row (if new operator area)
 - [ ] Deploy dashboard after merge to pick up the new badge colour

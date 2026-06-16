@@ -131,16 +131,42 @@ See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/),
 | `ft-eval`          | KFP v2 eval-first fine-tuning pipeline: 8-stage pipeline (download_model → prepare_dataset → baseline_eval → baseline_safety_eval → fine_tune → post_finetune_eval → safety_eval → deployment_gate), config-driven via `config.yaml` + `formatters.py` + `loaders.py`, Build cell to regenerate `pipeline.py`, `deploy-to-kfp.yaml` / `undeploy-from-kfp.yaml` workflows + CI badges. Topic tag `miramar-ft-eval`. | `kfp>=2.0.0`                               |
 | `nemo`             | NeMo training config, notebook, `deploy-nemo.yaml` / `undeploy-nemo.yaml` workflows + CI badges                                                                                                                                                                                                                                                                                                             | `nemo-microservices`                       |
 | `serving-vllm`     | vLLM LoRA adapter serving on GKE L4 spot: `serving-config.yaml` (base model, stable alias, manifest URI), `Dockerfile.serve`, `k8s/vllm.yaml` (init container pulls adapter from GCS, main container runs vLLM), `build-push.yaml` / `deploy.yaml` / `undeploy.yaml` workflows + CI badges, `smoke_test_prompts.jsonl`                                                                                      | —                                          |
+| `serving-nim`      | Stock NGC NIM model serving on DGX/AGX/GKE: `serving-config.yaml` (NIM org/model/image tags), `k8s/nim-k3s.yaml` (K3s, nvcr-pull secret, NIM cache hostPath), `k8s/nim.yaml` (GKE, emptyDir cache), `deploy.yaml` / `undeploy.yaml` workflows + CI badges, `smoke_test_prompts.jsonl`. No build step — pulls NGC image at deploy time.                                                                        | —                                          |
+| `serving-trt-fp8`  | FP8-quantized HF checkpoint served via vLLM on DGX/AGX/GKE: `serving-config.yaml` (compression project + run_id, vLLM flags), `Dockerfile.serve` (bakes quantized model into image for GKE), `k8s/vllm-trt-fp8-k3s.yaml` (K3s, model hostPath from `~/shared/huggingface-kfp/quantization/`), `k8s/vllm-trt-fp8.yaml` (GKE, GAR image), `build-push.yaml` (GKE only) / `deploy.yaml` / `undeploy.yaml`. | —                                          |
+| `serving-trt-engine` | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX/GKE: `serving-config.yaml` (compression project + run_id), GPU-arch engine subdirs (`engine_gb10/` DGX, `engine_sm87/` AGX, `engine_l4/` GKE) under `~/shared/huggingface-kfp/engines/`, `k8s/trtllm-k3s.yaml` (K3s, nvcr-pull secret, engine hostPath), `Dockerfile.serve` + `build-push.yaml` (GKE only) / `deploy.yaml` / `undeploy.yaml`. | —                                      |
 
-### Model serving (llm-serving-vllm projects)
+### Model serving (serving-* projects)
 
-Per-project workflows in every `llm-serving-vllm` repo:
+Per-project workflows in every `serving-vllm` repo:
 
 | Workflow       | File              | Runner | Purpose                                                                                                                                                                                              |
 | -------------- | ----------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Build and Push | `build-push.yaml` | `wsl2` | Build `Dockerfile.serve` (amd64 for GKE), push to GAR as `:latest` + commit SHA tag                                                                                                                  |
 | Deploy         | `deploy.yaml`     | `wsl2` | Resolve + validate manifest (blocks if `eval_passed` or `safety_passed` is false), expand L4 spot GPU pool, apply `k8s/vllm.yaml`, wait for rollout, run smoke tests from `smoke_test_prompts.jsonl` |
 | Undeploy       | `undeploy.yaml`   | `wsl2` | Delete deployment and service, trigger `gke-restore-gpu.yaml` to tear down the GPU pool and stop costs                                                                                               |
+
+Per-project workflows in every `serving-nim` repo:
+
+| Workflow | File             | Runner             | Purpose                                                                                                    |
+| -------- | ---------------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Deploy   | `deploy.yaml`    | `dgx` / `agx` / `ubuntu-latest` | Pull NGC NIM image, create `nvcr-pull` secret, deploy to K3s or GKE, 30-min rollout wait, smoke tests |
+| Undeploy | `undeploy.yaml`  | `dgx` / `agx` / `ubuntu-latest` | Delete `nim` deployment + service; GKE also triggers `gke-restore-gpu.yaml`                            |
+
+Per-project workflows in every `serving-trt-fp8` repo:
+
+| Workflow       | File              | Runner             | Purpose                                                                                                                      |
+| -------------- | ----------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Build and Push | `build-push.yaml` | `wsl2`             | Resolve FP8 quantized checkpoint from `~/shared/huggingface-kfp/quantization/`, build `Dockerfile.serve`, push to GAR       |
+| Deploy         | `deploy.yaml`     | `dgx` / `agx` / `ubuntu-latest` | Mount quantized model via hostPath (K3s) or GAR image (GKE), deploy vLLM with `--quantization=fp8`, smoke tests |
+| Undeploy       | `undeploy.yaml`   | `dgx` / `agx` / `ubuntu-latest` | Delete `vllm` deployment + service; GKE also triggers `gke-restore-gpu.yaml`                                     |
+
+Per-project workflows in every `serving-trt-engine` repo:
+
+| Workflow | File             | Runner             | Purpose                                                                                                                           |
+| -------- | ---------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Build and Push | `build-push.yaml` | `wsl2`       | Resolve `engine_l4/` artifact from `~/shared/huggingface-kfp/engines/`, build `Dockerfile.serve`, push to GAR (GKE only)        |
+| Deploy   | `deploy.yaml`    | `dgx` / `agx` / `ubuntu-latest` | Mount engine via hostPath (K3s: `engine_gb10/` DGX, `engine_sm87/` AGX) or GAR image (GKE), serve via `tensorrt_llm.serve` |
+| Undeploy | `undeploy.yaml`  | `dgx` / `agx` / `ubuntu-latest` | Delete `trtllm` deployment + service; GKE also triggers `gke-restore-gpu.yaml`                                             |
 
 **Publish adapter** — in `ft-eval` projects (after a gate-passed KFP run):
 
