@@ -71,11 +71,21 @@ for row in eval_rows:
     context = "\n\n".join(f"[{h.payload['doc_id']}] {h.payload['text']}" for h in hits)
     cited_docs = [h.payload["doc_id"] for h in hits]
 
-    # Generate
-    rag_prompt = f"Context:\n{context}\n\nQuestion: {row['question']}\nAnswer:"
+    # Generate — system message constrains model to context only
+    RAG_SYSTEM = (
+        "You are a question-answering assistant. "
+        "Answer ONLY using information in the provided context. "
+        "Do NOT use outside knowledge or add information not in the context. "
+        "If the answer cannot be found in the context, say so explicitly. "
+        "Be concise and answer in 1-3 sentences."
+    )
+    user_msg = f"Context:\n{context}\n\nQuestion: {row['question']}"
     resp = llm_client.chat.completions.create(
         model=llm_model,
-        messages=[{"role": "user", "content": rag_prompt}],
+        messages=[
+            {"role": "system", "content": RAG_SYSTEM},
+            {"role": "user", "content": user_msg},
+        ],
         max_tokens=max_new_tokens,
     )
     answer = resp.choices[0].message.content
