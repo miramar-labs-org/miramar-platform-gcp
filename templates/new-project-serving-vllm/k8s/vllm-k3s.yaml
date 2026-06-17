@@ -28,7 +28,7 @@ spec:
             - SERVED_MODEL_NAME_PLACEHOLDER=/adapter
             - --max-lora-rank=16
             - --dtype=bfloat16
-            - --gpu-memory-utilization=0.80
+            - --gpu-memory-utilization=0.40
             - --max-model-len=2048
             - --host=0.0.0.0
             - --port=8000

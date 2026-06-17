@@ -11,7 +11,7 @@ adapter:
 
 vllm:
   dtype: bfloat16
-  gpu_memory_utilization: 0.90
+  gpu_memory_utilization: 0.40
   max_model_len: 2048
   port: 8000
 
