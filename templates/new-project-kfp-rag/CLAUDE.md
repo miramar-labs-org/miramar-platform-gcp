@@ -65,7 +65,7 @@ Embed each eval question, search Qdrant, check if `gold_doc_ids` appear in top-k
 
 ```python
 q_emb = embed_model.encode(row["question"]).tolist()
-results = client.search(collection_name=collection, query_vector=q_emb, limit=top_k)
+results = client.query_points(collection_name=collection, query=q_emb, limit=top_k).points
 retrieved_doc_ids = [r.payload.get("doc_id") for r in results]
 gold = set(row.get("gold_doc_ids", []))
 hit = any(d in gold for d in retrieved_doc_ids)

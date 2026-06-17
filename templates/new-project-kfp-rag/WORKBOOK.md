@@ -25,7 +25,7 @@ Compute recall@1, recall@5, MRR, hit_rate.
 hits_at_1, hits_at_5, mrr_scores = 0, 0, 0.0
 for row in eval_rows:
     q_emb = model.encode(row["question"]).tolist()
-    results = client.search(collection_name=collection, query_vector=q_emb, limit=top_k)
+    results = client.query_points(collection_name=collection, query=q_emb, limit=top_k).points
     retrieved_doc_ids = [r.payload.get("doc_id") for r in results]
     gold = set(row.get("gold_doc_ids", []))
     if gold:
@@ -67,7 +67,7 @@ results = []
 for row in eval_rows:
     # Retrieve
     q_emb = embed_model.encode(row["question"]).tolist()
-    hits = qdrant.search(collection_name=collection, query_vector=q_emb, limit=top_k)
+    hits = qdrant.query_points(collection_name=collection, query=q_emb, limit=top_k).points
     context = "\n\n".join(f"[{h.payload['doc_id']}] {h.payload['text']}" for h in hits)
     cited_docs = [h.payload["doc_id"] for h in hits]
 
