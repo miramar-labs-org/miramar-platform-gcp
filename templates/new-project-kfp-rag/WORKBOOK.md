@@ -92,6 +92,7 @@ for row in eval_rows:
             )},
         ],
         temperature=0.2,
+        timeout=60,
     )
     try:
         scores = json.loads(judge_resp.choices[0].message.content)
@@ -140,6 +141,7 @@ for r in results:
             )},
         ],
         temperature=0.2,
+        timeout=60,
     )
     try:
         s = json.loads(resp.choices[0].message.content)
@@ -179,6 +181,7 @@ for r in results:
             {"role": "user", "content": f"Question: {r['question']}\nAnswer: {r['answer']}"},
         ],
         temperature=0.2,
+        timeout=60,
     )
     try:
         s = json.loads(resp.choices[0].message.content)
