@@ -44,7 +44,7 @@ AGX_VLLM_TOTAL_GB=0
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
@@ -331,6 +331,7 @@ cat > "$OUTPUT" <<HTMLEOF
     border-radius: 2em; font-size: 0.75rem; font-weight: 600;
   }
   .badge-kfp          { background: #0c2d6b; color: #79c0ff; }
+  .badge-kfp-rag      { background: #0c2d4a; color: #7dd3fc; }
   .badge-ft-eval      { background: #1a1a4f; color: #a78bfa; }
   .badge-serving-vllm        { background: #0c2a4a; color: #38bdf8; }
   .badge-serving-nim         { background: #001a2a; color: #67e8f9; }
@@ -586,6 +587,7 @@ ${ROWS}
     <select id="np-type">
       <option value="default">default &mdash; generic notebook</option>
       <option value="kfp">kfp &mdash; Kubeflow pipeline stub</option>
+      <option value="kfp-rag">kfp-rag &mdash; KFP RAG pipeline (Qdrant + LLM-as-judge)</option>
       <option value="ft-eval">ft-eval &mdash; KFP eval-first fine-tuning pipeline</option>
       <option value="nemo-ft-eval">nemo-ft-eval &mdash; NeMo Customizer fine-tuning + eval</option>
       <option value="serving-vllm">serving-vllm &mdash; vLLM LoRA adapter serving</option>
