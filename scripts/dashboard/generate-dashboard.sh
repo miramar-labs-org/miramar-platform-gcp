@@ -331,7 +331,7 @@ cat > "$OUTPUT" <<HTMLEOF
     border-radius: 2em; font-size: 0.75rem; font-weight: 600;
   }
   .badge-kfp          { background: #0c2d6b; color: #79c0ff; }
-  .badge-kfp-rag      { background: #0c2d4a; color: #7dd3fc; }
+  .badge-kfp-rag      { background: #2a0a14; color: #fb7185; }
   .badge-kfp-curator  { background: #0a2d1a; color: #86efac; }
   .badge-ft-eval      { background: #1a1a4f; color: #a78bfa; }
   .badge-serving-vllm        { background: #0c2a4a; color: #38bdf8; }

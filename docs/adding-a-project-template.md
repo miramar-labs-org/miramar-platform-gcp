@@ -97,7 +97,8 @@ Pick a colour not already used. NeMo project types use green shades;
 all other types use distinct non-green colours:
 
 - Green (NeMo): `nemo-ft-eval` = emerald green, `kfp-curator` = forest green/lime
-- Blue family: `kfp` = blue, `kfp-rag` = navy/cyan, `serving-vllm` = sky blue, `serving-nim` = dark cyan
+- Blue family: `kfp` = blue, `serving-vllm` = sky blue, `serving-nim` = dark cyan
+- Pink: `kfp-rag` = rose/pink
 - Purple: `ft-eval` = indigo/purple
 - Warm: `serving-trt-fp8` = gold/yellow, `serving-trt-engine` = orange, `default`/`other` = amber
 
