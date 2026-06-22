@@ -34,6 +34,8 @@ inference workloads across local GPU systems and cloud infrastructure.
 | GKE Standard cluster                             | ✅ Done        | `e2-standard-4`, single node, `us-east1-b`                             |
 | GKE transient GPU pool                           | ✅ Done        | L4 on-demand (`g2-standard-8`), `us-east1-b`; expand/restore workflow pair |
 | ft-eval pipeline type                            | ✅ Done        | 6-step eval-first fine-tuning; config-driven; MLflow tracking          |
+| kfp-rag pipeline type                            | ✅ Done        | 6-step RAG pipeline; Qdrant-backed; LLM-as-judge eval; CPU-only        |
+| kfp-curator pipeline type                        | ✅ Done        | 6-step NeMo Curator data-curation; CPU+GPU (RAPIDS cuDF dedup)         |
 | Adapter publish → GCS manifest                   | ✅ Done        | `publish-adapter.yaml`; `eval_passed` + `safety_passed` gate           |
 | vLLM LoRA adapter serving (DGX/AGX/GKE)          | ✅ Done        | `serving-vllm` template; LoRA adapter baked into image; L4 spot on GKE |
 | NIM serving (DGX/AGX/GKE)                        | ✅ Done        | `serving-nim` template; stock NGC NIM images; nvcr-pull secret         |
@@ -215,6 +217,8 @@ GitHub is the source-of-truth control plane:
 | `serving-nim`        | `miramar-serving-nim`          | dgx / agx / gcp | ✅ Done        | Stock NGC NIM model serving on DGX/AGX (K3s) or GKE L4 spot                             |
 | `serving-trt-fp8`    | `miramar-serving-trt-fp8`      | dgx / agx / gcp | ✅ Done        | FP8-quantized checkpoint served via vLLM on DGX/AGX (K3s) or GKE L4 spot                |
 | `serving-trt-engine` | `miramar-serving-trt-engine`   | dgx / agx / gcp | ✅ Done        | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot |
+| `kfp-rag`            | `miramar-kfp-rag`              | dgx             | ✅ Done        | RAG pipeline: ingest_documents → retrieval_eval → generation_eval → faithfulness_eval → safety_eval → deployment_gate (CPU-only, Qdrant, LLM-as-judge) |
+| `kfp-curator`        | `miramar-kfp-curator`          | dgx             | ✅ Done        | NeMo Curator data-curation: preflight_check → extract_text → quality_filter → deduplication → pii_redaction → curator_report (CPU + GPU via RAPIDS cuDF) |
 | `kfp-optimize`       | `miramar-kfp-optimize`         | dgx             | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint    |
 | `kfp`                | `miramar-kfp`                  | dgx / agx       | ✅ Done        | Generic KFP v2 pipeline stub                                                             |
 | `nemo-ft-eval`       | `miramar-nemo-ft-eval`         | dgx / agx       | ✅ Done        | NeMo Customizer fine-tuning + eval pipeline (parity with ft-eval, `export_adapter` stage) |

@@ -28,7 +28,7 @@ Files in `.github/workflows/` inside the template are included automatically.
 **a. Input enum** (`inputs.project_type.options`, line ~27):
 
 ```yaml
-options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, <type>]
+options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-curator, <type>]
 ```
 
 **b. CI badge injection** (line ~147) — add a branch for your type if it has
@@ -95,7 +95,8 @@ the `Set repository topics` step), so the topic name is always `miramar-<type>`.
 
 Pick a colour not already used: `kfp` = blue, `ft-eval` = teal,
 `nemo-ft-eval` = dark green (purple label), `default`/`other` = amber, `serving-vllm` = purple,
-`serving-nim` = dark cyan, `serving-trt-fp8` = olive green, `serving-trt-engine` = orange.
+`serving-nim` = dark cyan, `serving-trt-fp8` = olive green, `serving-trt-engine` = orange,
+`kfp-rag` = dark navy/cyan, `kfp-curator` = dark forest green/lime.
 
 **c. New Project modal dropdown** (`<select id="np-type">`) — add an option so
 the dashboard's "+ New Project" button exposes the new type:
