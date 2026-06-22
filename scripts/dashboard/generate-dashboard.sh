@@ -230,6 +230,10 @@ OLLAMA_PILL=$( [[ "$DGX_OLLAMA_ACTIVE" == "true" && "$OLLAMA_MODEL" != "none" ]]
 VRAM_AVAIL_CLASS="ps-value"
 (( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
 
+AGX_NIM_SHORT="${AGX_NIM_MODEL##*/}"
+AGX_NIM_PILL=$( [[ "$AGX_NIM_MODEL" != "none" ]] \
+  && echo "<span class=\"ps-active\">${AGX_NIM_SHORT}</span>" \
+  || echo "<span class=\"ps-inactive\">inactive</span>" )
 AGX_OLLAMA_PILL=$( [[ "$AGX_OLLAMA_ACTIVE" == "true" && "$AGX_OLLAMA_MODEL" != "none" ]] \
   && echo "<span class=\"ps-active\">${AGX_OLLAMA_MODEL}</span>" \
   || echo "<span class=\"ps-inactive\">inactive</span>" )
@@ -475,6 +479,10 @@ cat > "$OUTPUT" <<HTMLEOF
     <div class="ps-item">
       <div class="ps-label">KFP</div>
       ${AGX_KFP_BADGE}
+    </div>
+    <div class="ps-item ps-wide">
+      <div class="ps-label">NIM</div>
+      ${AGX_NIM_PILL}
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">Ollama</div>

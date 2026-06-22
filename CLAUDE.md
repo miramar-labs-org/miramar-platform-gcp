@@ -32,7 +32,7 @@ dgx/               # DGX Spark host config and local tooling
   systemd/         # Systemd user service unit files + install/uninstall scripts
 agx/               # AGX Orin host config and local tooling (mirrors dgx/)
   minikube/        # NeMo hosts file and AGX-specific configs
-  ollama/          # Ollama deploy/undeploy scripts (no NIM conflict check — NIM not available on AGX)
+  ollama/          # Ollama deploy/undeploy scripts (NIM conflict check omitted — verify arm64 support per model)
 wsl2/              # WSL2 host config and bootstrap scripts
   README.md           # Operator quickstart for WSL2 provisioning
   TECHNICAL.md        # Source of truth for template builds, lifecycle, on-demand SSH, and troubleshooting
@@ -306,7 +306,7 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
-**NIM** — DGX only. Default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). Not available on AGX — all NIM LLM containers on NGC are `linux/amd64`; no `linux/arm64` images exist. See `dgx/minikube/nim/NIM.md` for catalog.
+**NIM** — DGX default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). AGX support: platform variables (`CURRENT_NIM_MODEL_AGX` etc.) are wired; whether a given NIM container image supports `linux/arm64` depends on the model — check NGC before deploying. See `dgx/minikube/nim/NIM.md` for catalog.
 
 **Ollama** — runs as a systemd service on the host (not in k3s).
 - DGX: ~28 GB reserved for platform, **~100 GB for models** (`DGX_VRAM_USEABLE`)
