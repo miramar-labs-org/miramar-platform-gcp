@@ -1,0 +1,28 @@
+description: ""  # One sentence — shown in KFP Pipelines + KFP Experiments + MLflow Experiments UI
+
+input:
+  format: "jsonl"       # jsonl | txt | md | html — source file format in data_src/
+  text_field: "text"    # for jsonl input: field name containing document text
+  id_field: "id"        # for jsonl input: field name for document ID (auto-generated if missing)
+
+quality_filter:
+  min_doc_length: 50           # minimum characters per document
+  max_doc_length: 100000       # maximum characters per document
+  min_mean_word_length: 3      # minimum mean word length in characters
+  max_mean_word_length: 15     # maximum mean word length in characters
+  max_symbol_to_word_ratio: 0.1   # max ratio of symbols to words (0.0–1.0)
+  min_stop_word_fraction: 0.06    # minimum fraction of stop words (0.0–1.0)
+
+deduplication:
+  fuzzy_jaccard_threshold: 0.8  # Jaccard similarity threshold; lower = more aggressive dedup
+  fuzzy_ngram_size: 5           # character n-gram size for MinHash signatures
+  fuzzy_num_hashes: 128         # number of hash functions for MinHash (higher = more accurate)
+
+pii:
+  entities:
+    - "PERSON"
+    - "EMAIL_ADDRESS"
+    - "PHONE_NUMBER"
+    - "US_SSN"
+    - "CREDIT_CARD"
+  action: "redact"     # redact | anonymize | hash

@@ -25,7 +25,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag]
+        options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-curator]
         default: default
         required: true
       host:
@@ -210,6 +210,7 @@ jobs:
           [[ "${PROJECT_TYPE}" = "ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes"
           [[ "${PROJECT_TYPE}" = "nemo-ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes nemo-microservices"
           [[ "${PROJECT_TYPE}" = "kfp-rag" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes langchain langchain-text-splitters langchain-qdrant langsmith qdrant-client sentence-transformers"
+          [[ "${PROJECT_TYPE}" = "kfp-curator" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes nemo-curator trafilatura ftfy presidio-analyzer presidio-anonymizer spacy"
           printf '%s\n' ${REQS} > requirements.txt
 
           git add .
@@ -443,6 +444,25 @@ jobs:
               "| Run | recall@5 | faithfulness | safety | Gate |" "|---|---|---|---|---|" \
               "| — | — | — | — | — |" "" \
               "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "kfp-curator" ]; then
+            CATS="miramar kubeflow nemo-curator data-curation"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Pipeline" "" \
+              "| Step | Compute | Purpose |" "|---|---|---|" \
+              "| \`preflight_check\` | CPU | Verify input data is staged on PVC |" \
+              "| \`extract_text\` | CPU | Text extraction + Unicode normalization <!-- TODO --> |" \
+              "| \`quality_filter\` | GPU | Heuristic quality scoring + filtering <!-- TODO --> |" \
+              "| \`deduplication\` | GPU | Exact hash dedup + fuzzy MinHash LSH <!-- TODO --> |" \
+              "| \`pii_redaction\` | CPU | presidio + spaCy PII detection/redaction <!-- TODO --> |" \
+              "| \`curator_report\` | CPU | Summary metrics + MLflow logging |" "" \
+              "## Curation results" "" \
+              "| Run | docs\_in | quality\_filtered | deduped | curated | PII found | Key Finding |" \
+              "|---|---|---|---|---|---|---|" \
+              "| — | — | — | — | — | — | — |" "" \
+              "## Next steps" "" "<!-- TODO -->")
           elif [ "${PROJECT_TYPE}" = "ft-eval" ]; then
             CATS="miramar kubeflow fine-tuning"
             BODY=$(printf '%s\n' \
@@ -616,6 +636,17 @@ jobs:
               echo "6. Trigger **Deploy to KFP** to ingest, eval, and gate"
               echo ""
               echo "Prerequisites: **Kubeflow Deploy** + **Qdrant Deploy** must be running on \`${HOST}\`; an active serving project for \`llm.base_url\`"
+            elif [ "${PROJECT_TYPE}" = "kfp-curator" ]; then
+              echo "### Next steps"
+              echo "1. Add source documents to \`data_src/\` (.txt, .md, .html, or .jsonl)"
+              echo "2. Edit \`config.yaml\` — set \`input.format\`, quality thresholds, dedup threshold, PII entity list"
+              echo "3. Open \`notebook.ipynb\` — implement the 4 USER CODE BLOCKs (see WORKBOOK.md)"
+              echo "4. Run the **Build → \`pipeline.py\`** cell in the notebook"
+              echo "5. Trigger **Deploy to KFP** to run the curation pipeline"
+              echo "6. Check \`~/shared/huggingface-kfp/curator-output/${PROJECT_NAME}/\` for the curation report"
+              echo ""
+              echo "Prerequisites: **Kubeflow Deploy** must be running on \`${HOST}\`"
+              echo "GPU note: \`quality_filter\` and \`deduplication\` install \`nemo-curator[cuda12x]\` from pypi.nvidia.com — verify arm64 wheel availability on first run"
             else
               echo "No additional next steps."
             fi

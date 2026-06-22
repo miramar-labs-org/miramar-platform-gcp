@@ -1,0 +1,61 @@
+name: Deploy to KFP
+
+# Copies data_src/ to the PVC, compiles pipeline.py,
+# registers it in KFP, and submits a run.
+# Prerequisites: KFP must be running on the DGX k3s cluster.
+# See: https://github.com/miramar-labs-org/miramar-platform-gcp — Kubeflow Deploy workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_name:
+        description: Display name for the pipeline run
+        default: run-001
+        required: false
+      mlflow_tracking_uri:
+        description: MLflow tracking server URL (leave blank to use the in-cluster default)
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 30
+    outputs:
+      run_id: ${{ steps.submit.outputs.run_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Install kfp SDK
+        run: pip install kfp kfp-kubernetes pyyaml --quiet
+
+      - name: Build pipeline.py from notebook
+        run: python3 scripts/build_pipeline.py
+
+      - name: Compile and submit pipeline
+        id: submit
+        env:
+          KFP_HOST: http://localhost:8890
+          RUN_NAME: ${{ inputs.run_name }}
+        run: python3 scripts/deploy_pipeline.py --run-name "${{ inputs.run_name }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## KFP Curator Pipeline Run"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Run name | \`${{ inputs.run_name }}\` |"
+            echo "| Run ID | \`${{ steps.submit.outputs.run_id }}\` |"
+            echo ""
+            echo "Open the UI: \`ssh -L 8080:localhost:8080 <user>@spark-79b7.local\` → http://localhost:8080"
+            echo "Open MLflow: \`ssh -L 5000:localhost:5000 <user>@spark-79b7.local\` → http://localhost:5000"
+          } >> "$GITHUB_STEP_SUMMARY"
