@@ -139,7 +139,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Build KFP arm64 Images       | `build-kfp-arm64.yaml`              | Build 13 KFP arm64 images on DGX; optional single-component rebuild  |
 | Kubeflow Deploy              | `deploy-kubeflow.yaml`              | Deploy KFP standalone; patch 13 deployments with arm64 images        |
 | Kubeflow Undeploy            | `undeploy-kubeflow.yaml`            | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` |
-| Create Project               | `create-project.yaml`               | Create platform repo (10 types: default/kfp/ft-eval/nemo-ft-eval/serving-vllm/serving-nim/serving-trt-fp8/serving-trt-engine/kfp-rag/kfp-curator); opens blog draft PR |
+| Create Project               | `create-project.yaml`               | Create platform repo (10 types: default/kfp/ft-eval/nemo-ft-eval/serving-vllm/serving-nim/serving-trt-fp8/serving-trt-engine/kfp-rag/kfp-nemo-curator); opens blog draft PR |
 | Delete Project               | `delete-project.yaml`               | Permanently delete a platform repo; double-entry confirmation guard  |
 | Deploy Platform Dashboard    | `deploy-dashboard.yaml`             | Build + deploy GitHub Pages dashboard; runs hourly + on workflow_run |
 | List Blog Posts              | `list-blog-posts.yaml`              | List live posts and open draft PRs in the blog repo                  |

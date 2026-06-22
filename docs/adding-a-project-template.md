@@ -28,7 +28,7 @@ Files in `.github/workflows/` inside the template are included automatically.
 **a. Input enum** (`inputs.project_type.options`, line ~27):
 
 ```yaml
-options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-curator, <type>]
+options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-nemo-curator, <type>]
 ```
 
 **b. CI badge injection** (line ~147) — add a branch for your type if it has
@@ -96,7 +96,7 @@ the `Set repository topics` step), so the topic name is always `miramar-<type>`.
 Pick a colour not already used. NeMo project types use green shades;
 all other types use distinct non-green colours:
 
-- Green (NeMo): `nemo-ft-eval` = emerald green, `kfp-curator` = forest green/lime
+- Green (NeMo): `nemo-ft-eval` = emerald green, `kfp-nemo-curator` = forest green/lime
 - Blue family: `kfp` = blue, `serving-vllm` = sky blue, `serving-nim` = dark cyan
 - Pink: `kfp-rag` = rose/pink
 - Purple: `ft-eval` = indigo/purple
