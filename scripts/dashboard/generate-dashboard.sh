@@ -220,17 +220,19 @@ AGX_VRAM_USED_GB=$(( AGX_NIM_VRAM_GB + AGX_OLLAMA_VRAM_GB + AGX_VLLM_TOTAL_GB ))
 AGX_VRAM_AVAIL_GB=$(( AGX_VRAM_USEABLE - AGX_VRAM_USED_GB ))
 (( AGX_VRAM_AVAIL_GB < 0 )) && AGX_VRAM_AVAIL_GB=0
 
-NIM_CLASS="ps-value";    [[ "$NIM_MODEL"    == "none" ]] && NIM_CLASS="ps-value ps-none"
-OLLAMA_MODEL_BADGE=$( [[ "$DGX_OLLAMA_ACTIVE" == "true" ]] \
+NIM_SHORT="${NIM_MODEL##*/}"
+NIM_PILL=$( [[ "$NIM_MODEL" != "none" ]] \
+  && echo "<span class=\"ps-active\">${NIM_SHORT}</span>" \
+  || echo "<span class=\"ps-inactive\">inactive</span>" )
+OLLAMA_PILL=$( [[ "$DGX_OLLAMA_ACTIVE" == "true" && "$OLLAMA_MODEL" != "none" ]] \
   && echo "<span class=\"ps-active\">${OLLAMA_MODEL}</span>" \
-  || echo "<span class=\"ps-inactive\">${OLLAMA_MODEL}</span>" )
+  || echo "<span class=\"ps-inactive\">inactive</span>" )
 VRAM_AVAIL_CLASS="ps-value"
 (( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
 
-AGX_NIM_CLASS="ps-value";    [[ "$AGX_NIM_MODEL"    == "none" ]] && AGX_NIM_CLASS="ps-value ps-none"
-AGX_OLLAMA_MODEL_BADGE=$( [[ "$AGX_OLLAMA_ACTIVE" == "true" ]] \
+AGX_OLLAMA_PILL=$( [[ "$AGX_OLLAMA_ACTIVE" == "true" && "$AGX_OLLAMA_MODEL" != "none" ]] \
   && echo "<span class=\"ps-active\">${AGX_OLLAMA_MODEL}</span>" \
-  || echo "<span class=\"ps-inactive\">${AGX_OLLAMA_MODEL}</span>" )
+  || echo "<span class=\"ps-inactive\">inactive</span>" )
 AGX_VRAM_AVAIL_CLASS="ps-value"
 (( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
@@ -268,14 +270,12 @@ fi
 # Active/inactive badge HTML (link only on active state)
 DGX_NEMO_BADGE=$([ "$DGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_KFP_BADGE=$([ "$DGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8080/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-DGX_OLLAMA_BADGE=$([ "$DGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_K3S_BADGE=$([ "$DGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:443/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_MLFLOW_BADGE=$([ "$DGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5000" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_QDRANT_BADGE=$([ "$DGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6333/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 AGX_NEMO_BADGE=$([ "$AGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_KFP_BADGE=$([ "$AGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8081/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_OLLAMA_BADGE=$([ "$AGX_OLLAMA_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_K3S_BADGE=$([ "$AGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:443/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_MLFLOW_BADGE=$([ "$AGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5001" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 AGX_QDRANT_BADGE=$([ "$AGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6335/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
@@ -423,13 +423,13 @@ cat > "$OUTPUT" <<HTMLEOF
       <div class="ps-label">KFP</div>
       ${DGX_KFP_BADGE}
     </div>
-    <div class="ps-item">
-      <div class="ps-label">Ollama</div>
-      ${DGX_OLLAMA_BADGE}
+    <div class="ps-item ps-wide">
+      <div class="ps-label">NIM</div>
+      ${NIM_PILL}
     </div>
     <div class="ps-item ps-wide">
-      <div class="ps-label">Ollama model</div>
-      ${OLLAMA_MODEL_BADGE}
+      <div class="ps-label">Ollama</div>
+      ${OLLAMA_PILL}
     </div>
     <div class="ps-item">
       <div class="ps-label">k3s</div>
@@ -476,13 +476,9 @@ cat > "$OUTPUT" <<HTMLEOF
       <div class="ps-label">KFP</div>
       ${AGX_KFP_BADGE}
     </div>
-    <div class="ps-item">
-      <div class="ps-label">Ollama</div>
-      ${AGX_OLLAMA_BADGE}
-    </div>
     <div class="ps-item ps-wide">
-      <div class="ps-label">Ollama model</div>
-      ${AGX_OLLAMA_MODEL_BADGE}
+      <div class="ps-label">Ollama</div>
+      ${AGX_OLLAMA_PILL}
     </div>
     <div class="ps-item">
       <div class="ps-label">k3s</div>
