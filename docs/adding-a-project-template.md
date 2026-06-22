@@ -93,10 +93,13 @@ the `Set repository topics` step), so the topic name is always `miramar-<type>`.
 .badge-<type> { background: #rrggbb; color: #rrggbb; }
 ```
 
-Pick a colour not already used: `kfp` = blue, `ft-eval` = teal,
-`nemo-ft-eval` = dark green (purple label), `default`/`other` = amber, `serving-vllm` = purple,
-`serving-nim` = dark cyan, `serving-trt-fp8` = olive green, `serving-trt-engine` = orange,
-`kfp-rag` = dark navy/cyan, `kfp-curator` = dark forest green/lime.
+Pick a colour not already used. NeMo project types use green shades;
+all other types use distinct non-green colours:
+
+- Green (NeMo): `nemo-ft-eval` = emerald green, `kfp-curator` = forest green/lime
+- Blue family: `kfp` = blue, `kfp-rag` = navy/cyan, `serving-vllm` = sky blue, `serving-nim` = dark cyan
+- Purple: `ft-eval` = indigo/purple
+- Warm: `serving-trt-fp8` = gold/yellow, `serving-trt-engine` = orange, `default`/`other` = amber
 
 **c. New Project modal dropdown** (`<select id="np-type">`) — add an option so
 the dashboard's "+ New Project" button exposes the new type:

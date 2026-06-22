@@ -336,9 +336,9 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-ft-eval      { background: #1a1a4f; color: #a78bfa; }
   .badge-serving-vllm        { background: #0c2a4a; color: #38bdf8; }
   .badge-serving-nim         { background: #001a2a; color: #67e8f9; }
-  .badge-serving-trt-fp8     { background: #1a2a00; color: #a3e635; }
+  .badge-serving-trt-fp8     { background: #1a1200; color: #fcd34d; }
   .badge-serving-trt-engine  { background: #2a1500; color: #fb923c; }
-  .badge-nemo-ft-eval        { background: #1a4731; color: #a78bfa; }
+  .badge-nemo-ft-eval        { background: #064e3b; color: #6ee7b7; }
   .badge-nemo                { background: #1a4731; color: #3fb950; }
   .badge-other        { background: #2d2b00; color: #d29922; }
   .badge-default      { background: #2d2b00; color: #d29922; }
