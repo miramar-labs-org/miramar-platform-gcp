@@ -34,7 +34,7 @@ jobs:
         run: kubectl get nodes
 
       - name: Install kfp SDK
-        run: pip install kfp kfp-kubernetes pyyaml --quiet
+        run: pip install --break-system-packages --quiet kfp kfp-kubernetes pyyaml
 
       - name: Build pipeline.py from notebook
         run: python3 scripts/build_pipeline.py
