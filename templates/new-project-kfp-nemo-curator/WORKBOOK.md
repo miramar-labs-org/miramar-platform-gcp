@@ -223,16 +223,6 @@ mlflow.log_metric("stage/deduplication/docs_out", docs_out)
 Reads `deduped/docs.jsonl`, detects and redacts PII using presidio + spaCy,
 writes `curated/docs.jsonl` (the final output).
 
-### Install spaCy model (inside the function)
-
-```python
-import subprocess, sys
-subprocess.run(
-    [sys.executable, "-m", "spacy", "download", "en_core_web_lg"],
-    check=True, capture_output=True,
-)
-```
-
 ### Option A — Via NeMo Curator PiiModifier
 
 ```python
@@ -289,15 +279,14 @@ mlflow.log_metric("stage/pii_redaction/pii_instances_found", n_pii)
 
 ---
 
-## GPU wheel fallback
+## Adding packages to the base images
 
-If `nemo-curator[cuda12x]` pip wheels are not available for arm64, the `quality_filter`
-and `deduplication` components will fail to install. In that case:
+All pipeline dependencies are pre-baked into `kfp-base-cpu:latest` and `kfp-base-gpu:latest`.
+To add a new package:
 
-1. File an issue or check RAPIDS release notes for aarch64 wheel availability
-2. Build a custom base image with RAPIDS pre-installed:
-   - Base: `nvcr.io/nvidia/pytorch:26.04-py3`
-   - Add: `pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12 dask-cudf-cu12 nemo-curator`
-   - Push to: `ghcr.io/miramar-labs-org/nemo-curator-arm64:latest`
-3. Change `base_image` in the GPU component cells to use the custom image
-4. Remove `--extra-index-url` and `nemo-curator[cuda12x]` from `packages_to_install`
+1. Edit `kfp-images/cpu/Dockerfile` or `kfp-images/gpu/Dockerfile` in the platform repo
+2. Trigger **Build KFP Base Images** (`image: cpu | gpu | both`)
+3. No changes needed in project notebooks — they pull `:latest`
+
+If a RAPIDS wheel is unavailable for arm64, check [pypi.nvidia.com](https://pypi.nvidia.com)
+release notes for aarch64 availability before editing the GPU Dockerfile.
