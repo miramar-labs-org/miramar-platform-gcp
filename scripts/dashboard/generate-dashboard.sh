@@ -380,8 +380,7 @@ cat > "$OUTPUT" <<HTMLEOF
   a.ps-active:hover { text-decoration: underline; }
   .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
   .serving-dot { font-size: 1rem; font-weight: bold; }
-  .serving-on  { color: #22c55e; }
-  .serving-off { color: #ef4444; }
+  .serving-on  { color: #ef4444; }
   .serving-none { color: #484f58; }
   .del-btn { background: none; border: none; cursor: pointer; color: #c0392b; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
   .del-btn:hover { color: #f85149; background: #3d1212; }
