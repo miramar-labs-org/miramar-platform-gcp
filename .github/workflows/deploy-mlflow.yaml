@@ -63,6 +63,21 @@ jobs:
           MINIO_DATA_DIR="/home/${HOST_USER}/shared/mlflow/minio" \
           bash dgx/minikube/mlflow/integrate-mlflow.sh
 
+      - name: Create MinIO mlflow bucket
+        run: |
+          MINIO_POD=$(kubectl get pods -n mlflow-system | grep minio | grep Running | awk '{print $1}' | head -1)
+          if [ -z "$MINIO_POD" ]; then
+            echo "ERROR: MinIO pod not found in mlflow-system" && exit 1
+          fi
+          echo "Using MinIO pod: $MINIO_POD"
+          ACCESS_KEY=$(kubectl get secret minio-creds -n mlflow-system -o jsonpath='{.data.rootUser}' | base64 -d)
+          SECRET_KEY=$(kubectl get secret minio-creds -n mlflow-system -o jsonpath='{.data.rootPassword}' | base64 -d)
+          kubectl exec -n mlflow-system "$MINIO_POD" -- sh -c "
+            mc alias set mlocal http://localhost:9000 '${ACCESS_KEY}' '${SECRET_KEY}' 2>/dev/null
+            mc mb --ignore-existing mlocal/mlflow
+            mc ls mlocal/
+          "
+
       - name: Smoke-test endpoints
         continue-on-error: true
         run: bash dgx/minikube/mlflow/verify-mlflow-endpoints.sh
