@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nim
+  namespace: {{PROJECT_NAME}}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nim
+  template:
+    metadata:
+      labels:
+        app: nim
+    spec:
+      enableServiceLinks: false
+      imagePullSecrets:
+        - name: nvcr-pull
+      containers:
+        - name: nim
+          image: nvcr.io/nim/nvidia/llm-nim:NIM_IMAGE_TAG_PLACEHOLDER
+          env:
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ngc-api-key
+                  key: NGC_API_KEY
+            - name: NIM_MODEL_NAME
+              value: /models/MODEL_NAME_PLACEHOLDER
+            - name: NIM_SERVED_MODEL_NAME
+              value: SERVED_MODEL_NAME_PLACEHOLDER
+            - name: NIM_CACHE_PATH
+              value: /opt/nim/.cache
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: 4
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+          readinessProbe:
+            httpGet:
+              path: /v1/health/ready
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /v1/health/live
+              port: 8000
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: nim-cache
+              mountPath: /opt/nim/.cache
+            - name: model
+              mountPath: /models/MODEL_NAME_PLACEHOLDER
+              readOnly: true
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - name: nim-cache
+          hostPath:
+            path: /home/aaron/shared/nim-cache
+            type: DirectoryOrCreate
+        - name: model
+          hostPath:
+            path: MODEL_HOST_PATH_PLACEHOLDER
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nim
+  namespace: {{PROJECT_NAME}}
+spec:
+  type: ClusterIP
+  selector:
+    app: nim
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

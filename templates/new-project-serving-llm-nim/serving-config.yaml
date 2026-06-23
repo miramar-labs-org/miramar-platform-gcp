@@ -1,0 +1,15 @@
+runtime:
+  kind: llm-nim
+
+nim:
+  image: "nvcr.io/nim/nvidia/llm-nim"
+  image_tag: "{{NIM_IMAGE_TAG}}"        # e.g. latest
+
+model:
+  host_path: "{{MODEL_HOST_PATH}}"      # absolute path on DGX host to model directory
+  container_name: "{{MODEL_NAME}}"      # name used inside the container (e.g. biomistral-ft)
+  served_model_name: "{{SERVED_MODEL_NAME}}"
+
+deployment:
+  namespace: "{{PROJECT_NAME}}"
+  gpu_count: 1

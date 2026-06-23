@@ -1,0 +1,57 @@
+name: Undeploy
+
+# Removes the local LLM NIM deployment from K3s on DGX and frees GPU memory.
+# DGX-only — no GKE target (model host path is not portable to GKE).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_NAME: "{{PROJECT_NAME}}"
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Delete deployment
+        run: |
+          kubectl delete deployment nim -n "$PROJECT_NAME" --ignore-not-found
+          kubectl delete service nim -n "$PROJECT_NAME" --ignore-not-found
+          echo "Deployment removed."
+
+      - name: Clear serving state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_SERVING_ACTIVE" \
+            -f value="false" 2>/dev/null || true
+
+      - name: Reset Open WebUI backend to Ollama
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method DELETE "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
+            2>/dev/null || true
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=dgx
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "## Undeploy: $PROJECT_NAME (DGX K3s — Local LLM NIM)"
+            echo "Deployment removed. GPU memory freed."
+          } >> "$GITHUB_STEP_SUMMARY"

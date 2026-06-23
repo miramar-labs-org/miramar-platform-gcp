@@ -25,7 +25,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-nemo-curator]
+        options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-llm-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-nemo-curator]
         default: default
         required: true
       host:
@@ -78,6 +78,18 @@ on:
           - magpie-tts-multilingual
           - parakeet-1-1b-rnnt-multilingual
           - parakeet-1-1b-ctc-en-us
+      model_host_path:
+        description: "Absolute path to model on DGX host (serving-llm-nim only, e.g. /home/aaron/shared/huggingface-kfp/models/my-model)"
+        default: "/home/aaron/shared/huggingface-kfp/models/my-model"
+        required: false
+      model_name:
+        description: "Short name for the model dir inside the NIM container (serving-llm-nim only)"
+        default: "my-model"
+        required: false
+      nim_image_tag:
+        description: "llm-nim image tag (serving-llm-nim only)"
+        default: "latest"
+        required: false
 
 permissions:
   contents: read
@@ -147,6 +159,9 @@ jobs:
           HF_DATASET_ID: ${{ inputs.hf_dataset_id }}
           SERVED_MODEL_NAME: ${{ inputs.served_model_name }}
           NIM_MODEL: ${{ inputs.nim_model }}
+          MODEL_HOST_PATH: ${{ inputs.model_host_path }}
+          MODEL_NAME: ${{ inputs.model_name }}
+          NIM_IMAGE_TAG: ${{ inputs.nim_image_tag }}
           DESCRIPTION: ${{ inputs.description }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
@@ -218,6 +233,9 @@ jobs:
               -e "s|{{NIM_DGX_IMAGE}}|${NIM_DGX_IMAGE}|g" \
               -e "s|{{DGX_IMAGE_TAG}}|${DGX_IMAGE_TAG}|g" \
               -e "s|{{GKE_IMAGE_TAG}}|${GKE_IMAGE_TAG}|g" \
+              -e "s|{{MODEL_HOST_PATH}}|${MODEL_HOST_PATH}|g" \
+              -e "s|{{MODEL_NAME}}|${MODEL_NAME}|g" \
+              -e "s|{{NIM_IMAGE_TAG}}|${NIM_IMAGE_TAG}|g" \
               -e "s|{{DESCRIPTION}}|${DESCRIPTION}|g" \
             {} +
 
@@ -242,6 +260,11 @@ jobs:
             { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
           elif [ "${PROJECT_TYPE}" = "serving-nim" ]; then
+            BADGE_2="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
+            BADGE_3="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "serving-llm-nim" ]; then
             BADGE_2="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
             BADGE_3="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
             { head -1 README.md; printf '\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}"; tail -n +2 README.md; } > README.tmp
@@ -405,6 +428,27 @@ jobs:
               "| Inference engine | vLLM |" \
               "| Host | <!-- TODO: DGX Spark / AGX Orin / GKE L4 --> |" \
               "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
+              "## Deployment" "" \
+              "\`\`\`bash" \
+              "curl http://localhost:8000/v1/models" \
+              "curl -X POST http://localhost:8000/v1/chat/completions \\\\" \
+              "  -d '{\"model\":\"<!-- TODO -->\",\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'" \
+              "\`\`\`" "" \
+              "## Smoke test results" "" \
+              "<!-- TODO: sample prompts and responses -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "serving-llm-nim" ]; then
+            CATS="miramar nim serving dgx local-nim"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Serving stack" "" \
+              "| | |" "|---|---|" \
+              "| Local model | \`<!-- TODO: model path -->\` |" \
+              "| Runtime | NVIDIA Multi-LLM NIM (\`nvcr.io/nim/nvidia/llm-nim\`) |" \
+              "| Host | DGX Spark (GB10 Blackwell) |" \
+              "| Served as | \`<!-- TODO: served_model_name -->\` |" "" \
               "## Deployment" "" \
               "\`\`\`bash" \
               "curl http://localhost:8000/v1/models" \
@@ -658,6 +702,14 @@ jobs:
               echo "3. Trigger **Undeploy** when done to stop costs / free GPU memory"
               echo ""
               echo "Prerequisites: \`secrets.NGC_API_KEY\` must be set (org-level secret)"
+            elif [ "${PROJECT_TYPE}" = "serving-llm-nim" ]; then
+              echo "### Next steps"
+              echo "1. Verify \`serving-config.yaml\` — confirm \`model.host_path\` points to your merged model weights on DGX"
+              echo "2. Optional: run \`bash scripts/list-profiles.sh\` locally to validate NIM compatibility before deploy"
+              echo "3. Trigger **Deploy** to deploy the model as a NIM service on DGX K3s"
+              echo "4. Trigger **Undeploy** when done to free GPU memory"
+              echo ""
+              echo "Prerequisites: \`secrets.NGC_API_KEY\` must be set (org-level secret); model must be full merged weights (not LoRA adapter)"
             elif [ "${PROJECT_TYPE}" = "serving-trt-fp8" ]; then
               echo "### Next steps"
               echo "1. Fill in \`serving-config.yaml\` — set \`compression.project\` and \`compression.run_id\`"
