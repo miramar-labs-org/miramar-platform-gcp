@@ -5,6 +5,7 @@ metadata:
   namespace: {{PROJECT_NAME}}
 spec:
   replicas: 1
+  progressDeadlineSeconds: 3600
   strategy:
     type: Recreate
   selector:

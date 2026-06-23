@@ -132,7 +132,7 @@ jobs:
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
-        run: kubectl rollout status deployment/nim -n "$PROJECT_NAME" --timeout=1800s
+        run: kubectl rollout status deployment/nim -n "$PROJECT_NAME" --timeout=3600s
 
       - name: Smoke test
         run: |
