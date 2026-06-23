@@ -78,8 +78,8 @@ on:
           - magpie-tts-multilingual
           - parakeet-1-1b-rnnt-multilingual
           - parakeet-1-1b-ctc-en-us
-      model_host_path:
-        description: "Absolute path to model on DGX host (serving-llm-nim only, e.g. /home/aaron/shared/huggingface-kfp/models/my-model)"
+      model_path:
+        description: "Model source for serving-llm-nim: /absolute/local/path  OR  hf://org/model  OR  org/model"
         default: "/home/aaron/shared/huggingface-kfp/models/my-model"
         required: false
       model_name:
@@ -159,7 +159,7 @@ jobs:
           HF_DATASET_ID: ${{ inputs.hf_dataset_id }}
           SERVED_MODEL_NAME: ${{ inputs.served_model_name }}
           NIM_MODEL: ${{ inputs.nim_model }}
-          MODEL_HOST_PATH: ${{ inputs.model_host_path }}
+          MODEL_PATH: ${{ inputs.model_path }}
           MODEL_NAME: ${{ inputs.model_name }}
           NIM_IMAGE_TAG: ${{ inputs.nim_image_tag }}
           DESCRIPTION: ${{ inputs.description }}
@@ -233,7 +233,7 @@ jobs:
               -e "s|{{NIM_DGX_IMAGE}}|${NIM_DGX_IMAGE}|g" \
               -e "s|{{DGX_IMAGE_TAG}}|${DGX_IMAGE_TAG}|g" \
               -e "s|{{GKE_IMAGE_TAG}}|${GKE_IMAGE_TAG}|g" \
-              -e "s|{{MODEL_HOST_PATH}}|${MODEL_HOST_PATH}|g" \
+              -e "s|{{MODEL_PATH}}|${MODEL_PATH}|g" \
               -e "s|{{MODEL_NAME}}|${MODEL_NAME}|g" \
               -e "s|{{NIM_IMAGE_TAG}}|${NIM_IMAGE_TAG}|g" \
               -e "s|{{DESCRIPTION}}|${DESCRIPTION}|g" \

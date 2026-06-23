@@ -28,8 +28,14 @@ spec:
                 secretKeyRef:
                   name: ngc-api-key
                   key: NGC_API_KEY
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: HF_TOKEN
+                  optional: true
             - name: NIM_MODEL_NAME
-              value: /models/MODEL_NAME_PLACEHOLDER
+              value: HF_MODEL_PLACEHOLDER
             - name: NIM_SERVED_MODEL_NAME
               value: SERVED_MODEL_NAME_PLACEHOLDER
             - name: NIM_CACHE_PATH
@@ -60,9 +66,6 @@ spec:
           volumeMounts:
             - name: nim-cache
               mountPath: /opt/nim/.cache
-            - name: model
-              mountPath: /models/MODEL_NAME_PLACEHOLDER
-              readOnly: true
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists
@@ -72,10 +75,6 @@ spec:
           hostPath:
             path: /home/aaron/shared/nim-cache
             type: DirectoryOrCreate
-        - name: model
-          hostPath:
-            path: MODEL_PATH_PLACEHOLDER
-            type: Directory
 ---
 apiVersion: v1
 kind: Service

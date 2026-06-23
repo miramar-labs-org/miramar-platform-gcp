@@ -1,7 +1,9 @@
 name: Deploy
 
-# Deploys a local model as a NIM service on DGX K3s using the generic Multi-LLM NIM runtime.
-# The model directory is mounted from the DGX host — no GKE target (local path not portable).
+# Deploys a model as a NIM service on DGX K3s using the generic Multi-LLM NIM runtime.
+# Supports two modes based on model.model_path in serving-config.yaml:
+#   local  — absolute path on DGX host (/abs/path) → hostPath volume mount
+#   hf     — HuggingFace ID (hf://org/model or org/model) → NIM downloads from HF
 # Run undeploy.yaml when done to free GPU memory.
 
 on:
@@ -25,13 +27,26 @@ jobs:
       - name: Read config
         run: |
           NIM_IMAGE_TAG=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['nim']['image_tag'])")
-          MODEL_HOST_PATH=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['host_path'])")
+          MODEL_PATH=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['model_path'])")
           MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['container_name'])")
           SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
           echo "NIM_IMAGE_TAG=${NIM_IMAGE_TAG}" >> "$GITHUB_ENV"
-          echo "MODEL_HOST_PATH=${MODEL_HOST_PATH}" >> "$GITHUB_ENV"
+          echo "MODEL_PATH=${MODEL_PATH}" >> "$GITHUB_ENV"
           echo "MODEL_NAME=${MODEL_NAME}" >> "$GITHUB_ENV"
           echo "SERVED_MODEL_NAME=${SERVED_MODEL_NAME}" >> "$GITHUB_ENV"
+
+      - name: Detect model mode
+        run: |
+          if [[ "${MODEL_PATH}" == /* ]]; then
+            echo "MODEL_MODE=local" >> "$GITHUB_ENV"
+            echo "HF_MODEL=" >> "$GITHUB_ENV"
+            echo "Mode: local (hostPath volume)"
+          else
+            HF_MODEL="${MODEL_PATH#hf://}"
+            echo "MODEL_MODE=hf" >> "$GITHUB_ENV"
+            echo "HF_MODEL=${HF_MODEL}" >> "$GITHUB_ENV"
+            echo "Mode: hf (NIM downloads from HuggingFace: ${HF_MODEL})"
+          fi
 
       - name: Preflight checks
         env:
@@ -41,15 +56,17 @@ jobs:
             "${HOST_USER}@localhost" "
               set -e
 
-              echo '==> [1/3] Verify model path'
-              test -d '${MODEL_HOST_PATH}' || { echo 'ERROR: model dir not found: ${MODEL_HOST_PATH}'; exit 1; }
-              ls -lh '${MODEL_HOST_PATH}' | head -10
+              if [[ '${MODEL_MODE}' == 'local' ]]; then
+                echo '==> [1/3] Verify model path (local)'
+                test -d '${MODEL_PATH}' || { echo 'ERROR: model dir not found: ${MODEL_PATH}'; exit 1; }
+                ls -lh '${MODEL_PATH}' | head -10
+              else
+                echo '==> [1/3] HF model: ${HF_MODEL} (NIM will download)'
+              fi
 
               echo '==> [2/3] Ensure nim-cache writable'
               mkdir -p \${HOME}/shared/nim-cache
-              # top-level may be root-owned (created by kubelet); use sudo
               sudo chmod 777 \${HOME}/shared/nim-cache
-              # subdirs are user-owned; fix recursively without sudo
               find \${HOME}/shared/nim-cache -mindepth 1 -exec chmod 777 {} +
               echo 'nim-cache permissions:'
               ls -la \${HOME}/shared/nim-cache
@@ -74,6 +91,14 @@ jobs:
         run: |
           kubectl create secret generic ngc-api-key \
             --from-literal=NGC_API_KEY="${{ secrets.NGC_API_KEY }}" \
+            -n "$PROJECT_NAME" \
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Ensure hf-token secret
+        if: env.MODEL_MODE == 'hf'
+        run: |
+          kubectl create secret generic hf-token \
+            --from-literal=HF_TOKEN="${{ secrets.HF_TOKEN }}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
@@ -103,11 +128,18 @@ jobs:
 
       - name: Substitute and apply K3s manifest
         run: |
-          sed "s|NIM_IMAGE_TAG_PLACEHOLDER|${NIM_IMAGE_TAG}|g" k8s/nim-local-k3s.yaml \
-            | sed "s|MODEL_HOST_PATH_PLACEHOLDER|${MODEL_HOST_PATH}|g" \
-            | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
-            | sed "s|MODEL_NAME_PLACEHOLDER|${MODEL_NAME}|g" \
-            | kubectl apply --validate=false -f -
+          if [[ "${MODEL_MODE}" == "local" ]]; then
+            sed "s|NIM_IMAGE_TAG_PLACEHOLDER|${NIM_IMAGE_TAG}|g" k8s/nim-local-k3s.yaml \
+              | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+              | sed "s|MODEL_NAME_PLACEHOLDER|${MODEL_NAME}|g" \
+              | sed "s|MODEL_PATH_PLACEHOLDER|${MODEL_PATH}|g" \
+              | kubectl apply --validate=false -f -
+          else
+            sed "s|NIM_IMAGE_TAG_PLACEHOLDER|${NIM_IMAGE_TAG}|g" k8s/nim-hf-k3s.yaml \
+              | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+              | sed "s|HF_MODEL_PLACEHOLDER|${HF_MODEL}|g" \
+              | kubectl apply --validate=false -f -
+          fi
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/nim -n "$PROJECT_NAME" --timeout=3600s
@@ -180,11 +212,12 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Deploy: $PROJECT_NAME (DGX K3s — Local LLM NIM)"
+            echo "## Deploy: $PROJECT_NAME (DGX K3s — LLM NIM)"
             echo "| | |"
             echo "|---|---|"
             echo "| Image | \`nvcr.io/nim/nvidia/llm-nim:${NIM_IMAGE_TAG}\` |"
-            echo "| Model | \`${MODEL_HOST_PATH}\` |"
+            echo "| Mode | \`${MODEL_MODE}\` |"
+            echo "| Model | \`${MODEL_PATH}\` |"
             echo "| Served as | \`${SERVED_MODEL_NAME}\` |"
             echo "| Namespace | \`$PROJECT_NAME\` |"
             echo "| Port-forward | \`kubectl port-forward svc/nim 8000:8000 -n $PROJECT_NAME\` |"
