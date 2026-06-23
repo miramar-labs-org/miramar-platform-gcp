@@ -92,16 +92,24 @@ jobs:
       - name: Create GHCR pull secret in kubeflow namespace
         if: steps.skip.outputs.skip != 'true'
         env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTOR: ${{ github.actor }}
+          # Use long-lived PAT (read:packages) — GITHUB_TOKEN expires at workflow end
+          # and would invalidate the secret for all subsequent pipeline runs.
+          GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
         run: |
           kubectl create secret docker-registry ghcr-pull-secret \
             --docker-server=ghcr.io \
-            --docker-username="${ACTOR}" \
-            --docker-password="${TOKEN}" \
+            --docker-username=miramar-labs-org \
+            --docker-password="${GHCR_PAT}" \
             -n kubeflow \
             --dry-run=client -o yaml | kubectl apply -f -
           echo "Pull secret ghcr-pull-secret upserted in kubeflow namespace"
+
+      - name: Patch pipeline-runner SA with pull secret
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          kubectl patch serviceaccount pipeline-runner -n kubeflow \
+            -p '{"imagePullSecrets": [{"name": "ghcr-pull-secret"}]}'
+          echo "pipeline-runner SA patched with ghcr-pull-secret"
 
       - name: Summary
         if: steps.skip.outputs.skip != 'true'
