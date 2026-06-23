@@ -91,7 +91,7 @@ while IFS= read -r repo_json; do
       serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed on ${active_host}\">&#x25CF;</span>"
     else
       host_html="<span class=\"badge badge-none\">--</span>"
-      serving_html="<span class=\"serving-dot serving-off\" title=\"Not deployed\">&#x25CF;</span>"
+      serving_html="<span class=\"serving-none\">—</span>"
     fi
   else
     serving_html="<span class=\"serving-none\">—</span>"
