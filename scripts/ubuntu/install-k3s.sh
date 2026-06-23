@@ -84,6 +84,18 @@ log "Waiting for nginx-ingress controller to be ready (up to 3m)..."
 kubectl rollout status deployment/ingress-nginx-controller \
   -n ingress-nginx --timeout=180s || log "nginx-ingress not yet ready — may still be pulling image"
 
+# Patch nginx-ingress to bind hostPort 80/443 directly on the node.
+# The baremetal NodePort manifest exposes 80→30398 and 443→30876, but NeMo/NIM
+# workflows (and deploy_nim.sh) connect to nemo.test:80 with --network=host.
+# hostPort binds port 80 on the physical node so runner containers reach it directly.
+log "Patching nginx-ingress controller to add hostPort 80/443..."
+kubectl patch deployment ingress-nginx-controller -n ingress-nginx --type=json -p='[
+  {"op":"add","path":"/spec/template/spec/containers/0/ports/0/hostPort","value":80},
+  {"op":"add","path":"/spec/template/spec/containers/0/ports/1/hostPort","value":443}
+]'
+kubectl rollout status deployment/ingress-nginx-controller \
+  -n ingress-nginx --timeout=120s || log "nginx-ingress hostPort rollout still in progress"
+
 # ---- CoreDNS patch: host.k3s.internal → node IP ----
 # k3s CoreDNS already uses a 'hosts' plugin for NodeHosts — adding a second hosts
 # block via ConfigMap extension crashes CoreDNS. Instead, append to NodeHosts directly.
