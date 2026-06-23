@@ -25,5 +25,7 @@ RUN pip install --no-cache-dir \
     "wandb>=0.16" \
     pyyaml
 
-# Download spaCy en_core_web_sm (pii_redaction; avoids subprocess download at runtime)
-RUN python -m spacy download en_core_web_sm
+# Download spaCy models used by presidio-analyzer (avoids runtime downloads)
+# en_core_web_lg is required by NlpEngineProvider; en_core_web_sm as fallback
+RUN python -m spacy download en_core_web_sm && \
+    python -m spacy download en_core_web_lg
