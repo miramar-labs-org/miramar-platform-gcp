@@ -60,6 +60,24 @@ on:
         description: "Stable model alias for the API (serving-vllm only, e.g. biomistral-onc)"
         default: "my-model"
         required: false
+      nim_model:
+        description: "NIM model to deploy (serving-nim only)"
+        type: choice
+        required: false
+        default: "nvidia-nemotron-nano-9b-v2-dgx-spark"
+        options:
+          - llama-3.1-8b-instruct-dgx-spark
+          - nvidia-nemotron-nano-9b-v2-dgx-spark
+          - llm-nim
+          - nemotron-3-nano-30b-a3b
+          - gpt-oss-120b
+          - llama-3.3-nemotron-super-49b-v1.5
+          - minimax-m25
+          - cosmos-reason2-8b
+          - boltz2
+          - magpie-tts-multilingual
+          - parakeet-1-1b-rnnt-multilingual
+          - parakeet-1-1b-ctc-en-us
 
 permissions:
   contents: read
@@ -128,6 +146,7 @@ jobs:
           HF_MODEL_ID: ${{ inputs.hf_model_id }}
           HF_DATASET_ID: ${{ inputs.hf_dataset_id }}
           SERVED_MODEL_NAME: ${{ inputs.served_model_name }}
+          NIM_MODEL: ${{ inputs.nim_model }}
           DESCRIPTION: ${{ inputs.description }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
@@ -146,6 +165,39 @@ jobs:
           # Copy the appropriate template (includes hidden .github/ dir)
           cp -r "${GITHUB_WORKSPACE}/templates/new-project-${PROJECT_TYPE}/." .
 
+          # Decode serving-nim NIM model → org, full DGX image name, and image tags
+          NIM_ORG="nvidia"; NIM_DGX_IMAGE="${NIM_MODEL}"; DGX_IMAGE_TAG="latest"; GKE_IMAGE_TAG="latest"
+          case "${NIM_MODEL}" in
+            "llama-3.1-8b-instruct-dgx-spark")
+              NIM_ORG="meta"; NIM_DGX_IMAGE="llama-3.1-8b-instruct-dgx-spark"
+              DGX_IMAGE_TAG="1.0.0-variant"; GKE_IMAGE_TAG="1.0.0" ;;
+            "nvidia-nemotron-nano-9b-v2-dgx-spark")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="nvidia-nemotron-nano-9b-v2-dgx-spark"
+              DGX_IMAGE_TAG="1.0.0-variant"; GKE_IMAGE_TAG="1.0.0" ;;
+            "llm-nim")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="llm-nim" ;;
+            "nemotron-3-nano-30b-a3b")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="nemotron-3-nano-30b-a3b" ;;
+            "gpt-oss-120b")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="gpt-oss-120b" ;;
+            "llama-3.3-nemotron-super-49b-v1.5")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="llama-3.3-nemotron-super-49b-v1.5" ;;
+            "minimax-m25")
+              NIM_ORG="minimax-ai"; NIM_DGX_IMAGE="minimax-m25" ;;
+            "cosmos-reason2-8b")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="cosmos-reason2-8b" ;;
+            "boltz2")
+              NIM_ORG="mit"; NIM_DGX_IMAGE="boltz2" ;;
+            "magpie-tts-multilingual")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="magpie-tts-multilingual" ;;
+            "parakeet-1-1b-rnnt-multilingual")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="parakeet-1-1b-rnnt-multilingual" ;;
+            "parakeet-1-1b-ctc-en-us")
+              NIM_ORG="nvidia"; NIM_DGX_IMAGE="parakeet-1-1b-ctc-en-us" ;;
+          esac
+          # Base model name (strip -dgx-spark suffix for GKE reference)
+          NIM_MODEL_NAME="${NIM_DGX_IMAGE%-dgx-spark}"
+
           # Replace placeholders in all text files
           YEAR=$(date +%Y)
           CHANGE_DATE="$((YEAR + 4))-01-01"
@@ -161,6 +213,11 @@ jobs:
               -e "s|{{HF_MODEL_ID}}|${HF_MODEL_ID}|g" \
               -e "s|{{HF_DATASET_ID}}|${HF_DATASET_ID}|g" \
               -e "s|{{SERVED_MODEL_NAME}}|${SERVED_MODEL_NAME}|g" \
+              -e "s|{{NIM_ORG}}|${NIM_ORG}|g" \
+              -e "s|{{NIM_MODEL_NAME}}|${NIM_MODEL_NAME}|g" \
+              -e "s|{{NIM_DGX_IMAGE}}|${NIM_DGX_IMAGE}|g" \
+              -e "s|{{DGX_IMAGE_TAG}}|${DGX_IMAGE_TAG}|g" \
+              -e "s|{{GKE_IMAGE_TAG}}|${GKE_IMAGE_TAG}|g" \
               -e "s|{{DESCRIPTION}}|${DESCRIPTION}|g" \
             {} +
 

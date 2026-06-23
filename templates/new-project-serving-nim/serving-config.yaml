@@ -3,7 +3,8 @@ runtime:
 
 nim:
   org: "{{NIM_ORG}}"
-  model_name: "{{NIM_MODEL_NAME}}"       # base name; -dgx-spark suffix added per host
+  model_name: "{{NIM_MODEL_NAME}}"       # base name used for GKE and as reference
+  dgx_image_name: "{{NIM_DGX_IMAGE}}"   # full DGX image name (may include -dgx-spark suffix)
   dgx_image_tag: "{{DGX_IMAGE_TAG}}"     # e.g. 1.0.0-variant
   gke_image_tag: "{{GKE_IMAGE_TAG}}"     # e.g. 1.5.0
   port: 8000

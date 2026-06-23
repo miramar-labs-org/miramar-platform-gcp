@@ -44,10 +44,12 @@ jobs:
         run: |
           NIM_ORG=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['nim']['org'])")
           NIM_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['nim']['model_name'])")
+          NIM_DGX_IMAGE=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['nim']['dgx_image_name'])")
           DGX_IMAGE_TAG=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['nim']['dgx_image_tag'])")
           SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
           echo "NIM_ORG=${NIM_ORG}" >> "$GITHUB_ENV"
           echo "NIM_MODEL_NAME=${NIM_MODEL_NAME}" >> "$GITHUB_ENV"
+          echo "NIM_DGX_IMAGE=${NIM_DGX_IMAGE}" >> "$GITHUB_ENV"
           echo "DGX_IMAGE_TAG=${DGX_IMAGE_TAG}" >> "$GITHUB_ENV"
           echo "SERVED_MODEL_NAME=${SERVED_MODEL_NAME}" >> "$GITHUB_ENV"
 
@@ -90,7 +92,7 @@ jobs:
       - name: Substitute and apply K3s manifest
         run: |
           sed "s|NIM_ORG_PLACEHOLDER|${NIM_ORG}|g" k8s/nim-k3s.yaml \
-            | sed "s|NIM_MODEL_NAME_PLACEHOLDER|${NIM_MODEL_NAME}|g" \
+            | sed "s|NIM_DGX_IMAGE_PLACEHOLDER|${NIM_DGX_IMAGE}|g" \
             | sed "s|DGX_IMAGE_TAG_PLACEHOLDER|${DGX_IMAGE_TAG}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
             | kubectl apply --validate=false -f -
@@ -186,7 +188,7 @@ jobs:
             echo "## Deploy: $PROJECT_NAME (DGX K3s)"
             echo "| | |"
             echo "|---|---|"
-            echo "| Image | \`nvcr.io/nim/${NIM_ORG}/${NIM_MODEL_NAME}-dgx-spark:${DGX_IMAGE_TAG}\` |"
+            echo "| Image | \`nvcr.io/nim/${NIM_ORG}/${NIM_DGX_IMAGE}:${DGX_IMAGE_TAG}\` |"
             echo "| Namespace | \`$PROJECT_NAME\` |"
             echo "| Port-forward | \`kubectl port-forward svc/nim 8000:8000 -n $PROJECT_NAME\` |"
           } >> "$GITHUB_STEP_SUMMARY"
