@@ -136,6 +136,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Nsight Operator Undeploy GKE | `undeploy-nsight-operator-gke.yaml` | Helm uninstall Nsight Operator from GKE; clears `GKE_NSIGHT_OPERATOR_ACTIVE` |
 | MLflow Deploy                | `deploy-mlflow.yaml`                | Deploy MLflow + MinIO into mlflow-system; sets `{MACHINE}_MLFLOW_ACTIVE` |
 | MLflow Undeploy              | `undeploy-mlflow.yaml`              | Remove MLflow, MinIO, and mlflow-system namespace                    |
+| Build KFP Base Images        | `build-kfp-base-images.yaml`        | Build kfp-base-cpu + kfp-base-gpu base images; push to GHCR; input: `image: cpu \| gpu \| both` |
 | Build KFP arm64 Images       | `build-kfp-arm64.yaml`              | Build 13 KFP arm64 images on DGX; optional single-component rebuild  |
 | Kubeflow Deploy              | `deploy-kubeflow.yaml`              | Deploy KFP standalone; patch 13 deployments with arm64 images        |
 | Kubeflow Undeploy            | `undeploy-kubeflow.yaml`            | Remove KFP and cluster-scoped resources; clears `{MACHINE}_KFP_ACTIVE` |

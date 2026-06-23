@@ -39,17 +39,13 @@ curator-output/{{PROJECT_NAME}}/{run_id}/curation_report.json ← written by cur
 ## Component rules
 
 - **All imports must be inside the function body** — each component runs in its own container
-- `packages_to_install` on `@dsl.component` is the only way to add dependencies
-- **CPU components** (`preflight_check`, `extract_text`, `pii_redaction`, `curator_report`): use `python:3.11-slim`
-- **GPU components** (`quality_filter`, `deduplication`): use `nvcr.io/nvidia/pytorch:26.04-py3` + RAPIDS packages
-- GPU components MUST include in `packages_to_install`:
-  ```python
-  "--extra-index-url=https://pypi.nvidia.com",
-  "nemo-curator[cuda12x]>=0.5.0",
-  ```
+- `packages_to_install=[]` — all dependencies are pre-baked into the base images
+- **CPU components** (`preflight_check`, `extract_text`, `pii_redaction`, `curator_report`): use `ghcr.io/miramar-labs-org/kfp-base-cpu:latest`
+- **GPU components** (`quality_filter`, `deduplication`): use `ghcr.io/miramar-labs-org/kfp-base-gpu:latest`
 - GPU components MUST have `.set_accelerator_type("nvidia.com/gpu").set_accelerator_limit(1).set_memory_limit("48G")` in the pipeline cell
 - Secret env vars (`OPENAI_API_KEY`, `HF_TOKEN`) injected from `mlabs-api-keys` K8s secret via `k8s_ext.use_secret_as_env`
 - PVC `hf-model-cache` is mounted at `/root/.cache/huggingface`
+- To add packages to the base images, update `kfp-images/cpu/Dockerfile` or `kfp-images/gpu/Dockerfile` in the platform repo and trigger **Build KFP Base Images**
 
 ## Editing config.yaml
 
@@ -79,10 +75,12 @@ ssh -L 5000:localhost:5000 <user>@spark-79b7.local
 # → http://localhost:5000  (use ML experiment type, not GenAI apps & agents)
 ```
 
-## GPU wheel fallback
+## Base image rebuild
 
-If `nemo-curator[cuda12x]` pip wheels are unavailable for arm64 (aarch64), see
-`WORKBOOK.md → GPU wheel fallback` for the custom image approach.
+To update the pre-built base images (e.g. add a new package):
+1. Edit `kfp-images/cpu/Dockerfile` or `kfp-images/gpu/Dockerfile` in the platform repo
+2. Trigger **Build KFP Base Images** workflow (`image: cpu | gpu | both`)
+3. No changes needed in project notebooks — they pull `:latest`
 
 ## Platform repo
 

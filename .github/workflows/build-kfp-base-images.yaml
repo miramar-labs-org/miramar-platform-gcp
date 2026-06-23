@@ -1,0 +1,124 @@
+name: Build KFP Base Images
+
+# Builds two arm64 base images used by all KFP pipeline stages:
+#
+#   ghcr.io/miramar-labs-org/kfp-base-cpu:latest
+#     FROM python:3.11-slim — mlflow, nemo-curator (CPU), presidio, spaCy,
+#     openai, huggingface_hub, datasets, wandb, boto3
+#
+#   ghcr.io/miramar-labs-org/kfp-base-gpu:latest
+#     FROM nvcr.io/nvidia/pytorch:26.04-py3 — cudf-cu12, dask-cudf-cu12,
+#     nemo-curator, transformers, peft, trl, sentence-transformers,
+#     qdrant-client, mlflow, boto3
+#
+# Run this workflow when adding new packages to any KFP pipeline stage type.
+# After the images are pushed, update the relevant project notebooks to use
+# the new base image and clear packages_to_install.
+#
+# The images are also tagged with the run number for rollback:
+#   ghcr.io/miramar-labs-org/kfp-base-cpu:run-<N>
+#
+# Builds run natively on the DGX arm64 runner (no QEMU needed).
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Which image to build (cpu | gpu | both)'
+        required: false
+        default: 'both'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: [self-hosted, dgx]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: kfp-base-cpu
+            context: kfp-images/cpu
+            image: ghcr.io/${{ github.repository_owner }}/kfp-base-cpu
+          - name: kfp-base-gpu
+            context: kfp-images/gpu
+            image: ghcr.io/${{ github.repository_owner }}/kfp-base-gpu
+
+    steps:
+      - name: Skip check
+        id: skip
+        run: |
+          INPUT="${{ inputs.image }}"
+          NAME="${{ matrix.name }}"
+          if [[ "$INPUT" == "both" ]]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$INPUT" == "cpu" && "$NAME" == "kfp-base-cpu" ]]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$INPUT" == "gpu" && "$NAME" == "kfp-base-gpu" ]]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.skip.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          IMAGE: ${{ matrix.image }}
+          CONTEXT: ${{ matrix.context }}
+          RUN_NUM: ${{ github.run_number }}
+        run: |
+          docker build \
+            --platform linux/arm64 \
+            -t "${IMAGE}:latest" \
+            -t "${IMAGE}:run-${RUN_NUM}" \
+            "${CONTEXT}/"
+          docker push "${IMAGE}:latest"
+          docker push "${IMAGE}:run-${RUN_NUM}"
+          echo "Pushed ${IMAGE}:latest and ${IMAGE}:run-${RUN_NUM}"
+
+      - name: Create GHCR pull secret in kubeflow namespace
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${ACTOR}" \
+            --docker-password="${TOKEN}" \
+            -n kubeflow \
+            --dry-run=client -o yaml | kubectl apply -f -
+          echo "Pull secret ghcr-pull-secret upserted in kubeflow namespace"
+
+      - name: Summary
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          {
+            echo "## ${{ matrix.name }} built"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ matrix.image }}:latest\` |"
+            echo "| Tagged | \`${{ matrix.image }}:run-${{ github.run_number }}\` |"
+            echo ""
+            echo "Update pipeline notebooks to use this base image:"
+            echo '```python'
+            echo '@dsl.component('
+            echo '    base_image="${{ matrix.image }}:latest",'
+            echo '    packages_to_install=[],'
+            echo ')'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
