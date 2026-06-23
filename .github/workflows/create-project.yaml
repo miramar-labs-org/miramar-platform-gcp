@@ -57,7 +57,7 @@ on:
         default: "org/dataset"
         required: false
       served_model_name:
-        description: "Stable model alias for the API (serving-vllm only, e.g. biomistral-onc)"
+        description: "Stable model alias for the API (serving-vllm / serving-llm-nim; defaults to model_name for llm-nim)"
         default: "my-model"
         required: false
       nim_model:
@@ -212,6 +212,11 @@ jobs:
           esac
           # Base model name (strip -dgx-spark suffix for GKE reference)
           NIM_MODEL_NAME="${NIM_DGX_IMAGE%-dgx-spark}"
+
+          # For serving-llm-nim, default served_model_name to model_name when not explicitly set
+          if [ "${PROJECT_TYPE}" = "serving-llm-nim" ] && [ "${SERVED_MODEL_NAME}" = "my-model" ]; then
+            SERVED_MODEL_NAME="${MODEL_NAME}"
+          fi
 
           # Replace placeholders in all text files
           YEAR=$(date +%Y)
