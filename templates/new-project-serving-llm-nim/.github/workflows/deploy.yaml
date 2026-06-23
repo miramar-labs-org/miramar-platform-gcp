@@ -127,8 +127,8 @@ jobs:
         run: |
           sed "s|NIM_IMAGE_TAG_PLACEHOLDER|${NIM_IMAGE_TAG}|g" k8s/nim-local-k3s.yaml \
             | sed "s|MODEL_HOST_PATH_PLACEHOLDER|${MODEL_HOST_PATH}|g" \
-            | sed "s|MODEL_NAME_PLACEHOLDER|${MODEL_NAME}|g" \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | sed "s|MODEL_NAME_PLACEHOLDER|${MODEL_NAME}|g" \
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
