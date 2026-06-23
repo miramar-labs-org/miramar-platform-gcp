@@ -33,52 +33,30 @@ jobs:
           echo "MODEL_NAME=${MODEL_NAME}" >> "$GITHUB_ENV"
           echo "SERVED_MODEL_NAME=${SERVED_MODEL_NAME}" >> "$GITHUB_ENV"
 
-      - name: Verify model path exists
+      - name: Preflight checks
         env:
           HOST_USER: ${{ vars.DGX_HOST_USER }}
         run: |
-          # Runner container does not mount host paths — SSH to verify
-          if [[ ! -f ~/.ssh/id_ed25519 ]]; then
-            echo "WARNING: ~/.ssh/id_ed25519 not found — skipping path check" >&2
-          else
-            ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              "${HOST_USER}@localhost" \
-              "test -d '${MODEL_HOST_PATH}' || { echo 'Model directory not found: ${MODEL_HOST_PATH}'; exit 1; }" \
-            && ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              "${HOST_USER}@localhost" \
-              "ls -lh '${MODEL_HOST_PATH}' | head -20"
-          fi
-
-      - name: List model profiles
-        continue-on-error: true
-        env:
-          HOST_USER: ${{ vars.DGX_HOST_USER }}
-        run: |
-          echo "==> Running list-model-profiles to validate NIM compatibility..."
-          if [[ ! -f ~/.ssh/id_ed25519 ]]; then
-            echo "WARNING: ~/.ssh/id_ed25519 not found — skipping list-model-profiles" >&2
-          else
-            NGC_API_KEY="${{ secrets.NGC_API_KEY }}"
-            ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              "${HOST_USER}@localhost" \
-              "docker run --rm --runtime=nvidia --gpus all \
-                -e NGC_API_KEY='${NGC_API_KEY}' \
-                -e NIM_MODEL_NAME='/models/${MODEL_NAME}' \
-                -v \"\${HOME}/shared/nim-cache:/opt/nim/.cache\" \
-                -v '${MODEL_HOST_PATH}:/models/${MODEL_NAME}:ro' \
-                'nvcr.io/nim/nvidia/llm-nim:${NIM_IMAGE_TAG}' \
-                list-model-profiles 2>&1" \
-            || echo "list-model-profiles exited non-zero — check output above"
-          fi
-
-      - name: Ensure nim-cache dir
-        env:
-          HOST_USER: ${{ vars.DGX_HOST_USER }}
-        run: |
-          # NIM writes TRT-LLM engine artifacts here; must be world-writable (container runs as non-root)
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            "${HOST_USER}@localhost" \
-            "mkdir -p \${HOME}/shared/nim-cache && sudo chmod 777 \${HOME}/shared/nim-cache"
+            "${HOST_USER}@localhost" "
+              set -e
+
+              echo '==> [1/3] Verify model path'
+              test -d '${MODEL_HOST_PATH}' || { echo 'ERROR: model dir not found: ${MODEL_HOST_PATH}'; exit 1; }
+              ls -lh '${MODEL_HOST_PATH}' | head -10
+
+              echo '==> [2/3] Ensure nim-cache writable'
+              mkdir -p \${HOME}/shared/nim-cache
+              # top-level may be root-owned (created by kubelet); use sudo
+              sudo chmod 777 \${HOME}/shared/nim-cache
+              # subdirs are user-owned; fix recursively without sudo
+              find \${HOME}/shared/nim-cache -mindepth 1 -exec chmod 777 {} +
+              echo 'nim-cache permissions:'
+              ls -la \${HOME}/shared/nim-cache
+
+              echo '==> [3/3] Disk space'
+              df -h \${HOME}/shared/nim-cache | tail -1
+            "
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
