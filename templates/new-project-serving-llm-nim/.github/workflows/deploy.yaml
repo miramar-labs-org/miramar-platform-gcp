@@ -71,6 +71,15 @@ jobs:
             || echo "list-model-profiles exited non-zero — check output above"
           fi
 
+      - name: Ensure nim-cache dir
+        env:
+          HOST_USER: ${{ vars.DGX_HOST_USER }}
+        run: |
+          # NIM writes TRT-LLM engine artifacts here; must be world-writable (container runs as non-root)
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${HOST_USER}@localhost" \
+            "mkdir -p \${HOME}/shared/nim-cache && chmod 777 \${HOME}/shared/nim-cache"
+
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
