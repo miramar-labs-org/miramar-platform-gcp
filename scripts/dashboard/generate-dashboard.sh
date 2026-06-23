@@ -56,17 +56,21 @@ while IFS= read -r repo_json; do
   host_html="<span class=\"badge badge-${host}\">${host}</span>"
 
   # --- Serving state (all serving-* types — check all three hosts) ---
-  # For serving-* projects: host column shows WHERE it's deployed (or --); overrides PROJECT_HOST.
+  # green dot = currently serving; red dot = serving project but not active; — = non-serving type
   if [[ "$type" == serving-* ]]; then
     active_host=""
-    declare -A _svar_map=([GKE_SERVING_ACTIVE]=gke [DGX_SERVING_ACTIVE]=dgx [AGX_SERVING_ACTIVE]=agx)
-    for svar in GKE_SERVING_ACTIVE DGX_SERVING_ACTIVE AGX_SERVING_ACTIVE; do
+    configured_host=""
+    declare -A _svar_map=([DGX_SERVING_ACTIVE]=dgx [AGX_SERVING_ACTIVE]=agx [GKE_SERVING_ACTIVE]=gke)
+    for svar in DGX_SERVING_ACTIVE AGX_SERVING_ACTIVE GKE_SERVING_ACTIVE; do
       sval=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
         "repos/${ORG}/${name}/actions/variables/${svar}" \
         --jq '.value // empty' 2>/dev/null || true)
       if [[ "$sval" == "true" ]]; then
         active_host="${_svar_map[$svar]}"
+        configured_host="${_svar_map[$svar]}"
         break
+      elif [[ "$sval" == "false" && -z "$configured_host" ]]; then
+        configured_host="${_svar_map[$svar]}"
       fi
     done
     unset _svar_map
@@ -85,13 +89,14 @@ while IFS= read -r repo_json; do
           AGX_VLLM_TOTAL_GB=$(( AGX_VLLM_TOTAL_GB + ${_vllm_gb:-0} ))
           ;;
       esac
-    fi
-    if [[ -n "$active_host" ]]; then
       host_html="<span class=\"badge badge-${active_host}\">${active_host}</span>"
-      serving_html="<span class=\"serving-dot serving-on\" title=\"Deployed on ${active_host}\">&#x25CF;</span>"
+      serving_html="<span class=\"serving-dot serving-on\" title=\"Serving on ${active_host}\">&#x25CF;</span>"
+    elif [[ -n "$configured_host" ]]; then
+      host_html="<span class=\"badge badge-${configured_host}\">${configured_host}</span>"
+      serving_html="<span class=\"serving-dot serving-off\" title=\"Not serving\">&#x25CF;</span>"
     else
       host_html="<span class=\"badge badge-none\">--</span>"
-      serving_html="<span class=\"serving-none\">—</span>"
+      serving_html="<span class=\"serving-dot serving-off\" title=\"Not serving\">&#x25CF;</span>"
     fi
   else
     serving_html="<span class=\"serving-none\">—</span>"
@@ -380,7 +385,8 @@ cat > "$OUTPUT" <<HTMLEOF
   a.ps-active:hover { text-decoration: underline; }
   .ps-inactive { display: inline-block; padding: 0.2em 0.55em; border-radius: 2em; background: #3d1212; color: #f85149; font-size: 0.75rem; font-weight: 600; }
   .serving-dot { font-size: 1rem; font-weight: bold; }
-  .serving-on  { color: #ef4444; }
+  .serving-on  { color: #22c55e; }
+  .serving-off { color: #ef4444; }
   .serving-none { color: #484f58; }
   .del-btn { background: none; border: none; cursor: pointer; color: #c0392b; font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 4px; line-height: 1; }
   .del-btn:hover { color: #f85149; background: #3d1212; }
