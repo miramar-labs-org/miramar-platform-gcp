@@ -40,6 +40,58 @@ def _prepare_stage_dirs(project_name: str):
     print(f"Stage dirs pre-created (chmod 777): {project_dir}/")
 
 
+def _upsert_mlflow_artifact_secret():
+    """Upsert mlflow-artifact-env secret in kubeflow namespace.
+
+    KFP pods that call mlflow.log_dict need MinIO credentials — the upload goes
+    directly from the pod to MinIO via boto3, not through the tracking server.
+    Reads creds from mlflow-system to avoid hardcoding.
+    """
+    import subprocess, json, base64
+
+    def _kubectl_json(*args):
+        r = subprocess.run(["kubectl", *args, "-o", "json"], capture_output=True, text=True)
+        return json.loads(r.stdout) if r.returncode == 0 else None
+
+    secret = _kubectl_json("get", "secret", "mlflow-tracking-env-secret", "-n", "mlflow-system")
+    if not secret:
+        print("WARNING: mlflow-tracking-env-secret not found — skipping artifact secret upsert",
+              file=sys.stderr)
+        return
+    creds = {k: base64.b64decode(v).decode() for k, v in secret["data"].items()}
+
+    deploy = _kubectl_json("get", "deployment", "mlflow-tracking", "-n", "mlflow-system")
+    env_map = {}
+    if deploy:
+        for c in deploy["spec"]["template"]["spec"]["containers"]:
+            for e in c.get("env", []):
+                if "value" in e:
+                    env_map[e["name"]] = e["value"]
+
+    from_literals = [
+        f"--from-literal=AWS_ACCESS_KEY_ID={creds.get('AWS_ACCESS_KEY_ID', '')}",
+        f"--from-literal=AWS_SECRET_ACCESS_KEY={creds.get('AWS_SECRET_ACCESS_KEY', '')}",
+        f"--from-literal=AWS_DEFAULT_REGION={env_map.get('AWS_DEFAULT_REGION', 'us-east-1')}",
+        f"--from-literal=AWS_S3_FORCE_PATH_STYLE={env_map.get('AWS_S3_FORCE_PATH_STYLE', 'true')}",
+        f"--from-literal=MLFLOW_S3_ENDPOINT_URL={env_map.get('MLFLOW_S3_ENDPOINT_URL', '')}",
+        f"--from-literal=MLFLOW_S3_IGNORE_TLS={env_map.get('MLFLOW_S3_IGNORE_TLS', 'true')}",
+    ]
+    create = subprocess.run(
+        ["kubectl", "create", "secret", "generic", "mlflow-artifact-env",
+         "-n", "kubeflow", "--dry-run=client", "-o", "yaml"] + from_literals,
+        capture_output=True, text=True,
+    )
+    if create.returncode != 0:
+        print(f"WARNING: could not generate mlflow-artifact-env yaml: {create.stderr}", file=sys.stderr)
+        return
+    apply = subprocess.run(["kubectl", "apply", "-f", "-"],
+                           input=create.stdout, capture_output=True, text=True)
+    if apply.returncode != 0:
+        print(f"WARNING: could not upsert mlflow-artifact-env secret: {apply.stderr}", file=sys.stderr)
+    else:
+        print(f"mlflow-artifact-env secret upserted in kubeflow namespace")
+
+
 def _copy_inputs_to_pvc(project_name: str):
     """Copy data_src/ contents to the PVC raw input directory before submitting."""
     dest = _PVC_HOST_ROOT / "curator-input" / project_name / "raw"
@@ -80,6 +132,9 @@ def main():
     _cfg = _yaml.safe_load(_cfg_path.read_text()) if _cfg_path.exists() else {}
 
     pipeline_name = _PROJECT_ROOT.name
+
+    # ── Upsert MinIO artifact credentials secret ──────────────────────────
+    _upsert_mlflow_artifact_secret()
 
     # ── Prepare stage dirs + copy input data to PVC ──────────────────────
     if _PVC_HOST_ROOT.exists():
