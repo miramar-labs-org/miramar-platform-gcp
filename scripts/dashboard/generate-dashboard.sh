@@ -44,7 +44,7 @@ AGX_VLLM_TOTAL_GB=0
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-llm-nim") then "serving-llm-nim" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
@@ -94,7 +94,7 @@ while IFS= read -r repo_json; do
       serving_html="<span class=\"serving-dot serving-off\" title=\"Not deployed\">&#x25CF;</span>"
     fi
   else
-    serving_html="<span class=\"serving-dot serving-off\" title=\"Not a serving project\">&#x25CF;</span>"
+    serving_html="<span class=\"serving-none\">—</span>"
   fi
 
   # --- Results link (ft-eval only, and only once runs/ dir exists — created by /kfp-deploy) ---
@@ -340,6 +340,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-ft-eval      { background: #1a1a4f; color: #a78bfa; }
   .badge-serving-vllm        { background: #0c2a4a; color: #38bdf8; }
   .badge-serving-nim         { background: #001a2a; color: #67e8f9; }
+  .badge-serving-llm-nim    { background: #0a1a2a; color: #38bdf8; }
   .badge-serving-trt-fp8     { background: #1a1200; color: #fcd34d; }
   .badge-serving-trt-engine  { background: #2a1500; color: #fb923c; }
   .badge-nemo-ft-eval        { background: #064e3b; color: #6ee7b7; }
@@ -598,6 +599,7 @@ ${ROWS}
       <option value="nemo-ft-eval">nemo-ft-eval &mdash; NeMo Customizer fine-tuning + eval</option>
       <option value="serving-vllm">serving-vllm &mdash; vLLM LoRA adapter serving</option>
       <option value="serving-nim">serving-nim &mdash; NIM model serving (DGX + GKE)</option>
+      <option value="serving-llm-nim">serving-llm-nim &mdash; Local model via Multi-LLM NIM runtime (DGX)</option>
       <option value="serving-trt-fp8">serving-trt-fp8 &mdash; vLLM + FP8 quantized model</option>
       <option value="serving-trt-engine">serving-trt-engine &mdash; TRT-LLM engine serving</option>
     </select>
