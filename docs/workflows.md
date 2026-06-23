@@ -50,6 +50,13 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 | Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model; clears `CURRENT_OLLAMA_MODEL[_AGX]` + `CURRENT_OLLAMA_VRAM_GB[_AGX]` and `{MACHINE}_OLLAMA_ACTIVE` org var. Inputs: `runner`                                                                                            |
 | Ollama Update   | `update-ollama.yaml`   | Install or upgrade Ollama on target host; writes `OLLAMA_VERSION`. Inputs: `runner`                                                                                                                                                                    |
 
+| Nsight Operator Deploy      | `deploy-nsight-operator.yaml`      | Install NVIDIA Nsight Operator via Helm on DGX/AGX; writes `{MACHINE}_NSIGHT_OPERATOR_ACTIVE`. Inputs: `runner` |
+| Nsight Operator Undeploy    | `undeploy-nsight-operator.yaml`    | Helm uninstall Nsight Operator; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE`. Inputs: `runner` |
+| Nsight Operator Deploy GKE  | `deploy-nsight-operator-gke.yaml`  | Install Nsight Operator on GKE with dynamic PVC; wsl2 runner; writes `GKE_NSIGHT_OPERATOR_ACTIVE` |
+| Nsight Operator Undeploy GKE | `undeploy-nsight-operator-gke.yaml` | Helm uninstall Nsight Operator from GKE; clears `GKE_NSIGHT_OPERATOR_ACTIVE` |
+| Open WebUI Deploy       | `deploy-openwebui.yaml`       | Deploy Open WebUI on DGX/AGX/GKE; wires to active serving backend (NIM, Ollama, or vLLM); writes `{MACHINE}_OPENWEBUI_ACTIVE`. Inputs: `host` |
+| Open WebUI Undeploy     | `undeploy-openwebui.yaml`     | Remove Open WebUI; stop port-forward; clears `{MACHINE}_OPENWEBUI_ACTIVE`. Inputs: `host` |
+
 | Build KFP Base Images  | `build-kfp-base-images.yaml` | Build `kfp-base-cpu` + `kfp-base-gpu` pre-built base images; push to GHCR; upserts `ghcr-pull-secret` in kubeflow namespace. Input: `image: cpu \| gpu \| both`. Run this when adding packages to any KFP pipeline stage type. |
 | Build KFP arm64 Images | `build-kfp-arm64.yaml`   | Build all 13 KFP arm64 images on DGX; optional `component` input to rebuild one. Images are reusable on AGX (both `linux/arm64`).                                                                                                         |
 | Kubeflow Deploy        | `deploy-kubeflow.yaml`   | Deploy KFP standalone with native arm64 images; creates `hf-model-cache` (200 Gi) and `nsight-reports` (50 Gi) PVs + PVCs in the `kubeflow` namespace backed by k3s hostPath PVs; writes `{MACHINE}_KFP_ACTIVE` org var. Inputs: `runner` |
@@ -207,6 +214,13 @@ openai anthropic mlflow qdrant-client pyyaml requests python-dotenv nvidia-ml-py
 | WSL2 Provision           | `provision-wsl2.yaml`      | Import a WSL2 distro from template and wire SSH |
 | WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Test supported Spark/Orin/WSL2 paths            |
 | WSL2 Unprovision         | `unprovision-wsl2.yaml`    | Unregister a distro and update `WSL2_DISTROS`   |
+
+## Maintenance
+
+| Workflow          | File                      | Trigger                    | Purpose                                                                                       |
+| ----------------- | ------------------------- | -------------------------- | --------------------------------------------------------------------------------------------- |
+| Repo Code Quality | `repo-quality-manual.yaml` | `workflow_dispatch`        | Run formatters/linters (shfmt, shellcheck, yamllint) in check mode; set `fix_mode=true` to auto-fix |
+| Build MLABS Runner | `build-mlabs-runner.yml` | push to `main` + `workflow_dispatch` | Build + push multi-arch `mlabs-runner` image to GHCR (`linux/amd64`, `linux/arm64`)   |
 
 See [../wsl2/README.md](../wsl2/README.md),
 [../wsl2/TECHNICAL.md](../wsl2/TECHNICAL.md), and

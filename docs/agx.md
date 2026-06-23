@@ -25,6 +25,8 @@ ssh -L 8002:localhost:8001 \
     -L 11435:localhost:11434 \
     -L 6335:localhost:6333 \
     -L 6336:localhost:6334 \
+    -L 8892:localhost:8889 \
+    -L 8085:localhost:8084 \
     $USER@orin.local
 ```
 
@@ -39,6 +41,8 @@ ssh -L 8002:localhost:8001 \
 | `11435`    | `11434`  | Ollama API                              |
 | `6335`     | `6333`   | Qdrant REST API + web UI (`/dashboard`) |
 | `6336`     | `6334`   | Qdrant gRPC                             |
+| `8892`     | `8889`   | Nsight Operator UI                      |
+| `8085`     | `8084`   | Open WebUI chat (Ollama / vLLM)         |
 
 See [../agx/systemd/README.md](../agx/systemd/README.md) for the service units.
 
@@ -116,6 +120,17 @@ Hosts file for k3s DNS: `agx/minikube/nemo/hosts.agx` (updated on deploy).
 Actions -> NeMo Deploy    (runner: agx)
 Actions -> NeMo Undeploy  (runner: agx)
 ```
+
+## Open WebUI
+
+Open WebUI is deployed the same way as DGX. `openwebui-portfwd.service` forwards port `8084` on the AGX host. Access via tunnel on local port `8085`.
+
+```text
+Actions -> Open WebUI Deploy    (host: agx)
+Actions -> Open WebUI Undeploy  (host: agx)
+```
+
+Web UI (with AGX SSH tunnel active): [http://localhost:8085](http://localhost:8085)
 
 ## NIM
 

@@ -29,6 +29,8 @@ ssh -L 8001:localhost:8001 \
     -L 11434:localhost:11434 \
     -L 6333:localhost:6333 \
     -L 6334:localhost:6334 \
+    -L 8889:localhost:8889 \
+    -L 8084:localhost:8084 \
     $USER@spark-79b7.local
 ```
 
@@ -43,6 +45,8 @@ ssh -L 8001:localhost:8001 \
 | `11434`    | Ollama API                              |
 | `6333`     | Qdrant REST API + web UI (`/dashboard`) |
 | `6334`     | Qdrant gRPC                             |
+| `8889`     | Nsight Operator UI                      |
+| `8084`     | Open WebUI chat (Ollama / NIM / vLLM)   |
 
 See [../dgx/README.md](../dgx/README.md) and
 [../dgx/systemd/README.md](../dgx/systemd/README.md).

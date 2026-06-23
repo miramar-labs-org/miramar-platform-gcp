@@ -175,6 +175,8 @@ Create one Bitvise SSH profile per machine. The SSH connection for both profiles
 | `127.0.0.1`      | `11434` | `127.0.0.1`      | `11434` | Ollama        |
 | `127.0.0.1`      | `6333`  | `127.0.0.1`      | `6333`  | Qdrant REST   |
 | `127.0.0.1`      | `6334`  | `127.0.0.1`      | `6334`  | Qdrant gRPC   |
+| `127.0.0.1`      | `8889`  | `127.0.0.1`      | `8889`  | Nsight UI     |
+| `127.0.0.1`      | `8084`  | `127.0.0.1`      | `8084`  | Open WebUI    |
 
 ### AGX (orin.local — 192.168.1.202)
 
@@ -191,6 +193,8 @@ Local ports are offset so both profiles can run simultaneously without conflicts
 | `127.0.0.1`      | `11435` | `127.0.0.1`      | `11434` | Ollama        |
 | `127.0.0.1`      | `6335`  | `127.0.0.1`      | `6333`  | Qdrant REST   |
 | `127.0.0.1`      | `6336`  | `127.0.0.1`      | `6334`  | Qdrant gRPC   |
+| `127.0.0.1`      | `8892`  | `127.0.0.1`      | `8889`  | Nsight UI     |
+| `127.0.0.1`      | `8085`  | `127.0.0.1`      | `8084`  | Open WebUI    |
 
 ## Troubleshooting
 
