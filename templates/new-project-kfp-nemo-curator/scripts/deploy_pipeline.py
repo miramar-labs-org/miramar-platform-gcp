@@ -23,10 +23,26 @@ _PVC_HOST_ROOT = pathlib.Path(os.path.expanduser("~/shared/huggingface-kfp"))
 _PROJECT_ROOT = pathlib.Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+def _prepare_stage_dirs(project_name: str):
+    """Pre-create all 5 stage dirs with mode 0o777.
+
+    KFP pods run as uid=0 with capabilities.drop:[ALL], which removes DAC_OVERRIDE.
+    Without DAC_OVERRIDE, even root cannot write to directories owned by another uid
+    (uid=1000 here) with mode 755. Creating and chmod-ing them here (as uid=1000 in
+    the runner) ensures the container can write regardless of capability restrictions.
+    preflight_check verifies writability and fails fast if this step was skipped.
+    """
+    project_dir = _PVC_HOST_ROOT / "curator-input" / project_name
+    for subdir in ["raw", "extracted", "quality_filtered", "deduped", "curated"]:
+        d = project_dir / subdir
+        d.mkdir(parents=True, exist_ok=True)
+        d.chmod(0o777)
+    print(f"Stage dirs pre-created (chmod 777): {project_dir}/")
+
+
 def _copy_inputs_to_pvc(project_name: str):
     """Copy data_src/ contents to the PVC raw input directory before submitting."""
     dest = _PVC_HOST_ROOT / "curator-input" / project_name / "raw"
-    dest.mkdir(parents=True, exist_ok=True)
 
     data_src = _PROJECT_ROOT / "data_src"
     if data_src.exists() and any(f for f in data_src.rglob("*") if f.is_file() and not f.name.startswith(".")):
@@ -65,8 +81,9 @@ def main():
 
     pipeline_name = _PROJECT_ROOT.name
 
-    # ── Copy input data to PVC ────────────────────────────────────────────
+    # ── Prepare stage dirs + copy input data to PVC ──────────────────────
     if _PVC_HOST_ROOT.exists():
+        _prepare_stage_dirs(pipeline_name)
         _copy_inputs_to_pvc(pipeline_name)
     else:
         print(f"WARNING: PVC host root not found at {_PVC_HOST_ROOT} — skipping input copy",
