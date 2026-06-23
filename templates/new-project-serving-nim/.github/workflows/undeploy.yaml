@@ -27,7 +27,7 @@ env:
   GKE_ZONE: ${{ vars.GKE_ZONE }}
 
 jobs:
-  undeploy-dgx:
+  undeploy-nim-dgx:
     if: inputs.host == 'dgx'
     runs-on: [self-hosted, dgx]
     steps:
@@ -79,7 +79,7 @@ jobs:
             echo "NIM deployment removed. GPU memory freed."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  undeploy-gke:
+  undeploy-nim-gke:
     if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:

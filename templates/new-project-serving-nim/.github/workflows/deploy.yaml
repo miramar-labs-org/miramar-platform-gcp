@@ -31,7 +31,7 @@ env:
   GAR_REPO: ${{ vars.GAR_REPO }}
 
 jobs:
-  deploy-dgx:
+  deploy-nim-dgx:
     if: inputs.host == 'dgx'
     runs-on: [self-hosted, dgx]
     steps:
@@ -193,7 +193,7 @@ jobs:
             echo "| Port-forward | \`kubectl port-forward svc/nim 8000:8000 -n $PROJECT_NAME\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  deploy-gke:
+  deploy-nim-gke:
     if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:

@@ -13,7 +13,7 @@ env:
   PROJECT_NAME: "{{PROJECT_NAME}}"
 
 jobs:
-  undeploy:
+  undeploy-llm-nim-dgx:
     runs-on: [self-hosted, dgx]
     steps:
       - uses: actions/checkout@v4

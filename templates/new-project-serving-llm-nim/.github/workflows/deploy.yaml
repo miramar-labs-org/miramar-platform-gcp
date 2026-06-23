@@ -14,7 +14,7 @@ env:
   PROJECT_NAME: "{{PROJECT_NAME}}"
 
 jobs:
-  deploy:
+  deploy-llm-nim-dgx:
     runs-on: [self-hosted, dgx]
     steps:
       - uses: actions/checkout@v4
