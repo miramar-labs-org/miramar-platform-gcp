@@ -116,9 +116,8 @@ jobs:
               done || true)
           if [[ -n "$ACTIVE_REPO" && "$ACTIVE_REPO" != "$PROJECT_NAME" ]]; then
             echo "Undeploying active serving project: ${ACTIVE_REPO}"
-            RUN_ID=$(gh workflow run undeploy.yaml \
-              --repo "miramar-labs-org/${ACTIVE_REPO}" \
-              --json | jq -r '.id // empty' 2>/dev/null || true)
+            gh workflow run undeploy.yaml \
+              --repo "miramar-labs-org/${ACTIVE_REPO}" || true
             sleep 5
             RUN_ID=$(gh run list --repo "miramar-labs-org/${ACTIVE_REPO}" \
               --workflow=undeploy.yaml --limit=1 --json databaseId --jq '.[0].databaseId')

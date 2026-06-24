@@ -89,6 +89,32 @@ jobs:
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OLLAMA_ACTIVE" \
             -f name="DGX_OLLAMA_ACTIVE" -f value="false" -f visibility="all" 2>/dev/null || true
 
+      - name: Undeploy active serving project
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          ACTIVE_REPO=$(gh api "orgs/miramar-labs-org/repos?type=public&per_page=100" \
+            --jq '[.[] | select(.topics != null and (.topics | index("miramar-project") != null))] | .[].name' \
+            | while read repo; do
+                val=$(gh api "repos/miramar-labs-org/${repo}/actions/variables/DGX_SERVING_ACTIVE" \
+                  --jq '.value // empty' 2>/dev/null || true)
+                [[ "$val" == "true" ]] && echo "$repo" && break
+              done || true)
+          if [[ -n "$ACTIVE_REPO" && "$ACTIVE_REPO" != "$PROJECT_NAME" ]]; then
+            echo "Undeploying active serving project: ${ACTIVE_REPO}"
+            gh workflow run undeploy.yaml \
+              --repo "miramar-labs-org/${ACTIVE_REPO}" || true
+            sleep 5
+            RUN_ID=$(gh run list --repo "miramar-labs-org/${ACTIVE_REPO}" \
+              --workflow=undeploy.yaml --limit=1 --json databaseId --jq '.[0].databaseId')
+            echo "Waiting for undeploy run ${RUN_ID} to complete..."
+            gh run watch "${RUN_ID}" --repo "miramar-labs-org/${ACTIVE_REPO}" --exit-status || true
+            echo "Undeploy complete"
+          else
+            echo "No active serving project to undeploy"
+          fi
+
       - name: Substitute and apply K3s manifest
         run: |
           sed "s|NIM_ORG_PLACEHOLDER|${NIM_ORG}|g" k8s/nim-k3s.yaml \
