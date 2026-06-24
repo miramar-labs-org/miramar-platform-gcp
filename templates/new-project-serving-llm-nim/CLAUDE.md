@@ -5,8 +5,8 @@
 {{PROJECT_NAME}} — model serving via NVIDIA Multi-LLM NIM on DGX Spark K3s.
 Uses `nvcr.io/nim/nvidia/llm-nim` runtime. Two source modes, auto-detected from `model.model_path`:
 
-- **local** (`/abs/path`) — model mounted from DGX host via hostPath volume; TRT-LLM engine compiled on first start, cached in `~/shared/nim-cache`
-- **hf** (`hf://org/model` or `org/model`) — NIM downloads weights from HuggingFace; optional `HF_TOKEN` secret
+- **local** (`/abs/path`) — model mounted from DGX host via hostPath volume; TRT-LLM engine compiled on first start (~30–60 min), cached in `~/shared/nim-cache`. **This is the only supported mode on DGX Spark (GB10).**
+- **hf** (`hf://org/model` or `org/model`) — NIM downloads weights from HuggingFace; optional `HF_TOKEN` secret. **Requires a pre-built NGC profile for the GPU. GB10 has no NGC profiles — HF mode fails on DGX Spark.** Use for non-GB10 hardware only.
 
 ## Key files
 

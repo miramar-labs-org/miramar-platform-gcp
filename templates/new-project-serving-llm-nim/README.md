@@ -36,8 +36,8 @@ The deploy workflow auto-detects the mode from `model.model_path` in `serving-co
 
 | `model_path` value | Mode | Behaviour |
 |---|---|---|
-| `/absolute/path` | **local** | Mounts model dir from DGX host via hostPath; TRT-LLM engine compiled on first run (~30–60 min), cached in `~/shared/nim-cache` |
-| `hf://org/model` or `org/model` | **hf** | NIM downloads weights from HuggingFace at startup; `HF_TOKEN` secret used if set |
+| `/absolute/path` | **local** | Mounts model dir from DGX host via hostPath; TRT-LLM engine compiled on first run (~30–60 min), cached in `~/shared/nim-cache`. **Only supported mode on DGX Spark (GB10).** |
+| `hf://org/model` or `org/model` | **hf** | NIM downloads weights from HuggingFace at startup; `HF_TOKEN` secret used if set. **Requires an NGC profile for the target GPU — not available for GB10. Do not use on DGX Spark.** |
 
 ## Configuration
 
