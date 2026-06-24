@@ -35,9 +35,8 @@ jobs:
 
       - name: Delete deployment
         run: |
-          kubectl delete deployment trtllm -n "$PROJECT_NAME" --ignore-not-found
-          kubectl delete service trtllm -n "$PROJECT_NAME" --ignore-not-found
-          echo "Deployment removed."
+          kubectl delete namespace "$PROJECT_NAME" --ignore-not-found
+          echo "Namespace and all resources removed."
 
       - name: Clear VRAM
         env:
@@ -84,9 +83,8 @@ jobs:
 
       - name: Delete deployment
         run: |
-          kubectl delete deployment trtllm -n "$PROJECT_NAME" --ignore-not-found
-          kubectl delete service trtllm -n "$PROJECT_NAME" --ignore-not-found
-          echo "Deployment removed."
+          kubectl delete namespace "$PROJECT_NAME" --ignore-not-found
+          echo "Namespace and all resources removed."
 
       - name: Clear VRAM
         env:
@@ -149,9 +147,8 @@ jobs:
 
       - name: Delete deployment
         run: |
-          kubectl delete deployment trtllm -n "$PROJECT_NAME" --ignore-not-found
-          kubectl delete service trtllm -n "$PROJECT_NAME" --ignore-not-found
-          echo "Deployment removed."
+          kubectl delete namespace "$PROJECT_NAME" --ignore-not-found
+          echo "Namespace and all resources removed."
 
       - name: Restore GPU node pool
         env:

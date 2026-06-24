@@ -38,9 +38,8 @@ jobs:
 
       - name: Delete deployment
         run: |
-          kubectl delete deployment nim -n "$PROJECT_NAME" --ignore-not-found
-          kubectl delete service nim -n "$PROJECT_NAME" --ignore-not-found
-          echo "Deployment removed."
+          kubectl delete namespace "$PROJECT_NAME" --ignore-not-found
+          echo "Namespace and all resources removed."
 
       - name: Clear NIM VRAM
         env:
@@ -103,9 +102,8 @@ jobs:
 
       - name: Delete deployment
         run: |
-          kubectl delete deployment nim -n "$PROJECT_NAME" --ignore-not-found
-          kubectl delete service nim -n "$PROJECT_NAME" --ignore-not-found
-          echo "Deployment removed."
+          kubectl delete namespace "$PROJECT_NAME" --ignore-not-found
+          echo "Namespace and all resources removed."
 
       - name: Restore GPU node pool
         env:
