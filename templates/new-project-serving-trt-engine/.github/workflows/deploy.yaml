@@ -84,10 +84,20 @@ jobs:
           MAX_BATCH_SIZE=$(python3 -c "import json; c=json.load(open('${VALIDATE_PATH}/config.json')); print(c['build_config']['max_batch_size'])")
           echo "MAX_BATCH_SIZE=${MAX_BATCH_SIZE}" >> "$GITHUB_ENV"
           echo "Engine max_batch_size: ${MAX_BATCH_SIZE}"
-          # Tokenizer must be in the engine dir (tokenizer.json, tokenizer_config.json)
-          if [[ ! -f "${VALIDATE_PATH}/tokenizer.json" ]]; then
-            echo "WARNING: tokenizer.json not found in engine dir. Copy tokenizer files from the HF model dir into engine_gb10/."
+          # Resolve HF model path for tokenizer/config (trtllm-serve needs --tokenizer pointing to HF config.json)
+          HF_PATH=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c.get('model', {}).get('hf_path', ''))")
+          if [[ -z "$HF_PATH" ]]; then
+            echo "ERROR: model.hf_path not set in serving-config.yaml"
+            exit 1
           fi
+          VALIDATE_MODEL_PATH="${SHARED}/${HF_PATH}"
+          if [[ ! -d "$VALIDATE_MODEL_PATH" ]]; then
+            echo "ERROR: HF model path not found: ${VALIDATE_MODEL_PATH}"
+            exit 1
+          fi
+          MODEL_PATH="${HOST_SHARED}/${HF_PATH}"
+          echo "MODEL_PATH=${MODEL_PATH}" >> "$GITHUB_ENV"
+          echo "HF model path: ${MODEL_PATH}"
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
@@ -157,6 +167,7 @@ jobs:
           sed "s|ENGINE_PATH_PLACEHOLDER|${ENGINE_PATH}|g" k8s/trtllm-k3s.yaml \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
             | sed "s|MAX_BATCH_SIZE_PLACEHOLDER|${MAX_BATCH_SIZE}|g" \
+            | sed "s|MODEL_PATH_PLACEHOLDER|${MODEL_PATH}|g" \
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
@@ -303,10 +314,20 @@ jobs:
           MAX_BATCH_SIZE=$(python3 -c "import json; c=json.load(open('${VALIDATE_PATH}/config.json')); print(c['build_config']['max_batch_size'])")
           echo "MAX_BATCH_SIZE=${MAX_BATCH_SIZE}" >> "$GITHUB_ENV"
           echo "Engine max_batch_size: ${MAX_BATCH_SIZE}"
-          # Tokenizer must be in the engine dir (tokenizer.json, tokenizer_config.json)
-          if [[ ! -f "${VALIDATE_PATH}/tokenizer.json" ]]; then
-            echo "WARNING: tokenizer.json not found in engine dir. Copy tokenizer files from the HF model dir into engine_sm87/."
+          # Resolve HF model path for tokenizer/config (trtllm-serve needs --tokenizer pointing to HF config.json)
+          HF_PATH=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c.get('model', {}).get('hf_path', ''))")
+          if [[ -z "$HF_PATH" ]]; then
+            echo "ERROR: model.hf_path not set in serving-config.yaml"
+            exit 1
           fi
+          VALIDATE_MODEL_PATH="${SHARED}/${HF_PATH}"
+          if [[ ! -d "$VALIDATE_MODEL_PATH" ]]; then
+            echo "ERROR: HF model path not found: ${VALIDATE_MODEL_PATH}"
+            exit 1
+          fi
+          MODEL_PATH="${HOST_SHARED}/${HF_PATH}"
+          echo "MODEL_PATH=${MODEL_PATH}" >> "$GITHUB_ENV"
+          echo "HF model path: ${MODEL_PATH}"
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
@@ -350,6 +371,7 @@ jobs:
           sed "s|ENGINE_PATH_PLACEHOLDER|${ENGINE_PATH}|g" k8s/trtllm-k3s.yaml \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
             | sed "s|MAX_BATCH_SIZE_PLACEHOLDER|${MAX_BATCH_SIZE}|g" \
+            | sed "s|MODEL_PATH_PLACEHOLDER|${MODEL_PATH}|g" \
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout

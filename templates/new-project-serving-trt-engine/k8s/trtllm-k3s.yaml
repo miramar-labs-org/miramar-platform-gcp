@@ -32,6 +32,8 @@ spec:
             - tensorrt
             - --max_batch_size
             - "MAX_BATCH_SIZE_PLACEHOLDER"
+            - --tokenizer
+            - /model
           env:
             - name: LD_LIBRARY_PATH
               value: "/opt/nvidia/nvda_nixl/lib/aarch64-linux-gnu:/opt/nvidia/nvda_nixl/lib64:/usr/local/ucx/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64:/usr/local/lib/python3.12/dist-packages/torch/lib:/usr/local/lib/python3.12/dist-packages/torch_tensorrt/lib:/usr/local/cuda/compat/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64"
@@ -62,6 +64,9 @@ spec:
             - name: engine
               mountPath: /engine
               readOnly: true
+            - name: model
+              mountPath: /model
+              readOnly: true
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists
@@ -70,6 +75,10 @@ spec:
         - name: engine
           hostPath:
             path: ENGINE_PATH_PLACEHOLDER
+            type: Directory
+        - name: model
+          hostPath:
+            path: MODEL_PATH_PLACEHOLDER
             type: Directory
 ---
 apiVersion: v1
