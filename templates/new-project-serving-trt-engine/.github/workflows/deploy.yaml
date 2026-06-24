@@ -80,6 +80,14 @@ jobs:
           echo "ENGINE_PATH=${ENGINE_PATH}" >> "$GITHUB_ENV"
           echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
           echo "COMPRESSION_PROJECT=${COMPRESSION_PROJECT}" >> "$GITHUB_ENV"
+          # Read max_batch_size from engine config — runtime cannot exceed compile-time value
+          MAX_BATCH_SIZE=$(python3 -c "import json; c=json.load(open('${VALIDATE_PATH}/config.json')); print(c['build_config']['max_batch_size'])")
+          echo "MAX_BATCH_SIZE=${MAX_BATCH_SIZE}" >> "$GITHUB_ENV"
+          echo "Engine max_batch_size: ${MAX_BATCH_SIZE}"
+          # Tokenizer must be in the engine dir (tokenizer.json, tokenizer_config.json)
+          if [[ ! -f "${VALIDATE_PATH}/tokenizer.json" ]]; then
+            echo "WARNING: tokenizer.json not found in engine dir. Copy tokenizer files from the HF model dir into engine_gb10/."
+          fi
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
@@ -148,6 +156,7 @@ jobs:
           SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
           sed "s|ENGINE_PATH_PLACEHOLDER|${ENGINE_PATH}|g" k8s/trtllm-k3s.yaml \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | sed "s|MAX_BATCH_SIZE_PLACEHOLDER|${MAX_BATCH_SIZE}|g" \
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
@@ -290,6 +299,14 @@ jobs:
           echo "ENGINE_PATH=${ENGINE_PATH}" >> "$GITHUB_ENV"
           echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
           echo "COMPRESSION_PROJECT=${COMPRESSION_PROJECT}" >> "$GITHUB_ENV"
+          # Read max_batch_size from engine config — runtime cannot exceed compile-time value
+          MAX_BATCH_SIZE=$(python3 -c "import json; c=json.load(open('${VALIDATE_PATH}/config.json')); print(c['build_config']['max_batch_size'])")
+          echo "MAX_BATCH_SIZE=${MAX_BATCH_SIZE}" >> "$GITHUB_ENV"
+          echo "Engine max_batch_size: ${MAX_BATCH_SIZE}"
+          # Tokenizer must be in the engine dir (tokenizer.json, tokenizer_config.json)
+          if [[ ! -f "${VALIDATE_PATH}/tokenizer.json" ]]; then
+            echo "WARNING: tokenizer.json not found in engine dir. Copy tokenizer files from the HF model dir into engine_sm87/."
+          fi
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
@@ -332,6 +349,7 @@ jobs:
           SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
           sed "s|ENGINE_PATH_PLACEHOLDER|${ENGINE_PATH}|g" k8s/trtllm-k3s.yaml \
             | sed "s|SERVED_MODEL_NAME_PLACEHOLDER|${SERVED_MODEL_NAME}|g" \
+            | sed "s|MAX_BATCH_SIZE_PLACEHOLDER|${MAX_BATCH_SIZE}|g" \
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
