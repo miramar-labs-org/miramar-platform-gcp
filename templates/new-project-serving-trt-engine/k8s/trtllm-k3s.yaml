@@ -21,12 +21,13 @@ spec:
       containers:
         - name: trtllm-serve
           image: nvcr.io/nvidia/tensorrt-llm/release:1.2.1
-          command: ["python3", "-m", "tensorrt_llm.serve"]
+          command: ["trtllm-serve"]
           args:
-            - --model_dir=/engine
-            - --host=0.0.0.0
-            - --port=8000
-            - --served_model_name=SERVED_MODEL_NAME_PLACEHOLDER
+            - /engine
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8000"
           env:
             - name: LD_LIBRARY_PATH
               value: "/opt/nvidia/nvda_nixl/lib/aarch64-linux-gnu:/opt/nvidia/nvda_nixl/lib64:/usr/local/ucx/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64:/usr/local/lib/python3.12/dist-packages/torch/lib:/usr/local/lib/python3.12/dist-packages/torch_tensorrt/lib:/usr/local/cuda/compat/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64"
