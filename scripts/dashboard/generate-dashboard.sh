@@ -78,15 +78,17 @@ while IFS= read -r repo_json; do
       case "$active_host" in
         dgx)
           _vllm_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-            "repos/${ORG}/${name}/actions/variables/DGX_VLLM_VRAM_GB" \
-            --jq '.value // "0"' 2>/dev/null || echo 0)
-          DGX_VLLM_TOTAL_GB=$(( DGX_VLLM_TOTAL_GB + ${_vllm_gb:-0} ))
+            "repos/${ORG}/${name}/actions/variables/DGX_VLLM_VRAM_GB" 2>/dev/null \
+            | jq -r '.value // "0"' 2>/dev/null)
+          [[ "$_vllm_gb" =~ ^[0-9]+$ ]] || _vllm_gb=0
+          DGX_VLLM_TOTAL_GB=$(( DGX_VLLM_TOTAL_GB + _vllm_gb ))
           ;;
         agx)
           _vllm_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-            "repos/${ORG}/${name}/actions/variables/AGX_VLLM_VRAM_GB" \
-            --jq '.value // "0"' 2>/dev/null || echo 0)
-          AGX_VLLM_TOTAL_GB=$(( AGX_VLLM_TOTAL_GB + ${_vllm_gb:-0} ))
+            "repos/${ORG}/${name}/actions/variables/AGX_VLLM_VRAM_GB" 2>/dev/null \
+            | jq -r '.value // "0"' 2>/dev/null)
+          [[ "$_vllm_gb" =~ ^[0-9]+$ ]] || _vllm_gb=0
+          AGX_VLLM_TOTAL_GB=$(( AGX_VLLM_TOTAL_GB + _vllm_gb ))
           ;;
       esac
       host_html="<span class=\"badge badge-${active_host}\">${active_host}</span>"
