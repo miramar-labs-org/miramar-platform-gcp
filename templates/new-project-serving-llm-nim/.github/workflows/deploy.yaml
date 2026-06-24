@@ -168,7 +168,43 @@ jobs:
           fi
 
       - name: Wait for rollout
-        run: kubectl rollout status deployment/nim -n "$PROJECT_NAME" --timeout=3600s
+        run: |
+          echo "Waiting for NIM pod to become ready..."
+          DEADLINE=$(( $(date +%s) + 3600 ))
+          while true; do
+            PHASE=$(kubectl get pods -n "$PROJECT_NAME" -l app=nim \
+              --no-headers 2>/dev/null | awk '{print $3}' | head -1)
+            READY=$(kubectl get pods -n "$PROJECT_NAME" -l app=nim \
+              --no-headers 2>/dev/null | awk '{print $2}' | head -1)
+            echo "  status: ${PHASE:-unknown}  ready: ${READY:-0/1}"
+
+            if [[ "$READY" == "1/1" ]]; then
+              echo "Pod is ready."
+              break
+            fi
+
+            if [[ "$PHASE" == "CrashLoopBackOff" || "$PHASE" == "Error" ]]; then
+              echo "==> Pod failed (${PHASE}) — fetching logs..."
+              LOGS=$(kubectl logs -n "$PROJECT_NAME" -l app=nim --previous 2>/dev/null \
+                     || kubectl logs -n "$PROJECT_NAME" -l app=nim 2>/dev/null || true)
+              echo "$LOGS" | tail -40
+              if echo "$LOGS" | grep -q "compatible profile"; then
+                echo ""
+                echo "ERROR: No compatible NGC profile found for this model on the detected GPU."
+                echo "This model is not supported by nvidia/llm-nim on this hardware in HF mode."
+                echo "Try: a model with GB10 NGC profiles, or use local mode with a pre-compiled TRT-LLM engine."
+              fi
+              exit 1
+            fi
+
+            if [[ $(date +%s) -ge $DEADLINE ]]; then
+              echo "ERROR: Rollout timed out after 3600s"
+              kubectl describe pod -n "$PROJECT_NAME" -l app=nim 2>/dev/null | tail -20 || true
+              exit 1
+            fi
+
+            sleep 15
+          done
 
       - name: Smoke test
         run: |
