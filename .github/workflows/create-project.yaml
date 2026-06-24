@@ -110,9 +110,22 @@ jobs:
             echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
           fi
 
+      - name: Compute project name
+        env:
+          BASE_NAME: ${{ inputs.project_name }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
+        run: |
+          if [[ "${PROJECT_TYPE}" == serving-* ]]; then
+            EFFECTIVE="${BASE_NAME}-${PROJECT_TYPE}"
+          else
+            EFFECTIVE="${BASE_NAME}"
+          fi
+          echo "PROJECT_NAME=${EFFECTIVE}" >> "$GITHUB_ENV"
+          echo "Effective project name: ${EFFECTIVE}"
+
       - name: Create repository
         env:
-          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
           DESCRIPTION: ${{ inputs.description }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
@@ -126,7 +139,7 @@ jobs:
 
       - name: Set repository topics
         env:
-          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
@@ -138,7 +151,7 @@ jobs:
 
       - name: Set PROJECT_HOST variable
         env:
-          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           HOST: ${{ inputs.host }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
@@ -152,7 +165,7 @@ jobs:
 
       - name: Initialise repository with template
         env:
-          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           HOST: ${{ inputs.host }}
           HF_MODEL_ID: ${{ inputs.hf_model_id }}
@@ -308,7 +321,7 @@ jobs:
 
       - name: Clone to host projects folder
         env:
-          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
           SCRIPT: |
             set -euo pipefail
@@ -362,7 +375,7 @@ jobs:
           set -euo pipefail
           BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"
           POST_DATE=$(date +%Y-%m-%d)
-          PROJECT_NAME="${{ inputs.project_name }}"
+          PROJECT_NAME="${{ env.PROJECT_NAME }}"
           PROJECT_TYPE="${{ inputs.project_type }}"
           HOST="${{ inputs.host }}"
           DESCRIPTION="${{ inputs.description }}"
@@ -631,7 +644,7 @@ jobs:
       - name: Checkout blog draft on host
         continue-on-error: true
         env:
-          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
           SCRIPT: |
             set -euo pipefail
             BLOG_DIR="${HOME}/git-miramar-labs-org/miramar-labs-org.github.io"
@@ -656,7 +669,7 @@ jobs:
 
       - name: Summary
         env:
-          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           HOST: ${{ inputs.host }}
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
