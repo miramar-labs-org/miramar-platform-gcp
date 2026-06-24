@@ -21,8 +21,11 @@ spec:
       containers:
         - name: trtllm-serve
           image: nvcr.io/nvidia/tensorrt-llm/release:1.2.1
-          command: ["python3", "-m", "tensorrt_llm.serve"]
+          command: ["/opt/nvidia/nvidia_entrypoint.sh"]
           args:
+            - python3
+            - -m
+            - tensorrt_llm.serve
             - --model_dir=/engine
             - --host=0.0.0.0
             - --port=8000
