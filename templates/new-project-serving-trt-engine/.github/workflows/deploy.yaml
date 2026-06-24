@@ -206,11 +206,11 @@ jobs:
             | awk -F',' '{gsub(/[^0-9]/,"",$2); sum+=$2} END{print sum+0}' || echo 0)
           VRAM_GB=$(( ${VRAM_MiB:-0} / 1024 ))
           gh api --method PATCH \
-            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_VLLM_VRAM_GB" \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_TRTLLM_VRAM_GB" \
             -f value="${VRAM_GB}" 2>/dev/null || \
           gh api --method POST \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
-            -f name="DGX_VLLM_VRAM_GB" -f value="${VRAM_GB}"
+            -f name="DGX_TRTLLM_VRAM_GB" -f value="${VRAM_GB}"
 
       - name: Update Open WebUI backend URL
         if: success()
@@ -384,11 +384,11 @@ jobs:
             | awk -F',' '{gsub(/[^0-9]/,"",$2); sum+=$2} END{print sum+0}' || echo 0)
           VRAM_GB=$(( ${VRAM_MiB:-0} / 1024 ))
           gh api --method PATCH \
-            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_VLLM_VRAM_GB" \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/AGX_TRTLLM_VRAM_GB" \
             -f value="${VRAM_GB}" 2>/dev/null || \
           gh api --method POST \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
-            -f name="AGX_VLLM_VRAM_GB" -f value="${VRAM_GB}"
+            -f name="AGX_TRTLLM_VRAM_GB" -f value="${VRAM_GB}"
 
       - name: Update Open WebUI backend URL
         if: success()
