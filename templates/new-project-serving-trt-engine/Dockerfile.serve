@@ -1,3 +1,3 @@
-FROM ghcr.io/miramar-labs-org/mlabs-trtllm-serve:0.18.2
+FROM nvcr.io/nvidia/tensorrt-llm/release:1.2.1
 # engine_l4/ staged from local shared storage by build-push.yaml
 COPY engine/ /engine/
