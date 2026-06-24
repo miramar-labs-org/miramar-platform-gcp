@@ -131,10 +131,24 @@ jobs:
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
+          if [[ -z "$DESCRIPTION" ]]; then
+            case "$PROJECT_TYPE" in
+              serving-llm-nim)    DESCRIPTION="Serves LLMs via NVIDIA Multi-LLM NIM — on-device TRT-LLM compilation for DGX Spark (GB10 Blackwell); vLLM on GKE" ;;
+              serving-nim)        DESCRIPTION="Serves a pre-built NGC NIM container on DGX Spark or GKE" ;;
+              serving-vllm)       DESCRIPTION="Serves a fine-tuned LoRA adapter via vLLM on DGX Spark, AGX Orin, or GKE" ;;
+              serving-trt-fp8)    DESCRIPTION="Serves an FP8-quantized checkpoint via vLLM on DGX Spark, AGX Orin, or GKE" ;;
+              serving-trt-engine) DESCRIPTION="Serves a compiled TRT-LLM engine via tensorrt_llm.serve on DGX Spark, AGX Orin, or GKE" ;;
+              kfp)                DESCRIPTION="${PROJECT_TYPE} pipeline on the Miramar platform" ;;
+              ft-eval)            DESCRIPTION="Fine-tune and evaluate an LLM on the Miramar platform" ;;
+              kfp-rag)            DESCRIPTION="RAG pipeline on the Miramar platform" ;;
+              kfp-nemo-curator)   DESCRIPTION="NeMo Curator data pipeline on the Miramar platform" ;;
+              *)                  DESCRIPTION="${PROJECT_TYPE} project" ;;
+            esac
+          fi
           GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo create \
             "miramar-labs-org/${PROJECT_NAME}" \
             --${REPO_VISIBILITY} \
-            --description "${DESCRIPTION:-${PROJECT_TYPE} project}"
+            --description "${DESCRIPTION}"
           echo "Created miramar-labs-org/${PROJECT_NAME}"
 
       - name: Set repository topics
