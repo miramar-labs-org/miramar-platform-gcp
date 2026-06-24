@@ -1,8 +1,5 @@
 # {{PROJECT_NAME}}
 
-[![Deploy](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/deploy.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/deploy.yaml)
-[![Undeploy](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/undeploy.yaml/badge.svg)](https://github.com/miramar-labs-org/{{PROJECT_NAME}}/actions/workflows/undeploy.yaml)
-
 Model serving on DGX Spark via the NVIDIA Multi-LLM NIM runtime (`nvcr.io/nim/nvidia/llm-nim`).
 Supports local host-path models and HuggingFace models. Exposes an OpenAI-compatible REST API
 (`/v1/chat/completions`, `/v1/models`).
