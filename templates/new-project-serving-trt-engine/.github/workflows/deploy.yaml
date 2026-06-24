@@ -78,15 +78,6 @@ jobs:
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
-      - name: Ensure nvcr-pull secret
-        run: |
-          kubectl create secret docker-registry nvcr-pull \
-            --docker-server=nvcr.io \
-            --docker-username='$oauthtoken' \
-            --docker-password="${{ secrets.NGC_API_KEY }}" \
-            -n "$PROJECT_NAME" \
-            --dry-run=client -o yaml | kubectl apply --validate=false -f -
-
       - name: Unserve Ollama
         continue-on-error: true
         env:
@@ -281,15 +272,6 @@ jobs:
 
       - name: Ensure namespace
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
-
-      - name: Ensure nvcr-pull secret
-        run: |
-          kubectl create secret docker-registry nvcr-pull \
-            --docker-server=nvcr.io \
-            --docker-username='$oauthtoken' \
-            --docker-password="${{ secrets.NGC_API_KEY }}" \
-            -n "$PROJECT_NAME" \
-            --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Unserve Ollama
         continue-on-error: true

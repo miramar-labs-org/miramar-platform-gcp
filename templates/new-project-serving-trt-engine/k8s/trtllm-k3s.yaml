@@ -16,11 +16,9 @@ spec:
         app: trtllm
     spec:
       enableServiceLinks: false
-      imagePullSecrets:
-        - name: nvcr-pull
       containers:
         - name: trtllm-serve
-          image: nvcr.io/nvidia/tensorrt-llm:latest
+          image: ghcr.io/miramar-labs-org/mlabs-trtllm-serve:0.18.2
           command: ["python3", "-m", "tensorrt_llm.serve"]
           args:
             - --model_dir=/engine
