@@ -49,11 +49,14 @@ jobs:
         run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Resolve engine path (engine_gb10 for DGX Spark)
+        env:
+          DGX_HOST_USER: ${{ vars.DGX_HOST_USER }}
         run: |
           COMPRESSION_PROJECT=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['project'])")
           INPUT_RUN_ID="${{ inputs.run_id }}"
           CONFIG_RUN_ID=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['run_id'])")
           RUN_ID="${INPUT_RUN_ID:-$CONFIG_RUN_ID}"
+          # Use runner-container path for validation (shared storage is mounted here)
           SHARED="${HOME}/shared/huggingface-kfp"
           BASE_DIR="${SHARED}/engines/${COMPRESSION_PROJECT}"
           if [[ "$RUN_ID" == "latest" ]]; then
@@ -65,12 +68,15 @@ jobs:
             echo "Auto-detected run: ${RUN_ID}"
           fi
           TARGET_GPU="gb10"
-          ENGINE_PATH="${BASE_DIR}/${RUN_ID}/engine_${TARGET_GPU}"
-          if [[ ! -d "$ENGINE_PATH" ]]; then
-            echo "ERROR: Engine path not found: ${ENGINE_PATH}"
+          VALIDATE_PATH="${BASE_DIR}/${RUN_ID}/engine_${TARGET_GPU}"
+          if [[ ! -d "$VALIDATE_PATH" ]]; then
+            echo "ERROR: Engine path not found: ${VALIDATE_PATH}"
             echo "Run the compression pipeline to compile the engine_gb10/ subdirectory for DGX Spark."
             exit 1
           fi
+          # K8s hostPath must be the actual host filesystem path (kubelet is not the runner container)
+          HOST_SHARED="/home/${DGX_HOST_USER}/shared/huggingface-kfp"
+          ENGINE_PATH="${HOST_SHARED}/engines/${COMPRESSION_PROJECT}/${RUN_ID}/engine_${TARGET_GPU}"
           echo "ENGINE_PATH=${ENGINE_PATH}" >> "$GITHUB_ENV"
           echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
           echo "COMPRESSION_PROJECT=${COMPRESSION_PROJECT}" >> "$GITHUB_ENV"
@@ -253,11 +259,14 @@ jobs:
         run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Resolve engine path (engine_sm87 for AGX Orin)
+        env:
+          AGX_HOST_USER: ${{ vars.AGX_HOST_USER }}
         run: |
           COMPRESSION_PROJECT=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['project'])")
           INPUT_RUN_ID="${{ inputs.run_id }}"
           CONFIG_RUN_ID=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['compression']['run_id'])")
           RUN_ID="${INPUT_RUN_ID:-$CONFIG_RUN_ID}"
+          # Use runner-container path for validation (shared storage is mounted here)
           SHARED="${HOME}/shared/huggingface-kfp"
           BASE_DIR="${SHARED}/engines/${COMPRESSION_PROJECT}"
           if [[ "$RUN_ID" == "latest" ]]; then
@@ -269,12 +278,15 @@ jobs:
             echo "Auto-detected run: ${RUN_ID}"
           fi
           TARGET_GPU="sm87"
-          ENGINE_PATH="${BASE_DIR}/${RUN_ID}/engine_${TARGET_GPU}"
-          if [[ ! -d "$ENGINE_PATH" ]]; then
-            echo "ERROR: Engine path not found: ${ENGINE_PATH}"
+          VALIDATE_PATH="${BASE_DIR}/${RUN_ID}/engine_${TARGET_GPU}"
+          if [[ ! -d "$VALIDATE_PATH" ]]; then
+            echo "ERROR: Engine path not found: ${VALIDATE_PATH}"
             echo "Run the compression pipeline to compile the engine_sm87/ subdirectory for AGX Orin."
             exit 1
           fi
+          # K8s hostPath must be the actual host filesystem path (kubelet is not the runner container)
+          HOST_SHARED="/home/${AGX_HOST_USER}/shared/huggingface-kfp"
+          ENGINE_PATH="${HOST_SHARED}/engines/${COMPRESSION_PROJECT}/${RUN_ID}/engine_${TARGET_GPU}"
           echo "ENGINE_PATH=${ENGINE_PATH}" >> "$GITHUB_ENV"
           echo "RUN_ID=${RUN_ID}" >> "$GITHUB_ENV"
           echo "COMPRESSION_PROJECT=${COMPRESSION_PROJECT}" >> "$GITHUB_ENV"
