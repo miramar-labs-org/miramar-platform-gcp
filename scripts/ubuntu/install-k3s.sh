@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Installs k3s on the host and configures it for GPU workloads:
-#   - Disables Traefik (replaced by nginx-ingress) and local-storage (use explicit hostPath PVs)
+#   - Disables Traefik (replaced by nginx-ingress) and built-in local-storage
+#   - Deploys local-path-provisioner v0.0.36 explicitly and sets it as default StorageClass
 #   - Configures NVIDIA container runtime for containerd
 #   - Copies kubeconfig to ~/.kube/config
 #   - Waits for node ready
@@ -18,7 +19,7 @@ log() { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
 if [[ -x /usr/local/bin/k3s ]]; then
   log "k3s already installed: $(k3s --version | head -1)"
 else
-  log "Installing k3s (disable Traefik + local-storage)..."
+  log "Installing k3s (disable Traefik + built-in local-storage; provisioner deployed explicitly below)..."
   curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --disable=local-storage" sh -
   log "k3s installed: $(k3s --version | head -1)"
 fi
@@ -95,6 +96,21 @@ kubectl patch deployment ingress-nginx-controller -n ingress-nginx --type=json -
 ]'
 kubectl rollout status deployment/ingress-nginx-controller \
   -n ingress-nginx --timeout=120s || log "nginx-ingress hostPort rollout still in progress"
+
+# ---- local-path-provisioner (default StorageClass) ----
+# Installed explicitly at a pinned version so dynamic PVC provisioning works for
+# workloads that create PVCs without a storageClassName (e.g. NIM operator).
+# k3s built-in local-storage is disabled above so these don't conflict.
+LOCAL_PATH_VERSION="v0.0.36"
+LOCAL_PATH_URL="https://raw.githubusercontent.com/rancher/local-path-provisioner/${LOCAL_PATH_VERSION}/deploy/local-path-storage.yaml"
+log "Deploying local-path-provisioner ${LOCAL_PATH_VERSION}..."
+kubectl apply -f "${LOCAL_PATH_URL}"
+kubectl rollout status deployment/local-path-provisioner \
+  -n local-path-storage --timeout=60s
+log "Setting local-path as the default StorageClass..."
+kubectl annotate storageclass local-path \
+  storageclass.kubernetes.io/is-default-class=true --overwrite
+kubectl get storageclass
 
 # ---- CoreDNS patch: host.k3s.internal → node IP ----
 # k3s CoreDNS already uses a 'hosts' plugin for NodeHosts — adding a second hosts
