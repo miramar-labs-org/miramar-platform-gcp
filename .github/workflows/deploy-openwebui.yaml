@@ -29,6 +29,7 @@ env:
 
 jobs:
   deploy-dgx:
+    name: Deploy Open WebUI (DGX)
     if: inputs.host == 'dgx'
     runs-on: [self-hosted, dgx]
     steps:
@@ -134,6 +135,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-agx:
+    name: Deploy Open WebUI (AGX)
     if: inputs.host == 'agx'
     runs-on: [self-hosted, agx]
     steps:
@@ -239,6 +241,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-gke:
+    name: Deploy Open WebUI (GKE)
     if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:
