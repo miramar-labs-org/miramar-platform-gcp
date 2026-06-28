@@ -16,6 +16,9 @@ ssh -L 8001:localhost:8001 \
     -L 8082:localhost:8082 \
     -L 8890:localhost:8890 \
     -L 11434:localhost:11434 \
+    -L 6333:localhost:6333 \
+    -L 8889:localhost:8889 \
+    -L 8084:localhost:8084 \
     <user>@spark-79b7.local
 ```
 
@@ -34,3 +37,6 @@ Add to your laptop's `/etc/hosts` (Windows: `C:\Windows\System32\drivers\etc\hos
 | MLflow               | [http://localhost:5000](http://localhost:5000)                                                                                                                                                                     | Experiment tracking                |
 | NeMo / NIM           | [http://nemo.test:8082](http://nemo.test:8082)                                                                                                                                                                     | NeMo Microservices + NIM inference |
 | Ollama               | [http://localhost:11434](http://localhost:11434)                                                                                                                                                                   | Local LLM inference                |
+| Qdrant               | [http://localhost:6333/dashboard](http://localhost:6333/dashboard)                                                                                                                                                 | Vector database                    |
+| Nsight UI            | [http://localhost:8889](http://localhost:8889)                                                                                                                                                                     | Nsight Operator profiling UI       |
+| Open WebUI           | [http://localhost:8084](http://localhost:8084)                                                                                                                                                                     | Chat UI (Ollama / vLLM backend)    |

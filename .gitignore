@@ -245,3 +245,6 @@ kubeconfig
 # Personal / per-machine — never commit
 settings.local.json
 worktrees/
+
+# Graphify
+graphify-out/
