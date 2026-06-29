@@ -110,8 +110,39 @@ These are host shell env vars, **not** GitHub Actions secrets — use `${VAR}` i
 After any change to volume mounts in `launch-runner.sh`, restart the runner to apply:
 
 ```sh
-./scripts/gha/stop-runner.sh && ./scripts/gha/launch-runner.sh --detach
+# If managed by systemd (DGX / AGX):
+systemctl --user restart mlabs-runner
+
+# If running manually:
+./scripts/gha/stop-runner.sh && ./scripts/gha/launch-runner.sh
 ```
+
+## Persistent runner via systemd (DGX and AGX)
+
+`mlabs-runner.service` keeps the runner alive across reboots on DGX Spark and AGX Orin. It is installed by `dgx/systemd/install.sh` (AGX: `agx/systemd/install.sh`) as part of the standard user service stack.
+
+```sh
+# Status
+systemctl --user status mlabs-runner
+
+# Live logs (runner registration, job pickup, deregistration)
+journalctl --user -u mlabs-runner -f
+
+# Manual restart (e.g. after rotating PATs)
+systemctl --user restart mlabs-runner
+```
+
+PATs are loaded from `~/.config/systemd/user/mlabs-runner.env` (chmod 600), created automatically by `install.sh` with values seeded from the current session. Edit and restart if you rotate tokens:
+
+```sh
+vi ~/.config/systemd/user/mlabs-runner.env
+# GITHUB_ORG_ADMIN_PAT=ghp_...
+# GITHUB_ORG_GHCR_PAT=ghp_...
+# HF_TOKEN=hf_...
+systemctl --user restart mlabs-runner
+```
+
+`ExecStop` runs `stop-runner.sh` on service stop/reboot — the runner deregisters gracefully from GitHub before the container exits (`TimeoutStopSec=40`). `ExecStartPre` stops any stale container before launch, which means **`systemctl --user restart mlabs-runner` will interrupt any in-flight job** — avoid restarting while a workflow is running.
 
 ## Rebuild
 

@@ -1,18 +1,17 @@
 # agx/systemd
 
-Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/). Identical stack to the DGX Spark — same service names, same host ports. Run `install.sh` / `uninstall.sh` from this directory on the AGX host.
+Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/). Unit files live in `dgx/systemd/` and are shared with the DGX — `install.sh` copies the relevant subset here. Run `install.sh` / `uninstall.sh` from this directory on the AGX host.
 
-| Service                     | Host port   | Purpose                                                                     |
-| --------------------------- | ----------- | --------------------------------------------------------------------------- |
-| `dashboard.service`         | `8001`      | `kubectl proxy` for the Kubernetes dashboard                                |
-| `jupyterlab.service`        | `8888`      | JupyterLab (pyJLab environment)                                             |
-| `mlflow-portfwd.service`    | `5000`      | `kubectl port-forward svc/mlflow-tracking` (`mlflow-system`)                |
-| `kubeflow-portfwd.service`  | `8080`      | `kubectl port-forward svc/ml-pipeline-ui` (`kubeflow`)                      |
-| `kfp-api-portfwd.service`   | `8890`      | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                  |
-| `nemo-portfwd.service`      | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo / Data Store)  |
-| `qdrant-portfwd.service`    | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC)         |
-| `nsight-portfwd.service`    | `8889`      | `kubectl port-forward svc/nsight-operator-gateway:8888` (`nsight-operator`) |
-| `openwebui-portfwd.service` | `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat)                 |
+AGX installs a subset of the DGX services (`mlabs-runner`, `dashboard`, `jupyterlab`, `kubeflow-portfwd`, `kfp-api-portfwd`, `nsight-portfwd`). MLflow, Qdrant, and NeMo port-forwards are omitted — AGX does not run those stacks.
+
+| Service                    | Host port   | Purpose                                                                     |
+| -------------------------- | ----------- | --------------------------------------------------------------------------- |
+| `mlabs-runner.service`     | —           | GHA runner container (persistent across reboots; PATs from `mlabs-runner.env`) |
+| `dashboard.service`        | `8001`      | `kubectl proxy` for the Kubernetes dashboard                                |
+| `jupyterlab.service`       | `8888`      | JupyterLab (pyJLab environment)                                             |
+| `kubeflow-portfwd.service` | `8080`      | `kubectl port-forward svc/ml-pipeline-ui` (`kubeflow`)                      |
+| `kfp-api-portfwd.service`  | `8890`      | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                  |
+| `nsight-portfwd.service`   | `8889`      | `kubectl port-forward svc/nsight-operator-gateway:8888` (`nsight-operator`) |
 
 ## SSH tunnel from laptop
 
@@ -54,7 +53,12 @@ cd ~/git-miramar-labs-org/miramar-platform-gcp
 ./agx/systemd/install.sh
 ```
 
-`install.sh` copies the service unit files from `dgx/systemd/` (AGX runs the identical stack on the same host ports) to `~/.config/systemd/user/`, enables linger, and starts all services. The SSH tunnel from the laptop uses offset local ports to allow the DGX and AGX tunnels to run simultaneously.
+`install.sh` copies unit files from `dgx/systemd/` to `~/.config/systemd/user/`, enables linger, and starts all services. It also creates `~/.config/systemd/user/mlabs-runner.env` on first run, seeding PATs from the current shell environment. If those vars are not set, edit the file before starting the runner:
+
+```sh
+vi ~/.config/systemd/user/mlabs-runner.env
+systemctl --user restart mlabs-runner
+```
 
 ## Manage services
 

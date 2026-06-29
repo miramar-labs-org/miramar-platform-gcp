@@ -4,16 +4,18 @@ Systemd user services for the [NVIDIA DGX Spark](https://www.nvidia.com/en-us/pr
 
 AGX Orin runs the identical set of services — see [../../agx/systemd/README.md](../../agx/systemd/README.md) for AGX-specific tunnel port assignments.
 
-| Service                    | Port        | Purpose                                                                                                                                                             |
-| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dashboard.service`        | `8001`      | `kubectl proxy` for the k3s Kubernetes dashboard                                                                                                                    |
-| `jupyterlab.service`       | `8888`      | [JupyterLab](https://jupyter.org) (pyJLab environment) — no token required                                                                                          |
-| `mlflow-portfwd.service`   | `5000`      | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace                                              |
-| `kubeflow-portfwd.service` | `8080`      | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace                                 |
-| `kfp-api-portfwd.service`  | `8890`      | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace                                                                  |
-| `nemo-portfwd.service`     | `8082`      | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
-| `qdrant-portfwd.service`   | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334)                 |
-| `openwebui-portfwd.service` | `8084`     | `kubectl port-forward` — proxies `svc/openwebui:8080` in the `openwebui` namespace; [Open WebUI](https://github.com/open-webui/open-webui) chat interface over Ollama / vLLM |
+| Service                     | Port        | Purpose                                                                                                                                                             |
+| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mlabs-runner.service`      | —           | GHA runner container — starts on boot, deregisters on stop. PATs loaded from `~/.config/systemd/user/mlabs-runner.env` (created by `install.sh`).                  |
+| `dashboard.service`         | `8001`      | `kubectl proxy` for the k3s Kubernetes dashboard                                                                                                                    |
+| `jupyterlab.service`        | `8888`      | [JupyterLab](https://jupyter.org) (pyJLab environment) — no token required                                                                                          |
+| `mlflow-portfwd.service`    | `5000`      | `kubectl port-forward` — proxies `svc/mlflow-tracking` ([MLflow](https://mlflow.org)) in the `mlflow-system` namespace                                              |
+| `kubeflow-portfwd.service`  | `8080`      | `kubectl port-forward` — proxies `svc/ml-pipeline-ui` ([Kubeflow Pipelines](https://www.kubeflow.org/)) in the `kubeflow` namespace                                 |
+| `kfp-api-portfwd.service`   | `8890`      | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace                                                                  |
+| `nemo-portfwd.service`      | `8082`      | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
+| `qdrant-portfwd.service`    | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334)                 |
+| `nsight-portfwd.service`    | `8889`      | `kubectl port-forward` — proxies `svc/nsight-operator-gateway:8888` in the `nsight-operator` namespace; Nsight Operator UI                                          |
+| `openwebui-portfwd.service` | `8084`      | `kubectl port-forward` — proxies `svc/openwebui:8080` in the `openwebui` namespace; [Open WebUI](https://github.com/open-webui/open-webui) chat interface over Ollama / vLLM |
 
 k3s itself runs as a system-level service (`sudo systemctl start k3s` / `sudo systemctl stop k3s`) — not a user unit. The port-forward services above start after k3s is ready.
 
@@ -56,6 +58,15 @@ Re-running install applies any changes to the service files and restarts the aff
 safe to use as an update mechanism. k3s must be running before port-forward services start;
 verify with `sudo systemctl status k3s` if any port-forward fails to connect.
 
+`install.sh` creates `~/.config/systemd/user/mlabs-runner.env` on first run, seeding
+`GITHUB_ORG_ADMIN_PAT`, `GITHUB_ORG_GHCR_PAT`, and `HF_TOKEN` from the current shell
+environment. If those vars are not set, edit the file manually before starting the service:
+
+```sh
+vi ~/.config/systemd/user/mlabs-runner.env
+systemctl --user restart mlabs-runner
+```
+
 ## Uninstall
 
 Stops and disables all port-forward services and removes their unit files.
@@ -78,6 +89,7 @@ systemctl --user status  dashboard
 systemctl --user restart dashboard
 
 # Follow logs
+journalctl --user -u mlabs-runner -f
 journalctl --user -u dashboard -f
 journalctl --user -u jupyterlab -f
 journalctl --user -u mlflow-portfwd -f
@@ -85,6 +97,7 @@ journalctl --user -u kubeflow-portfwd -f
 journalctl --user -u kfp-api-portfwd -f
 journalctl --user -u nemo-portfwd -f
 journalctl --user -u qdrant-portfwd -f
+journalctl --user -u nsight-portfwd -f
 journalctl --user -u openwebui-portfwd -f
 ```
 

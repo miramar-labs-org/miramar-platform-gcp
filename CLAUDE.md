@@ -61,7 +61,7 @@ docs/              # Architecture and runbooks
 | `scripts/gha/sync-github-tf-vars.sh`              | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Never edit GitHub vars directly — edit tfvars and re-sync.                      |
 | `scripts/gha/launch-runner.sh` / `stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. Idempotent.                                                                    |
 | `scripts/gha/flush-queues.sh`                     | Cancel all in-progress, queued, and waiting workflow runs                                                                                     |
-| `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the nine systemd user services (used on both DGX and AGX)                                                                   |
+| `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the ten systemd user services (used on both DGX and AGX)                                                                    |
 | `wsl2/bootstrap.sh`                               | One-time setup for a fresh WSL2 template base. Run inside the clean template before exporting.                                                |
 | `wsl2/rebuild-template.ps1`                       | Rebuild the configured template tarball. Params: `-SmbPassword` (required). Run after changing `bootstrap.sh` or rotating the Samba password. |
 | `wsl2/firstboot.sh`                               | One-shot provisioning inside a new distro via `wsl -d NAME --user root -- bash`. Sets hostname, sshd port, calls `setup-shared-ssh.sh`.       |
@@ -255,19 +255,20 @@ To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`
 
 ## Local AI stack (DGX + AGX)
 
-Both DGX Spark and AGX Orin run the identical nine systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
+Both DGX Spark and AGX Orin run the identical ten systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
 
-| Service            | Host port   | Purpose                                                                      |
-| ------------------ | ----------- | ---------------------------------------------------------------------------- |
-| `dashboard`        | `8001`      | `kubectl proxy` for the Kubernetes dashboard                                 |
-| `jupyterlab`       | `8888`      | JupyterLab in the pyJLab Python environment                                  |
-| `mlflow-portfwd`   | `5000`      | `kubectl port-forward svc/mlflow-tracking`                                   |
-| `kubeflow-portfwd` | `8080`      | `kubectl port-forward svc/ml-pipeline-ui`                                    |
-| `kfp-api-portfwd`  | `8890`      | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                   |
-| `nemo-portfwd`     | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
-| `qdrant-portfwd`   | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC)          |
-| `nsight-portfwd`   | `8889`      | `kubectl port-forward svc/nsight-operator-ui:8888` (Nsight Operator UI)      |
-| `openwebui-portfwd` | `8084`     | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat over Ollama / vLLM) |
+| Service             | Host port   | Purpose                                                                      |
+| ------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `mlabs-runner`      | —           | GHA runner container (persistent across reboots; PATs from `mlabs-runner.env`) |
+| `dashboard`         | `8001`      | `kubectl proxy` for the Kubernetes dashboard                                 |
+| `jupyterlab`        | `8888`      | JupyterLab in the pyJLab Python environment                                  |
+| `mlflow-portfwd`    | `5000`      | `kubectl port-forward svc/mlflow-tracking`                                   |
+| `kubeflow-portfwd`  | `8080`      | `kubectl port-forward svc/ml-pipeline-ui`                                    |
+| `kfp-api-portfwd`   | `8890`      | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                   |
+| `nemo-portfwd`      | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
+| `qdrant-portfwd`    | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC)          |
+| `nsight-portfwd`    | `8889`      | `kubectl port-forward svc/nsight-operator-ui:8888` (Nsight Operator UI)      |
+| `openwebui-portfwd` | `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat over Ollama / vLLM) |
 
 **SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop:
 

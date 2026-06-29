@@ -182,15 +182,18 @@ Actions -> Model Router Undeploy  (deletes namespace, clears {MACHINE}_OPENWEBUI
 ```
 
 The routing table lives in the platform repo at `dgx/k3s/model-router/litellm-config.yaml`.
-To add or remove an upstream:
+
+**Serving projects register automatically.** When a serving project (`serving-vllm`, `serving-trt-engine`, etc.) deploys and the model-router namespace exists, the deploy workflow adds its entry to `litellm-config.yaml` via the GitHub Contents API and triggers a router redeploy. Undeploy removes the entry. No manual edits are needed for serving project models.
+
+To manually add or remove a non-serving-project upstream:
 
 1. Edit `dgx/k3s/model-router/litellm-config.yaml`:
    ```yaml
    model_list:
-     - model_name: "qwen25-7b-arc"
+     - model_name: "my-model"
        litellm_params:
-         model: "openai/qwen25-7b-arc"
-         api_base: "http://vllm.qwen25-arc-serving-vllm.svc.cluster.local:8000/v1"
+         model: "openai/my-model"
+         api_base: "http://{service}.{namespace}.svc.cluster.local:8000/v1"
          api_key: "none"
    ```
 2. `git commit && git push`
