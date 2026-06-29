@@ -99,12 +99,26 @@ https://api.miramar-labs.com/v1
 
 **One-time DNS setup** (manual, after first `GCP Platform Create`):
 
-The static IP is printed in the workflow job summary. Create one A record in the
-`miramar-labs.com` DNS zone:
+The static IP is printed in the `GCP Platform Create` job summary. Create one A record
+in GoDaddy's DNS dashboard:
 
+1. Log in → **My Products → miramar-labs.com → DNS** (or `dcc.godaddy.com`)
+2. Click **Add New Record**
+3. Fill in:
+   - **Type:** `A`
+   - **Name:** `api`  *(GoDaddy appends `.miramar-labs.com` automatically)*
+   - **Value:** the static IP from the job summary
+   - **TTL:** `600` (10 min; GoDaddy's default 1 hour also works)
+4. Save
+
+Verify propagation (typically 5–30 min via GoDaddy):
+
+```sh
+dig api.miramar-labs.com
 ```
-api.miramar-labs.com  A  <static IP>  TTL 300
-```
+
+Once the IP resolves, the ACME challenge runs and the SSL cert becomes ACTIVE within
+10–60 minutes. All subsequent Gateway deploys re-attach the existing cert instantly.
 
 This record is permanent — it survives Gateway deploy/undeploy cycles.
 
