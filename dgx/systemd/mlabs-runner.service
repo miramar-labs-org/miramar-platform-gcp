@@ -1,0 +1,21 @@
+[Unit]
+Description=Miramar Labs GitHub Actions Runner
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+EnvironmentFile=%h/.config/systemd/user/mlabs-runner.env
+# Stop any stale container before launching (idempotent, failure ignored)
+ExecStartPre=-%h/git-miramar-labs-org/miramar-platform-gcp/scripts/gha/stop-runner.sh
+ExecStart=%h/git-miramar-labs-org/miramar-platform-gcp/scripts/gha/launch-runner.sh
+ExecStop=%h/git-miramar-labs-org/miramar-platform-gcp/scripts/gha/stop-runner.sh
+Restart=on-failure
+# Delay handles Docker not being ready immediately on boot
+RestartSec=10
+# stop-runner.sh sends SIGTERM and waits 30s for deregistration; allow some headroom
+TimeoutStopSec=40
+
+[Install]
+WantedBy=default.target

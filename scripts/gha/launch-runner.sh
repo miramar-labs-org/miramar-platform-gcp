@@ -165,11 +165,13 @@ if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
         "${RUNNERS_URL}" | jq -r ".runners[] | select(.name == \"${RUNNER_NAME}\") | .id")
     if [[ -n "${EXISTING_ID}" ]]; then
         echo "Unregistering existing runner '${RUNNER_NAME}' (ID ${EXISTING_ID})..."
-        curl -fsSL -X DELETE \
+        # Ignore errors: 422 means runner is busy (mid-job), 404 means already gone.
+        # A fresh registration token always lets us re-register regardless.
+        curl -sL -X DELETE \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "${RUNNERS_URL}/${EXISTING_ID}"
+            "${RUNNERS_URL}/${EXISTING_ID}" > /dev/null || true
     fi
 fi
 

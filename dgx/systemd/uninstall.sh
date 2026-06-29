@@ -4,7 +4,7 @@ set -euo pipefail
 DEST="$HOME/.config/systemd/user"
 # Stop in reverse dependency order (dependents first)
 # k3s.service is not managed here — use the K3s Uninstall workflow to remove k3s itself.
-SERVICES=(nsight-portfwd qdrant-portfwd nemo-portfwd kfp-api-portfwd kubeflow-portfwd mlflow-portfwd jupyterlab dashboard)
+SERVICES=(mlabs-runner openwebui-portfwd nsight-portfwd qdrant-portfwd nemo-portfwd kfp-api-portfwd kubeflow-portfwd mlflow-portfwd jupyterlab dashboard)
 
 for svc in "${SERVICES[@]}"; do
     echo "Removing ${svc}..."
