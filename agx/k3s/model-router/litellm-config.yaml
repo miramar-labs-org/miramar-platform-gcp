@@ -1,0 +1,12 @@
+model_list: []
+# AGX-specific routing table. Edited automatically by serving project deploy/undeploy workflows.
+#
+# api_base convention: http://{service}.{namespace}.svc.cluster.local:8000/v1
+# namespace = the serving project repo name (that is what kubectl namespace is used)
+#
+# Example:
+#   - model_name: "qwen25-7b-arc"
+#     litellm_params:
+#       model: "openai/qwen25-7b-arc"
+#       api_base: "http://vllm.qwen25-arc-serving-vllm.svc.cluster.local:8000/v1"
+#       api_key: "none"

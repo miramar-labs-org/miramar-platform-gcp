@@ -238,22 +238,61 @@ jobs:
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
             -f name="DGX_TRTLLM_VRAM_GB" -f value="${VRAM_GB}"
 
-      - name: Update Open WebUI backend URL
+      - name: Wire to Open WebUI
         if: success()
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          ROUTER_SERVICE: trtllm
+          REGISTER_SCRIPT: |
+            import yaml, os
+            with open('/tmp/router-config.yaml') as f:
+                config = yaml.safe_load(f) or {}
+            model_list = config.get('model_list') or []
+            with open('serving-config.yaml') as f:
+                serving = yaml.safe_load(f)
+            name = serving['model']['served_model_name']
+            svc  = os.environ['ROUTER_SERVICE']
+            ns   = os.environ['PROJECT_NAME']
+            model_list = [m for m in model_list if m.get('model_name') != name]
+            model_list.append({'model_name': name, 'litellm_params': {
+                'model': f'openai/{name}',
+                'api_base': f'http://{svc}.{ns}.svc.cluster.local:8000/v1',
+                'api_key': 'none'}})
+            config['model_list'] = model_list
+            with open('/tmp/router-config-new.yaml', 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
         run: |
-          BACKEND_URL="http://trtllm.${PROJECT_NAME}.svc.cluster.local:8000/v1"
-          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
-            -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
-          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
-            -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
-          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
-            --jq '.value // empty' 2>/dev/null || true)
-          if [[ "$OWUI_ACTIVE" == "true" ]]; then
-            gh workflow run deploy-openwebui.yaml \
-              --repo miramar-labs-org/miramar-platform-gcp \
-              --field host=dgx
+          CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
+          if kubectl get namespace model-router --ignore-not-found 2>/dev/null | grep -q model-router; then
+            FILE_JSON=$(gh api "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" 2>/dev/null || true)
+            if [[ -n "$FILE_JSON" ]]; then
+              FILE_SHA=$(echo "$FILE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
+              echo "$FILE_JSON" | python3 -c "import json,sys,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())" > /tmp/router-config.yaml
+              printf '%s' "$REGISTER_SCRIPT" | python3
+              NEW_B64=$(base64 -w 0 /tmp/router-config-new.yaml)
+              gh api --method PUT \
+                "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" \
+                -f message="chore(model-router): add ${SERVED_MODEL_NAME} [${PROJECT_NAME}]" \
+                -f content="${NEW_B64}" -f sha="${FILE_SHA}" > /dev/null
+              echo "Registered ${SERVED_MODEL_NAME} in router — triggering router redeploy"
+              gh workflow run deploy-model-router.yaml \
+                --repo miramar-labs-org/miramar-platform-gcp \
+                --field runner=dgx
+            fi
+          else
+            BACKEND_URL="http://${ROUTER_SERVICE}.${PROJECT_NAME}.svc.cluster.local:8000/v1"
+            gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
+              -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
+            || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+              -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
+            OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
+              --jq '.value // empty' 2>/dev/null || true)
+            if [[ "$OWUI_ACTIVE" == "true" ]]; then
+              gh workflow run deploy-openwebui.yaml \
+                --repo miramar-labs-org/miramar-platform-gcp \
+                --field host=dgx
+            fi
           fi
 
       - name: Summary
@@ -442,22 +481,61 @@ jobs:
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
             -f name="AGX_TRTLLM_VRAM_GB" -f value="${VRAM_GB}"
 
-      - name: Update Open WebUI backend URL
+      - name: Wire to Open WebUI
         if: success()
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          ROUTER_SERVICE: trtllm
+          REGISTER_SCRIPT: |
+            import yaml, os
+            with open('/tmp/router-config.yaml') as f:
+                config = yaml.safe_load(f) or {}
+            model_list = config.get('model_list') or []
+            with open('serving-config.yaml') as f:
+                serving = yaml.safe_load(f)
+            name = serving['model']['served_model_name']
+            svc  = os.environ['ROUTER_SERVICE']
+            ns   = os.environ['PROJECT_NAME']
+            model_list = [m for m in model_list if m.get('model_name') != name]
+            model_list.append({'model_name': name, 'litellm_params': {
+                'model': f'openai/{name}',
+                'api_base': f'http://{svc}.{ns}.svc.cluster.local:8000/v1',
+                'api_key': 'none'}})
+            config['model_list'] = model_list
+            with open('/tmp/router-config-new.yaml', 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
         run: |
-          BACKEND_URL="http://trtllm.${PROJECT_NAME}.svc.cluster.local:8000/v1"
-          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
-            -f name="AGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
-          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
-            -f name="AGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
-          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
-            --jq '.value // empty' 2>/dev/null || true)
-          if [[ "$OWUI_ACTIVE" == "true" ]]; then
-            gh workflow run deploy-openwebui.yaml \
-              --repo miramar-labs-org/miramar-platform-gcp \
-              --field host=agx
+          CONFIG_PATH="agx/k3s/model-router/litellm-config.yaml"
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
+          if kubectl get namespace model-router --ignore-not-found 2>/dev/null | grep -q model-router; then
+            FILE_JSON=$(gh api "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" 2>/dev/null || true)
+            if [[ -n "$FILE_JSON" ]]; then
+              FILE_SHA=$(echo "$FILE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
+              echo "$FILE_JSON" | python3 -c "import json,sys,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())" > /tmp/router-config.yaml
+              printf '%s' "$REGISTER_SCRIPT" | python3
+              NEW_B64=$(base64 -w 0 /tmp/router-config-new.yaml)
+              gh api --method PUT \
+                "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" \
+                -f message="chore(model-router): add ${SERVED_MODEL_NAME} [${PROJECT_NAME}]" \
+                -f content="${NEW_B64}" -f sha="${FILE_SHA}" > /dev/null
+              echo "Registered ${SERVED_MODEL_NAME} in router — triggering router redeploy"
+              gh workflow run deploy-model-router.yaml \
+                --repo miramar-labs-org/miramar-platform-gcp \
+                --field runner=agx
+            fi
+          else
+            BACKEND_URL="http://${ROUTER_SERVICE}.${PROJECT_NAME}.svc.cluster.local:8000/v1"
+            gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" \
+              -f name="AGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
+            || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+              -f name="AGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
+            OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
+              --jq '.value // empty' 2>/dev/null || true)
+            if [[ "$OWUI_ACTIVE" == "true" ]]; then
+              gh workflow run deploy-openwebui.yaml \
+                --repo miramar-labs-org/miramar-platform-gcp \
+                --field host=agx
+            fi
           fi
 
       - name: Summary

@@ -45,8 +45,10 @@ jobs:
 
       - name: Upsert litellm ConfigMap from repo
         run: |
+          CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
+          [[ "${{ inputs.runner }}" == "agx" ]] && CONFIG_PATH="agx/k3s/model-router/litellm-config.yaml"
           kubectl create configmap litellm-config \
-            --from-file=config.yaml=dgx/k3s/model-router/litellm-config.yaml \
+            --from-file=config.yaml="${CONFIG_PATH}" \
             -n model-router --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Restart deployment to pick up new config
@@ -104,7 +106,9 @@ jobs:
             echo "| In-cluster URL | \`http://model-router.model-router.svc.cluster.local:8000/v1\` |"
             echo "| Org variable | \`${machine}_OPENWEBUI_API_URL\` |"
             echo ""
-            echo "To add/remove upstreams: edit \`dgx/k3s/model-router/litellm-config.yaml\`, commit, push, re-run this workflow."
+            CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
+            [[ "${{ inputs.runner }}" == "agx" ]] && CONFIG_PATH="agx/k3s/model-router/litellm-config.yaml"
+            echo "To add/remove upstreams: edit \`${CONFIG_PATH}\`, commit, push, re-run this workflow."
             echo ""
             echo "Local access: \`kubectl port-forward svc/model-router 8000:8000 -n model-router\`"
           } >> "$GITHUB_STEP_SUMMARY"
