@@ -1,0 +1,67 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: model-router
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: model-router
+data:
+  # Replaced at deploy time by the contents of dgx/k3s/model-router/litellm-config.yaml
+  config.yaml: |
+    model_list: []
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-router
+  namespace: model-router
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-router
+  template:
+    metadata:
+      labels:
+        app: model-router
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm:main-stable
+          args:
+            - "--config"
+            - "/app/config.yaml"
+            - "--port"
+            - "8000"
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"
+      volumes:
+        - name: config
+          configMap:
+            name: litellm-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-router
+  namespace: model-router
+spec:
+  selector:
+    app: model-router
+  ports:
+    - port: 8000
+      targetPort: 8000

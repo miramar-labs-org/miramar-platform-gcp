@@ -128,6 +128,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NIM Undeploy                 | `undeploy-nim.yaml`                 | Undeploy NIM; 404 is no-op; clears `CURRENT_NIM_MODEL`               |
 | Qdrant Deploy                | `deploy-qdrant.yaml`                | Deploy Qdrant into k3s `qdrant-system`; sets `{MACHINE}_QDRANT_ACTIVE` |
 | Qdrant Undeploy              | `undeploy-qdrant.yaml`              | Remove Qdrant namespace; clears `{MACHINE}_QDRANT_ACTIVE`            |
+| Model Router Deploy          | `deploy-model-router.yaml`          | Deploy LiteLLM proxy into k3s `model-router`; sets `{MACHINE}_OPENWEBUI_API_URL` to router URL |
+| Model Router Undeploy        | `undeploy-model-router.yaml`        | Remove model-router namespace; clears `{MACHINE}_OPENWEBUI_API_URL`  |
 | Open WebUI Deploy            | `deploy-openwebui.yaml`             | Deploy Open WebUI on DGX/AGX/GKE; wires active serving backend      |
 | Open WebUI Undeploy          | `undeploy-openwebui.yaml`           | Remove Open WebUI; stops portfwd; clears `{MACHINE}_OPENWEBUI_ACTIVE` |
 | Nsight Operator Deploy       | `deploy-nsight-operator.yaml`       | Install Nsight Operator via Helm; sets `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |

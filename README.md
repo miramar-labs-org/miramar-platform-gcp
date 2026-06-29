@@ -210,7 +210,7 @@ ft-eval run PASS
 | 3 — Serve via NIM (DGX/AGX/GKE)                         | `serving-nim`                             | ✅ Implemented |
 | 4 — Serve FP8-quantized checkpoint via vLLM (DGX/AGX/GKE) | `serving-trt-fp8`                       | ✅ Implemented |
 | 5 — Serve compiled TRT-LLM engine (DGX/AGX/GKE)         | `serving-trt-engine`                      | ✅ Implemented |
-| 6 — Model router service (stable `/v1` API, multi-model) | `model-router-service`                    | 🔜 Planned     |
+| 6 — Model router service (stable `/v1` API, multi-model) | `deploy-model-router.yaml` (platform svc) | ✅ Implemented |
 | 7 — GKE Gateway API route (external HTTPS)               | —                                         | 🔜 Planned     |
 | 8 — Serve via Triton + vLLM backend                      | `serving-triton-vllm`                     | 🔜 Planned     |
 | 9 — Serve via Triton + TensorRT-LLM backend              | `serving-triton-trtllm`                   | 🔜 Planned     |

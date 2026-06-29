@@ -1,0 +1,110 @@
+name: Model Router Deploy
+
+# Deploys the LiteLLM model router into the model-router namespace on the target k3s cluster.
+# The router exposes a single OpenAI-compatible /v1 endpoint that dispatches to multiple
+# serving backends by model name.
+#
+# Before running: edit dgx/k3s/model-router/litellm-config.yaml to add upstream backends,
+# then commit and push. This workflow reads that file to build the routing table.
+#
+# Sets {MACHINE}_OPENWEBUI_API_URL to the router's in-cluster URL. If Open WebUI is active,
+# it is redeployed to pick up the new backend.
+#
+# Prerequisites: k3s must be running on the target machine.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+
+jobs:
+  deploy:
+    name: Deploy Model Router (${{ inputs.runner }})
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Apply base manifests
+        run: kubectl apply -f dgx/k3s/model-router/router.yaml
+
+      - name: Upsert litellm ConfigMap from repo
+        run: |
+          kubectl create configmap litellm-config \
+            --from-file=config.yaml=dgx/k3s/model-router/litellm-config.yaml \
+            -n model-router --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Restart deployment to pick up new config
+        run: kubectl rollout restart deployment/model-router -n model-router
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/model-router -n model-router --timeout=300s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/model-router 18000:8000 -n model-router &
+          PF_PID=$!
+          sleep 8
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          models = [m['id'] for m in d.get('data', [])]
+          print('Router is up. Models registered:', models if models else '(none yet — add upstreams to litellm-config.yaml)')
+          "
+
+      - name: Set OpenWebUI backend URL
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_OPENWEBUI_API_URL"
+          url="http://model-router.model-router.svc.cluster.local:8000/v1"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="${url}" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="${url}" -f visibility="all"
+
+      - name: Redeploy Open WebUI if active
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          owui_active=$(gh api "orgs/miramar-labs-org/actions/variables/${machine}_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$owui_active" == "true" ]]; then
+            echo "Open WebUI is active — triggering redeploy to pick up new backend URL"
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host="${{ inputs.runner }}"
+          else
+            echo "Open WebUI not active — skipping redeploy"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          {
+            echo "## Model Router Deployed (${{ inputs.runner }})"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Namespace | \`model-router\` |"
+            echo "| In-cluster URL | \`http://model-router.model-router.svc.cluster.local:8000/v1\` |"
+            echo "| Org variable | \`${machine}_OPENWEBUI_API_URL\` |"
+            echo ""
+            echo "To add/remove upstreams: edit \`dgx/k3s/model-router/litellm-config.yaml\`, commit, push, re-run this workflow."
+            echo ""
+            echo "Local access: \`kubectl port-forward svc/model-router 8000:8000 -n model-router\`"
+          } >> "$GITHUB_STEP_SUMMARY"

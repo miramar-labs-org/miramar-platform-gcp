@@ -1,0 +1,64 @@
+name: Model Router Undeploy
+
+# Removes the LiteLLM model router from the target k3s cluster.
+# Clears {MACHINE}_OPENWEBUI_API_URL. If Open WebUI is active, it is redeployed
+# to revert to Ollama-only mode.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+
+jobs:
+  undeploy:
+    name: Undeploy Model Router (${{ inputs.runner }})
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+    steps:
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Delete model-router namespace
+        run: kubectl delete namespace model-router --ignore-not-found
+
+      - name: Clear OpenWebUI backend URL
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_OPENWEBUI_API_URL"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="" -f visibility="all"
+
+      - name: Redeploy Open WebUI if active
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          owui_active=$(gh api "orgs/miramar-labs-org/actions/variables/${machine}_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$owui_active" == "true" ]]; then
+            echo "Open WebUI is active — triggering redeploy to revert to Ollama-only"
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host="${{ inputs.runner }}"
+          else
+            echo "Open WebUI not active — skipping redeploy"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          {
+            echo "## Model Router Undeployed (${{ inputs.runner }})"
+            echo "Namespace \`model-router\` removed."
+            echo "\`${machine}_OPENWEBUI_API_URL\` cleared — Open WebUI reverts to Ollama-only."
+          } >> "$GITHUB_STEP_SUMMARY"

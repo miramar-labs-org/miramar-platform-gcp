@@ -41,6 +41,7 @@ inference workloads across local GPU systems and cloud infrastructure.
 | NIM serving (DGX/AGX/GKE)                        | ✅ Done        | `serving-nim` template; stock NGC NIM images; nvcr-pull secret         |
 | FP8-quantized vLLM serving (DGX/AGX/GKE)         | ✅ Done        | `serving-trt-fp8` template; `--quantization=fp8` via vLLM              |
 | TRT-LLM engine serving (DGX/AGX/GKE)             | ✅ Done        | `serving-trt-engine` template; `tensorrt_llm.serve`; per-arch engines  |
+| Model router service (K3s)                       | ✅ Done        | LiteLLM proxy in `model-router` ns; single `/v1` across multiple backends; `deploy-model-router.yaml` |
 | Platform dashboard (GitHub Pages)                | ✅ Done        | Hourly refresh; per-machine service badges; project table              |
 | Nsight profiling of vLLM serving                 | 📋 Planned     | Profile vLLM on GKE L4 via Nsight Operator pod injection               |
 | Inference optimization pipeline (`kfp-optimize`) | 📋 Planned     | Prune → distill → quantize (FP8) on DGX; KFP pipeline type             |
