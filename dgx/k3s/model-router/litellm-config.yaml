@@ -1,24 +1,11 @@
 model_list:
-  - model_name: "meta/llama-3.1-8b-instruct-dgx-spark"
-    litellm_params:
-      model: "openai/meta/llama-3.1-8b-instruct-dgx-spark"
-      api_base: "http://modeldeployment-meta-llama-3-1-8b-instruct-dgx-spark.nemo-microservices.svc.cluster.local:8000/v1"
-      api_key: "none"
-# Add an entry for each active serving backend on this machine.
-# After editing this file, commit and push, then run the Model Router Deploy workflow.
-#
-# api_base convention: http://{service}.{namespace}.svc.cluster.local:8000/v1
-# namespace = the serving project repo name (that is what kubectl namespace is used)
-#
-# Example:
-#   - model_name: "qwen25-7b-arc"
-#     litellm_params:
-#       model: "openai/qwen25-7b-arc"
-#       api_base: "http://vllm.qwen25-arc-serving-vllm.svc.cluster.local:8000/v1"
-#       api_key: "none"
-#
-#   - model_name: "nemotron-nano-9b"
-#     litellm_params:
-#       model: "openai/nemotron-nano-9b"
-#       api_base: "http://nim.nemo-microservices.svc.cluster.local:8000/v1"
-#       api_key: "none"
+- litellm_params:
+    api_base: http://modeldeployment-meta-llama-3-1-8b-instruct-dgx-spark.nemo-microservices.svc.cluster.local:8000/v1
+    api_key: none
+    model: openai/meta/llama-3.1-8b-instruct-dgx-spark
+  model_name: meta/llama-3.1-8b-instruct-dgx-spark
+- litellm_params:
+    api_base: http://vllm.qwen25-7b-ftuned-serving-vllm.svc.cluster.local:8000/v1
+    api_key: none
+    model: openai/qwen25-arc
+  model_name: qwen25-arc
