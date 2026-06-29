@@ -34,6 +34,12 @@ systemctl --user daemon-reload
 
 for svc in "${SERVICES[@]}"; do
     systemctl --user enable "${svc}"
-    systemctl --user restart "${svc}"
+    # Port-forward services may fail when their backend isn't deployed yet — that's fine;
+    # they're Restart=on-failure and will come up once the stack is deployed.
+    if [[ "${svc}" == *-portfwd ]]; then
+        systemctl --user restart "${svc}" || true
+    else
+        systemctl --user restart "${svc}"
+    fi
     printf '  %-22s %s\n' "${svc}" "$(systemctl --user is-active ${svc})"
 done

@@ -2,16 +2,20 @@
 
 Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/). Unit files live in `dgx/systemd/` and are shared with the DGX — `install.sh` copies the relevant subset here. Run `install.sh` / `uninstall.sh` from this directory on the AGX host.
 
-AGX installs a subset of the DGX services (`mlabs-runner`, `dashboard`, `jupyterlab`, `kubeflow-portfwd`, `kfp-api-portfwd`, `nsight-portfwd`). MLflow, Qdrant, and NeMo port-forwards are omitted — AGX does not run those stacks.
+AGX runs the same ten systemd user services as DGX. Unit files live in `dgx/systemd/` and are shared — `install.sh` copies them here.
 
 | Service                    | Host port   | Purpose                                                                     |
 | -------------------------- | ----------- | --------------------------------------------------------------------------- |
 | `mlabs-runner.service`     | —           | GHA runner container (persistent across reboots; PATs from `mlabs-runner.env`) |
 | `dashboard.service`        | `8001`      | `kubectl proxy` for the Kubernetes dashboard                                |
 | `jupyterlab.service`       | `8888`      | JupyterLab (pyJLab environment)                                             |
+| `mlflow-portfwd.service`   | `5000`      | `kubectl port-forward svc/mlflow-tracking` (`mlflow-system`)                |
 | `kubeflow-portfwd.service` | `8080`      | `kubectl port-forward svc/ml-pipeline-ui` (`kubeflow`)                      |
 | `kfp-api-portfwd.service`  | `8890`      | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                  |
+| `nemo-portfwd.service`     | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (`nemo-microservices`) |
+| `qdrant-portfwd.service`   | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (`qdrant-system`)     |
 | `nsight-portfwd.service`   | `8889`      | `kubectl port-forward svc/nsight-operator-gateway:8888` (`nsight-operator`) |
+| `openwebui-portfwd.service`| `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat)                 |
 
 ## SSH tunnel from laptop
 

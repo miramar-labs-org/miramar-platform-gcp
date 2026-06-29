@@ -9,7 +9,8 @@ DGX_SYSTEMD="$(cd "${SCRIPT_DIR}/../../dgx/systemd" && pwd)"
 DEST="$HOME/.config/systemd/user"
 # k3s is managed by its own systemd service (k3s.service, installed by install-k3s.sh).
 # Port-forward services declare After=k3s.service so they start in the right order.
-SERVICES=(mlabs-runner dashboard jupyterlab kubeflow-portfwd kfp-api-portfwd nsight-portfwd)
+# AGX runs the same ten services as DGX; unit files are shared from dgx/systemd/.
+SERVICES=(mlabs-runner dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd nsight-portfwd openwebui-portfwd)
 
 mkdir -p "$DEST"
 
@@ -38,6 +39,12 @@ systemctl --user daemon-reload
 
 for svc in "${SERVICES[@]}"; do
     systemctl --user enable "${svc}"
-    systemctl --user restart "${svc}"
+    # Port-forward services may fail when their backend isn't deployed yet — that's fine;
+    # they're Restart=on-failure and will come up once the stack is deployed.
+    if [[ "${svc}" == *-portfwd ]]; then
+        systemctl --user restart "${svc}" || true
+    else
+        systemctl --user restart "${svc}"
+    fi
     printf '  %-22s %s\n' "${svc}" "$(systemctl --user is-active ${svc})"
 done
