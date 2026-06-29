@@ -152,6 +152,8 @@ Live templates:
 | `serving-llm-nim` | Multi-LLM NIM runtime — local or HuggingFace model source auto-detected; GPU protection pattern (auto-undeploy active serving project) |
 | `serving-trt-fp8` | FP8-quantized checkpoint served via vLLM (`--quantization=fp8`) on DGX/AGX (K3s) or GKE L4 spot |
 | `serving-trt-engine` | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot; per-arch engine mapping (gb10/sm87/l4) |
+| `serving-triton-vllm` | Triton Inference Server + vLLM Python backend on DGX (K3s) or GKE L4 spot; LoRA adapter support; LiteLLM `triton/model` provider; NOT AGX |
+| `serving-triton-trtllm` | Triton Inference Server + TRT-LLM Python backend on DGX (K3s) or GKE L4 spot; GPU-arch engine baked at build time (`engine_gb10/` DGX, `engine_l4/` GKE); ~30s cold start; NOT AGX |
 
 Templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
 

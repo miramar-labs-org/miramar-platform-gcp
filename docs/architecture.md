@@ -42,6 +42,8 @@ inference workloads across local GPU systems and cloud infrastructure.
 | FP8-quantized vLLM serving (DGX/AGX/GKE)         | ✅ Done        | `serving-trt-fp8` template; `--quantization=fp8` via vLLM              |
 | TRT-LLM engine serving (DGX/AGX/GKE)             | ✅ Done        | `serving-trt-engine` template; `tensorrt_llm.serve`; per-arch engines  |
 | Model router service (K3s)                       | ✅ Done        | LiteLLM proxy in `model-router` ns; single `/v1` across multiple backends; `deploy-model-router.yaml` |
+| Triton + vLLM serving (DGX/GKE)                 | ✅ Done        | `serving-triton-vllm` template; Triton Python backend; AsyncLLMEngine; LoRA support |
+| Triton + TRT-LLM serving (DGX/GKE)              | ✅ Done        | `serving-triton-trtllm` template; Triton Python backend; synchronous TRT-LLM LLM API; baked engine |
 | Platform dashboard (GitHub Pages)                | ✅ Done        | Hourly refresh; per-machine service badges; project table              |
 | Nsight profiling of vLLM serving                 | 📋 Planned     | Profile vLLM on GKE L4 via Nsight Operator pod injection               |
 | Inference optimization pipeline (`kfp-optimize`) | 📋 Planned     | Prune → distill → quantize (FP8) on DGX; KFP pipeline type             |
@@ -110,6 +112,14 @@ Stages 1–2 are the current implemented arc; Stage 3 is the planned optimisatio
 |  Stage 2d: TRT-LLM Engine Serve (serving-trt-engine)                  |
 |  tensorrt_llm.serve; per-arch engines (gb10/sm87/l4)                   |
 |  L4 spot (expand / restore) on GKE; K3s on DGX/AGX                    |
+|                                                                        |
+|  Stage 2e: Triton + vLLM (serving-triton-vllm)                        |
+|  Triton Python backend; AsyncLLMEngine in background thread; LoRA      |
+|  DGX K3s (GHCR) + GKE L4 spot (GAR); NOT AGX                          |
+|                                                                        |
+|  Stage 2f: Triton + TRT-LLM (serving-triton-trtllm)                   |
+|  Triton Python backend; synchronous TRT-LLM LLM API; baked engine      |
+|  engine_l4 (GKE) / engine_gb10 (DGX); ~30s cold start; NOT AGX        |
 +------------------------------------------------------------------------+
 ```
 
@@ -217,7 +227,9 @@ GitHub is the source-of-truth control plane:
 | `serving-vllm`       | `miramar-llm-serving-vllm`     | dgx / agx / gcp | ✅ Done        | vLLM + LoRA adapter serving on DGX/AGX (K3s) or GKE L4 spot                             |
 | `serving-nim`        | `miramar-serving-nim`          | dgx / agx / gcp | ✅ Done        | Stock NGC NIM model serving on DGX/AGX (K3s) or GKE L4 spot                             |
 | `serving-trt-fp8`    | `miramar-serving-trt-fp8`      | dgx / agx / gcp | ✅ Done        | FP8-quantized checkpoint served via vLLM on DGX/AGX (K3s) or GKE L4 spot                |
-| `serving-trt-engine` | `miramar-serving-trt-engine`   | dgx / agx / gcp | ✅ Done        | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot |
+| `serving-trt-engine`      | `miramar-serving-trt-engine`       | dgx / agx / gcp | ✅ Done    | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot |
+| `serving-triton-vllm`     | `miramar-serving-triton-vllm`      | dgx / gcp       | ✅ Done    | Triton Python backend + vLLM AsyncLLMEngine; LoRA adapter; DGX K3s or GKE L4 spot (no AGX) |
+| `serving-triton-trtllm`   | `miramar-serving-triton-trtllm`    | dgx / gcp       | ✅ Done    | Triton Python backend + TRT-LLM LLM API; baked engine (engine_gb10/engine_l4); ~30s start; no AGX |
 | `kfp-rag`            | `miramar-kfp-rag`              | dgx             | ✅ Done        | RAG pipeline: ingest_documents → retrieval_eval → generation_eval → faithfulness_eval → safety_eval → deployment_gate (CPU-only, Qdrant, LLM-as-judge) |
 | `kfp-nemo-curator`        | `miramar-kfp-nemo-curator`          | dgx             | ✅ Done        | NeMo Curator data-curation: preflight_check → extract_text → quality_filter → deduplication → pii_redaction → curator_report (CPU + GPU via RAPIDS cuDF) |
 | `kfp-optimize`       | `miramar-kfp-optimize`         | dgx             | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint    |
