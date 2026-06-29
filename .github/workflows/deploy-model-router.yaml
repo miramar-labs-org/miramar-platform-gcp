@@ -23,10 +23,12 @@ on:
         options:
           - dgx
           - agx
+          - gke
 
 jobs:
   deploy:
     name: Deploy Model Router (${{ inputs.runner }})
+    if: inputs.runner != 'gke'
     runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 15
     env:
@@ -111,4 +113,83 @@ jobs:
             echo "To add/remove upstreams: edit \`${CONFIG_PATH}\`, commit, push, re-run this workflow."
             echo ""
             echo "Local access: \`kubectl port-forward svc/model-router 8000:8000 -n model-router\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy_gke:
+    name: Deploy Model Router (gke)
+    if: inputs.runner == 'gke'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+      GKE_ZONE: ${{ vars.GKE_ZONE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Apply base manifests
+        run: kubectl apply -f dgx/k3s/model-router/router.yaml
+
+      - name: Upsert litellm ConfigMap from repo
+        run: |
+          kubectl create configmap litellm-config \
+            --from-file=config.yaml=gke/model-router/litellm-config.yaml \
+            -n model-router --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Restart deployment to pick up new config
+        run: kubectl rollout restart deployment/model-router -n model-router
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/model-router -n model-router --timeout=300s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/model-router 18000:8000 -n model-router &
+          PF_PID=$!
+          sleep 8
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+          curl -sf http://localhost:18000/v1/models | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          models = [m['id'] for m in d.get('data', [])]
+          print('Router is up. Models registered:', models if models else '(none yet — add upstreams to gke/model-router/litellm-config.yaml)')
+          "
+
+      - name: Set GKE model router active
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_MODEL_ROUTER_ACTIVE" \
+            -f name="GKE_MODEL_ROUTER_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_MODEL_ROUTER_ACTIVE" -f value="true" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Model Router Deployed (gke)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Namespace | \`model-router\` |"
+            echo "| In-cluster URL | \`http://model-router.model-router.svc.cluster.local:8000/v1\` |"
+            echo ""
+            echo "To add/remove upstreams: edit \`gke/model-router/litellm-config.yaml\`, commit, push, re-run this workflow."
+            echo ""
+            echo "Next: run **GKE Gateway Deploy** to expose \`https://api.miramar-labs.com/v1\` externally."
           } >> "$GITHUB_STEP_SUMMARY"

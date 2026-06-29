@@ -110,6 +110,25 @@ jobs:
             fi
           done
 
+      - name: Reserve Gateway static IP and managed SSL certificate
+        run: |
+          gcloud compute addresses create miramar-gateway-ip \
+            --global --project="$PROJECT_ID" --quiet || true
+          gcloud compute ssl-certificates create miramar-api-cert \
+            --domains=api.miramar-labs.com \
+            --global --project="$PROJECT_ID" --quiet || true
+          IP=$(gcloud compute addresses describe miramar-gateway-ip \
+            --global --project="$PROJECT_ID" --format='value(address)')
+          {
+            echo "## Gateway"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Static IP | \`${IP}\` |"
+            echo "| DNS A record | \`api.miramar-labs.com → ${IP}\` |"
+            echo ""
+            echo "> Create this A record in your DNS zone once. It persists across Gateway deploy/undeploy cycles."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Get GKE credentials (WIF)
         if: steps.wif_auth.outcome == 'success'
         uses: google-github-actions/get-gke-credentials@v2

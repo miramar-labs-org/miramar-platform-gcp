@@ -76,6 +76,70 @@ Manual bucket creation:
   --location us-central1
 ```
 
+## Gateway API
+
+External HTTPS exposure for GKE-hosted serving workloads via the Kubernetes Gateway API.
+The Gateway always routes to the GKE model router, which routes to whichever serving
+backend is currently deployed. There is only ever one model on GKE at a time.
+
+**Architecture:**
+```
+https://api.miramar-labs.com/v1
+  → GKE Gateway  (gke-l7-global-external-managed)
+    → GKE Model Router  (model-router.model-router.svc.cluster.local:8000)
+      → GKE Serving Backend  (vLLM / NIM / TRT-LLM)
+```
+
+**Static resources** (created by `GCP Platform Create`, deleted by `GCP Platform Destroy`):
+
+| Resource | Name | Notes |
+|---|---|---|
+| Global static IP | `miramar-gateway-ip` | ~$3/mo; DNS record set once and stays |
+| Managed SSL cert | `miramar-api-cert` | Free; covers `api.miramar-labs.com` |
+
+**One-time DNS setup** (manual, after first `GCP Platform Create`):
+
+The static IP is printed in the workflow job summary. Create one A record in the
+`miramar-labs.com` DNS zone:
+
+```
+api.miramar-labs.com  A  <static IP>  TTL 300
+```
+
+This record is permanent — it survives Gateway deploy/undeploy cycles.
+
+**Cost:** ~$0.025/hr (~$18/mo) while the Gateway is deployed (GCP Global HTTP(S) LB
+forwarding rule). Static IP and cert are retained on undeploy so the next deploy is instant.
+Treat the Gateway as transient — deploy it alongside a serving workload, undeploy it when done.
+
+**SSL cert provisioning:** first deploy takes 10–60 minutes after DNS resolves (ACME challenge).
+All subsequent deploys re-attach the existing cert — no wait.
+
+**Workflows:**
+
+| Workflow | Purpose |
+|---|---|
+| `deploy-gke-gateway.yaml` | Apply Gateway + HTTPRoute; set `GKE_GATEWAY_URL`; check cert status |
+| `undeploy-gke-gateway.yaml` | Delete Gateway + HTTPRoute; stop LB billing; clear `GKE_GATEWAY_URL` |
+
+Both workflows support `workflow_call` so GKE serving deploy/undeploy workflows can
+wire the Gateway automatically. Also available as `workflow_dispatch` for manual use.
+
+**Typical session:**
+
+```
+GKE Expand GPU
+  → Model Router Deploy (runner=gke)
+  → [GKE serving deploy]  → auto-calls GKE Gateway Deploy
+  → curl https://api.miramar-labs.com/v1/models
+  → [GKE serving undeploy]  → auto-calls GKE Gateway Undeploy
+  → Model Router Undeploy (runner=gke)
+  → GKE Restore GPU
+```
+
+**GKE model router config:** `gke/model-router/litellm-config.yaml` — updated automatically
+by GKE serving deploy/undeploy workflows (same auto-registration pattern as DGX/AGX).
+
 ## GCP Scripts
 
 | Script                                 | Purpose                                     |

@@ -1,0 +1,81 @@
+name: GKE Gateway Undeploy
+
+# Removes the GKE Gateway and HTTPRoute, deallocating the LB forwarding rule
+# and stopping billing (~$0.025/hr). The static IP and SSL certificate are
+# retained so the next deploy is instant (no DNS/cert re-provisioning).
+#
+# Called automatically by GKE serving undeploy workflows (workflow_call).
+# Also available for manual use (workflow_dispatch).
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+
+jobs:
+  undeploy:
+    name: Undeploy GKE Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Delete HTTPRoute
+        run: kubectl delete httproute miramar-route -n model-router --ignore-not-found
+
+      - name: Delete Gateway
+        run: |
+          kubectl delete gateway miramar-gateway -n model-router --ignore-not-found
+          echo "LB forwarding rule deallocated — billing stopped."
+
+      - name: Clear org variables
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_ACTIVE" \
+            -f name="GKE_GATEWAY_ACTIVE" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_GATEWAY_ACTIVE" -f value="false" -f visibility="all"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_URL" \
+            -f name="GKE_GATEWAY_URL" -f value="" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_GATEWAY_URL" -f value="" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## GKE Gateway Undeployed"
+            echo "LB forwarding rule removed — billing stopped."
+            echo ""
+            echo "| Retained | |"
+            echo "|---|---|"
+            echo "| Static IP | \`miramar-gateway-ip\` (DNS record stays valid) |"
+            echo "| SSL cert | \`miramar-api-cert\` (re-attach is instant) |"
+            echo ""
+            echo "Run **GKE Gateway Deploy** to restore \`https://api.miramar-labs.com/v1\` instantly."
+          } >> "$GITHUB_STEP_SUMMARY"

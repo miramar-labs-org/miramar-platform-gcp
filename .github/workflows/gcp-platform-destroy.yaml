@@ -142,11 +142,19 @@ jobs:
           gcloud projects delete "$PROJECT_ID" --quiet
           echo "Project $PROJECT_ID deleted."
 
+      - name: Release Gateway static IP and SSL certificate
+        continue-on-error: true
+        run: |
+          gcloud compute ssl-certificates delete miramar-api-cert \
+            --global --project="$PROJECT_ID" --quiet || true
+          gcloud compute addresses delete miramar-gateway-ip \
+            --global --project="$PROJECT_ID" --quiet || true
+
       - name: Mark cluster inactive
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
-          for var_name in GKE_CLUSTER_ACTIVE GKE_GPU_POOL_ACTIVE GKE_NSIGHT_OPERATOR_ACTIVE; do
+          for var_name in GKE_CLUSTER_ACTIVE GKE_GPU_POOL_ACTIVE GKE_NSIGHT_OPERATOR_ACTIVE GKE_GATEWAY_ACTIVE GKE_MODEL_ROUTER_ACTIVE; do
             gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var_name}" \
               -f name="${var_name}" -f value="false" -f visibility="all" \
             || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
@@ -162,6 +170,10 @@ jobs:
             -f name="GKE_NODE_COUNT" -f value="1" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="GKE_NODE_COUNT" -f value="1" -f visibility="all"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_URL" \
+            -f name="GKE_GATEWAY_URL" -f value="" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_GATEWAY_URL" -f value="" -f visibility="all"
 
       - name: Summary
         run: |

@@ -128,8 +128,10 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NIM Undeploy                 | `undeploy-nim.yaml`                 | Undeploy NIM; 404 is no-op; clears `CURRENT_NIM_MODEL`               |
 | Qdrant Deploy                | `deploy-qdrant.yaml`                | Deploy Qdrant into k3s `qdrant-system`; sets `{MACHINE}_QDRANT_ACTIVE` |
 | Qdrant Undeploy              | `undeploy-qdrant.yaml`              | Remove Qdrant namespace; clears `{MACHINE}_QDRANT_ACTIVE`            |
-| Model Router Deploy          | `deploy-model-router.yaml`          | Deploy LiteLLM proxy into k3s `model-router`; sets `{MACHINE}_OPENWEBUI_API_URL` to router URL |
-| Model Router Undeploy        | `undeploy-model-router.yaml`        | Remove model-router namespace; clears `{MACHINE}_OPENWEBUI_API_URL`  |
+| Model Router Deploy          | `deploy-model-router.yaml`          | Deploy LiteLLM proxy into k3s `model-router` (dgx/agx) or GKE (gke); sets `{MACHINE}_OPENWEBUI_API_URL` or `GKE_MODEL_ROUTER_ACTIVE` |
+| Model Router Undeploy        | `undeploy-model-router.yaml`        | Remove model-router namespace; clears `{MACHINE}_OPENWEBUI_API_URL` or `GKE_MODEL_ROUTER_ACTIVE` |
+| GKE Gateway Deploy           | `deploy-gke-gateway.yaml`           | Apply Gateway + HTTPRoute on GKE; exposes `https://api.miramar-labs.com/v1`; sets `GKE_GATEWAY_ACTIVE` + `GKE_GATEWAY_URL`; called automatically by GKE serving deploy |
+| GKE Gateway Undeploy         | `undeploy-gke-gateway.yaml`         | Remove Gateway + HTTPRoute; stops LB billing; clears `GKE_GATEWAY_ACTIVE` + `GKE_GATEWAY_URL`; called automatically by GKE serving undeploy |
 | Open WebUI Deploy            | `deploy-openwebui.yaml`             | Deploy Open WebUI on DGX/AGX/GKE; wires active serving backend      |
 | Open WebUI Undeploy          | `undeploy-openwebui.yaml`           | Remove Open WebUI; stops portfwd; clears `{MACHINE}_OPENWEBUI_ACTIVE` |
 | Nsight Operator Deploy       | `deploy-nsight-operator.yaml`       | Install Nsight Operator via Helm; sets `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
@@ -193,6 +195,14 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (agx)                         | Open WebUI Undeploy (agx)       |
 | `GKE_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (gke)                         | Open WebUI Undeploy (gke)       |
 | `GKE_GPU_POOL_ACTIVE`        | GKE Expand GPU                                  | GKE Restore GPU                 |
+| `GKE_MODEL_ROUTER_ACTIVE`    | Model Router Deploy (gke)                       | Model Router Undeploy (gke), GCP Platform Destroy |
+| `GKE_GATEWAY_ACTIVE`         | GKE Gateway Deploy                              | GKE Gateway Undeploy, GCP Platform Destroy |
+
+**GKE Gateway URL org variable** (set by Gateway deploy; read by external clients):
+
+| Variable | Set by | Cleared by | Default |
+|---|---|---|---|
+| `GKE_GATEWAY_URL` | GKE Gateway Deploy (`https://api.miramar-labs.com/v1`) | GKE Gateway Undeploy, GCP Platform Destroy | `""` |
 
 **Open WebUI backend URL org variables** (set automatically by serving project deploy/undeploy workflows):
 

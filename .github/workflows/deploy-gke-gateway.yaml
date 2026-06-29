@@ -1,0 +1,138 @@
+name: GKE Gateway Deploy
+
+# Deploys the GKE Gateway API route that exposes https://api.miramar-labs.com/v1.
+# The Gateway always routes to the GKE model router (model-router.model-router.svc.cluster.local:8000).
+# Deploy the GKE model router first (Model Router Deploy, runner=gke).
+#
+# Prerequisites:
+#   - GKE cluster running (GKE_CLUSTER_ACTIVE=true)
+#   - model-router namespace and Deployment exist (deploy-model-router.yaml runner=gke)
+#   - miramar-gateway-ip static IP reserved (done by GCP Platform Create)
+#   - miramar-api-cert SSL cert created (done by GCP Platform Create)
+#   - DNS A record: api.miramar-labs.com → <static IP> (one-time manual step)
+#
+# Called automatically by GKE serving deploy workflows (workflow_call).
+# Also available for manual use (workflow_dispatch).
+#
+# Cost: ~$0.025/hr while the Gateway is active (GCP global HTTP(S) LB).
+# Run GKE Gateway Undeploy to stop billing.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+
+jobs:
+  deploy:
+    name: Deploy GKE Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Verify model-router namespace exists
+        run: |
+          if ! kubectl get namespace model-router &>/dev/null; then
+            echo "::error::Namespace 'model-router' not found. Run 'Model Router Deploy (runner=gke)' first."
+            exit 1
+          fi
+          if ! kubectl get deployment model-router -n model-router &>/dev/null; then
+            echo "::error::Deployment 'model-router' not found. Run 'Model Router Deploy (runner=gke)' first."
+            exit 1
+          fi
+          echo "model-router namespace and Deployment verified."
+
+      - name: Apply Gateway
+        run: kubectl apply -f gke/gateway/gateway.yaml
+
+      - name: Apply HTTPRoute
+        run: kubectl apply -f gke/gateway/httproute.yaml
+
+      - name: Wait for Gateway to receive an IP
+        run: |
+          echo "Waiting for Gateway to receive an IP address (up to 5 minutes)..."
+          for i in $(seq 1 10); do
+            GW_IP=$(kubectl get gateway miramar-gateway -n model-router \
+              -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || true)
+            if [[ -n "$GW_IP" ]]; then
+              echo "Gateway IP assigned: ${GW_IP}"
+              echo "GW_IP=${GW_IP}" >> "$GITHUB_ENV"
+              break
+            fi
+            echo "  attempt ${i}/10 — waiting 30s..."
+            sleep 30
+          done
+          if [[ -z "$GW_IP" ]]; then
+            echo "::warning::Gateway IP not yet assigned — LB is still provisioning. Check status with:"
+            echo "  kubectl get gateway miramar-gateway -n model-router"
+          fi
+
+      - name: Check SSL certificate status
+        run: |
+          STATUS=$(gcloud compute ssl-certificates describe miramar-api-cert \
+            --global --project="$PROJECT_ID" --format='value(managed.status)' 2>/dev/null || echo "UNKNOWN")
+          echo "SSL cert status: ${STATUS}"
+          if [[ "$STATUS" != "ACTIVE" ]]; then
+            echo "::notice::Certificate is ${STATUS}. It becomes ACTIVE once DNS resolves and ACME challenge completes (10–60 min on first deploy; instant on subsequent deploys)."
+            echo "DNS: ensure  api.miramar-labs.com  A  ${GW_IP:-<static IP>}  exists in your DNS zone."
+          fi
+
+      - name: Set org variables
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_ACTIVE" \
+            -f name="GKE_GATEWAY_ACTIVE" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_GATEWAY_ACTIVE" -f value="true" -f visibility="all"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_URL" \
+            -f name="GKE_GATEWAY_URL" -f value="https://api.miramar-labs.com/v1" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_GATEWAY_URL" -f value="https://api.miramar-labs.com/v1" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          CERT_STATUS=$(gcloud compute ssl-certificates describe miramar-api-cert \
+            --global --project="$PROJECT_ID" --format='value(managed.status)' 2>/dev/null || echo "unknown")
+          {
+            echo "## GKE Gateway Deployed"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| External URL | \`https://api.miramar-labs.com/v1\` |"
+            echo "| Backend | \`model-router.model-router.svc.cluster.local:8000\` |"
+            echo "| SSL cert | \`${CERT_STATUS}\` |"
+            echo "| Cost | ~\$0.025/hr while active |"
+            echo ""
+            if [[ "$CERT_STATUS" != "ACTIVE" ]]; then
+              echo "> **Cert not yet active.** Create DNS A record \`api.miramar-labs.com → ${GW_IP:-<static IP>}\` and wait 10–60 minutes. Subsequent deploys are instant."
+            else
+              echo "> Cert is ACTIVE. \`curl https://api.miramar-labs.com/v1/models\` should work immediately."
+            fi
+            echo ""
+            echo "Run **GKE Gateway Undeploy** to stop billing."
+          } >> "$GITHUB_STEP_SUMMARY"

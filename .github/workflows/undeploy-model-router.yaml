@@ -15,10 +15,12 @@ on:
         options:
           - dgx
           - agx
+          - gke
 
 jobs:
   undeploy:
     name: Undeploy Model Router (${{ inputs.runner }})
+    if: inputs.runner != 'gke'
     runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 10
     env:
@@ -61,4 +63,51 @@ jobs:
             echo "## Model Router Undeployed (${{ inputs.runner }})"
             echo "Namespace \`model-router\` removed."
             echo "\`${machine}_OPENWEBUI_API_URL\` cleared — Open WebUI reverts to Ollama-only."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  undeploy_gke:
+    name: Undeploy Model Router (gke)
+    if: inputs.runner == 'gke'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+      GKE_ZONE: ${{ vars.GKE_ZONE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Delete model-router namespace
+        run: kubectl delete namespace model-router --ignore-not-found
+
+      - name: Clear GKE model router active
+        run: |
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_MODEL_ROUTER_ACTIVE" \
+            -f name="GKE_MODEL_ROUTER_ACTIVE" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_MODEL_ROUTER_ACTIVE" -f value="false" -f visibility="all"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Model Router Undeployed (gke)"
+            echo "Namespace \`model-router\` removed from GKE cluster."
           } >> "$GITHUB_STEP_SUMMARY"
