@@ -41,10 +41,11 @@ echo "    Found ${REPO_COUNT} repos tagged miramar-project"
 ROWS=""
 DGX_VLLM_TOTAL_GB=0
 AGX_VLLM_TOTAL_GB=0
+DGX_TRITON_TOTAL_GB=0
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-llm-nim") then "serving-llm-nim" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-triton-vllm") then "serving-triton-vllm" elif index("miramar-serving-triton-trtllm") then "serving-triton-trtllm" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-llm-nim") then "serving-llm-nim" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
@@ -82,6 +83,11 @@ while IFS= read -r repo_json; do
             | jq -r '.value // "0"' 2>/dev/null) || _vllm_gb=0
           [[ "$_vllm_gb" =~ ^[0-9]+$ ]] || _vllm_gb=0
           DGX_VLLM_TOTAL_GB=$(( DGX_VLLM_TOTAL_GB + _vllm_gb ))
+          _triton_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
+            "repos/${ORG}/${name}/actions/variables/DGX_TRITON_VRAM_GB" 2>/dev/null \
+            | jq -r '.value // "0"' 2>/dev/null) || _triton_gb=0
+          [[ "$_triton_gb" =~ ^[0-9]+$ ]] || _triton_gb=0
+          DGX_TRITON_TOTAL_GB=$(( DGX_TRITON_TOTAL_GB + _triton_gb ))
           ;;
         agx)
           _vllm_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
@@ -219,7 +225,7 @@ GKE_MACHINE_TYPE=$(read_org_var "GKE_MACHINE_TYPE")
 [[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
 [[ -z "$GKE_NODE_COUNT" ]] && GKE_NODE_COUNT="1"
 
-VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB + DGX_VLLM_TOTAL_GB ))
+VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB + DGX_VLLM_TOTAL_GB + DGX_TRITON_TOTAL_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
 (( VRAM_AVAIL_GB < 0 )) && VRAM_AVAIL_GB=0
 
@@ -348,8 +354,10 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-serving-vllm        { background: #0c2a4a; color: #38bdf8; }
   .badge-serving-nim         { background: #001a2a; color: #67e8f9; }
   .badge-serving-llm-nim    { background: #0a1a2a; color: #38bdf8; }
-  .badge-serving-trt-fp8     { background: #1a1200; color: #fcd34d; }
-  .badge-serving-trt-engine  { background: #2a1500; color: #fb923c; }
+  .badge-serving-trt-fp8          { background: #1a1200; color: #fcd34d; }
+  .badge-serving-trt-engine       { background: #2a1500; color: #fb923c; }
+  .badge-serving-triton-vllm      { background: #0a1a2e; color: #60a5fa; }
+  .badge-serving-triton-trtllm    { background: #1a0e00; color: #f97316; }
   .badge-nemo-ft-eval        { background: #064e3b; color: #6ee7b7; }
   .badge-nemo                { background: #1a4731; color: #3fb950; }
   .badge-other        { background: #2d2b00; color: #d29922; }
