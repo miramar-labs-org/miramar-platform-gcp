@@ -47,6 +47,7 @@ flowchart LR
     GCP --> GKE[GKE Standard Cluster]
     GCP --> GAR[Artifact Registry]
     GCP --> GCS[GCS State + Snapshots]
+    GKE --> Gateway["GKE Gateway API\napi.miramar-labs.com/v1"]
 
     DGX --> K3s[k3s on DGX]
     K3s --> Nemo[NeMo Microservices]
@@ -64,6 +65,8 @@ flowchart LR
 [![GKE Restore](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml)
 [![GKE Expand GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml)
 [![GKE Restore GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore-gpu.yaml)
+[![GKE Gateway Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-gke-gateway.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-gke-gateway.yaml)
+[![GKE Gateway Undeploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-gke-gateway.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/undeploy-gke-gateway.yaml)
 [![Find GPU Capacity](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/find-gpu-capacity.yaml)
 [![K3s Install](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/install-k3s.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/install-k3s.yaml)
 [![NIM Deploy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nim.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-nim.yaml)
@@ -211,7 +214,7 @@ ft-eval run PASS
 | 4 — Serve FP8-quantized checkpoint via vLLM (DGX/AGX/GKE) | `serving-trt-fp8`                       | ✅ Implemented |
 | 5 — Serve compiled TRT-LLM engine (DGX/AGX/GKE)         | `serving-trt-engine`                      | ✅ Implemented |
 | 6 — Model router service (stable `/v1` API, multi-model) | `deploy-model-router.yaml` (platform svc) | ✅ Implemented |
-| 7 — GKE Gateway API route (external HTTPS)               | —                                         | 🔜 Planned     |
+| 7 — GKE Gateway API route (`https://api.miramar-labs.com/v1`) | `deploy-gke-gateway.yaml` / `undeploy-gke-gateway.yaml` | ✅ Implemented |
 | 8 — Serve via Triton + vLLM backend                      | `serving-triton-vllm`                     | 🔜 Planned     |
 | 9 — Serve via Triton + TensorRT-LLM backend              | `serving-triton-trtllm`                   | 🔜 Planned     |
 
