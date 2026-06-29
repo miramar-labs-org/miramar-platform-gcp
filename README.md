@@ -137,12 +137,20 @@ Project templates generate complete repos with:
 
 Live templates:
 
-| Type               | Purpose                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `ft-eval`       | Kubeflow Pipelines eval-first fine-tuning — 8-stage eval-gate pipeline; training and PHI stay on DGX     |
-| `serving-vllm`  | vLLM LoRA adapter serving on GKE L4 spot or local DGX Spark — consumes the artifact bundle published by a `ft-eval` project |
+| Type | Purpose |
+| ---- | ------- |
+| `ft-eval` | Eval-first LoRA fine-tuning — 8-stage KFP pipeline (prepare → baseline\_eval → fine\_tune → post\_finetune\_eval → safety\_eval → deployment\_gate); training and PHI stay on DGX |
+| `nemo-ft-eval` | Same arc via NeMo Customizer backend — NeMo catalog model IDs, `nemo2hf` checkpoint export, NeMo safety eval |
+| `kfp` | Blank KFP v2 pipeline scaffold with GPU stage stub, MLflow tracking, and Nsight profiling label |
+| `kfp-rag` | RAG pipeline — ingest\_documents → retrieval\_eval → generation\_eval → faithfulness\_eval → safety\_eval → deployment\_gate; Qdrant-backed, LLM-as-judge, CPU-only |
+| `kfp-nemo-curator` | NeMo Curator data-curation pipeline — extract\_text → quality\_filter → deduplication → pii\_redaction → curator\_report; CPU + GPU (RAPIDS cuDF) |
+| `serving-vllm` | vLLM + LoRA adapter serving on DGX/AGX (K3s) or GKE L4 spot — consumes the adapter bundle published by a `ft-eval` project |
+| `serving-nim` | Stock NGC NIM model serving on DGX/AGX (K3s) or GKE L4 spot |
+| `serving-llm-nim` | Multi-LLM NIM runtime — local or HuggingFace model source auto-detected; GPU protection pattern (auto-undeploy active serving project) |
+| `serving-trt-fp8` | FP8-quantized checkpoint served via vLLM (`--quantization=fp8`) on DGX/AGX (K3s) or GKE L4 spot |
+| `serving-trt-engine` | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot; per-arch engine mapping (gb10/sm87/l4) |
 
-The two templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
+Templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
 
 ---
 
