@@ -1,4 +1,9 @@
-model_list: []
+model_list:
+  - model_name: "meta/llama-3.1-8b-instruct-dgx-spark"
+    litellm_params:
+      model: "openai/meta/llama-3.1-8b-instruct-dgx-spark"
+      api_base: "http://modeldeployment-meta-llama-3-1-8b-instruct-dgx-spark.nemo-microservices.svc.cluster.local:8000/v1"
+      api_key: "none"
 # Add an entry for each active serving backend on this machine.
 # After editing this file, commit and push, then run the Model Router Deploy workflow.
 #

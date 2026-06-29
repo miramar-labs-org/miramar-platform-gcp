@@ -4,16 +4,6 @@ kind: Namespace
 metadata:
   name: model-router
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: litellm-config
-  namespace: model-router
-data:
-  # Replaced at deploy time by the contents of dgx/k3s/model-router/litellm-config.yaml
-  config.yaml: |
-    model_list: []
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -46,8 +36,6 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "256Mi"
-            limits:
               memory: "512Mi"
       volumes:
         - name: config
