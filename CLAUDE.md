@@ -198,11 +198,13 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 
 | Variable               | Set by                        | Cleared by                             | Default |
 | ---------------------- | ----------------------------- | -------------------------------------- | ------- |
-| `DGX_OPENWEBUI_API_URL` | serving-xxx deploy (dgx job) | serving-xxx undeploy (dgx job) → `""` | `""`    |
-| `AGX_OPENWEBUI_API_URL` | serving-xxx deploy (agx job) | serving-xxx undeploy (agx job) → `""` | `""`    |
-| `GKE_OPENWEBUI_API_URL` | serving-xxx deploy (gke job) | serving-xxx undeploy (gke job) → `""` | `""`    |
+| `DGX_OPENWEBUI_API_URL` | serving-xxx deploy (dgx job); Model Router Deploy (dgx) | serving-xxx undeploy (dgx job) → `""`; Model Router Undeploy (dgx) → `""` | `""`    |
+| `AGX_OPENWEBUI_API_URL` | serving-xxx deploy (agx job); Model Router Deploy (agx) | serving-xxx undeploy (agx job) → `""`; Model Router Undeploy (agx) → `""` | `""`    |
+| `GKE_OPENWEBUI_API_URL` | serving-xxx deploy (gke job)                            | serving-xxx undeploy (gke job) → `""`                                     | `""`    |
 
-When a serving project deploys, it sets `{MACHINE}_OPENWEBUI_API_URL` to the in-cluster backend URL and (if `{MACHINE}_OPENWEBUI_ACTIVE=true`) triggers `deploy-openwebui.yaml` to repoint the running UI. When a serving project undeploys, it clears the URL to `""` and triggers a redeploy, reverting Open WebUI to Ollama-only.
+When a serving project or the model router deploys, it sets `{MACHINE}_OPENWEBUI_API_URL` to the in-cluster backend URL and (if `{MACHINE}_OPENWEBUI_ACTIVE=true`) triggers `deploy-openwebui.yaml` to repoint the running UI. When undeployed, it clears the URL to `""` and triggers a redeploy, reverting Open WebUI to Ollama-only.
+
+The model router (`deploy-model-router.yaml`) sets this URL to `http://model-router.model-router.svc.cluster.local:8000/v1` — a single stable endpoint that routes to all registered backends by `model` name. See `dgx/k3s/model-router/litellm-config.yaml` for the routing table.
 
 **GCP pool org variables** (drive the CPU/GPU pool badges on the dashboard):
 

@@ -169,6 +169,53 @@ from qdrant_client import QdrantClient
 client = QdrantClient(url="http://localhost:6333")
 ```
 
+## Model Router
+
+The model router is a [LiteLLM](https://github.com/BerriAI/litellm) proxy running in k3s namespace
+`model-router` that exposes a single OpenAI-compatible `/v1` endpoint and dispatches to multiple
+active serving backends by the `model` field in the request. Open WebUI is wired to this URL so
+it sees all registered models at once rather than a single backend.
+
+```text
+Actions -> Model Router Deploy    (upserts ConfigMap, restarts pod, sets {MACHINE}_OPENWEBUI_API_URL)
+Actions -> Model Router Undeploy  (deletes namespace, clears {MACHINE}_OPENWEBUI_API_URL)
+```
+
+The routing table lives in the platform repo at `dgx/k3s/model-router/litellm-config.yaml`.
+To add or remove an upstream:
+
+1. Edit `dgx/k3s/model-router/litellm-config.yaml`:
+   ```yaml
+   model_list:
+     - model_name: "qwen25-7b-arc"
+       litellm_params:
+         model: "openai/qwen25-7b-arc"
+         api_base: "http://vllm.qwen25-arc-serving-vllm.svc.cluster.local:8000/v1"
+         api_key: "none"
+   ```
+2. `git commit && git push`
+3. Run **Model Router Deploy** — the ConfigMap is upserted and the pod restarts.
+
+**URL convention:** `http://{service}.{namespace}.svc.cluster.local:8000/v1`  
+where `namespace` = the serving project repo name (that is the K8s namespace used by all serving templates).
+
+The router is CPU-only — no GPU required. It is independent of NeMo and can be deployed any time after K3s Install.
+
+```bash
+# Local access (with kubectl access)
+kubectl port-forward svc/model-router 8000:8000 -n model-router
+
+curl http://localhost:8000/v1/models
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen25-7b-arc","messages":[{"role":"user","content":"hello"}],"max_tokens":100}'
+```
+
+When the model router is deployed, `{MACHINE}_OPENWEBUI_API_URL` is set to
+`http://model-router.model-router.svc.cluster.local:8000/v1` and Open WebUI is redeployed automatically
+(if active) to pick up the new backend. When undeployed, the URL is cleared and Open WebUI reverts to
+Ollama-only.
+
 ## Ollama
 
 Ollama runs natively on the DGX host, not inside k3s. The platform
