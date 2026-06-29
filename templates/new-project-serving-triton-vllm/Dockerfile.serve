@@ -1,0 +1,7 @@
+FROM nvcr.io/nvidia/tritonserver:25.06-vllm-python-py3
+# Adapter baked in at build time by build-push.yaml (staged from shared DGX storage).
+# Model still pulled from HF Hub at startup — too large to bake in.
+# Model repo (model_repo/) contains the Triton Python backend (model.py + config.pbtxt).
+COPY adapter/ /adapter/
+COPY model_repo/ /model_repo/
+ENV LD_PRELOAD=""

@@ -7,7 +7,9 @@ name: Create Project
 # kfp              — KFP v2 pipeline stub, notebook, deploy/undeploy KFP workflows
 # ft-eval      — KFP v2 eval-first fine-tuning pipeline, config-driven 6-step scaffold
 # nemo-ft-eval     — NeMo Customizer fine-tuning + eval pipeline, parity with ft-eval
-# serving-vllm — vLLM LoRA adapter serving on GKE (L4 spot); build-push/deploy/undeploy workflows
+# serving-vllm          — vLLM LoRA adapter serving on GKE (L4 spot); build-push/deploy/undeploy workflows
+# serving-triton-vllm   — Triton+vLLM LoRA adapter serving on DGX/GKE (L4 spot); Triton Python backend
+# serving-triton-trtllm — Triton+TRT-LLM compiled engine serving on DGX/GKE (L4 spot); fastest inference
 #
 # The host input sets which machine (dgx/agx) the project lives on:
 #   - controls which runner clones the repo on creation
@@ -25,7 +27,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-llm-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-nemo-curator]
+        options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-llm-nim, serving-trt-fp8, serving-trt-engine, serving-triton-vllm, serving-triton-trtllm, kfp-rag, kfp-nemo-curator]
         default: default
         required: true
       host:
@@ -137,8 +139,10 @@ jobs:
               serving-nim)        DESCRIPTION="Serves a pre-built NGC NIM container on DGX Spark or GKE" ;;
               serving-vllm)       DESCRIPTION="Serves a fine-tuned LoRA adapter via vLLM on DGX Spark, AGX Orin, or GKE" ;;
               serving-trt-fp8)    DESCRIPTION="Serves an FP8-quantized checkpoint via vLLM on DGX Spark, AGX Orin, or GKE" ;;
-              serving-trt-engine) DESCRIPTION="Serves a compiled TRT-LLM engine via tensorrt_llm.serve on DGX Spark, AGX Orin, or GKE" ;;
-              kfp)                DESCRIPTION="${PROJECT_TYPE} pipeline on the Miramar platform" ;;
+              serving-trt-engine)     DESCRIPTION="Serves a compiled TRT-LLM engine via tensorrt_llm.serve on DGX Spark, AGX Orin, or GKE" ;;
+              serving-triton-vllm)   DESCRIPTION="Serves a fine-tuned LoRA adapter via Triton+vLLM on DGX Spark or GKE" ;;
+              serving-triton-trtllm) DESCRIPTION="Serves a compiled TRT-LLM engine via Triton Python backend on DGX Spark or GKE" ;;
+              kfp)                   DESCRIPTION="${PROJECT_TYPE} pipeline on the Miramar platform" ;;
               ft-eval)            DESCRIPTION="Fine-tune and evaluate an LLM on the Miramar platform" ;;
               kfp-rag)            DESCRIPTION="RAG pipeline on the Miramar platform" ;;
               kfp-nemo-curator)   DESCRIPTION="NeMo Curator data pipeline on the Miramar platform" ;;
@@ -308,6 +312,18 @@ jobs:
             { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
             mv README.tmp README.md
           elif [ "${PROJECT_TYPE}" = "serving-trt-engine" ]; then
+            BADGE_2="[![Build and Push](${WF}/build-push.yaml/badge.svg)](${WF}/build-push.yaml)"
+            BADGE_3="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
+            BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "serving-triton-vllm" ]; then
+            BADGE_2="[![Build and Push](${WF}/build-push.yaml/badge.svg)](${WF}/build-push.yaml)"
+            BADGE_3="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
+            BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
+            { head -1 README.md; printf '\n%s\n%s\n%s\n' "${BADGE_2}" "${BADGE_3}" "${BADGE_4}"; tail -n +2 README.md; } > README.tmp
+            mv README.tmp README.md
+          elif [ "${PROJECT_TYPE}" = "serving-triton-trtllm" ]; then
             BADGE_2="[![Build and Push](${WF}/build-push.yaml/badge.svg)](${WF}/build-push.yaml)"
             BADGE_3="[![Deploy](${WF}/deploy.yaml/badge.svg)](${WF}/deploy.yaml)"
             BADGE_4="[![Undeploy](${WF}/undeploy.yaml/badge.svg)](${WF}/undeploy.yaml)"
@@ -553,6 +569,59 @@ jobs:
               "## Smoke test results" "" \
               "<!-- TODO: sample prompts and responses -->" "" \
               "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "serving-triton-vllm" ]; then
+            CATS="miramar triton vllm serving gke"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Serving stack" "" \
+              "| | |" "|---|---|" \
+              "| Base model | <!-- TODO --> |" \
+              "| LoRA adapter | <!-- TODO: FT project + run --> |" \
+              "| Inference engine | NVIDIA Triton + vLLM Python backend |" \
+              "| Host | <!-- TODO: DGX Spark / GKE L4 --> |" \
+              "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
+              "## Deployment" "" \
+              "\`\`\`bash" \
+              "# Triton health" \
+              "curl http://localhost:8000/v2/health/ready" \
+              "# Direct Triton inference" \
+              "curl -X POST http://localhost:8000/v2/models/model/generate \\\\" \
+              "  -d '{\"inputs\":[{\"name\":\"text_input\",\"shape\":[1,1],\"datatype\":\"BYTES\",\"data\":[\"Patient presents with fever.\"]}]}'" \
+              "# Via model router (OpenAI-compat)" \
+              "curl -X POST http://localhost:8000/v1/chat/completions \\\\" \
+              "  -d '{\"model\":\"<!-- TODO -->\",\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'" \
+              "\`\`\`" "" \
+              "## Smoke test results" "" \
+              "<!-- TODO: sample prompts and responses -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "serving-triton-trtllm" ]; then
+            CATS="miramar triton trt-llm engine serving"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Serving stack" "" \
+              "| | |" "|---|---|" \
+              "| TRT-LLM engine | <!-- TODO: compression project + run --> |" \
+              "| Inference engine | NVIDIA Triton + TRT-LLM Python backend |" \
+              "| Host | <!-- TODO: DGX Spark (gb10) / GKE L4 --> |" \
+              "| Model alias | \`<!-- TODO: served_model_name -->\` |" "" \
+              "## Deployment" "" \
+              "\`\`\`bash" \
+              "# Triton health" \
+              "curl http://localhost:8000/v2/health/ready" \
+              "# Direct Triton inference" \
+              "curl -X POST http://localhost:8000/v2/models/model/generate \\\\" \
+              "  -d '{\"inputs\":[{\"name\":\"text_input\",\"shape\":[1,1],\"datatype\":\"BYTES\",\"data\":[\"Patient presents with fever.\"]}]}'" \
+              "# Via model router (OpenAI-compat)" \
+              "curl -X POST http://localhost:8000/v1/chat/completions \\\\" \
+              "  -d '{\"model\":\"<!-- TODO -->\",\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'" \
+              "\`\`\`" "" \
+              "## Smoke test results" "" \
+              "<!-- TODO: sample prompts and responses -->" "" \
+              "## Next steps" "" "<!-- TODO -->")
           elif [ "${PROJECT_TYPE}" = "kfp-rag" ]; then
             CATS="miramar kubeflow rag qdrant"
             BODY=$(printf '%s\n' \
@@ -755,6 +824,22 @@ jobs:
               echo "1. Fill in \`serving-config.yaml\` — set \`compression.project\` and \`compression.run_id\`"
               echo "2. For GKE: Trigger **Build and Push** to bake \`engine_l4/\` into GAR image"
               echo "3. Trigger **Deploy** with \`host=dgx\` (engine_gb10) / \`host=agx\` (engine_sm87) / \`host=gke\` (engine_l4)"
+              echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
+              echo ""
+              echo "Prerequisites: Compiled TRT-LLM engines must exist at \`~/shared/huggingface-kfp/engines/<project>/<run_id>/engine_<target>/\`"
+            elif [ "${PROJECT_TYPE}" = "serving-triton-vllm" ]; then
+              echo "### Next steps"
+              echo "1. Set \`adapter.ft_project\` in \`serving-config.yaml\` (leave blank for base model only)"
+              echo "2. Trigger **Build and Push** with \`host=dgx\` (GHCR) or \`host=gke\` (GAR)"
+              echo "3. Trigger **Deploy** with \`host=dgx\` (K3s) or \`host=gke\` (L4 spot)"
+              echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
+              echo ""
+              echo "Prerequisites: GKE GPU node pool required for \`host=gke\`; adapter must be a gate-passing ft-eval run"
+            elif [ "${PROJECT_TYPE}" = "serving-triton-trtllm" ]; then
+              echo "### Next steps"
+              echo "1. Fill in \`serving-config.yaml\` — set \`compression.project\` and \`compression.run_id\`"
+              echo "2. Trigger **Build and Push** with \`host=dgx\` (engine_gb10/GHCR) or \`host=gke\` (engine_l4/GAR)"
+              echo "3. Trigger **Deploy** with \`host=dgx\` (K3s) or \`host=gke\` (L4 spot)"
               echo "4. Trigger **Undeploy** when done to stop costs / free GPU memory"
               echo ""
               echo "Prerequisites: Compiled TRT-LLM engines must exist at \`~/shared/huggingface-kfp/engines/<project>/<run_id>/engine_<target>/\`"

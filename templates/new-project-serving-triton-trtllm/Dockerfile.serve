@@ -1,0 +1,7 @@
+FROM nvcr.io/nvidia/tritonserver:25.06-trtllm-python-py3
+# TRT-LLM engine baked in at build time by build-push.yaml (staged from shared DGX storage).
+# Engine is GPU-arch specific: engine_l4/ for GKE, engine_gb10/ for DGX.
+# Model repo contains the Triton Python backend wrapping TRT-LLM's LLM API.
+COPY engine/ /engine/
+COPY model_repo/ /model_repo/
+ENV LD_PRELOAD=""

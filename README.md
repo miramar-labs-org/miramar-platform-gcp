@@ -215,8 +215,8 @@ ft-eval run PASS
 | 5 — Serve compiled TRT-LLM engine (DGX/AGX/GKE)         | `serving-trt-engine`                      | ✅ Implemented |
 | 6 — Model router service (stable `/v1` API, multi-model) | `deploy-model-router.yaml` (platform svc) | ✅ Implemented |
 | 7 — GKE Gateway API route (`https://api.miramar-labs.com/v1`) | `deploy-gke-gateway.yaml` / `undeploy-gke-gateway.yaml` | ✅ Implemented |
-| 8 — Serve via Triton + vLLM backend                      | `serving-triton-vllm`                     | 🔜 Planned     |
-| 9 — Serve via Triton + TensorRT-LLM backend              | `serving-triton-trtllm`                   | 🔜 Planned     |
+| 8 — Serve via Triton + vLLM backend                      | `serving-triton-vllm`                     | ✅ Implemented |
+| 9 — Serve via Triton + TensorRT-LLM backend              | `serving-triton-trtllm`                   | ✅ Implemented |
 
 Key properties:
 - **Manifest gate** — `deploy.yaml` reads `manifest.json` and blocks if `eval_passed` or `safety_passed` is false

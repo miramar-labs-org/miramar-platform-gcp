@@ -1,0 +1,23 @@
+runtime:
+  kind: triton-vllm
+
+model:
+  base_model_id: "{{HF_MODEL_ID}}"
+  served_model_name: "{{SERVED_MODEL_NAME}}"   # stable alias exposed to clients (e.g. biomistral-onc)
+
+adapter:
+  ft_project: ""   # name of the ft-eval project repo (e.g. qwen25-7b-arc-ft-eval-pipeline)
+  max_lora_rank: 16
+
+triton:
+  image_tag: "25.06-vllm-python-py3"
+  dtype: bfloat16
+  gpu_memory_utilization: 0.90
+  max_model_len: 2048
+  port: 8000
+
+deployment:
+  namespace: "{{PROJECT_NAME}}"
+  gpu_type: nvidia-l4
+  spot: true
+  gpu_count: 1

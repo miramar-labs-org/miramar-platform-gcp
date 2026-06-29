@@ -1,0 +1,429 @@
+name: Deploy
+
+# Deploys the Triton+TRT-LLM serving pod to GKE (L4 spot, GAR image) or DGX K3s (GHCR image).
+# The compiled TRT-LLM engine and model repository are baked into the image.
+# Registry is inferred from host: gke=GAR, dgx=GHCR.
+# Run undeploy.yaml when done to stop costs (GKE) or free GPU memory (K3s).
+# AGX is not supported — see Dockerfile.serve note.
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: Deployment target (gke, dgx)
+        required: false
+        default: dgx
+        type: choice
+        options:
+          - gke
+          - dgx
+      image_tag:
+        description: "Image tag to deploy (default: latest)"
+        required: false
+        default: latest
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_NAME: "{{PROJECT_NAME}}"
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.GKE_ZONE }}
+  GAR_REPO: ${{ vars.GAR_REPO }}
+
+jobs:
+  deploy-gke:
+    if: inputs.host == 'gke'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Expand GPU node pool (L4 spot)
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          echo "Triggering gke-expand-gpu (nvidia-l4, spot=true, namespace=$PROJECT_NAME)"
+          gh workflow run gke-expand-gpu.yaml \
+            --repo miramar-labs-org/miramar-platform-gcp \
+            --field namespace="$PROJECT_NAME" \
+            --field gpu_type=nvidia-l4 \
+            --field spot=true
+          echo "Waiting for GPU node pool to be ready..."
+          for i in $(seq 1 40); do
+            NODE=$(kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4 \
+              --no-headers 2>/dev/null | grep -c "Ready" || true)
+            if [[ "$NODE" -ge 1 ]]; then
+              echo "GPU node ready."
+              break
+            fi
+            echo "Waiting... ($i/40)"
+            sleep 15
+          done
+          kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Ensure HF_TOKEN secret
+        run: |
+          if ! kubectl get secret hf-token -n "$PROJECT_NAME" > /dev/null 2>&1; then
+            kubectl create secret generic hf-token \
+              --from-literal=token="${{ secrets.HF_TOKEN }}" \
+              -n "$PROJECT_NAME"
+          fi
+
+      - name: Build image URI
+        id: image_uri
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO}/${PROJECT_NAME}:${TAG}"
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      - name: Substitute and apply manifest
+        run: |
+          sed "s|IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/triton.yaml \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/triton -n "$PROJECT_NAME" --timeout=1800s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/triton 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 10
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          echo "Health check..."
+          curl -sf http://localhost:18000/v2/health/ready && echo "Triton ready."
+
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v2/models/model/generate \
+              -H "Content-Type: application/json" \
+              -d "{\"inputs\":[{\"name\":\"text_input\",\"shape\":[1,1],\"datatype\":\"BYTES\",\"data\":[\"${PROMPT}\"]},{\"name\":\"sampling_parameters\",\"shape\":[1,1],\"datatype\":\"BYTES\",\"data\":[\"{\\\"max_tokens\\\":100}\"]}]}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          out=[o['data'][0] for o in d.get('outputs',[]) if o['name']=='text_output']
+          print(out[0][:80] if out else 'NO_OUTPUT')
+          " 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/GKE_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="GKE_SERVING_ACTIVE" -f value="true"
+
+      - name: Register in GKE model router
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          REGISTER_SCRIPT: |
+            import yaml, os
+            with open('/tmp/router-config.yaml') as f:
+                config = yaml.safe_load(f) or {}
+            model_list = config.get('model_list') or []
+            with open('serving-config.yaml') as f:
+                serving = yaml.safe_load(f)
+            name = serving['model']['served_model_name']
+            ns   = os.environ['PROJECT_NAME']
+            model_list = [m for m in model_list if m.get('model_name') != name]
+            model_list.append({'model_name': name, 'litellm_params': {
+                'model': 'triton/model',
+                'api_base': f'http://triton.{ns}.svc.cluster.local:8000',
+                'api_key': 'none'}})
+            config['model_list'] = model_list
+            with open('/tmp/router-config-new.yaml', 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+        run: |
+          CONFIG_PATH="gke/model-router/litellm-config.yaml"
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
+          FILE_JSON=$(gh api "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" 2>/dev/null || true)
+          if [[ -n "$FILE_JSON" ]]; then
+            FILE_SHA=$(echo "$FILE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
+            echo "$FILE_JSON" | python3 -c "import json,sys,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())" > /tmp/router-config.yaml
+            printf '%s' "$REGISTER_SCRIPT" | python3
+            NEW_B64=$(base64 -w 0 /tmp/router-config-new.yaml)
+            gh api --method PUT \
+              "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" \
+              -f message="chore(model-router/gke): add ${SERVED_MODEL_NAME} [${PROJECT_NAME}]" \
+              -f content="${NEW_B64}" -f sha="${FILE_SHA}" > /dev/null
+            gh workflow run deploy-model-router.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field runner=gke
+          fi
+
+      - name: Update Open WebUI backend URL
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          BACKEND_URL="http://triton.${PROJECT_NAME}.svc.cluster.local:8000"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
+            -f name="GKE_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="GKE_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
+          OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_ACTIVE" \
+            --jq '.value // empty' 2>/dev/null || true)
+          if [[ "$OWUI_ACTIVE" == "true" ]]; then
+            gh workflow run deploy-openwebui.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field host=gke
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME (GKE)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Health | \`curl http://localhost:8000/v2/health/ready\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-dgx:
+    if: inputs.host == 'dgx'
+    runs-on: [self-hosted, dgx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
+
+      - name: Ensure namespace
+        run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Ensure GHCR pull secret
+        run: |
+          kubectl create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username=miramar-labs-org \
+            --docker-password="${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
+            -n "$PROJECT_NAME" \
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
+
+      - name: Build image URI
+        id: image_uri
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          URI="ghcr.io/miramar-labs-org/${PROJECT_NAME}:${TAG}"
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      - name: Unserve Ollama
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          LOADED=$(curl -s http://localhost:11434/api/ps 2>/dev/null \
+            | jq -r '.models[0].name // empty' || true)
+          if [[ -n "$LOADED" ]]; then
+            curl -s -X POST http://localhost:11434/api/generate \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"$LOADED\",\"keep_alive\":0}" > /dev/null || true
+          fi
+          gh api -X PATCH \
+            "repos/miramar-labs-org/miramar-platform-gcp/actions/variables/CURRENT_OLLAMA_MODEL" \
+            -f value="none" 2>/dev/null || true
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OLLAMA_ACTIVE" \
+            -f name="DGX_OLLAMA_ACTIVE" -f value="false" -f visibility="all" 2>/dev/null || true
+
+      - name: Undeploy active serving project
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          ACTIVE_REPO=$(gh api "orgs/miramar-labs-org/repos?type=public&per_page=100" \
+            --jq '[.[] | select(.topics != null and (.topics | index("miramar-project") != null))] | .[].name' \
+            | while read repo; do
+                val=$(gh api "repos/miramar-labs-org/${repo}/actions/variables/DGX_SERVING_ACTIVE" \
+                  --jq '.value // empty' 2>/dev/null || true)
+                [[ "$val" == "true" ]] && echo "$repo" && break
+              done || true)
+          if [[ -n "$ACTIVE_REPO" && "$ACTIVE_REPO" != "$PROJECT_NAME" ]]; then
+            echo "Undeploying active serving project: ${ACTIVE_REPO}"
+            gh workflow run undeploy.yaml \
+              --repo "miramar-labs-org/${ACTIVE_REPO}" || true
+            sleep 5
+            RUN_ID=$(gh run list --repo "miramar-labs-org/${ACTIVE_REPO}" \
+              --workflow=undeploy.yaml --limit=1 --json databaseId --jq '.[0].databaseId')
+            gh run watch "${RUN_ID}" --repo "miramar-labs-org/${ACTIVE_REPO}" --exit-status || true
+          fi
+
+      - name: Substitute and apply K3s manifest
+        run: |
+          sed "s|GHCR_IMAGE_PLACEHOLDER|${{ steps.image_uri.outputs.uri }}|g" k8s/triton-k3s.yaml \
+            | kubectl apply --validate=false -f -
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/triton -n "$PROJECT_NAME" --timeout=1800s
+
+      - name: Smoke test
+        run: |
+          kubectl port-forward svc/triton 18000:8000 -n "$PROJECT_NAME" &
+          PF_PID=$!
+          sleep 10
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          echo "Health check..."
+          curl -sf http://localhost:18000/v2/health/ready && echo "Triton ready."
+
+          PASS=0; FAIL=0
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            PROMPT=$(echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))")
+            [[ -z "$PROMPT" ]] && continue
+            RESP=$(curl -sf -X POST http://localhost:18000/v2/models/model/generate \
+              -H "Content-Type: application/json" \
+              -d "{\"inputs\":[{\"name\":\"text_input\",\"shape\":[1,1],\"datatype\":\"BYTES\",\"data\":[\"${PROMPT}\"]},{\"name\":\"sampling_parameters\",\"shape\":[1,1],\"datatype\":\"BYTES\",\"data\":[\"{\\\"max_tokens\\\":100}\"]}]}" \
+              2>&1 || echo "CURL_ERROR")
+            if echo "$RESP" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          out=[o['data'][0] for o in d.get('outputs',[]) if o['name']=='text_output']
+          print(out[0][:80] if out else 'NO_OUTPUT')
+          " 2>/dev/null; then
+              PASS=$((PASS+1))
+            else
+              echo "FAIL: $RESP"
+              FAIL=$((FAIL+1))
+            fi
+          done < smoke_test_prompts.jsonl
+
+          echo "Smoke tests: $PASS passed, $FAIL failed"
+          [[ $FAIL -eq 0 ]] || exit 1
+
+      - name: Set serving state
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_SERVING_ACTIVE" \
+            -f value="true" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="DGX_SERVING_ACTIVE" -f value="true"
+
+      - name: Record Triton VRAM
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          TRITON_MiB=$(nvidia-smi --query-compute-apps=process_name,used_memory \
+            --format=csv,noheader 2>/dev/null \
+            | grep -iE "tritonserver|trtllm" \
+            | awk -F',' '{gsub(/[^0-9]/,"",$2); sum+=$2} END{print sum+0}' || echo 0)
+          TRITON_GB=$(( ${TRITON_MiB:-0} / 1024 ))
+          gh api --method PATCH \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_TRITON_VRAM_GB" \
+            -f value="${TRITON_GB}" 2>/dev/null || \
+          gh api --method POST \
+            "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables" \
+            -f name="DGX_TRITON_VRAM_GB" -f value="${TRITON_GB}"
+
+      - name: Wire to DGX model router
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          REGISTER_SCRIPT: |
+            import yaml, os
+            with open('/tmp/router-config.yaml') as f:
+                config = yaml.safe_load(f) or {}
+            model_list = config.get('model_list') or []
+            with open('serving-config.yaml') as f:
+                serving = yaml.safe_load(f)
+            name = serving['model']['served_model_name']
+            ns   = os.environ['PROJECT_NAME']
+            model_list = [m for m in model_list if m.get('model_name') != name]
+            model_list.append({'model_name': name, 'litellm_params': {
+                'model': 'triton/model',
+                'api_base': f'http://triton.{ns}.svc.cluster.local:8000',
+                'api_key': 'none'}})
+            config['model_list'] = model_list
+            with open('/tmp/router-config-new.yaml', 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+        run: |
+          CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
+          SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
+          if kubectl get namespace model-router --ignore-not-found 2>/dev/null | grep -q model-router; then
+            FILE_JSON=$(gh api "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" 2>/dev/null || true)
+            if [[ -n "$FILE_JSON" ]]; then
+              FILE_SHA=$(echo "$FILE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
+              echo "$FILE_JSON" | python3 -c "import json,sys,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())" > /tmp/router-config.yaml
+              printf '%s' "$REGISTER_SCRIPT" | python3
+              NEW_B64=$(base64 -w 0 /tmp/router-config-new.yaml)
+              gh api --method PUT \
+                "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" \
+                -f message="chore(model-router): add ${SERVED_MODEL_NAME} [${PROJECT_NAME}]" \
+                -f content="${NEW_B64}" -f sha="${FILE_SHA}" > /dev/null
+              gh workflow run deploy-model-router.yaml \
+                --repo miramar-labs-org/miramar-platform-gcp \
+                --field runner=dgx
+            fi
+          else
+            BACKEND_URL="http://triton.${PROJECT_NAME}.svc.cluster.local:8000"
+            gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
+              -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all" \
+            || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+              -f name="DGX_OPENWEBUI_API_URL" -f value="${BACKEND_URL}" -f visibility="all"
+            OWUI_ACTIVE=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
+              --jq '.value // empty' 2>/dev/null || true)
+            if [[ "$OWUI_ACTIVE" == "true" ]]; then
+              gh workflow run deploy-openwebui.yaml \
+                --repo miramar-labs-org/miramar-platform-gcp \
+                --field host=dgx
+            fi
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy: $PROJECT_NAME (DGX K3s)"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ steps.image_uri.outputs.uri }}\` |"
+            echo "| Namespace | \`$PROJECT_NAME\` |"
+            echo "| Health | \`curl http://localhost:8000/v2/health/ready\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
