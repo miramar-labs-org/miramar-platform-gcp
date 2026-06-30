@@ -147,13 +147,13 @@ Live templates:
 | `kfp` | Blank KFP v2 pipeline scaffold with GPU stage stub, MLflow tracking, and Nsight profiling label |
 | `kfp-rag` | RAG pipeline — ingest\_documents → retrieval\_eval → generation\_eval → faithfulness\_eval → safety\_eval → deployment\_gate; Qdrant-backed, LLM-as-judge, CPU-only |
 | `kfp-nemo-curator` | NeMo Curator data-curation pipeline — extract\_text → quality\_filter → deduplication → pii\_redaction → curator\_report; CPU + GPU (RAPIDS cuDF) |
-| `serving-vllm` | vLLM + LoRA adapter serving on DGX/AGX (K3s) or GKE L4 spot — consumes the adapter bundle published by a `ft-eval` project |
-| `serving-nim` | Stock NGC NIM model serving on DGX/AGX (K3s) or GKE L4 spot |
+| `serving-vllm` | vLLM + LoRA adapter serving on DGX (K3s) or GKE L4 spot — consumes the adapter bundle published by a `ft-eval` project |
+| `serving-nim` | Stock NGC NIM model serving on DGX (K3s) or GKE L4 spot |
 | `serving-llm-nim` | Multi-LLM NIM runtime — local or HuggingFace model source auto-detected; GPU protection pattern (auto-undeploy active serving project) |
-| `serving-trt-fp8` | FP8-quantized checkpoint served via vLLM (`--quantization=fp8`) on DGX/AGX (K3s) or GKE L4 spot |
-| `serving-trt-engine` | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX/AGX (K3s) or GKE L4 spot; per-arch engine mapping (gb10/sm87/l4) |
-| `serving-triton-vllm` | Triton Inference Server + vLLM Python backend on DGX (K3s) or GKE L4 spot; LoRA adapter support; LiteLLM `triton/model` provider; NOT AGX |
-| `serving-triton-trtllm` | Triton Inference Server + TRT-LLM Python backend on DGX (K3s) or GKE L4 spot; GPU-arch engine baked at build time (`engine_gb10/` DGX, `engine_l4/` GKE); ~30s cold start; NOT AGX |
+| `serving-trt-fp8` | FP8-quantized checkpoint served via vLLM (`--quantization=fp8`) on DGX (K3s) or GKE L4 spot |
+| `serving-trt-engine` | Compiled TRT-LLM engine served via `tensorrt_llm.serve` on DGX (K3s) or GKE L4 spot; per-arch engine mapping (gb10/l4) |
+| `serving-triton-vllm` | Triton Inference Server + vLLM Python backend on DGX (K3s) or GKE L4 spot; LoRA adapter support; LiteLLM `triton/model` provider |
+| `serving-triton-trtllm` | Triton Inference Server + TRT-LLM Python backend on DGX (K3s) or GKE L4 spot; GPU-arch engine baked at build time (`engine_gb10/` DGX, `engine_l4/` GKE); ~30s cold start |
 
 Templates form a complete fine-tune → serve arc. PHI stays on DGX throughout; only approved, gate-passed model artifacts cross to GCP.
 
@@ -211,10 +211,10 @@ ft-eval run PASS
 | -------------------------------------------------------- | ----------------------------------------- | -------------- |
 | 1 — Fine-tune + eval gate                                | `ft-eval`                                 | ✅ Implemented |
 | 1 — Publish adapter bundle to GCS                        | `publish-adapter.yaml` (in `ft-eval`)     | ✅ Implemented |
-| 2 — Serve via vLLM + LoRA adapter (DGX/AGX/GKE)         | `serving-vllm`                            | ✅ Implemented |
-| 3 — Serve via NIM (DGX/AGX/GKE)                         | `serving-nim`                             | ✅ Implemented |
-| 4 — Serve FP8-quantized checkpoint via vLLM (DGX/AGX/GKE) | `serving-trt-fp8`                       | ✅ Implemented |
-| 5 — Serve compiled TRT-LLM engine (DGX/AGX/GKE)         | `serving-trt-engine`                      | ✅ Implemented |
+| 2 — Serve via vLLM + LoRA adapter (DGX/GKE)             | `serving-vllm`                            | ✅ Implemented |
+| 3 — Serve via NIM (DGX/GKE)                             | `serving-nim`                             | ✅ Implemented |
+| 4 — Serve FP8-quantized checkpoint via vLLM (DGX/GKE)   | `serving-trt-fp8`                         | ✅ Implemented |
+| 5 — Serve compiled TRT-LLM engine (DGX/GKE)             | `serving-trt-engine`                      | ✅ Implemented |
 | 6 — Model router service (stable `/v1` API, multi-model) | `deploy-model-router.yaml` (platform svc) | ✅ Implemented |
 | 7 — GKE Gateway API route (`https://api.miramar-labs.com/v1`) | `deploy-gke-gateway.yaml` / `undeploy-gke-gateway.yaml` | ✅ Implemented |
 | 8 — Serve via Triton + vLLM backend                      | `serving-triton-vllm`                     | ✅ Implemented |
@@ -266,10 +266,9 @@ ssh -L 8001:localhost:8001 \
 ```
 
 Stack order:
-- **DGX:** K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
-- **AGX:** K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
+- K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
 
-Ollama runs as a host systemd service (independent of k3s) on both machines.
+Ollama runs as a host systemd service (independent of k3s).
 
 ---
 

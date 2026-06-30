@@ -7,7 +7,7 @@
 | Workflow          | Trigger | Description                                                           |
 | ----------------- | ------- | --------------------------------------------------------------------- |
 | Build and Push    | Manual  | Bake engine_l4/ into TRT-LLM image, push to GAR (GKE only)           |
-| Deploy            | Manual  | Deploy TRT-LLM to DGX (engine_gb10) / AGX (engine_sm87) / GKE (L4)  |
+| Deploy            | Manual  | Deploy TRT-LLM to DGX (engine_gb10) or GKE (L4)                      |
 | Undeploy          | Manual  | Remove deployment; GKE also tears down GPU node pool                  |
 
 ## Quick start
@@ -22,9 +22,6 @@
    curl http://localhost:8000/v1/models
    ```
 5. Run **Undeploy** when done
-
-### AGX (no build needed)
-Same as DGX but `host=agx` and engine subdir is `engine_sm87/`.
 
 ### GKE
 1. Run **Build and Push** to bake `engine_l4/` into a GAR image
