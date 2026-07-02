@@ -4,8 +4,3 @@ model_list:
     api_key: none
     model: openai/meta/llama-3.1-8b-instruct-dgx-spark
   model_name: meta/llama-3.1-8b-instruct-dgx-spark
-- litellm_params:
-    api_base: http://vllm.qwen25-7b-ftuned-serving-vllm.svc.cluster.local:8000/v1
-    api_key: none
-    model: openai/qwen25-arc
-  model_name: qwen25-arc
