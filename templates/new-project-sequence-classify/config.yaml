@@ -1,0 +1,48 @@
+description: "{{DESCRIPTION}}"
+
+model:
+  id: {{HF_MODEL_ID}}
+  type: sequence_classification   # drives AutoModelForSequenceClassification
+  num_labels: 2                   # 2 for binary (pathogenic/benign), N for multi-class
+
+# Single dataset block — sequence classification uses one dataset at a time
+dataset:
+  id: {{HF_DATASET_ID}}
+  loader_key: null                # defaults to the last segment of id; override if LOADERS key differs
+  split_strategy: random          # "random" or "chromosome" (chromosome requires chromosome field in rows)
+  test_chromosome: chr22          # held-out test chromosome (only used when split_strategy=chromosome)
+  val_chromosome: chr21           # held-out val chromosome  (only used when split_strategy=chromosome)
+
+# LoRA — only used when training.use_lora: true (default: false for small encoders)
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.1
+  target_modules: null            # null = PEFT auto-detect; list module names for explicit control
+  bias: "none"
+
+training:
+  num_epochs: 3
+  learning_rate: 0.00002          # 2e-5 is a standard starting point for BERT fine-tuning
+  batch_size: 32                  # larger batches work well for small models (DNABERT-2 is 117M)
+  gradient_accumulation_steps: 1
+  weight_decay: 0.01
+  max_length: 512                 # max token length; sequences longer than this are truncated
+  bf16: true
+  use_lora: false                 # false = full fine-tune (recommended for models < 500M params)
+  val_size: 0.1                   # fraction for val (random split only)
+  test_size: 0.1                  # fraction for test (random split only)
+  shuffle_seed: 42
+
+eval:
+  sample_size: 500                # val rows sampled for baseline_eval; all test rows used for post_finetune_eval
+  gate_accuracy_delta: -0.02      # min accuracy change: post_finetune - baseline >= -0.02
+  gate_auc_threshold: 0.70        # min post-FT AUC-ROC score to pass gate
+
+nsight_interpret:
+  ollama_model: phi4
+
+# wandb:
+#   enabled: false
+#   project: "{{PROJECT_NAME}}"
+#   entity: ""

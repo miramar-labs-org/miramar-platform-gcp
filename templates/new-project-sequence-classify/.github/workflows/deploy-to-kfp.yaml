@@ -1,0 +1,79 @@
+name: Deploy to KFP
+
+# Build pipeline.py from notebook.ipynb, smoke-test processors.py,
+# compile to YAML, and submit a run to Kubeflow Pipelines.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_name:
+        description: "Run name (e.g. run-001). Auto-increments from last entry in runs/ if omitted."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install KFP dependencies
+        run: |
+          pip install --quiet kfp>=2.0.0 kfp-kubernetes pyyaml scikit-learn mlflow
+
+      - name: Build pipeline.py
+        run: python3 scripts/build_pipeline.py
+
+      - name: Smoke-test processors.py
+        run: |
+          python3 - <<'PYEOF'
+          import importlib.util, pathlib, sys
+          spec = importlib.util.spec_from_file_location("processors", "processors.py")
+          mod  = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          assert hasattr(mod, "PROCESSORS"), "processors.py must define PROCESSORS dict"
+          assert hasattr(mod, "LOADERS"),    "processors.py must define LOADERS dict"
+          assert mod.PROCESSORS,             "PROCESSORS dict is empty — add at least one processor"
+          assert mod.LOADERS,                "LOADERS dict is empty — add at least one loader"
+          print(f"OK — {len(mod.PROCESSORS)} processor(s), {len(mod.LOADERS)} loader(s)")
+          print("  Processors:", list(mod.PROCESSORS.keys()))
+          print("  Loaders:   ", list(mod.LOADERS.keys()))
+          PYEOF
+
+      - name: Compile check
+        run: |
+          python3 -c "
+          from kfp import compiler
+          from pipeline import pipeline
+          compiler.Compiler().compile(pipeline, '/tmp/p.yaml')
+          print('Compile check: OK')
+          "
+
+      - name: Deploy
+        env:
+          KFP_HOST: http://localhost:8890
+          MLFLOW_TRACKING_URI: http://localhost:5000
+        run: |
+          RUN_ARG="${{ inputs.run_name }}"
+          if [ -n "${RUN_ARG}" ]; then
+            python3 scripts/deploy_pipeline.py --run-name "${RUN_ARG}"
+          else
+            python3 scripts/deploy_pipeline.py
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## KFP Sequence-Classify Deploy"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Run name | \`${{ inputs.run_name || '(auto)' }}\` |"
+            echo "| KFP UI | http://localhost:8890 |"
+            echo "| MLflow UI | http://localhost:5000 |"
+          } >> "$GITHUB_STEP_SUMMARY"

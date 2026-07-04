@@ -45,7 +45,7 @@ DGX_TRITON_TOTAL_GB=0
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
   url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-triton-vllm") then "serving-triton-vllm" elif index("miramar-serving-triton-trtllm") then "serving-triton-trtllm" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-llm-nim") then "serving-llm-nim" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
+  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-sequence-classify") then "sequence-classify" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-triton-vllm") then "serving-triton-vllm" elif index("miramar-serving-triton-trtllm") then "serving-triton-trtllm" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-llm-nim") then "serving-llm-nim" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
   desc=$(echo    "$repo_json" | jq -r '.description // ""')
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
@@ -110,8 +110,8 @@ while IFS= read -r repo_json; do
     serving_html="<span class=\"serving-none\">—</span>"
   fi
 
-  # --- Results link (ft-eval only, and only once runs/ dir exists — created by /kfp-deploy) ---
-  if [[ "$type" == "ft-eval" ]] && \
+  # --- Results link (ft-eval / sequence-classify — once runs/ dir exists, created by /kfp-deploy) ---
+  if [[ "$type" == "ft-eval" || "$type" == "sequence-classify" ]] && \
      GH_TOKEN="$ADMIN_TOKEN" gh api "repos/${ORG}/${name}/contents/runs" &>/dev/null; then
     results_html="<a href=\"https://github.com/${ORG}/${name}/blob/main/runs/RUNS.md\" target=\"_blank\" class=\"results-link\">&#x1F4CA; Runs</a>"
   else
@@ -351,6 +351,7 @@ cat > "$OUTPUT" <<HTMLEOF
   .badge-kfp-rag      { background: #2a0a14; color: #fb7185; }
   .badge-kfp-nemo-curator  { background: #0a2d1a; color: #86efac; }
   .badge-ft-eval      { background: #1a1a4f; color: #a78bfa; }
+  .badge-sequence-classify { background: #0a2a1a; color: #4ade80; }
   .badge-serving-vllm        { background: #0c2a4a; color: #38bdf8; }
   .badge-serving-nim         { background: #001a2a; color: #67e8f9; }
   .badge-serving-llm-nim    { background: #0a1a2a; color: #38bdf8; }
@@ -611,6 +612,7 @@ ${ROWS}
       <option value="kfp-rag">kfp-rag &mdash; KFP RAG pipeline (Qdrant + LLM-as-judge)</option>
       <option value="kfp-nemo-curator">kfp-nemo-curator &mdash; NeMo Curator data-curation pipeline (CPU + GPU)</option>
       <option value="ft-eval">ft-eval &mdash; KFP eval-first fine-tuning pipeline</option>
+      <option value="sequence-classify">sequence-classify &mdash; Sequence-encoder classification (DNA/protein)</option>
       <option value="nemo-ft-eval">nemo-ft-eval &mdash; NeMo Customizer fine-tuning + eval</option>
       <option value="serving-vllm">serving-vllm &mdash; vLLM LoRA adapter serving</option>
       <option value="serving-nim">serving-nim &mdash; NIM model serving (DGX + GKE)</option>
