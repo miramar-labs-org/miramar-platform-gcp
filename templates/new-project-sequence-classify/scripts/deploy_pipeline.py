@@ -70,28 +70,6 @@ def main() -> None:
     project_name = HERE.name
     pipeline_name = project_name
 
-    # Register or version the pipeline
-    try:
-        kfp_pipeline = client.upload_pipeline(compiled_path, pipeline_name=pipeline_name)
-        pipeline_id = kfp_pipeline.pipeline_id
-        print(f"Registered pipeline: {pipeline_id}")
-    except Exception:
-        try:
-            pipelines = client.list_pipelines(
-                filter=json.dumps({"predicates": [
-                    {"key": "name", "op": "EQUALS", "string_value": pipeline_name}
-                ]})
-            )
-            pipeline_id = pipelines.pipelines[0].pipeline_id
-            pv = client.upload_pipeline_version(
-                compiled_path,
-                pipeline_version_name=run_name,
-                pipeline_id=pipeline_id,
-            )
-            print(f"Uploaded pipeline version: {pv.pipeline_version_id}")
-        except Exception as e:
-            print(f"Warning: pipeline registration: {e}")
-
     # Create or fetch experiment
     experiment_name = project_name
     try:
