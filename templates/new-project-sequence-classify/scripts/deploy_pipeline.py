@@ -114,12 +114,17 @@ def main() -> None:
     model_id = cfg["model"]["id"]
     dataset_id = cfg["dataset"]["id"]
 
+    mlflow_tracking_uri = "http://mlflow-tracking.mlflow-system.svc.cluster.local"
+
     run = client.create_run_from_pipeline_package(
         pipeline_file=compiled_path,
         arguments={
             "model_id": model_id,
             "dataset_id": dataset_id,
             "config_yaml": config_yaml_str,
+            "run_id": run_name,
+            "mlflow_tracking_uri": mlflow_tracking_uri,
+            "mlflow_experiment_name": experiment_name,
         },
         run_name=run_name,
         experiment_name=experiment_name,
