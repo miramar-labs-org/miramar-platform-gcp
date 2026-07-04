@@ -29,11 +29,14 @@ Labels must be integers. For binary classification: 0 = negative/benign, 1 = pos
 
 ## Example: wanglab/variant_effect_coding (DNABERT-2 + ClinVar experiment)
 
-  Dataset: 50K ClinVar pathogenic (label=1) + gnomAD benign (label=0) sequences.
-  Each row: {"sequence": ATCG string, "label": int, "chrom": chromosome string}
-  Split strategy: chromosome — hold out chr22 (test) and chr21 (val).
+  Dataset: 48,850 train / 1,233 test rows. ~78% Benign (label=0), ~22% Pathogenic (label=1).
+  Actual HF schema: {"ID", "question", "answer", "reference_sequence", "variant_sequence"}
+  Label derived from answer: starts with "Benign" → 0, "Pathogenic; ..." → 1.
+  Input sequence: variant_sequence (200bp DNA window around the variant).
+  Split strategy: random — the dataset has no chromosome field.
 
-  Processor output adds "chromosome" field for the chromosome-based split in prepare_dataset.
+  Verify a HuggingFace dataset's actual schema (`load_dataset(...).features`) before writing
+  a processor — card descriptions often don't match the real column names.
 """
 
 from datasets import load_dataset
@@ -46,16 +49,19 @@ from datasets import load_dataset
 def process_variant_effect_coding(example):
     """Process wanglab/variant_effect_coding row.
 
-    Raw schema: {"sequence": str, "label": int, "chrom": str, ...}
-    - label 0 = benign  (gnomAD common variants)
-    - label 1 = pathogenic (ClinVar pathogenic/likely pathogenic)
-    - chrom  e.g. "chr3", "chrX" — used for chromosome-based split
+    Actual schema: {"ID": str, "question": str, "answer": str,
+                    "reference_sequence": str, "variant_sequence": str}
+    - answer "Benign" → label 0
+    - answer "Pathogenic; <disease>" → label 1
+    - variant_sequence: 200bp DNA window containing the variant
     """
+    answer = str(example.get("answer", "")).strip()
+    label = 0 if answer.startswith("Benign") else 1
     return {
-        "sequence":   str(example.get("sequence", "")),
-        "label":      int(example.get("label", 0)),
+        "sequence":   str(example.get("variant_sequence", "")),
+        "label":      label,
         "source":     "variant_effect_coding",
-        "chromosome": str(example.get("chrom", "unknown")),
+        "chromosome": "unknown",
     }
 
 

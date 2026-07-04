@@ -102,21 +102,20 @@ Datasets: `InstaDeepAI/nucleotide_transformer_downstream_tasks_revised` (18 task
 `wanglab/variant_effect_coding` (50K ClinVar+gnomAD pathogenic/benign), `m42-health/variant-benchmark`
 (7 tasks including coding/non-coding pathogenicity).
 
-### Experiment S1 — DNABERT-2 + ClinVar variant classification ⭐ Start here
+### Experiment S1 — DNABERT-2 + ClinVar variant classification ✅ Done
 
-Fine-tune DNABERT-2 (~117M params, BERT encoder, BPE tokenization) on `wanglab/variant_effect_coding`
-(50K ClinVar pathogenic + gnomAD benign sequences). Binary classification: pathogenic vs benign.
-Input: 128-bp ATCG sequence centered on the variant. Output: pathogenic probability.
+Fine-tuned DNABERT-2 (~117M params, BERT encoder, BPE tokenization) on `wanglab/variant_effect_coding`.
+Binary classification: pathogenic vs benign. Input: 200bp `variant_sequence` window. Output: pathogenic probability.
 
 - Model: `zhihan1996/DNABERT-2-117M` (ungated, ~117M params, fits in <4 GB)
-- Dataset: `wanglab/variant_effect_coding` (50K labeled, split by chromosome for eval)
+- Dataset: `wanglab/variant_effect_coding` — actual HF schema is `{ID, question, answer, reference_sequence, variant_sequence}`, 48,850 train / 1,233 test rows, ~78% benign / ~22% pathogenic; label derived from the `answer` text
 - Task: binary classification (pathogenic=1 / benign=0) via classification head on [CLS] token
 - Eval metric: accuracy + AUC-ROC (standard for imbalanced variant datasets)
-- New template needed: `kfp-sequence-classify` — sequence tokenizer, no chat template, classification head, no generation
-- Training: fast (~1–2h on DGX for 50K sequences at batch=32); no time budget needed
-- Key question: can a small pre-trained DNA encoder learn pathogenicity signal from sequence context alone?
+- Template: `kfp-sequence-classify` (`templates/new-project-sequence-classify/`) — sequence tokenizer, no chat template, classification head, no generation. Bundled DNABERT-2 code imports a vendored `flash_attn_triton` module that calls a removed Triton `trans_b` API; the template builds the model via `AutoConfig`/`from_config` and nulls out `flash_attn_qkvpacked_func` so it falls back to standard attention.
+- Result: project `dnabert2-clinvar-kfp-sequence-classify`, run-017 PASS — baseline AUC 0.50 → post-FT AUC 0.91 (accuracy 0.60 → 0.84), deployment gate passed
+- Key question answered: yes — a small pre-trained DNA encoder learns pathogenicity signal from sequence context alone
 
-**Stretch:** after DNABERT-2, swap in Nucleotide Transformer 2.5B for the same task — measure the
+**Stretch (still open):** swap in Nucleotide Transformer 2.5B for the same task — measure the
 accuracy delta from 117M → 2.5B parameters. Classic scaling experiment.
 
 ---

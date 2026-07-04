@@ -58,9 +58,7 @@ model:
 dataset:
   id: wanglab/variant_effect_coding
   loader_key: variant_effect_coding  # must match a key in processors.py LOADERS
-  split_strategy: chromosome         # chromosome = held-out chr for test
-  test_chromosome: chr22
-  val_chromosome: chr21
+  split_strategy: random             # this dataset has no chromosome field — use random
 
 training:
   batch_size: 32

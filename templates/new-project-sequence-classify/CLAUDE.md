@@ -121,6 +121,23 @@ gh workflow run deploy-to-kfp.yaml --field run_name=run-001
 - GPU steps: `.set_gpu_limit(1).set_memory_limit("64G")` in the pipeline cell
 - Secret env vars (HF_TOKEN, etc.) are injected from the `mlabs-api-keys` K8s secret
 
+## Model construction pattern (all three eval/train components)
+
+Models are built via `AutoConfig.from_pretrained(...)` + `AutoModelForSequenceClassification
+.from_config(...)`, then the state dict is loaded manually — **not** a single
+`from_pretrained(..., num_labels=...)` call. This is required for `trust_remote_code=True`
+models (DNABERT-2 and similar) whose bundled custom code:
+- may reference config attributes (e.g. `pad_token_id`) not present in `config.json` —
+  patched onto the loaded `AutoConfig` object before model construction
+- may bundle a custom attention path (e.g. a vendored `flash_attn_triton.py`) that imports
+  cleanly but crashes on first forward pass against the installed Triton version — after
+  `from_config(...)`, the component scans `sys.modules` for the loaded custom module and nulls
+  out its flash-attention function so it falls back to standard PyTorch attention
+
+If you swap in a different `trust_remote_code` sequence-encoder model, check whether it has
+similar bundled-attention or config-attribute assumptions before assuming `from_pretrained`
+alone will work.
+
 ## Compile check
 
 ```sh
