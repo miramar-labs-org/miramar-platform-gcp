@@ -349,20 +349,20 @@ cat > "$OUTPUT" <<HTMLEOF
   }
   .badge-kfp          { background: #0c2d6b; color: #79c0ff; }
   .badge-kfp-rag      { background: #2a0a14; color: #fb7185; }
-  .badge-kfp-nemo-curator  { background: #0a2d1a; color: #86efac; }
+  .badge-kfp-nemo-curator  { background: #052e22; color: #34d399; }
   .badge-ft-eval      { background: #1a1a4f; color: #a78bfa; }
-  .badge-sequence-classify { background: #0a2a1a; color: #4ade80; }
+  .badge-sequence-classify { background: #1a2e05; color: #a3e635; }
   .badge-serving-vllm        { background: #0c2a4a; color: #38bdf8; }
   .badge-serving-nim         { background: #001a2a; color: #67e8f9; }
-  .badge-serving-llm-nim    { background: #0a1a2a; color: #38bdf8; }
+  .badge-serving-llm-nim    { background: #1e1b4a; color: #818cf8; }
   .badge-serving-trt-fp8          { background: #1a1200; color: #fcd34d; }
   .badge-serving-trt-engine       { background: #2a1500; color: #fb923c; }
-  .badge-serving-triton-vllm      { background: #0a1a2e; color: #60a5fa; }
-  .badge-serving-triton-trtllm    { background: #1a0e00; color: #f97316; }
-  .badge-nemo-ft-eval        { background: #064e3b; color: #6ee7b7; }
+  .badge-serving-triton-vllm      { background: #042f2a; color: #2dd4bf; }
+  .badge-serving-triton-trtllm    { background: #2a0a0a; color: #ef4444; }
+  .badge-nemo-ft-eval        { background: #3b0764; color: #e879f9; }
   .badge-nemo                { background: #1a4731; color: #3fb950; }
   .badge-other        { background: #2d2b00; color: #d29922; }
-  .badge-default      { background: #2d2b00; color: #d29922; }
+  .badge-default      { background: #1e293b; color: #94a3b8; }
   .badge-dgx      { background: #1a3a2a; color: #76d7a8; }
   .badge-agx      { background: #2a1a3a; color: #c792ea; }
   .badge-gke      { background: #0f2a1a; color: #4ade80; }
