@@ -6,9 +6,20 @@
 
 ## Answer
 
-Aaron built a **hybrid DGX + GCP AI platform** for running the full applied LLM lifecycle: fine-tuning, evaluation, safety gating, adapter publishing, model serving, RAG evaluation, GPU profiling, observability, and agent-assisted operations.
+Aaron built a **hybrid DGX + GCP AI workload platform** for generating, validating, serving, profiling, and operating reproducible AI projects across local GPU systems and Google Cloud.
 
-This is not a sample app, a notebook demo, or a loose collection of scripts. It is a working AI platform pattern for developing, validating, serving, profiling, and operating applied LLM workloads across local GPU systems and Google Cloud.
+This is not a sample app, a notebook demo, or a loose collection of scripts. It is a working platform pattern for the applied AI lifecycle:
+
+```text
+data curation
+  → supervised fine-tuning / evaluation
+  → RAG evaluation
+  → sequence classification
+  → safety and quality gates
+  → artifact publishing
+  → model serving / routing / gateway
+  → profiling, observability, and agent-assisted operations
+```
 
 The platform connects:
 
@@ -23,27 +34,27 @@ DGX/AGX k3s + GCP/GKE
   ↓
 Kubeflow Pipelines · MLflow · Qdrant · NeMo/NIM · Ollama · Nsight Operator
   ↓
-ft-eval · serving-vllm · serving-nim · serving-trt-fp8 · serving-trt-engine · RAG pipelines
+Project factory templates for LLMs, RAG, data curation, serving, and sequence models
   ↓
-GitHub Pages dashboard · project factory · agent-assisted run operations
+GitHub Pages dashboard · run histories · agent-assisted run operations
 ```
 
-The core lifecycle is:
+The core idea is simple: create a reusable factory for real AI workloads, then prove it through concrete projects that run end to end, record metrics, publish artifacts only after gates pass, and expose enough documentation that the work is reviewable.
 
-```text
-Fine-tune and evaluate locally on DGX
-  → gate on quality and safety
-  → publish only approved non-PHI artifacts
-  → serve on DGX / AGX / GKE
-  → observe, profile, benchmark, and iterate
-```
+## Validated workloads
 
-The platform has been validated through concrete workloads:
+The platform has been validated through multiple workload families:
 
-* **Qwen2.5 ARC fine-tuning/eval** — a gate-passed LoRA fine-tuning pipeline with baseline eval, fine-tune, post-FT eval, safety eval, and deployment gate.
-* **BioMistral oncology fine-tuning** — a gate-passed oncology QA LoRA run with adapter artifacts published to GCS.
+* **Qwen2.5 ARC fine-tuning/eval** — a gate-passed LoRA fine-tuning pipeline with baseline evaluation, fine-tuning, post-fine-tune evaluation, safety evaluation, and deployment gate.
+* **Qwen2.5 MedMCQA fine-tuning/eval** — a medical exam QA pipeline that improved measured accuracy while preserving safety score.
+* **BioMistral oncology fine-tuning** — a domain-specific oncology QA LoRA run with adapter artifacts published to GCS.
+* **MedGemma 27B MedMCQA fine-tuning/eval** — a large-model medical QA run that passed safety/evaluation gates while also exposing the practical constraint that a short training budget produced no accuracy gain.
 * **Qwen2.5 ARC RAG** — a gate-passed RAG pipeline with retrieval, generation, faithfulness, citation coverage, unsupported-claim, and safety metrics.
-* **Reusable serving templates** — project types for vLLM LoRA serving, NIM serving, FP8 vLLM serving, and TensorRT-LLM engine serving across DGX, AGX, and GKE targets.
+* **NeMo Curator verification** — a KFP data-curation pipeline that extracts text, applies GPU quality filtering, deduplicates documents, redacts PII, writes curated output, and logs MLflow metrics/artifacts.
+* **DNABERT2 ClinVar sequence classification** — a non-generative biological sequence-classification pipeline using `AutoModelForSequenceClassification` to predict variant pathogenicity from raw DNA sequence inputs.
+* **Reusable serving templates** — project types for vLLM LoRA serving, NIM serving, multi-LLM NIM serving, FP8 vLLM serving, TensorRT-LLM engine serving, Triton + vLLM, and Triton + TensorRT-LLM across DGX, AGX, and GKE targets.
+
+That range matters. It shows the platform is not merely an LLM demo. It can support multiple applied AI patterns: generative LLM fine-tuning, RAG evaluation, data curation, model serving, inference optimization, and encoder-based biological sequence classification.
 
 ## What the platform includes
 
@@ -58,14 +69,16 @@ The repo demonstrates:
 * GHCR and Artifact Registry container publishing.
 * Workload Identity Federation for keyless GitHub Actions authentication to GCP.
 * DGX/AGX k3s clusters for local GPU platform services.
-* Kubeflow Pipelines for fine-tuning, evaluation, RAG, and future optimization pipelines.
-* MLflow for experiment tracking and metric history.
+* Kubeflow Pipelines for fine-tuning, evaluation, RAG, data curation, and sequence-classification workloads.
+* MLflow for experiment tracking, metrics, and artifact history.
 * Qdrant for vector search and RAG.
 * NeMo/NIM and Ollama for local model serving.
 * Nsight Operator for CUDA/NVTX profiling through Kubernetes pod injection.
+* vLLM, NIM, TensorRT-LLM, and Triton serving project templates.
+* GKE Gateway / stable API routing patterns for external inference endpoints.
 * GitHub Pages platform dashboard with service state, project inventory, and operational links.
 * A project factory that scaffolds new applied AI repos with JupyterLab integration, GitHub Actions workflows, platform endpoints, documentation, and dashboard registration.
-* Agent-assisted operations through Claude/Codex workflows for deployment, run monitoring, model-card lookup, status logging, and Nsight report interpretation.
+* Agent-assisted operations through Claude/Codex workflows for deployment, run monitoring, model-card lookup, status logging, failure triage, and Nsight report interpretation.
 * Optional W&B, LangSmith, and Slack integrations for external tracking, tracing, and operational notifications.
 * Repo-quality automation for Terraform, shell, YAML, Dockerfiles, GitHub Actions, and formatting checks.
 
@@ -89,11 +102,15 @@ DGX-class GPU hardware
 Kubeflow Pipelines
 MLflow
 Qdrant
-NIM
+NeMo / NIM
 Ollama
 vLLM
 TensorRT-LLM
+Triton
 Nsight Operator
+RAPIDS / cuDF
+HuggingFace Trainer
+LLM-as-judge evaluation
 agent-assisted operations
 dashboard state
 security boundaries
@@ -102,23 +119,43 @@ CI hygiene
 
 into something repeatable, observable, and reviewable.
 
-The platform demonstrates a complete applied LLM lifecycle:
+The platform demonstrates a broader applied AI lifecycle:
 
 ```text
 Project creation
   → notebook-first implementation
   → KFP deployment
+  → data preparation or model/task setup
   → baseline evaluation
-  → fine-tuning or RAG execution
+  → fine-tuning, RAG execution, curation, or sequence classification
   → post-run evaluation
   → safety and quality gates
   → artifact publication
-  → serving
+  → serving or downstream reuse
   → monitoring and profiling
   → dashboard visibility
 ```
 
 That is the connective tissue real AI teams need.
+
+## Data curation
+
+The `kfp-nemo-curator` project type adds a data-preparation layer to the platform.
+
+A typical curation pipeline performs:
+
+```text
+preflight_check
+  → extract_text
+  → quality_filter
+  → deduplication
+  → pii_redaction
+  → curator_report
+```
+
+This matters because model quality depends on data quality. The pipeline demonstrates a repeatable pattern for turning raw documents into a cleaned, filtered, deduplicated, PII-redacted dataset with stage-level metrics.
+
+It also proves GPU data-processing integration. Quality filtering and deduplication can use RAPIDS/cuDF-backed components, while PII redaction and reporting can run on CPU components. That CPU/GPU split is the kind of practical orchestration detail that shows platform maturity.
 
 ## Fine-tuning and evaluation
 
@@ -139,11 +176,13 @@ download_model
 
 This pattern proves more than model training. It proves that the platform can measure whether a fine-tuned model actually improved, whether it regressed on safety, and whether the resulting adapter should be allowed to move toward serving.
 
-The platform has already validated this pattern through Qwen2.5 and BioMistral projects. BioMistral is especially important because it demonstrates a domain-specific oncology QA workload with a gate-passed LoRA adapter published as a reusable artifact.
+The platform has validated this pattern across multiple workloads, including Qwen2.5 ARC, Qwen2.5 MedMCQA, BioMistral oncology QA, and MedGemma 27B medical QA.
+
+The MedGemma run is useful even where the improvement was limited. It shows the platform records both successful gates and practical training constraints, rather than hiding weak or inconclusive outcomes. That kind of honest run history is valuable in real MLOps.
 
 ## RAG evaluation
 
-The platform now also supports a RAG-style evaluation pattern.
+The platform supports a RAG-style evaluation pattern.
 
 The Qwen2.5 ARC RAG project demonstrates:
 
@@ -157,12 +196,30 @@ ingest documents
   → measure citation coverage
   → measure unsupported claims
   → score safety
-  → deployment gate
+  → deployment_gate
 ```
 
 This is important because retrieval alone is not enough. The RAG pipeline shows that a system can retrieve the right context and still fail if the source material is too thin, the prompt is weak, or the answer makes unsupported claims.
 
 The final passing RAG run demonstrates a RAGAS-style evaluation pattern using platform-native KFP components, MLflow logging, LLM judging, and deployment gates.
+
+## Sequence classification and non-generative ML
+
+The DNABERT2 ClinVar project expands the platform beyond text-generation LLM workflows.
+
+That project uses a sequence encoder rather than a chat model:
+
+```text
+DNA sequence
+  → DNABERT2 encoder
+  → [CLS] embedding
+  → classification head
+  → pathogenic / benign probability
+```
+
+This is a different ML pattern from LoRA fine-tuning a generative LLM. It uses `AutoModelForSequenceClassification`, HuggingFace `Trainer`, labeled biological sequence examples, and classification metrics such as accuracy and AUC.
+
+That matters because it proves the platform factory is not locked to one model family or one task shape. It can support non-generative AI workloads where the output is a class probability rather than generated text.
 
 ## Model serving
 
@@ -172,8 +229,11 @@ Current serving paths include:
 
 * **`serving-vllm`** — vLLM LoRA adapter serving on DGX, AGX, or GKE.
 * **`serving-nim`** — NVIDIA NIM serving using stock NGC images.
+* **`serving-llm-nim`** — multi-LLM NIM runtime with local or HuggingFace model source detection.
 * **`serving-trt-fp8`** — FP8-quantized checkpoint serving through vLLM.
-* **`serving-trt-engine`** — TensorRT-LLM engine serving through `tensorrt_llm.serve`.
+* **`serving-trt-engine`** — TensorRT-LLM engine serving through `trtllm-serve` / `tensorrt_llm.serve`.
+* **`serving-triton-vllm`** — Triton Inference Server with the vLLM backend.
+* **`serving-triton-trtllm`** — Triton Inference Server with the TensorRT-LLM backend.
 
 The important architectural idea is that serving is gated by the training/evaluation pipeline.
 
@@ -229,13 +289,14 @@ This is a practical example of **agentic DevOps**: using AI tools to operate com
 
 The platform has a clear security model.
 
-Fine-tuning, evaluation, and any future PHI-sensitive workloads stay on DGX-class local hardware. Only approved non-PHI artifacts move to GCP.
+Fine-tuning, evaluation, data curation, and any future PHI-sensitive workloads stay on DGX-class local hardware. Only approved non-PHI artifacts move to GCP.
 
 The cloud boundary is explicit:
 
 ```text
 DGX local domain:
-  data
+  raw data
+  data curation
   training
   evaluation
   safety checks
@@ -265,7 +326,7 @@ The project factory is a concrete example: a workflow can scaffold a new applied
 
 Building eval-first workflows with baseline metrics, post-run metrics, safety checks, deployment gates, MLflow tracking, and artifact publication.
 
-This includes both model fine-tuning and RAG evaluation.
+This includes model fine-tuning, RAG evaluation, data curation, and sequence classification.
 
 ### LLM application engineering
 
@@ -273,19 +334,25 @@ Building RAG pipelines that measure retrieval quality, answer correctness, faith
 
 This proves the platform can support knowledge-grounded LLM applications, not just model training.
 
+### Bio/sequence model engineering
+
+Building classification pipelines for biological sequence encoders such as DNABERT2.
+
+This proves the platform can support non-generative AI models that operate on raw sequence inputs and produce class probabilities rather than natural-language completions.
+
 ### Model serving
 
-Creating reusable serving project types for vLLM, NIM, FP8 vLLM, and TensorRT-LLM engine serving across local and cloud GPU targets.
+Creating reusable serving project types for vLLM, NIM, FP8 vLLM, TensorRT-LLM engine serving, and Triton-backed serving across local and cloud GPU targets.
 
-This proves practical understanding of model deployment tradeoffs: LoRA adapters, quantized checkpoints, precompiled engines, cloud GPU pools, stable model aliases, and OpenAI-compatible APIs.
+This proves practical understanding of model deployment tradeoffs: LoRA adapters, quantized checkpoints, precompiled engines, cloud GPU pools, stable model aliases, OpenAI-compatible APIs, and gateway/routing patterns.
 
 ### GPU systems and profiling
 
-Using DGX-class local hardware, CUDA-enabled containers, arm64-native images, Nsight Operator, and profiling analysis to understand runtime behavior and performance bottlenecks.
+Using DGX-class local hardware, CUDA-enabled containers, arm64-native images, Nsight Operator, RAPIDS/cuDF, and profiling analysis to understand runtime behavior and performance bottlenecks.
 
 ### Cloud infrastructure
 
-Provisioning and operating Google Cloud resources with Terraform, GKE, Artifact Registry, GCS, and Workload Identity Federation.
+Provisioning and operating Google Cloud resources with Terraform, GKE, Artifact Registry, GCS, Gateway API, and Workload Identity Federation.
 
 ### Kubernetes operations
 
@@ -297,7 +364,7 @@ Building and operating GitHub Actions workflows, self-hosted runners, custom run
 
 ### Container engineering
 
-Creating custom Docker images with CUDA, CI tooling, cloud CLIs, Kubernetes tooling, Terraform, GitHub CLI, ML frameworks, and repo-quality utilities.
+Creating custom Docker images with CUDA, CI tooling, cloud CLIs, Kubernetes tooling, Terraform, GitHub CLI, ML frameworks, RAPIDS/cuDF, and repo-quality utilities.
 
 ### Multi-architecture systems
 
@@ -305,15 +372,15 @@ Supporting both x86_64 and ARM64 execution targets across runner images, physica
 
 ### Observability
 
-Combining MLflow, W&B, LangSmith, Nsight Operator, Slack notifications, dashboard state, and run-status files into a practical observability model for LLM workloads.
+Combining MLflow, W&B, LangSmith, Nsight Operator, Slack notifications, dashboard state, and run-status files into a practical observability model for AI workloads.
 
 ### Security-aware deployment
 
-Using Workload Identity Federation instead of static cloud keys, keeping raw run logs and local paths out of public git, and enforcing a PHI boundary between local training/evaluation and cloud serving.
+Using Workload Identity Federation instead of static cloud keys, keeping raw run logs and local paths out of public git, and enforcing a boundary between local training/evaluation/data handling and cloud serving.
 
 ### Agentic DevOps
 
-Using Claude/Codex not as a gimmick, but as an operations layer for long-running KFP/GPU workflows: monitoring, triage, run logging, profiling interpretation, and validation summaries.
+Using Claude/Codex not as a gimmick, but as an operations layer for long-running KFP/GPU workflows: monitoring, triage, run logging, profiling interpretation, validation summaries, and terminal notifications.
 
 ## Why should a hiring manager care?
 
@@ -329,8 +396,11 @@ He is not only describing an AI platform. He is building:
 * Kubeflow Pipelines project templates
 * fine-tuning/eval pipelines
 * RAG evaluation pipelines
+* data-curation pipelines
+* biological sequence-classification pipelines
 * serving templates
 * adapter publishing workflows
+* model-router and gateway patterns
 * dashboard state
 * runbooks
 * profiling workflows
@@ -346,8 +416,10 @@ That matters because modern AI systems require more than model knowledge. They r
 * container registries
 * experiment tracking
 * evaluation and safety gates
+* curated datasets
 * vector search
 * RAG evaluation
+* sequence-model training
 * model serving
 * inference optimization
 * profiling
@@ -360,4 +432,4 @@ This repo is evidence that Aaron can design and implement that connective tissue
 
 ## One-line summary
 
-Aaron built a **hybrid DGX + GCP AI platform for the full applied LLM lifecycle — fine-tuning, evaluation, safety gating, adapter publishing, vLLM/NIM/FP8/TRT-LLM serving, RAG evaluation, Nsight profiling, MLflow/W&B/LangSmith observability, dashboard state, and agent-assisted operations — using custom GPU-capable self-hosted GitHub Actions runners across DGX Spark, Jetson AGX Orin, WSL2, and GCP/GKE.**
+Aaron built a **hybrid DGX + GCP AI workload platform and project factory for the applied AI lifecycle — data curation, LLM fine-tuning/evaluation, RAG evaluation, biological sequence classification, safety gating, artifact publishing, vLLM/NIM/FP8/TRT-LLM/Triton serving, GPU profiling, MLflow/W&B/LangSmith observability, dashboard state, and agent-assisted operations — using custom GPU-capable self-hosted GitHub Actions runners across DGX Spark, Jetson AGX Orin, WSL2, and GCP/GKE.**
