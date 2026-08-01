@@ -113,6 +113,38 @@ echo "==> Installing Kubeflow Pipelines (env/dev) into kubeflow namespace ..."
 kubectl apply -k \
   "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=${PIPELINE_VERSION}"
 
+# Upstream's bundled argo-role only grants get/watch/list on configmaps, but
+# some KFP v2 driver steps (e.g. components with no Output[] artifacts) need
+# to create one. Supplementary Role/RoleBinding instead of patching the
+# vendor-owned argo-role in place, since that gets reset on every kustomize
+# re-apply of env/dev.
+echo "==> Granting argo ServiceAccount configmap create permission ..."
+kubectl apply -f - <<'EOF'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-configmap-create
+  namespace: kubeflow
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-configmap-create-binding
+  namespace: kubeflow
+subjects:
+  - kind: ServiceAccount
+    name: argo
+    namespace: kubeflow
+roleRef:
+  kind: Role
+  name: argo-configmap-create
+  apiGroup: rbac.authorization.k8s.io
+EOF
+
 # controller-manager (gcr.io/ml-pipeline/application-crd-controller) is amd64-only
 # and manages the Application CRD for display purposes only — not needed for pipelines.
 echo "==> Removing arm64-incompatible controller-manager ..."
