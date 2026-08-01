@@ -3,6 +3,18 @@
 # The StatefulSet PVC binds to the cluster's default StorageClass automatically.
 # (On k3s/DGX, a static hostPath PV is created before helm install — not needed here.)
 
+# nsight-tenant-operator provides remote-streaming access via STUNner (a WebRTC
+# TURN gateway), which requires an external Gateway + LoadBalancer for NAT
+# traversal. This platform forbids LoadBalancer Services (cost control) and
+# only ever accesses the Nsight UI via kubectl port-forward, so this feature
+# is both unusable and unneeded here. Disabling it also skips STUNner's
+# bundled experimental-channel Gateway API CRDs, which GKE's
+# enforce-gateway-standard-channel admission policy rejects.
+nsight-tenant-operator:
+  enabled: false
+  stunner:
+    enabled: false
+
 nsight-injector:
   # privileged: required for hardware GPU trace.
   privileged: true

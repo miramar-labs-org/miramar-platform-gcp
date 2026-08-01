@@ -386,6 +386,8 @@ add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/compute.viewer"
 # Find GPU Capacity workflow creates+deletes probe instances to test actual hardware availability
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/compute.instanceAdmin"
+# GCP Platform Create reserves a global static IP + managed SSL cert for the GKE Gateway
+add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/compute.loadBalancerAdmin"
 
 # GKE cluster creation requires serviceAccountUser on the default Compute SA
 # (used as the node pool identity).
