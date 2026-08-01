@@ -100,7 +100,7 @@ permissions:
 jobs:
   create:
     runs-on: [self-hosted, "${{ inputs.host }}"]
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
