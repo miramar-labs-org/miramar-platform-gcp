@@ -170,10 +170,13 @@ jobs:
             -f name="GKE_NODE_COUNT" -f value="1" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="GKE_NODE_COUNT" -f value="1" -f visibility="all"
-          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_URL" \
-            -f name="GKE_GATEWAY_URL" -f value="" -f visibility="all" \
-          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
-            -f name="GKE_GATEWAY_URL" -f value="" -f visibility="all"
+          # GitHub's API rejects creating a variable with an empty value, so only
+          # clear GKE_GATEWAY_URL if it already exists (a never-created variable
+          # is already logically "inactive/empty" for dashboard purposes).
+          if gh api "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_URL" >/dev/null 2>&1; then
+            gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_GATEWAY_URL" \
+              -f name="GKE_GATEWAY_URL" -f value="" -f visibility="all"
+          fi
 
       - name: Summary
         run: |
