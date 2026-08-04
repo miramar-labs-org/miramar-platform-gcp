@@ -14,13 +14,14 @@ AGX Orin runs the identical set of services — see [../../agx/systemd/README.md
 | `kfp-api-portfwd.service`   | `8890`      | `kubectl port-forward` — proxies `svc/ml-pipeline:8888` (KFP REST API) in the `kubeflow` namespace                                                                  |
 | `nemo-portfwd.service`      | `8082`      | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
 | `qdrant-portfwd.service`    | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334)                 |
+| `postgres-portfwd.service`  | `5432`      | `kubectl port-forward` — proxies `svc/postgres` ([Postgres](https://www.postgresql.org/)) in the `postgres-system` namespace                                       |
 | `nsight-portfwd.service`    | `8889`      | `kubectl port-forward` — proxies `svc/nsight-operator-gateway:8888` in the `nsight-operator` namespace; Nsight Operator UI                                          |
 | `openwebui-portfwd.service` | `8084`      | `kubectl port-forward` — proxies `svc/openwebui:8080` in the `openwebui` namespace; [Open WebUI](https://github.com/open-webui/open-webui) chat interface over Ollama / vLLM |
 
 k3s itself runs as a system-level service (`sudo systemctl start k3s` / `sudo systemctl stop k3s`) — not a user unit. The port-forward services above start after k3s is ready.
 
 `dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
-services (`mlflow-portfwd`, `kubeflow-portfwd`, `nemo-portfwd`, `qdrant-portfwd`) bind to `0.0.0.0` so the runner container can
+services (`mlflow-portfwd`, `kubeflow-portfwd`, `nemo-portfwd`, `qdrant-portfwd`, `postgres-portfwd`) bind to `0.0.0.0` so the runner container can
 reach them. Access from a laptop via SSH tunnel:
 
 ```sh
@@ -33,6 +34,7 @@ ssh -L 8001:localhost:8001 \
     -L 11434:localhost:11434 \
     -L 6333:localhost:6333 \
     -L 6334:localhost:6334 \
+    -L 5432:localhost:5432 \
     -L 8084:localhost:8084 \
     <user>@spark-79b7.local
 ```
@@ -97,6 +99,7 @@ journalctl --user -u kubeflow-portfwd -f
 journalctl --user -u kfp-api-portfwd -f
 journalctl --user -u nemo-portfwd -f
 journalctl --user -u qdrant-portfwd -f
+journalctl --user -u postgres-portfwd -f
 journalctl --user -u nsight-portfwd -f
 journalctl --user -u openwebui-portfwd -f
 ```
@@ -106,11 +109,11 @@ journalctl --user -u openwebui-portfwd -f
 - k3s is a system-level service managed by the root systemd instance. The user-level port-forward
   services connect to k3s via `~/.kube/config` (written by the K3s Install workflow). k3s starts
   automatically on boot via `systemctl enable k3s` (set during install).
-- `mlflow-portfwd.service`, `kubeflow-portfwd.service`, `kfp-api-portfwd.service`, and
-  `qdrant-portfwd.service` wait for their respective services to have a ready endpoint before
-  starting the port-forward, so they won't crash-loop on boot if pods are still coming up. If the
-  workload is not deployed they hit `StartLimitBurst` quickly and stop retrying — expected
-  behavior when MLflow, Kubeflow, or Qdrant is not installed.
+- `mlflow-portfwd.service`, `kubeflow-portfwd.service`, `kfp-api-portfwd.service`,
+  `qdrant-portfwd.service`, and `postgres-portfwd.service` wait for their respective services to
+  have a ready endpoint before starting the port-forward, so they won't crash-loop on boot if
+  pods are still coming up. If the workload is not deployed they hit `StartLimitBurst` quickly and
+  stop retrying — expected behavior when MLflow, Kubeflow, Qdrant, or Postgres is not installed.
 - Services are user-scoped (`WantedBy=default.target`) and do not require `sudo`.
 - Linger (`loginctl enable-linger`) is set by `install.sh` — this is what makes the services
   start on boot rather than only on interactive login.
@@ -123,4 +126,5 @@ journalctl --user -u openwebui-portfwd -f
 | [JupyterLab](https://jupyter.org)               | [jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab) | [docs](https://jupyterlab.readthedocs.io/)                  |
 | [MLflow](https://mlflow.org)                    | [mlflow/mlflow](https://github.com/mlflow/mlflow)                 | [docs](https://mlflow.org/docs/latest/index.html)           |
 | [Qdrant](https://qdrant.tech)                   | [qdrant/qdrant](https://github.com/qdrant/qdrant)                 | [docs](https://qdrant.tech/documentation/)                  |
+| [PostgreSQL](https://www.postgresql.org/)       | [postgres/postgres](https://github.com/postgres/postgres)         | [docs](https://www.postgresql.org/docs/)                    |
 | [Kubeflow Pipelines](https://www.kubeflow.org/) | [kubeflow/pipelines](https://github.com/kubeflow/pipelines)       | [docs](https://www.kubeflow.org/docs/components/pipelines/) |

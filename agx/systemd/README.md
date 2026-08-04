@@ -2,7 +2,7 @@
 
 Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/). Unit files live in `dgx/systemd/` and are shared with the DGX — `install.sh` copies the relevant subset here. Run `install.sh` / `uninstall.sh` from this directory on the AGX host.
 
-AGX runs the same ten systemd user services as DGX. Unit files live in `dgx/systemd/` and are shared — `install.sh` copies them here.
+AGX runs the same eleven systemd user services as DGX. Unit files live in `dgx/systemd/` and are shared — `install.sh` copies them here.
 
 | Service                    | Host port   | Purpose                                                                     |
 | -------------------------- | ----------- | --------------------------------------------------------------------------- |
@@ -14,6 +14,7 @@ AGX runs the same ten systemd user services as DGX. Unit files live in `dgx/syst
 | `kfp-api-portfwd.service`  | `8890`      | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                  |
 | `nemo-portfwd.service`     | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (`nemo-microservices`) |
 | `qdrant-portfwd.service`   | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (`qdrant-system`)     |
+| `postgres-portfwd.service` | `5432`      | `kubectl port-forward svc/postgres 5432:5432` (`postgres-system`)           |
 | `nsight-portfwd.service`   | `8889`      | `kubectl port-forward svc/nsight-operator-gateway:8888` (`nsight-operator`) |
 | `openwebui-portfwd.service`| `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat)                 |
 
@@ -30,6 +31,7 @@ ssh -L 8002:localhost:8001 \
     -L 8083:localhost:8082 \
     -L 6335:localhost:6333 \
     -L 6336:localhost:6334 \
+    -L 5433:localhost:5432 \
     -L 8892:localhost:8889 \
     -L 11435:localhost:11434 \
     -L 8085:localhost:8084 \
@@ -45,6 +47,7 @@ ssh -L 8002:localhost:8001 \
 | `8891`     | http://localhost:8891/apis/v2beta1/healthz — KFP REST API                                                                |
 | `8083`     | http://localhost:8083 — NeMo / Data Store ingress                                                                        |
 | `6335`     | http://localhost:6335/dashboard — Qdrant REST + web UI                                                                   |
+| `5433`     | `psql -h localhost -p 5433 -U <role>` — Postgres                                                                         |
 | `8892`     | http://localhost:8892 — Nsight Operator UI                                                                               |
 | `11435`    | http://localhost:11435 — Ollama API                                                                                      |
 | `8085`     | http://localhost:8085 — Open WebUI                                                                                       |
@@ -68,7 +71,7 @@ systemctl --user restart mlabs-runner
 
 ```sh
 systemctl --user status k3s
-systemctl --user restart mlflow-portfwd qdrant-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd openwebui-portfwd
+systemctl --user restart mlflow-portfwd qdrant-portfwd postgres-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd openwebui-portfwd
 journalctl --user -u mlflow-portfwd -f
 journalctl --user -u openwebui-portfwd -f
 ```

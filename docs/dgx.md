@@ -172,9 +172,11 @@ client = QdrantClient(url="http://localhost:6333")
 ## Postgres
 
 Postgres 16 runs in k3s namespace `postgres-system` behind `svc/postgres`
-(`postgres.postgres-system.svc.cluster.local:5432`). No laptop SSH tunnel —
-unlike Qdrant/MLflow, ad hoc access is via `kubectl exec -it deploy/postgres
--- psql -U postgres` rather than a portfwd service.
+(`postgres.postgres-system.svc.cluster.local:5432`). The `postgres-portfwd.service`
+forwards port `5432`, same pattern as Qdrant/MLflow — connect a GUI client
+(psql, pgAdmin, DBeaver, TablePlus, etc.) to `localhost:5432` (DGX) or
+`localhost:5433` (AGX) over the laptop SSH tunnel. `kubectl exec -it
+deploy/postgres -- psql -U postgres` still works for ad hoc in-cluster access.
 
 ```text
 Actions -> Postgres Deploy

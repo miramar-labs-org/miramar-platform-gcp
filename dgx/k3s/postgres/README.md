@@ -4,7 +4,7 @@
 
 Managed via the **Postgres Deploy** / **Postgres Undeploy** GHA workflows. Manual scripts below are for diagnostics and local iteration.
 
-Unlike Qdrant/MLflow, Postgres has **no laptop SSH tunnel / portfwd service** for now — `kubectl exec -it` + `psql` is sufficient for ad hoc inspection. Add a `postgres-portfwd` systemd service later if a GUI client from the laptop becomes worthwhile.
+Like Qdrant/MLflow, Postgres has a laptop SSH tunnel via the `postgres-portfwd` systemd service — see `dgx/systemd/README.md` / `agx/systemd/README.md`. Connect a GUI client (psql, pgAdmin, DBeaver, TablePlus, etc.) to `localhost:5432` (DGX) or `localhost:5433` (AGX) over the tunnel, or use `kubectl exec -it` + `psql` for ad hoc in-cluster inspection.
 
 ## Endpoint
 

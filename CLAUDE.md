@@ -38,7 +38,7 @@ wsl2/              # WSL2 host config and bootstrap scripts
   TECHNICAL.md        # Source of truth for template builds, lifecycle, on-demand SSH, and troubleshooting
 win/               # Windows SSH tunnel profiles (Bitvise)
   README.md           # How to import and use the tunnel profiles
-  dgx.tlp            # Bitvise profile: DGX Spark tunnels (ports 8001/8080/8082/8888/5000/8890/11434/6333/6334)
+  dgx.tlp            # Bitvise profile: DGX Spark tunnels (ports 8001/8080/8082/8888/5000/8890/11434/6333/6334/8889/8084/5432)
   agx.tlp            # Bitvise profile: AGX Orin tunnels (+1 offset ports)
 
 docs/              # Architecture and runbooks
@@ -269,7 +269,7 @@ To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`
 
 ## Local AI stack (DGX + AGX)
 
-Both DGX Spark and AGX Orin run the identical ten systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
+Both DGX Spark and AGX Orin run the identical eleven systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
 
 | Service             | Host port   | Purpose                                                                      |
 | ------------------- | ----------- | ---------------------------------------------------------------------------- |
@@ -281,6 +281,7 @@ Both DGX Spark and AGX Orin run the identical ten systemd user services on boot 
 | `kfp-api-portfwd`   | `8890`      | `kubectl port-forward svc/ml-pipeline:8888` (KFP REST API)                   |
 | `nemo-portfwd`      | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
 | `qdrant-portfwd`    | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC)          |
+| `postgres-portfwd`  | `5432`      | `kubectl port-forward svc/postgres 5432:5432`                                |
 | `nsight-portfwd`    | `8889`      | `kubectl port-forward svc/nsight-operator-ui:8888` (Nsight Operator UI)      |
 | `openwebui-portfwd` | `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat over Ollama / vLLM) |
 
@@ -297,6 +298,7 @@ Both DGX Spark and AGX Orin run the identical ten systemd user services on boot 
 | Ollama             | `11434`        | `11435`        |
 | Qdrant REST        | `6333`         | `6335`         |
 | Qdrant gRPC        | `6334`         | `6336`         |
+| Postgres           | `5432`         | `5433`         |
 | Nsight Operator UI | `8889`         | `8892`         |
 | Open WebUI         | `8084`         | `8085`         |
 
@@ -305,6 +307,7 @@ Both DGX Spark and AGX Orin run the identical ten systemd user services on boot 
 ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
     -L 11434:localhost:11434 -L 6333:localhost:6333 -L 6334:localhost:6334 \
+    -L 5432:localhost:5432 \
     -L 8889:localhost:8889 \
     -L 8084:localhost:8084 \
     aaron@spark-79b7.local
@@ -313,6 +316,7 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
 ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
     -L 11435:localhost:11434 -L 6335:localhost:6333 -L 6336:localhost:6334 \
+    -L 5433:localhost:5432 \
     -L 8892:localhost:8889 \
     -L 8085:localhost:8084 \
     aaron@orin.local

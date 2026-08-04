@@ -4,13 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Service unit files live in dgx/systemd/ — AGX uses the same service definitions on the same host ports.
 # The SSH tunnel from the laptop uses offset local ports to avoid conflicts with the DGX tunnel.
-# Note: mlflow-portfwd, qdrant-portfwd, and nemo-portfwd are NOT included — AGX does not run MLflow, Qdrant, or NeMo.
 DGX_SYSTEMD="$(cd "${SCRIPT_DIR}/../../dgx/systemd" && pwd)"
 DEST="$HOME/.config/systemd/user"
 # k3s is managed by its own systemd service (k3s.service, installed by install-k3s.sh).
 # Port-forward services declare After=k3s.service so they start in the right order.
-# AGX runs the same ten services as DGX; unit files are shared from dgx/systemd/.
-SERVICES=(mlabs-runner dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd nsight-portfwd openwebui-portfwd)
+# AGX runs the same eleven services as DGX; unit files are shared from dgx/systemd/.
+SERVICES=(mlabs-runner dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd postgres-portfwd nsight-portfwd openwebui-portfwd)
 
 mkdir -p "$DEST"
 

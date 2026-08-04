@@ -24,5 +24,12 @@ Both profiles connect as user `aaron` using the shared SSH key.
 | KFP API              | `8890`          | `8891`          | `8890`      |
 | Qdrant REST          | `6333`          | `6335`          | `6333`      |
 | Qdrant gRPC          | `6334`          | `6336`          | `6334`      |
+| Postgres             | `5432`          | `5433`          | `5432`      |
 
 AGX ports are offset by +1 (or -1 for JupyterLab) so both profiles can run simultaneously without conflicts. Qdrant uses +2 offset on AGX since it occupies two consecutive ports.
+
+**Note:** `.tlp` files are Bitvise's binary profile format, not plain text/XML — this table
+is the source of truth for what forwarding rules *should* exist, but a new row here doesn't
+update the `.tlp` files automatically. The Postgres row above (and the pre-existing
+Nsight/Open WebUI gap) still needs the forwarding rule added manually in the Bitvise client
+(**Profile settings → New port forwarding rule**), then re-saved.

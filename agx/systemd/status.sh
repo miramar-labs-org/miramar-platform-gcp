@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Show status of all AGX user services.
 
-SERVICES=(mlabs-runner dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd nsight-portfwd openwebui-portfwd)
+SERVICES=(mlabs-runner dashboard jupyterlab mlflow-portfwd kubeflow-portfwd kfp-api-portfwd nemo-portfwd qdrant-portfwd postgres-portfwd nsight-portfwd openwebui-portfwd)
 
 for svc in "${SERVICES[@]}"; do
     STATE=$(systemctl --user is-active "${svc}" 2>/dev/null || true)
