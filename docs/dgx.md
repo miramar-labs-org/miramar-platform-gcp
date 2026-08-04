@@ -169,6 +169,35 @@ from qdrant_client import QdrantClient
 client = QdrantClient(url="http://localhost:6333")
 ```
 
+## Postgres
+
+Postgres 16 runs in k3s namespace `postgres-system` behind `svc/postgres`
+(`postgres.postgres-system.svc.cluster.local:5432`). No laptop SSH tunnel —
+unlike Qdrant/MLflow, ad hoc access is via `kubectl exec -it deploy/postgres
+-- psql -U postgres` rather than a portfwd service.
+
+```text
+Actions -> Postgres Deploy
+Actions -> Postgres Undeploy
+```
+
+Postgres is a shared platform service: any project needing durable
+relational storage gets its own database + role provisioned in the same
+namespace, rather than standing up a private instance. Provision (or
+re-provision) a consumer by passing `consumer_db` / `consumer_user` to
+**Postgres Deploy** — the run prints the resulting `DATABASE_URL` to the
+step summary for pasting into the consumer app's own secret. Re-running is
+safe: database/role/grants are idempotent and an existing role's password is
+never reset.
+
+The deploy workflow runs a smoke test after deployment
+(`dgx/k3s/postgres/verify-postgres-endpoints.sh`): Deployment rollout
+status, Service has endpoints, and `pg_isready`.
+
+Storage: hostPath PV (`persistentVolumeReclaimPolicy: Retain`) — data
+survives `Postgres Undeploy` unless the namespace is explicitly deleted too.
+See `dgx/k3s/postgres/README.md` for full script usage.
+
 ## Model Router
 
 The model router is a [LiteLLM](https://github.com/BerriAI/litellm) proxy running in k3s namespace

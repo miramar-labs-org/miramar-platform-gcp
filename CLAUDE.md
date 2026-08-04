@@ -128,6 +128,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | NIM Undeploy                 | `undeploy-nim.yaml`                 | Undeploy NIM; 404 is no-op; clears `CURRENT_NIM_MODEL`               |
 | Qdrant Deploy                | `deploy-qdrant.yaml`                | Deploy Qdrant into k3s `qdrant-system`; sets `{MACHINE}_QDRANT_ACTIVE` |
 | Qdrant Undeploy              | `undeploy-qdrant.yaml`              | Remove Qdrant namespace; clears `{MACHINE}_QDRANT_ACTIVE`            |
+| Postgres Deploy              | `deploy-postgres.yaml`              | Deploy Postgres into k3s `postgres-system`; optionally provisions a consumer DB/role; sets `{MACHINE}_POSTGRES_ACTIVE` |
+| Postgres Undeploy            | `undeploy-postgres.yaml`            | Remove Postgres Deployment/Service/PVC (namespace optional); clears `{MACHINE}_POSTGRES_ACTIVE` |
 | Model Router Deploy          | `deploy-model-router.yaml`          | Deploy LiteLLM proxy into k3s `model-router` (dgx/agx) or GKE (gke); sets `{MACHINE}_OPENWEBUI_API_URL` or `GKE_MODEL_ROUTER_ACTIVE` |
 | Model Router Undeploy        | `undeploy-model-router.yaml`        | Remove model-router namespace; clears `{MACHINE}_OPENWEBUI_API_URL` or `GKE_MODEL_ROUTER_ACTIVE` |
 | GKE Gateway Deploy           | `deploy-gke-gateway.yaml`           | Apply Gateway + HTTPRoute on GKE; exposes `https://api.miramar-labs.com/v1`; sets `GKE_GATEWAY_ACTIVE` + `GKE_GATEWAY_URL`; called automatically by GKE serving deploy |
@@ -184,6 +186,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `AGX_MLFLOW_ACTIVE`          | MLflow Deploy (agx)                             | MLflow Undeploy (agx)           |
 | `DGX_QDRANT_ACTIVE`          | Qdrant Deploy (dgx)                             | Qdrant Undeploy (dgx)           |
 | `AGX_QDRANT_ACTIVE`          | Qdrant Deploy (agx)                             | Qdrant Undeploy (agx)           |
+| `DGX_POSTGRES_ACTIVE`        | Postgres Deploy (dgx)                           | Postgres Undeploy (dgx)         |
+| `AGX_POSTGRES_ACTIVE`        | Postgres Deploy (agx)                           | Postgres Undeploy (agx)         |
 | `DGX_KFP_ACTIVE`             | Kubeflow Deploy (dgx)                           | Kubeflow Undeploy (dgx)         |
 | `AGX_KFP_ACTIVE`             | Kubeflow Deploy (agx)                           | Kubeflow Undeploy (agx)         |
 | `DGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (dgx)                    | Nsight Operator Undeploy (dgx)  |

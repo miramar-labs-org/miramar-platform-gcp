@@ -1,0 +1,105 @@
+name: Postgres Deploy
+
+# Deploys Postgres into the postgres-system namespace on the target k3s
+# cluster. Optionally provisions a consumer database/role in the same run.
+#
+# Prerequisites: k3s must be running on the target machine.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+      consumer_db:
+        description: "Optional: consumer database name to provision (e.g. multi_agent_ai_trader)"
+        type: string
+        required: false
+        default: ""
+      consumer_user:
+        description: "Optional: consumer role name to provision (usually same as consumer_db)"
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve host
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Prepare Postgres data directory on host
+        run: |
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+            mkdir -p /home/${HOST_USER}/shared/postgres-data
+            chmod 777 /home/${HOST_USER}/shared/postgres-data || true
+          "
+
+      - name: Deploy Postgres
+        run: |
+          POSTGRES_DATA_DIR="/home/${HOST_USER}/shared/postgres-data" \
+          POSTGRES_CONSUMER_DB="${{ inputs.consumer_db }}" \
+          POSTGRES_CONSUMER_USER="${{ inputs.consumer_user }}" \
+          bash dgx/k3s/postgres/integrate-postgres.sh | tee /tmp/integrate-postgres.log
+
+      - name: Publish DATABASE_URL to step summary
+        if: ${{ inputs.consumer_db != '' }}
+        run: |
+          {
+            echo "### Consumer database provisioned"
+            echo '```'
+            grep '^DATABASE_URL=' /tmp/integrate-postgres.log || echo "(not found in log -- check the Deploy Postgres step above)"
+            echo '```'
+            echo "Copy this into the consumer app's own secret -- it is not stored anywhere else."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke-test endpoints
+        continue-on-error: true
+        run: bash dgx/k3s/postgres/verify-postgres-endpoints.sh
+
+      - name: Set Postgres active state
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_POSTGRES_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="true" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="true" -f visibility="all"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key

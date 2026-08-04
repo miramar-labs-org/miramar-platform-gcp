@@ -1,0 +1,77 @@
+name: Postgres Undeploy
+
+# Removes Postgres from the postgres-system namespace on the target k3s
+# cluster. The underlying PersistentVolume (Retain policy) and its hostPath
+# data survive; only the Deployment/Service/PVC (and, if requested, the
+# namespace) are removed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Target machine (dgx = DGX Spark, agx = AGX Orin)"
+        type: choice
+        required: true
+        default: dgx
+        options:
+          - dgx
+          - agx
+      delete_namespace:
+        description: "Also delete the postgres-system namespace (and the postgres-superuser Secret)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  undeploy:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve host
+        run: |
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
+          else
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Destroy Postgres
+        env:
+          DELETE_NS: "${{ inputs.delete_namespace }}"
+        run: bash dgx/k3s/postgres/destroy-postgres.sh
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
+
+      - name: Clear Postgres active state
+        env:
+          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+        run: |
+          export GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}"
+          machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
+          var="${machine}_POSTGRES_ACTIVE"
+          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+            -f name="${var}" -f value="false" -f visibility="all" \
+          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+            -f name="${var}" -f value="false" -f visibility="all"
