@@ -118,7 +118,7 @@ if [[ -n "${POSTGRES_CONSUMER_DB}" && -n "${POSTGRES_CONSUMER_USER}" ]]; then
   # \gexec runs the CREATE only if the SELECT found no existing row -- safe to re-run. The role's
   # password is set only at creation time so re-running this script never resets an already-issued
   # app credential.
-  kubectl -n "${POSTGRES_NS}" exec deploy/postgres -- psql -U postgres -v ON_ERROR_STOP=1 <<SQL
+  kubectl -n "${POSTGRES_NS}" exec -i deploy/postgres -- psql -U postgres -v ON_ERROR_STOP=1 <<SQL
 SELECT 'CREATE DATABASE ${POSTGRES_CONSUMER_DB}'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${POSTGRES_CONSUMER_DB}')\gexec
 
