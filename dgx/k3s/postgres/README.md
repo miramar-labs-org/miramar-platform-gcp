@@ -41,6 +41,8 @@ Superuser password is stored in the `postgres-superuser` Secret (`postgres-syste
 
 Re-run `integrate-postgres.sh` with `POSTGRES_CONSUMER_DB` / `POSTGRES_CONSUMER_USER` set for the new app (optionally `POSTGRES_CONSUMER_PASSWORD` to pin it, otherwise one is generated). The script prints a `DATABASE_URL` — paste that into the consumer app's own secret; it is not stored anywhere else. Re-running for an existing consumer is safe: the database/role/grants are idempotent and an existing role's password is left untouched.
 
+**Note:** when provisioning via the **Postgres Deploy** GHA workflow rather than running the script directly, GitHub's log-masking heuristics can redact the generated password in the printed `DATABASE_URL` even though it's never registered as a secret — see `docs/dgx.md` § Postgres for the workaround (set a known password directly via `ALTER ROLE` and assemble the connection string yourself).
+
 ## Storage
 
 PV: `postgres-pv` (hostPath, default `~/shared/postgres-data` on the host) — `persistentVolumeReclaimPolicy: Retain`, `storageClassName: ""` (k3s has no dynamic provisioner). Data persists across pod restarts and across `destroy-postgres.sh` runs (unless the host directory is manually removed).

@@ -190,6 +190,21 @@ step summary for pasting into the consumer app's own secret. Re-running is
 safe: database/role/grants are idempotent and an existing role's password is
 never reset.
 
+**Known gotcha:** GitHub Actions' automatic secret-masking heuristics can
+redact the generated password inside the `DATABASE_URL` line in both the
+raw log and the step summary (observed live during the
+`multi-agent-ai-trader` rollout), even though it was never registered via
+`secrets.*` or `::add-mask::` — it just looks enough like a secret to trip
+the heuristic. If the printed value comes back as `***`, don't try to
+recover it from the run output; instead set a known password directly and
+build `DATABASE_URL` from it yourself:
+```sh
+kubectl -n postgres-system exec -it deploy/postgres -- \
+  psql -U postgres -c "ALTER ROLE <consumer_user> PASSWORD '<new-password>';"
+```
+then assemble `postgresql://<consumer_user>:<new-password>@postgres.postgres-system.svc.cluster.local:5432/<consumer_db>`
+and patch it into the consumer's secret directly.
+
 The deploy workflow runs a smoke test after deployment
 (`dgx/k3s/postgres/verify-postgres-endpoints.sh`): Deployment rollout
 status, Service has endpoints, and `pg_isready`.
