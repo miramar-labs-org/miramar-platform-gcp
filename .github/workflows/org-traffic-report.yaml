@@ -1,0 +1,51 @@
+name: Org Traffic Report
+
+on:
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy kubeconfig from host
+        run: |
+          mkdir -p ~/.kube
+          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}:/home/${{ vars.DGX_HOST_USER }}/.kube/config" ~/.kube/config
+          echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Start Postgres port-forward
+        run: |
+          kubectl -n postgres-system port-forward svc/postgres 5432:5432 \
+            > /tmp/port-forward.log 2>&1 &
+          echo "PORT_FORWARD_PID=$!" >> "$GITHUB_ENV"
+          sleep 3
+
+      - name: Run traffic report
+        env:
+          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          ORG_TRAFFIC_DATABASE_URL: ${{ secrets.ORG_TRAFFIC_DATABASE_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: ./scripts/org-traffic-report.sh
+
+      - name: Stop Postgres port-forward
+        if: always()
+        run: kill "${PORT_FORWARD_PID}" 2>/dev/null || true
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f /tmp/k_key
