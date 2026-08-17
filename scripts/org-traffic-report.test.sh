@@ -48,4 +48,18 @@ row_out="$(fetch_repo_row "repo-a" "false")"
 assert_eq "fetch_repo_row builds correct SQL tuple" \
   "('2026-08-16','repo-a','public',42,10,5,3)" "$row_out"
 
+sql_out="$(build_upsert_sql "('2026-08-16','repo-a','public',42,10,5,3)
+('2026-08-16','repo-b','private',7,2,0,0)")"
+assert_eq "build_upsert_sql includes CREATE TABLE" \
+  "1" "$(echo "$sql_out" | grep -c 'CREATE TABLE IF NOT EXISTS repo_traffic_daily')"
+assert_eq "build_upsert_sql includes both value rows" \
+  "yes" "$(echo "$sql_out" | grep -q "repo-a" && echo "$sql_out" | grep -q "repo-b" && echo "yes")"
+assert_eq "build_upsert_sql includes ON CONFLICT upsert" \
+  "1" "$(echo "$sql_out" | grep -c 'ON CONFLICT (date, repo) DO UPDATE')"
+assert_eq "build_upsert_sql is a single INSERT statement (no semicolon before ON CONFLICT)" \
+  "0" "$(echo "$sql_out" | sed -n '/^INSERT INTO/,/^ON CONFLICT/p' | grep -c ';')"
+
+empty_sql="$(build_upsert_sql "")"
+assert_eq "build_upsert_sql with no rows prints nothing" "" "$empty_sql"
+
 exit "$fail"

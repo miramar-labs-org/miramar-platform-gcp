@@ -41,6 +41,33 @@ fetch_repo_row() {
     "$REPORT_DATE" "$repo" "$visibility" "$views" "$unique_visitors" "$clones" "$unique_cloners"
 }
 
+build_upsert_sql() {
+  local rows="$1"
+  [ -z "$rows" ] && return 0
+  cat <<'SQL'
+CREATE TABLE IF NOT EXISTS repo_traffic_daily (
+  date             DATE NOT NULL,
+  repo             TEXT NOT NULL,
+  visibility       TEXT NOT NULL,
+  views            INT NOT NULL,
+  unique_visitors  INT NOT NULL,
+  clones           INT NOT NULL,
+  unique_cloners   INT NOT NULL,
+  PRIMARY KEY (date, repo)
+);
+SQL
+  echo "INSERT INTO repo_traffic_daily (date, repo, visibility, views, unique_visitors, clones, unique_cloners) VALUES"
+  echo "$rows" | paste -sd, -
+  cat <<'SQL'
+ON CONFLICT (date, repo) DO UPDATE SET
+  visibility = EXCLUDED.visibility,
+  views = EXCLUDED.views,
+  unique_visitors = EXCLUDED.unique_visitors,
+  clones = EXCLUDED.clones,
+  unique_cloners = EXCLUDED.unique_cloners;
+SQL
+}
+
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   : # main() added in Task 4
 fi
