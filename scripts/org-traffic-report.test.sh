@@ -15,6 +15,7 @@ assert_eq() {
 }
 
 # Stub `gh` before sourcing, so discover_repos/fetch_repo_row never hit the network.
+# shellcheck disable=SC2317  # invoked indirectly via `export -f` by the sourced script
 gh() {
   case "$1 $2" in
     "api orgs/miramar-labs-org/repos")
@@ -35,9 +36,9 @@ JSON
 }
 export -f gh
 
-REPORT_DATE="2026-08-16"
-DRY_RUN="true"
-# shellcheck source=org-traffic-report.sh
+export REPORT_DATE="2026-08-16"
+export DRY_RUN="true"
+# shellcheck source=org-traffic-report.sh disable=SC1091
 source "$(dirname "$0")/org-traffic-report.sh"
 
 repos_out="$(discover_repos)"
@@ -71,5 +72,11 @@ assert_eq "build_slack_payload includes top repo" \
   "1" "$(echo "$payload_out" | jq -r .text | grep -c 'repo-a')"
 assert_eq "build_slack_payload renders real newlines between top5 lines" \
   "1" "$(echo "$payload_out" | jq -r .text | grep -c '^2\. \*repo-b\*')"
+
+dry_run_out="$(DRY_RUN=true REPORT_DATE=2026-08-16 GITHUB_STEP_SUMMARY=/dev/null main 2>&1)"
+assert_eq "main dry-run prints the upsert SQL" \
+  "1" "$(echo "$dry_run_out" | grep -c 'INSERT INTO repo_traffic_daily')"
+assert_eq "main dry-run prints the Slack payload" \
+  "1" "$(echo "$dry_run_out" | grep -c 'bar_chart')"
 
 exit "$fail"

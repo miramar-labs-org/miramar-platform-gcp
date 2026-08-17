@@ -85,6 +85,57 @@ build_slack_payload() {
     '{text: (":bar_chart: *Org Repo Traffic — " + $date + "*\n" + $totals + "\n\n*Top 5 by unique visitors:*\n" + $top5)}'
 }
 
+main() {
+  local rows="" line repo private
+
+  while IFS=$'\t' read -r repo private; do
+    line=$(fetch_repo_row "$repo" "$private") || true
+    [ -n "$line" ] && rows="${rows}${rows:+$'\n'}${line}"
+  done < <(discover_repos)
+
+  if [ -z "$rows" ]; then
+    warn "no traffic rows collected for ${REPORT_DATE}; nothing to upsert"
+    return 0
+  fi
+
+  local sql
+  sql=$(build_upsert_sql "$rows")
+
+  if [ "$DRY_RUN" = "true" ]; then
+    log "DRY RUN — would run this SQL:"
+    echo "$sql"
+  else
+    echo "$sql" | psql "$ORG_TRAFFIC_DATABASE_URL" -v ON_ERROR_STOP=1
+  fi
+
+  local totals_query="SELECT COALESCE(SUM(views),0)||','||COALESCE(SUM(unique_visitors),0)||','||COALESCE(SUM(clones),0)||','||COALESCE(SUM(unique_cloners),0) FROM repo_traffic_daily WHERE date = '${REPORT_DATE}';"
+  local top5_query="SELECT repo||','||unique_visitors FROM repo_traffic_daily WHERE date = '${REPORT_DATE}' ORDER BY unique_visitors DESC LIMIT 5;"
+
+  local totals top5
+  if [ "$DRY_RUN" = "true" ]; then
+    totals="0,0,0,0"
+    top5=""
+  else
+    totals=$(psql "$ORG_TRAFFIC_DATABASE_URL" -t -A -c "$totals_query")
+    top5=$(psql "$ORG_TRAFFIC_DATABASE_URL" -t -A -c "$top5_query")
+  fi
+
+  local payload
+  payload=$(build_slack_payload "$totals" "$top5")
+
+  if [ "$DRY_RUN" = "true" ]; then
+    log "DRY RUN — would post this Slack payload:"
+    echo "$payload"
+  else
+    curl -sf -X POST -H 'Content-Type: application/json' -d "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
+  fi
+
+  {
+    echo "## Org Traffic Report — ${REPORT_DATE}"
+    echo "Rows upserted: $(echo "$rows" | wc -l)"
+  } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
+}
+
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  : # main() added in Task 4
+  main "$@"
 fi
