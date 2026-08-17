@@ -68,6 +68,23 @@ ON CONFLICT (date, repo) DO UPDATE SET
 SQL
 }
 
+build_slack_payload() {
+  local totals_csv="$1" top5_csv="$2"
+  local t_views t_uniq t_clones t_cloners
+  IFS=',' read -r t_views t_uniq t_clones t_cloners <<<"$totals_csv"
+
+  local top5_lines=""
+  if [ -n "$top5_csv" ]; then
+    top5_lines=$(echo "$top5_csv" | awk -F, '{printf "%d. *%s* — %s unique visitors\n", NR, $1, $2}')
+  fi
+
+  jq -n \
+    --arg date "$REPORT_DATE" \
+    --arg totals "Views: *${t_views:-0}* · Unique visitors: *${t_uniq:-0}* · Clones: *${t_clones:-0}* · Unique cloners: *${t_cloners:-0}*" \
+    --arg top5 "$top5_lines" \
+    '{text: (":bar_chart: *Org Repo Traffic — " + $date + "*\n" + $totals + "\n\n*Top 5 by unique visitors:*\n" + $top5)}'
+}
+
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   : # main() added in Task 4
 fi

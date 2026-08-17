@@ -62,4 +62,14 @@ assert_eq "build_upsert_sql is a single INSERT statement (no semicolon before ON
 empty_sql="$(build_upsert_sql "")"
 assert_eq "build_upsert_sql with no rows prints nothing" "" "$empty_sql"
 
+payload_out="$(build_slack_payload "100,40,10,5" "$(printf 'repo-a,25\nrepo-b,15')")"
+assert_eq "build_slack_payload is valid JSON" \
+  "0" "$(echo "$payload_out" | jq empty >/dev/null 2>&1; echo $?)"
+assert_eq "build_slack_payload includes totals" \
+  "1" "$(echo "$payload_out" | jq -r .text | grep -c 'Views:.*100')"
+assert_eq "build_slack_payload includes top repo" \
+  "1" "$(echo "$payload_out" | jq -r .text | grep -c 'repo-a')"
+assert_eq "build_slack_payload renders real newlines between top5 lines" \
+  "1" "$(echo "$payload_out" | jq -r .text | grep -c '^2\. \*repo-b\*')"
+
 exit "$fail"
