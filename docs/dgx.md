@@ -207,6 +207,27 @@ kubectl -n postgres-system exec -it deploy/postgres -- \
 then assemble `postgresql://<consumer_user>:<new-password>@postgres.postgres-system.svc.cluster.local:5432/<consumer_db>`
 and patch it into the consumer's secret directly.
 
+**Known gotcha:** the auto-generated consumer password can contain
+URL-reserved characters (observed: a literal `/`), which breaks `psql`'s URI
+parsing — it misreads part of the password+host as the port and fails with
+`invalid integer value "..." for connection option "port"`. Don't treat this
+as just a log-masking-recovery fallback; pin a fresh alphanumeric-only
+password immediately after any consumer provisioning, regardless of whether
+the printed value was masked:
+```sh
+openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24
+```
+then apply it with the same `ALTER ROLE` command above.
+
+**Known gotcha:** a consumer reached via a GHA-workflow-side
+`kubectl port-forward svc/postgres 5432:5432` (SSH + kubeconfig + port-forward
+from within a workflow step, as opposed to a pod running inside the cluster)
+must use `localhost` as the host in its `DATABASE_URL`, **not**
+`postgres.postgres-system.svc.cluster.local`. That in-cluster DNS name only
+resolves for pods running inside the cluster — the runner container reaching
+Postgres through a locally-forwarded port cannot resolve it, and fails with
+`could not translate host name ... Temporary failure in name resolution`.
+
 The deploy workflow runs a smoke test after deployment
 (`dgx/k3s/postgres/verify-postgres-endpoints.sh`): Deployment rollout
 status, Service has endpoints, and `pg_isready`.
