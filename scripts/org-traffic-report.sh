@@ -3,6 +3,7 @@ set -euo pipefail
 
 ORG="miramar-labs-org"
 DRY_RUN="${DRY_RUN:-false}"
+TODAY="${TODAY:-$(date -u +%F)}"
 
 log() { echo "[org-traffic-report] $*" >&2; }
 warn() { echo "[org-traffic-report] WARN: $*" >&2; }
@@ -28,10 +29,16 @@ fetch_repo_row() {
 
   # GitHub's Traffic API has an unpredictable multi-day processing lag, so
   # "yesterday" is often absent from the response. Use the most recent entry
-  # actually present instead of searching for a fixed date.
+  # actually present instead of searching for a fixed date — but prefer the
+  # last COMPLETE day over today's still-accumulating (often zero) entry,
+  # falling back to today only if it's the only entry available.
   local latest_date
-  latest_date=$(echo "$views_json" | jq -r \
-    '(.views // []) | sort_by(.timestamp) | last | .timestamp[0:10] // empty')
+  latest_date=$(echo "$views_json" | jq -r --arg today "$TODAY" '
+    (.views // []) | sort_by(.timestamp) as $sorted
+    | ($sorted | map(select(.timestamp[0:10] != $today))) as $complete
+    | (if ($complete | length) > 0 then $complete else $sorted end)
+    | last | .timestamp[0:10] // empty
+  ')
   if [ -z "$latest_date" ]; then
     warn "skipping ${repo}: no traffic/views data available"
     return 0
@@ -79,20 +86,20 @@ SQL
 }
 
 build_slack_payload() {
-  local totals_csv="$1" top5_csv="$2" report_date="$3"
+  local totals_csv="$1" top10_csv="$2" report_date="$3"
   local t_views t_uniq t_clones t_cloners
   IFS=',' read -r t_views t_uniq t_clones t_cloners <<<"$totals_csv"
 
-  local top5_lines=""
-  if [ -n "$top5_csv" ]; then
-    top5_lines=$(echo "$top5_csv" | awk -F, '{printf "%d. *%s* — %s unique visitors\n", NR, $1, $2}')
+  local top10_lines=""
+  if [ -n "$top10_csv" ]; then
+    top10_lines=$(echo "$top10_csv" | awk -F, '{printf "%d. *%s* — %s unique visitors\n", NR, $1, $2}')
   fi
 
   jq -n \
     --arg date "$report_date" \
     --arg totals "Views: *${t_views:-0}* · Unique visitors: *${t_uniq:-0}* · Clones: *${t_clones:-0}* · Unique cloners: *${t_cloners:-0}*" \
-    --arg top5 "$top5_lines" \
-    '{text: (":bar_chart: *Org Repo Traffic — " + $date + "*\n" + $totals + "\n\n*Top 5 by unique visitors:*\n" + $top5)}'
+    --arg top10 "$top10_lines" \
+    '{text: (":bar_chart: *Org Repo Traffic — " + $date + "*\n" + $totals + "\n\n*Top 10 by unique visitors:*\n" + $top10)}'
 }
 
 main() {
@@ -128,19 +135,19 @@ main() {
   fi
 
   local totals_query="SELECT COALESCE(SUM(views),0)||','||COALESCE(SUM(unique_visitors),0)||','||COALESCE(SUM(clones),0)||','||COALESCE(SUM(unique_cloners),0) FROM repo_traffic_daily WHERE date = '${effective_date}';"
-  local top5_query="SELECT repo||','||unique_visitors FROM repo_traffic_daily WHERE date = '${effective_date}' ORDER BY unique_visitors DESC LIMIT 5;"
+  local top10_query="SELECT repo||','||unique_visitors FROM repo_traffic_daily WHERE date = '${effective_date}' ORDER BY unique_visitors DESC LIMIT 10;"
 
-  local totals top5
+  local totals top10
   if [ "$DRY_RUN" = "true" ]; then
     totals="0,0,0,0"
-    top5=""
+    top10=""
   else
     totals=$(psql "$ORG_TRAFFIC_DATABASE_URL" -t -A -c "$totals_query")
-    top5=$(psql "$ORG_TRAFFIC_DATABASE_URL" -t -A -c "$top5_query")
+    top10=$(psql "$ORG_TRAFFIC_DATABASE_URL" -t -A -c "$top10_query")
   fi
 
   local payload
-  payload=$(build_slack_payload "$totals" "$top5" "$effective_date")
+  payload=$(build_slack_payload "$totals" "$top10" "$effective_date")
 
   if [ "$DRY_RUN" = "true" ]; then
     log "DRY RUN — would post this Slack payload:"
