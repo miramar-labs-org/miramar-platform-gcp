@@ -29,6 +29,18 @@ JSON
     "api repos/miramar-labs-org/repo-a/traffic/clones")
       echo '{"clones":[{"timestamp":"2026-08-16T00:00:00Z","count":5,"uniques":3}]}'
       ;;
+    "api repos/miramar-labs-org/repo-c/traffic/views")
+      # Simulates GitHub's real Traffic API lag: the most recent entry is
+      # several days behind "today", not the "yesterday" REPORT_DATE guesses.
+      cat <<'JSON'
+{"views":[{"timestamp":"2026-08-13T00:00:00Z","count":1,"uniques":1},{"timestamp":"2026-08-14T00:00:00Z","count":0,"uniques":0},{"timestamp":"2026-08-15T00:00:00Z","count":9,"uniques":4}]}
+JSON
+      ;;
+    "api repos/miramar-labs-org/repo-c/traffic/clones")
+      cat <<'JSON'
+{"clones":[{"timestamp":"2026-08-13T00:00:00Z","count":2,"uniques":1},{"timestamp":"2026-08-14T00:00:00Z","count":0,"uniques":0},{"timestamp":"2026-08-15T00:00:00Z","count":6,"uniques":2}]}
+JSON
+      ;;
     *)
       return 1
       ;;
@@ -36,7 +48,6 @@ JSON
 }
 export -f gh
 
-export REPORT_DATE="2026-08-16"
 export DRY_RUN="true"
 # shellcheck source=org-traffic-report.sh disable=SC1091
 source "$(dirname "$0")/org-traffic-report.sh"
@@ -47,7 +58,11 @@ assert_eq "discover_repos excludes archived repos" \
 
 row_out="$(fetch_repo_row "repo-a" "false")"
 assert_eq "fetch_repo_row builds correct SQL tuple" \
-  "('2026-08-16','repo-a','public',42,10,5,3)" "$row_out"
+  "2026-08-16	('2026-08-16','repo-a','public',42,10,5,3)" "$row_out"
+
+row_c_out="$(fetch_repo_row "repo-c" "false")"
+assert_eq "fetch_repo_row uses the most recent available API entry, not REPORT_DATE (GitHub's traffic API lags)" \
+  "2026-08-15	('2026-08-15','repo-c','public',9,4,6,2)" "$row_c_out"
 
 sql_out="$(build_upsert_sql "('2026-08-16','repo-a','public',42,10,5,3)
 ('2026-08-16','repo-b','private',7,2,0,0)")"
@@ -63,7 +78,7 @@ assert_eq "build_upsert_sql is a single INSERT statement (no semicolon before ON
 empty_sql="$(build_upsert_sql "")"
 assert_eq "build_upsert_sql with no rows prints nothing" "" "$empty_sql"
 
-payload_out="$(build_slack_payload "100,40,10,5" "$(printf 'repo-a,25\nrepo-b,15')")"
+payload_out="$(build_slack_payload "100,40,10,5" "$(printf 'repo-a,25\nrepo-b,15')" "2026-08-16")"
 assert_eq "build_slack_payload is valid JSON" \
   "0" "$(echo "$payload_out" | jq empty >/dev/null 2>&1; echo $?)"
 assert_eq "build_slack_payload includes totals" \
@@ -73,7 +88,7 @@ assert_eq "build_slack_payload includes top repo" \
 assert_eq "build_slack_payload renders real newlines between top5 lines" \
   "1" "$(echo "$payload_out" | jq -r .text | grep -c '^2\. \*repo-b\*')"
 
-dry_run_out="$(DRY_RUN=true REPORT_DATE=2026-08-16 GITHUB_STEP_SUMMARY=/dev/null main 2>&1)"
+dry_run_out="$(DRY_RUN=true GITHUB_STEP_SUMMARY=/dev/null main 2>&1)"
 assert_eq "main dry-run prints the upsert SQL" \
   "1" "$(echo "$dry_run_out" | grep -c 'INSERT INTO repo_traffic_daily')"
 assert_eq "main dry-run prints the Slack payload" \

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ORG="miramar-labs-org"
-REPORT_DATE="${REPORT_DATE:-$(date -u -d yesterday +%F)}"
 DRY_RUN="${DRY_RUN:-false}"
 
 log() { echo "[org-traffic-report] $*" >&2; }
@@ -27,18 +26,29 @@ fetch_repo_row() {
     return 0
   fi
 
+  # GitHub's Traffic API has an unpredictable multi-day processing lag, so
+  # "yesterday" is often absent from the response. Use the most recent entry
+  # actually present instead of searching for a fixed date.
+  local latest_date
+  latest_date=$(echo "$views_json" | jq -r \
+    '(.views // []) | sort_by(.timestamp) | last | .timestamp[0:10] // empty')
+  if [ -z "$latest_date" ]; then
+    warn "skipping ${repo}: no traffic/views data available"
+    return 0
+  fi
+
   local views unique_visitors clones unique_cloners
-  views=$(echo "$views_json" | jq --arg d "$REPORT_DATE" \
+  views=$(echo "$views_json" | jq --arg d "$latest_date" \
     '[.views[]? | select(.timestamp | startswith($d))][0].count // 0')
-  unique_visitors=$(echo "$views_json" | jq --arg d "$REPORT_DATE" \
+  unique_visitors=$(echo "$views_json" | jq --arg d "$latest_date" \
     '[.views[]? | select(.timestamp | startswith($d))][0].uniques // 0')
-  clones=$(echo "$clones_json" | jq --arg d "$REPORT_DATE" \
+  clones=$(echo "$clones_json" | jq --arg d "$latest_date" \
     '[.clones[]? | select(.timestamp | startswith($d))][0].count // 0')
-  unique_cloners=$(echo "$clones_json" | jq --arg d "$REPORT_DATE" \
+  unique_cloners=$(echo "$clones_json" | jq --arg d "$latest_date" \
     '[.clones[]? | select(.timestamp | startswith($d))][0].uniques // 0')
 
-  printf "('%s','%s','%s',%s,%s,%s,%s)" \
-    "$REPORT_DATE" "$repo" "$visibility" "$views" "$unique_visitors" "$clones" "$unique_cloners"
+  printf "%s\t('%s','%s','%s',%s,%s,%s,%s)" \
+    "$latest_date" "$latest_date" "$repo" "$visibility" "$views" "$unique_visitors" "$clones" "$unique_cloners"
 }
 
 build_upsert_sql() {
@@ -69,7 +79,7 @@ SQL
 }
 
 build_slack_payload() {
-  local totals_csv="$1" top5_csv="$2"
+  local totals_csv="$1" top5_csv="$2" report_date="$3"
   local t_views t_uniq t_clones t_cloners
   IFS=',' read -r t_views t_uniq t_clones t_cloners <<<"$totals_csv"
 
@@ -79,24 +89,33 @@ build_slack_payload() {
   fi
 
   jq -n \
-    --arg date "$REPORT_DATE" \
+    --arg date "$report_date" \
     --arg totals "Views: *${t_views:-0}* · Unique visitors: *${t_uniq:-0}* · Clones: *${t_clones:-0}* · Unique cloners: *${t_cloners:-0}*" \
     --arg top5 "$top5_lines" \
     '{text: (":bar_chart: *Org Repo Traffic — " + $date + "*\n" + $totals + "\n\n*Top 5 by unique visitors:*\n" + $top5)}'
 }
 
 main() {
-  local rows="" line repo private
+  local rows="" dates="" line date_part row_part repo private
 
   while IFS=$'\t' read -r repo private; do
     line=$(fetch_repo_row "$repo" "$private") || true
-    [ -n "$line" ] && rows="${rows}${rows:+$'\n'}${line}"
+    if [ -n "$line" ]; then
+      IFS=$'\t' read -r date_part row_part <<<"$line"
+      rows="${rows}${rows:+$'\n'}${row_part}"
+      dates="${dates}${dates:+$'\n'}${date_part}"
+    fi
   done < <(discover_repos)
 
   if [ -z "$rows" ]; then
-    warn "no traffic rows collected for ${REPORT_DATE}; nothing to upsert"
+    warn "no traffic rows collected; nothing to upsert"
     return 0
   fi
+
+  # Repos can lag by different amounts; report on whichever date most repos
+  # actually have data for.
+  local effective_date
+  effective_date=$(echo "$dates" | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
 
   local sql
   sql=$(build_upsert_sql "$rows")
@@ -108,8 +127,8 @@ main() {
     echo "$sql" | psql "$ORG_TRAFFIC_DATABASE_URL" -v ON_ERROR_STOP=1
   fi
 
-  local totals_query="SELECT COALESCE(SUM(views),0)||','||COALESCE(SUM(unique_visitors),0)||','||COALESCE(SUM(clones),0)||','||COALESCE(SUM(unique_cloners),0) FROM repo_traffic_daily WHERE date = '${REPORT_DATE}';"
-  local top5_query="SELECT repo||','||unique_visitors FROM repo_traffic_daily WHERE date = '${REPORT_DATE}' ORDER BY unique_visitors DESC LIMIT 5;"
+  local totals_query="SELECT COALESCE(SUM(views),0)||','||COALESCE(SUM(unique_visitors),0)||','||COALESCE(SUM(clones),0)||','||COALESCE(SUM(unique_cloners),0) FROM repo_traffic_daily WHERE date = '${effective_date}';"
+  local top5_query="SELECT repo||','||unique_visitors FROM repo_traffic_daily WHERE date = '${effective_date}' ORDER BY unique_visitors DESC LIMIT 5;"
 
   local totals top5
   if [ "$DRY_RUN" = "true" ]; then
@@ -121,7 +140,7 @@ main() {
   fi
 
   local payload
-  payload=$(build_slack_payload "$totals" "$top5")
+  payload=$(build_slack_payload "$totals" "$top5" "$effective_date")
 
   if [ "$DRY_RUN" = "true" ]; then
     log "DRY RUN — would post this Slack payload:"
@@ -131,7 +150,7 @@ main() {
   fi
 
   {
-    echo "## Org Traffic Report — ${REPORT_DATE}"
+    echo "## Org Traffic Report — ${effective_date}"
     echo "Rows upserted: $(echo "$rows" | wc -l)"
   } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
 }
