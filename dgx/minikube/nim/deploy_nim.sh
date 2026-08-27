@@ -121,7 +121,7 @@ wait_for_nim() {
         echo ""
         suggest_fix "If authentication fails, regenerate your key at build.nvidia.com"
         suggest_fix "Then clean up and retry:"
-        echo "  ./destroy-nmp-deployment.sh"
+        echo "  # re-run the NeMo Deploy workflow (or undeploy-nemo.yaml, then deploy-nemo.yaml)"
         echo "  ./$(basename "$0")"
         echo ""
         suggest_fix "Diagnostics collected to: $err_dir"

@@ -1,14 +1,13 @@
 name: K3s Bootstrap
 
-# Full end-to-end bootstrap for a machine that previously ran minikube.
+# Full end-to-end bootstrap for a fresh (or re-provisioned) k3s host.
 # Runs the complete sequence in a single dispatch:
-#   1. Uninstall minikube (idempotent — safe if already gone)
-#   2. Install k3s + NVIDIA device plugin + nginx-ingress + CoreDNS + Dashboard
+#   1. Install k3s + NVIDIA device plugin + nginx-ingress + CoreDNS + Dashboard
 #      (SSHes to host — k3s install requires systemd which the runner container lacks)
-#   3. Deploy NeMo Microservices
-#   4. Deploy MLflow (uses NeMo's postgres as backend)
-#   5. Deploy Qdrant
-#   6. Deploy KFP (Kubeflow Pipelines)
+#   2. Deploy NeMo Microservices
+#   3. Deploy MLflow (uses NeMo's postgres as backend)
+#   4. Deploy Qdrant
+#   5. Deploy KFP (Kubeflow Pipelines)
 #
 # After a successful bootstrap, the machine is ready to run pipelines.
 # NIM (DGX) or Ollama (AGX) must be deployed separately via their own workflows.
@@ -35,11 +34,6 @@ on:
         type: string
         required: false
         default: ""
-      skip_minikube_uninstall:
-        description: "Force-skip minikube uninstall (auto-detected by default — only use to override)"
-        type: boolean
-        required: false
-        default: false
       deploy_mlflow:
         description: "Deploy MLflow + MinIO on this machine (set false to use DGX MLflow instead)"
         type: boolean
@@ -110,7 +104,6 @@ jobs:
         run: |
           PROBE=$(ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" bash <<'PROBE'
-          echo "minikube=$(command -v minikube &>/dev/null && minikube version 2>/dev/null | head -1 || echo 'not installed')"
           echo "k3s=$(command -v k3s &>/dev/null && k3s --version 2>/dev/null | head -1 || echo 'not installed')"
           echo "k3s_active=$(systemctl is-active k3s 2>/dev/null || echo inactive)"
           echo "helm_releases=$(KUBECONFIG=~/.kube/config helm list -A --short 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo 'none')"
@@ -121,13 +114,6 @@ jobs:
           echo "$PROBE"
 
           # Parse and export
-          MINIKUBE_VER=$(echo "$PROBE" | grep '^minikube=' | cut -d= -f2-)
-          if [[ "$MINIKUBE_VER" == "not installed" ]]; then
-            echo "MINIKUBE_INSTALLED=false" >> "$GITHUB_ENV"
-          else
-            echo "MINIKUBE_INSTALLED=true"  >> "$GITHUB_ENV"
-          fi
-
           K3S_VER=$(echo "$PROBE"        | grep '^k3s='          | cut -d= -f2-)
           K3S_ACTIVE=$(echo "$PROBE"     | grep '^k3s_active='   | cut -d= -f2-)
           HELM_RELEASES=$(echo "$PROBE"  | grep '^helm_releases=' | cut -d= -f2-)
@@ -137,39 +123,12 @@ jobs:
             echo "## Host State — ${{ inputs.runner }}"
             echo "| Check | Value |"
             echo "|---|---|"
-            echo "| minikube | $MINIKUBE_VER |"
             echo "| k3s | $K3S_VER ($K3S_ACTIVE) |"
             echo "| helm releases | ${HELM_RELEASES:-none} |"
             echo "| pods in error | ${ERROR_PODS:-none} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ── Step 1: Uninstall minikube ────────────────────────────────────────────
-      - name: Uninstall minikube
-        if: ${{ inputs.skip_minikube_uninstall == false && env.MINIKUBE_INSTALLED == 'true' }}
-        run: |
-          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
-            "${HOST_USER}@${HOST_IP}" '
-              set -euo pipefail
-              if command -v minikube &>/dev/null; then
-                echo "==> Stopping minikube..."
-                minikube stop 2>/dev/null || true
-                echo "==> Deleting minikube cluster..."
-                minikube delete 2>/dev/null || true
-                echo "==> Removing minikube binary..."
-                sudo rm -f /usr/local/bin/minikube
-                echo "==> minikube removed."
-              else
-                echo "==> minikube not found — nothing to uninstall."
-              fi
-              # Remove minikube systemd services if present
-              for svc in minikube minikube-hf-cache-mount minikube-nsight-mount; do
-                systemctl --user disable --now "${svc}.service" 2>/dev/null || true
-                rm -f "${HOME}/.config/systemd/user/${svc}.service"
-              done
-              systemctl --user daemon-reload 2>/dev/null || true
-            '
-
-      # ── Step 2: Install k3s (SSH to host — needs systemd) ────────────────────
+      # ── Step 1: Install k3s (SSH to host — needs systemd) ────────────────────
       - name: Install k3s on host
         run: |
           # install-k3s.sh references dgx/k3s/nvidia-device-plugin.yaml via REPO_ROOT.
@@ -197,7 +156,7 @@ jobs:
       - name: Verify cluster access
         run: kubectl get nodes -o wide
 
-      # ── Step 3: Deploy NeMo ───────────────────────────────────────────────────
+      # ── Step 2: Deploy NeMo ───────────────────────────────────────────────────
       - name: Prepare host data directories
         run: |
           ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
@@ -413,7 +372,7 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="${{ inputs.deploy_nemo }}" -f visibility="all"
 
-      # ── Step 4: Deploy MLflow ─────────────────────────────────────────────────
+      # ── Step 3: Deploy MLflow ─────────────────────────────────────────────────
       - name: Deploy MLflow
         if: ${{ inputs.deploy_mlflow == true }}
         run: |
@@ -430,7 +389,7 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="${{ inputs.deploy_mlflow }}" -f visibility="all"
 
-      # ── Step 5: Deploy Qdrant ─────────────────────────────────────────────────
+      # ── Step 4: Deploy Qdrant ─────────────────────────────────────────────────
       - name: Deploy Qdrant
         if: ${{ inputs.deploy_qdrant == true }}
         run: |
@@ -447,7 +406,7 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="${{ inputs.deploy_qdrant }}" -f visibility="all"
 
-      # ── Step 6: Deploy KFP ───────────────────────────────────────────────────
+      # ── Step 5: Deploy KFP ───────────────────────────────────────────────────
       - name: Log in to GHCR
         run: |
           echo "${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
@@ -538,12 +497,6 @@ jobs:
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all"
-          # Minikube is always removed by bootstrap — clear the stale var
-          minikube_var="${MACHINE}_MINIKUBE_ACTIVE"
-          gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${minikube_var}" \
-            -f name="${minikube_var}" -f value="false" -f visibility="all" \
-          || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
-            -f name="${minikube_var}" -f value="false" -f visibility="all" || true
 
       - name: Update k3s kubeconfig org secret
         env:
