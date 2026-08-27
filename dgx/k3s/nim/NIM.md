@@ -101,11 +101,11 @@ NGC: `catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/nvidia-nemotron-na
 | Qwen3 32B | `qwen`    | `qwen3-32b-dgx-spark` | `1.1.0-variant` | 32B    | NVFP4 | Yes (parallel) | KServe/K8s not supported |
 
 The Qwen3 32B variant explicitly does not support deployment via KServe or Kubernetes per NVIDIA release notes,
-which rules it out for NeMo Microservices on minikube. Run it as a standalone Docker container on the DGX host
+which rules it out for NeMo Microservices on k3s. Run it as a standalone Docker container on the DGX host
 if needed (~41.6 GB image, uses ~108 GB of unified memory — 8 GB over the 100 GB model budget).
 
 ```bash
-# Run standalone (on DGX host, not inside minikube)
+# Run standalone (on DGX host, not inside k3s)
 docker run --rm --gpus all \
   -e NGC_API_KEY="$NVIDIA_API_KEY" \
   -p 8000:8000 \

@@ -1,6 +1,6 @@
-# CLAUDE.md — dgx/minikube/nim
+# CLAUDE.md — dgx/k3s/nim
 
-NIM inference scripts for the DGX Spark minikube cluster. Requires NeMo Microservices to be
+NIM inference scripts for the DGX Spark k3s cluster. Requires NeMo Microservices to be
 deployed first (see `../nemo/` and the **NeMo Deploy** GHA workflow).
 
 ## Scripts

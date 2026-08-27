@@ -7,7 +7,8 @@
 | Folder                     | Purpose                                                                           |
 | -------------------------- | --------------------------------------------------------------------------------- |
 | [jupyterlab/](jupyterlab/) | JupyterLab environment setup, installed packages, and project workflow tips       |
-| [minikube/](minikube/)     | Legacy minikube manifests (retained for reference); k3s manifests in [k3s/](k3s/) |
+| [k3s/](k3s/)               | k3s workload manifests + deploy/verify scripts (NeMo, NIM, MLflow, Qdrant, Kubeflow, Nsight) |
+| [ollama/](ollama/)         | Ollama deploy/undeploy scripts and model catalog                                  |
 | [systemd/](systemd/)       | Systemd user service unit files + install/uninstall scripts                       |
 
 ## Systemd services

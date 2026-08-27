@@ -60,11 +60,11 @@ jobs:
       - name: Deploy Qdrant
         run: |
           QDRANT_DATA_DIR="/home/${HOST_USER}/shared/qdrant-data" \
-          bash dgx/minikube/qdrant/integrate-qdrant.sh
+          bash dgx/k3s/qdrant/integrate-qdrant.sh
 
       - name: Smoke-test endpoints
         continue-on-error: true
-        run: bash dgx/minikube/qdrant/verify-qdrant-endpoints.sh
+        run: bash dgx/k3s/qdrant/verify-qdrant-endpoints.sh
 
       - name: Restart qdrant-portfwd systemd service on host
         run: |

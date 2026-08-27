@@ -52,7 +52,7 @@ operational procedure.
 
 ### Multi-session build architecture
 
-- [arm64 sub-agent build architecture](../dgx/minikube/kubeflow/arm64/README-SUBAGENTS.md)
+- [arm64 sub-agent build architecture](../dgx/k3s/kubeflow/arm64/README-SUBAGENTS.md)
   — how the full KFP arm64 port is run across sessions: the plan file as the
   cross-session spine, the `arm64-builder` sub-agent for parallel builds, and
   handoffs for hard components. Read this before starting or resuming the port.

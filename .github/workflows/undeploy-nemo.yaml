@@ -1,9 +1,9 @@
 name: NeMo Undeploy
 
-# Removes the NeMo Microservices Helm release from the target minikube cluster
+# Removes the NeMo Microservices Helm release from the target k3s cluster
 # and optionally deletes the nemo-microservices namespace.
 #
-# Does NOT stop minikube or affect any other workloads.
+# Does NOT stop the cluster or affect any other workloads.
 
 on:
   workflow_dispatch:

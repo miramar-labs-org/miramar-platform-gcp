@@ -1,10 +1,10 @@
 name: Kubeflow Undeploy
 
-# Removes Kubeflow Pipelines from the target minikube cluster and optionally
+# Removes Kubeflow Pipelines from the target k3s cluster and optionally
 # deletes the kubeflow namespace. Passes the same pipeline_version used at
 # deploy time so kustomize can find the exact resources to delete.
 #
-# Does NOT stop minikube or affect any other workloads.
+# Does NOT stop the cluster or affect any other workloads.
 
 on:
   workflow_dispatch:
@@ -63,7 +63,7 @@ jobs:
         env:
           PIPELINE_VERSION: ${{ inputs.pipeline_version || '2.16.1' }}
           DELETE_NS: ${{ inputs.delete_namespace && 'true' || 'false' }}
-        run: bash dgx/minikube/kubeflow/destroy-kubeflow.sh
+        run: bash dgx/k3s/kubeflow/destroy-kubeflow.sh
 
       - name: Cleanup SSH key
         if: always()

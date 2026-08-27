@@ -1,6 +1,6 @@
 name: NIM Deploy
 
-# Deploys a NIM on the target minikube cluster via the NeMo Microservices deployment API.
+# Deploys a NIM on the target k3s cluster via the NeMo Microservices deployment API.
 # If a different NIM is already deployed it is undeployed first.
 # NeMo Microservices must be running before triggering this workflow.
 #
@@ -119,8 +119,8 @@ jobs:
               [[ -z "$org" || -z "$name" ]] && continue
               if [[ "$org/$name" != "$TARGET_ORG/$TARGET_NAME" ]]; then
                 echo "Undeploying existing NIM: $org/$name"
-                # shellcheck source=dgx/minikube/nim/undeploy_nim.sh
-                source dgx/minikube/nim/undeploy_nim.sh
+                # shellcheck source=dgx/k3s/nim/undeploy_nim.sh
+                source dgx/k3s/nim/undeploy_nim.sh
                 undeploy_nim "$org" "$name"
               else
                 echo "Target NIM $org/$name already registered — will redeploy."
@@ -134,8 +134,8 @@ jobs:
           NIM_NAME: ${{ inputs.nim_name }}
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
-          # shellcheck source=dgx/minikube/nim/deploy_nim.sh
-          source dgx/minikube/nim/deploy_nim.sh
+          # shellcheck source=dgx/k3s/nim/deploy_nim.sh
+          source dgx/k3s/nim/deploy_nim.sh
           deploy_nim "$NIM_ORG" "$NIM_NAME" "$IMAGE_TAG"
 
       - name: Rollback on deploy failure
@@ -146,7 +146,7 @@ jobs:
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           echo "NIM deploy failed — submitting undeploy for ${NIM_ORG}/${NIM_NAME}..."
-          ( source dgx/minikube/nim/undeploy_nim.sh
+          ( source dgx/k3s/nim/undeploy_nim.sh
             undeploy_nim "$NIM_ORG" "$NIM_NAME" ) || echo "Undeploy attempt finished (404 = already gone)"
           for var in "${STATE_NIM_MODEL_VAR}" "${STATE_NIM_VRAM_VAR}"; do
             val="none"; [[ "$var" == *"VRAM"* ]] && val="0"

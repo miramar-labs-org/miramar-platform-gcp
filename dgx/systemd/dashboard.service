@@ -1,5 +1,5 @@
 [Unit]
-Description=kubectl proxy for Minikube dashboard (fixed port)
+Description=kubectl proxy for Kubernetes dashboard (fixed port)
 After=network-online.target k3s.service
 Wants=k3s.service
 

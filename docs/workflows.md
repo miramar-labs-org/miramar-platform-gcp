@@ -38,9 +38,11 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 | --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | K3s Install     | `install-k3s.yaml`     | Install k3s with NVIDIA device plugin + nginx-ingress; update kubeconfig secret; writes `{MACHINE}_K3S_ACTIVE` org var. Inputs: `runner`                                                                                                               |
 | K3s Uninstall   | `uninstall-k3s.yaml`   | Run k3s-uninstall.sh and remove kubeconfig; clears `{MACHINE}_K3S_ACTIVE` org var. Inputs: `runner`                                                                                                                                                    |
+| K3s Bootstrap   | `bootstrap-k3s.yaml`   | End-to-end bootstrap of a fresh host: K3s Install followed by the selected workloads. Inputs: `runner`, `nemo_version`, `deploy_nemo`, `deploy_mlflow`, `deploy_qdrant`                                                                                 |
 | NeMo Deploy     | `deploy-nemo.yaml`     | Install NeMo Microservices and Volcano; `nemo_version` input; auto-commits doc/SDK updates; writes `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner`, `nemo_version`                                                                                   |
 | NeMo Undeploy   | `undeploy-nemo.yaml`   | Remove NeMo, Volcano, DNS entries, and postgres PVCs; clears `{MACHINE}_NEMO_ACTIVE` org var. Inputs: `runner`                                                                                                                                         |
 | MLflow Deploy   | `deploy-mlflow.yaml`   | Deploy MLflow + MinIO into k3s `mlflow-system` namespace; writes `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner`                                                                                                                                   |
+| Redeploy MLflow | `redeploy-mlflow.yaml` | Lightweight `helm upgrade --reuse-values` for MLflow config-only changes (no NeMo re-integration); verifies rollout. Inputs: `runner`                                                                                                                  |
 | MLflow Undeploy | `undeploy-mlflow.yaml` | Remove MLflow namespace; clears `{MACHINE}_MLFLOW_ACTIVE` org var. Inputs: `runner`                                                                                                                                                                    |
 | Qdrant Deploy        | `deploy-qdrant.yaml`        | Deploy Qdrant vector database into k3s `qdrant-system` namespace; restarts `qdrant-portfwd` on host; writes `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner`                                                                                                                                                                  |
 | Qdrant Undeploy      | `undeploy-qdrant.yaml`      | Remove Qdrant and delete namespace; clears `{MACHINE}_QDRANT_ACTIVE` org var. Inputs: `runner`                                                                                                                                                                                                                                   |
@@ -124,8 +126,8 @@ NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` i
 
 On a fresh install, seed the active state with `gh api` PATCH→POST upserts using `GITHUB_ORG_ADMIN_PAT` to reflect actual current state.
 
-See [dgx.md](dgx.md), [../dgx/minikube/](../dgx/minikube/),
-[../dgx/minikube/qdrant/README.md](../dgx/minikube/qdrant/README.md), and
+See [dgx.md](dgx.md), [../dgx/k3s/](../dgx/k3s/),
+[../dgx/k3s/qdrant/README.md](../dgx/k3s/qdrant/README.md), and
 [../dgx/ollama/README.md](../dgx/ollama/README.md).
 
 ## Projects and Dashboard

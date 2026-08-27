@@ -1,6 +1,6 @@
-# CLAUDE.md — dgx/minikube/nemo
+# CLAUDE.md — dgx/k3s/nemo
 
-NeMo Microservices deployment for the DGX Spark minikube cluster.
+NeMo Microservices deployment for the DGX Spark k3s cluster.
 
 ## Platform lifecycle — GHA workflows only
 
@@ -8,8 +8,8 @@ NeMo Microservices deployment for the DGX Spark minikube cluster.
 | ------------------------------------------ | --------------------------------------------------------------------------- |
 | **NeMo Deploy** (`deploy-nemo.yaml`)       | Helm install — namespace, secrets, Volcano, chart, pod wait, /etc/hosts DNS |
 | **NeMo Undeploy** (`undeploy-nemo.yaml`)   | Helm uninstall, optional namespace delete, /etc/hosts cleanup               |
-| **Minikube Setup** (`setup-minikube.yaml`) | Start cluster, enable addons, update kubeconfig secret                      |
-| **Minikube Stop/Pause/Resume**             | Cluster lifecycle                                                           |
+| **K3s Install** (`install-k3s.yaml`)       | Install k3s, pin nvidia-device-plugin, label node, update kubeconfig secret |
+| **K3s Uninstall** (`uninstall-k3s.yaml`)   | Cluster teardown                                                            |
 
 No local shell scripts manage the platform lifecycle. Trigger all of the above from the GitHub Actions UI.
 
@@ -29,7 +29,6 @@ Same services run on both DGX and AGX — managed via `dgx/systemd/` and `agx/sy
 
 | Service            | Port   | What it does                                                                                                |
 | ------------------ | ------ | ----------------------------------------------------------------------------------------------------------- |
-| `minikube`         | —      | Starts minikube on boot                                                                                     |
 | `dashboard`        | `8001` | `kubectl proxy` → Kubernetes dashboard                                                                      |
 | `jupyterlab`       | `8888` | JupyterLab                                                                                                  |
 | `mlflow-portfwd`   | `5000` | `kubectl port-forward svc/mlflow-tracking`                                                                  |

@@ -113,8 +113,8 @@ State variables: `CURRENT_OLLAMA_MODEL_AGX`, `CURRENT_OLLAMA_VRAM_GB_AGX`.
 
 ## NeMo Microservices
 
-Same Helm chart and values as DGX (`dgx/minikube/nemo/install/values.yaml`).
-Hosts file for k3s DNS: `agx/minikube/nemo/hosts.agx` (updated on deploy).
+Same Helm chart and values as DGX (`dgx/k3s/nemo/install/values.yaml`).
+Hosts file for k3s DNS: `agx/k3s/nemo/hosts.agx` (updated on deploy).
 
 ```text
 Actions -> NeMo Deploy    (runner: agx)

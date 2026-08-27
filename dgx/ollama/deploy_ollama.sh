@@ -23,7 +23,7 @@ if ! curl -sf --connect-timeout 5 --max-time 10 \
 fi
 
 # --- Check for NIM conflict ---
-# The minikube Docker network is not routed from the DGX host OS, so we cannot curl
+# The k3s pod network is not routed from the DGX host OS, so we cannot curl
 # the ingress IP directly. Strategy:
 #  1. kubectl port-forward to nemo-deployment-management:8000 and query the API
 #     (NeMo API response uses "data" array, not "items")
@@ -32,9 +32,9 @@ fi
 log "Checking for active NIM deployments..."
 active_nims=""
 
-if kubectl --context minikube get ns nemo-microservices &>/dev/null 2>&1; then
+if kubectl get ns nemo-microservices &>/dev/null 2>&1; then
   pf_port=19871
-  kubectl --context minikube port-forward -n nemo-microservices \
+  kubectl port-forward -n nemo-microservices \
     svc/nemo-deployment-management "${pf_port}:8000" &>/dev/null &
   pf_pid=$!
   sleep 2
@@ -51,7 +51,7 @@ if kubectl --context minikube get ns nemo-microservices &>/dev/null 2>&1; then
       | jq -r '.data[] | "\(.namespace)/\(.name)"' 2>/dev/null || true)
   else
     # Fallback: pods labelled as NIM inference pods (set by k8s-nim-operator)
-    active_nims=$(kubectl --context minikube get pods -n nemo-microservices \
+    active_nims=$(kubectl get pods -n nemo-microservices \
       -l 'app.nvidia.com/nim-type=inference' \
       --field-selector=status.phase=Running \
       --no-headers \

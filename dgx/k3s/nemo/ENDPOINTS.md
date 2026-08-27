@@ -32,7 +32,7 @@ ssh -L 8002:localhost:8001 \
    127.0.0.1 nemo.test nim.test data-store.test
    ```
 
-> **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for system use (minikube, OS), leaving ~100 GB for workloads. They can coexist as long as their combined memory fits within that budget.
+> **NIM and Ollama share the 128 GB unified memory pool.** ~28 GB is reserved for system use (k3s, OS), leaving ~100 GB for workloads. They can coexist as long as their combined memory fits within that budget.
 
 ---
 
@@ -58,19 +58,19 @@ ssh -L 8002:localhost:8001 \
 | `nemo.test`       | 80        | 8082            | 8083            | NeMo microservices REST API                | NeMo deployed                |
 | `data-store.test` | 80        | 8082            | 8083            | HuggingFace-compatible data/model store    | NeMo deployed                |
 | `localhost:11434` | 11434     | 11434           | 11435           | Ollama (host service, GPU-accelerated)     | Ollama model loaded          |
-| `localhost:8001`  | 8001      | 8001            | 8002            | Kubernetes dashboard (via `kubectl proxy`) | minikube running             |
-| `localhost:8888`  | 8888      | 8888            | 8887            | JupyterLab                                 | minikube running             |
+| `localhost:8001`  | 8001      | 8001            | 8002            | Kubernetes dashboard (via `kubectl proxy`) | k3s running                  |
+| `localhost:8888`  | 8888      | 8888            | 8887            | JupyterLab                                 | k3s running                  |
 | `localhost:5000`  | 5000      | 5000            | 5001            | MLflow Tracking UI                         | NeMo + MLflow deployed       |
 | `localhost:8080`  | 8080      | 8080            | 8081            | Kubeflow Pipelines UI                      | KFP deployed                 |
 | `localhost:8890`  | 8890      | 8890            | 8891            | KFP REST API (`/apis/v2beta1/...`)         | KFP deployed                 |
 
-DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the host by the **NeMo Deploy** workflow. They resolve to the minikube cluster IP (`192.168.1.200 fd66:3926:b096:10:4a98:7903:ca69:f3ee`). Source files: [`hosts.dgx`](hosts.dgx), [`agx/../../agx/minikube/nemo/hosts.agx`](../../../agx/minikube/nemo/hosts.agx).
+DNS entries (`nemo.test`, `nim.test`, `data-store.test`) are added to `/etc/hosts` on the host by the **NeMo Deploy** workflow. They resolve to the k3s node IP (`192.168.1.200 fd66:3926:b096:10:4a98:7903:ca69:f3ee`). Source files: [`hosts.dgx`](hosts.dgx), [`agx/../../agx/k3s/nemo/hosts.agx`](../../../agx/k3s/nemo/hosts.agx).
 
 ---
 
 ## NIM inference — `http://nim.test`
 
-Routes to the `nemo-nim-proxy` service inside minikube. Fully OpenAI-compatible.
+Routes to the `nemo-nim-proxy` service inside k3s. Fully OpenAI-compatible.
 
 ### List deployed models
 
@@ -299,7 +299,7 @@ curl http://nemo.test/v1/jobs | jq .
 
 ## NeMo Data Store — `http://data-store.test`
 
-HuggingFace Hub-compatible API backed by MinIO (inside minikube).
+HuggingFace Hub-compatible API backed by MinIO (inside k3s).
 
 ```bash
 # Health check
@@ -316,7 +316,7 @@ pull from and push to the local data store instead of `huggingface.co`.
 
 ## Ollama — `http://localhost:11434`
 
-Runs as a systemd service on the DGX **host** (not inside minikube). OpenAI-compatible API.
+Runs as a systemd service on the DGX **host** (not inside k3s). OpenAI-compatible API.
 
 > Ollama is GPU-accelerated on the DGX Spark GB10 (sm_120 binaries, binary-compatible with sm_121/Blackwell).
 

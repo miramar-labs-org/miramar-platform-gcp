@@ -1,10 +1,10 @@
 name: NeMo Deploy
 
-# Installs NeMo Microservices into the nemo-microservices namespace on the target
-# minikube cluster.
+# Installs NeMo Microservices into the nemo-microservices namespace on the target k3s
+# cluster.
 #
 # Prerequisites:
-#   - minikube running on the target machine (Minikube Install workflow)
+#   - k3s running on the target machine (K3s Install workflow)
 #   - NVIDIA_API_KEY org secret set
 #   - HF_TOKEN org secret set
 
@@ -39,13 +39,13 @@ jobs:
       - name: Resolve machine-specific paths
         run: |
           if [[ "${{ inputs.runner }}" == "agx" ]]; then
-            echo "HOSTS_FILE=agx/minikube/nemo/hosts.agx" >> "$GITHUB_ENV"
-            echo "VALUES_FILE=dgx/minikube/nemo/install/values.yaml" >> "$GITHUB_ENV"
+            echo "HOSTS_FILE=agx/k3s/nemo/hosts.agx" >> "$GITHUB_ENV"
+            echo "VALUES_FILE=dgx/k3s/nemo/install/values.yaml" >> "$GITHUB_ENV"
             echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
             echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
           else
-            echo "HOSTS_FILE=dgx/minikube/nemo/hosts.dgx" >> "$GITHUB_ENV"
-            echo "VALUES_FILE=dgx/minikube/nemo/install/values.yaml" >> "$GITHUB_ENV"
+            echo "HOSTS_FILE=dgx/k3s/nemo/hosts.dgx" >> "$GITHUB_ENV"
+            echo "VALUES_FILE=dgx/k3s/nemo/install/values.yaml" >> "$GITHUB_ENV"
             echo "HOST_IP=${{ vars.DGX_HOST_IP }}"   >> "$GITHUB_ENV"
             echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
           fi
@@ -266,12 +266,12 @@ jobs:
             DOC_LABEL="${NEMO_VERSION%.*}"
 
             sed -i "s|cluster IP (\`[0-9][0-9.]*[0-9]\`)|cluster IP (\`${CLUSTER_IP}\`)|g" \
-              dgx/minikube/nemo/ENDPOINTS.md
+              dgx/k3s/nemo/ENDPOINTS.md
 
             sed -i \
               -e "s|/nemo/microservices/[0-9][0-9]\.[0-9][0-9]\.[0-9]*/|/nemo/microservices/${NEMO_VERSION}/|g" \
               -e "s|(API reference ([0-9][0-9]\.[0-9][0-9]))|(API reference (${DOC_LABEL}))|g" \
-              dgx/minikube/nemo/README.md
+              dgx/k3s/nemo/README.md
 
             sed -i \
               -e "s|/nemo/microservices/[0-9][0-9]\.[0-9][0-9]\.[0-9]*/|/nemo/microservices/${NEMO_VERSION}/|g" \
@@ -279,7 +279,7 @@ jobs:
               templates/new-project-nemo/README.md
 
             sed -i "s|^nemo-microservices.*$|nemo-microservices==${NEMO_VERSION}|" \
-              dgx/minikube/nemo/requirements.txt
+              dgx/k3s/nemo/requirements.txt
 
             sed -i "s|nemo-microservices[^ ]*|nemo-microservices==${NEMO_VERSION}|g" \
               templates/new-project-nemo/notebook.ipynb
@@ -292,9 +292,9 @@ jobs:
             git config user.name "Miramar Platform"
             git add "$HOSTS_FILE"
             if [[ "$RUNNER" == "dgx" ]]; then
-              git add dgx/minikube/nemo/ENDPOINTS.md \
-                      dgx/minikube/nemo/README.md \
-                      dgx/minikube/nemo/requirements.txt \
+              git add dgx/k3s/nemo/ENDPOINTS.md \
+                      dgx/k3s/nemo/README.md \
+                      dgx/k3s/nemo/requirements.txt \
                       templates/new-project-nemo/README.md \
                       templates/new-project-nemo/notebook.ipynb
             fi
@@ -359,7 +359,7 @@ jobs:
       - name: Smoke-test endpoints
         continue-on-error: true
         run: |
-          NS=nemo-microservices bash dgx/minikube/nemo/utils/verify-nemo-endpoints.sh
+          NS=nemo-microservices bash dgx/k3s/nemo/utils/verify-nemo-endpoints.sh
 
       - name: Summary
         if: always()
