@@ -6,6 +6,10 @@ set -euo pipefail
 
 MODEL="${1:?model name required (e.g. llama3.3:70b-instruct-q4_K_M)}"
 VRAM_BUDGET_GB="${2:-100}"   # total GB available for AI models (DGX_VRAM_USEABLE org var)
+OLLAMA_CONTEXT_LENGTH_PIN="${3:-32768}"   # pinned OLLAMA_CONTEXT_LENGTH (systemd drop-in below).
+                                          # Unset, Ollama defaults to a VRAM-based 256K window,
+                                          # which let a runaway agent prompt (376K tokens) thrash
+                                          # the GB10 into a silent hard-hang (2026-08-27).
 
 log()  { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
 warn() { printf "\033[1;33m[WARN]\033[0m %b\n" "$*"; }
@@ -103,6 +107,40 @@ if (( CONFLICT )); then
   echo ""
   err "Cannot deploy $MODEL — resolve the conflict(s) above first."
   exit 1
+fi
+
+# --- Pin OLLAMA_CONTEXT_LENGTH via systemd drop-in ---
+# Ollama's default context window is derived from available VRAM and on the GB10
+# (128 GB unified) resolves to 262144 (256K). A single agentic call that lets its
+# prompt grow unchecked can then ask Ollama to hold a >250K-token prompt, and the
+# resulting sustained prompt reprocessing hard-hung the box on 2026-08-27. Pin a
+# sane ceiling so one bad caller can't do that again. Only restart if it changed.
+DROPIN_DIR=/etc/systemd/system/ollama.service.d
+DROPIN_FILE="${DROPIN_DIR}/10-context.conf"
+DROPIN_CONTENT="[Service]
+Environment=\"OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH_PIN}\""
+
+if [[ "$(cat "$DROPIN_FILE" 2>/dev/null || true)" != "$DROPIN_CONTENT" ]]; then
+  log "Pinning OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH_PIN} (systemd drop-in)..."
+  sudo mkdir -p "$DROPIN_DIR"
+  printf '%s\n' "$DROPIN_CONTENT" | sudo tee "$DROPIN_FILE" >/dev/null
+  sudo systemctl daemon-reload
+  sudo systemctl restart ollama
+  log "Waiting for Ollama to come back..."
+  for _ in $(seq 1 30); do
+    if curl -sf --connect-timeout 5 --max-time 10 \
+      http://localhost:11434/api/tags >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+  if ! curl -sf --connect-timeout 5 --max-time 10 \
+    http://localhost:11434/api/tags >/dev/null 2>&1; then
+    err "Ollama did not come back after the context-length restart."
+    exit 1
+  fi
+else
+  log "OLLAMA_CONTEXT_LENGTH already pinned to ${OLLAMA_CONTEXT_LENGTH_PIN} — no restart needed."
 fi
 
 # --- Pull model ---
