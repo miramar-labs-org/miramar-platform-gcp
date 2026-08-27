@@ -78,6 +78,19 @@ Does not disable linger or stop k3s (k3s is a system service, not a user unit).
 ./uninstall.sh
 ```
 
+## Shutdown
+
+Gracefully stops every DGX service (in dependency order, including the system-level `k3s` and
+`ollama` services `uninstall.sh` deliberately leaves alone) and powers off the host. Warns about
+in-flight GHA jobs, running KFP/Argo workflows, and active GPU processes before it touches
+anything, and requires typing `SHUTDOWN` to proceed.
+
+```sh
+./shutdown.sh            # interactive
+./shutdown.sh --dry-run  # show the plan, stop nothing, don't power off
+./shutdown.sh --yes      # skip the typed confirmation
+```
+
 ## Managing individual services
 
 ```sh
