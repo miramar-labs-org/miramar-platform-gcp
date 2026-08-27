@@ -8,9 +8,9 @@ workflows — the scripts in this tree are invoked by those workflows, not run b
 
 | Workflow          | Purpose                                                               |
 | ----------------- | -------------------------------------------------------------------- |
-| **K3s Install**   | Install k3s on the host, pin the nvidia-device-plugin, label the node |
-| **K3s Uninstall** | Tear the cluster down and remove k3s from the host                    |
-| **Bootstrap k3s** | Full end-to-end bootstrap of a fresh host (install + all workloads)   |
+| **K3s Install** (`install-k3s.yaml`)     | Install k3s with the NVIDIA device plugin + nginx-ingress; label the node; update the kubeconfig secret |
+| **K3s Uninstall** (`uninstall-k3s.yaml`) | Tear the cluster down and remove k3s from the host                                                     |
+| **K3s Bootstrap** (`bootstrap-k3s.yaml`) | Full end-to-end bootstrap of a fresh host (install + all workloads)                                    |
 
 ## Workloads
 
@@ -18,7 +18,7 @@ workflows — the scripts in this tree are invoked by those workflows, not run b
 | ------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
 | [nemo/](nemo/)                 | **NeMo Deploy** / **NeMo Undeploy**                          | [NeMo Microservices](https://docs.nvidia.com/nemo/microservices/) Helm install — values, endpoints, verify scripts |
 | [nim/](nim/)                   | **NIM Deploy** / **NIM Undeploy**                            | [NIM](https://developer.nvidia.com/nim) inference — deploy, undeploy, log tailing |
-| [mlflow/](mlflow/)             | **MLflow Deploy** / **MLflow Redeploy** / **MLflow Undeploy** | [MLflow](https://mlflow.org) tracking server — integrate, redeploy, verify, destroy |
+| [mlflow/](mlflow/)             | **MLflow Deploy** / **Redeploy MLflow** / **MLflow Undeploy** | [MLflow](https://mlflow.org) tracking server — integrate, redeploy, verify, destroy |
 | [qdrant/](qdrant/)             | **Qdrant Deploy** / **Qdrant Undeploy**                      | [Qdrant](https://qdrant.tech) vector DB — integrate, verify, destroy    |
 | [kubeflow/](kubeflow/)         | **Kubeflow Deploy** / **Kubeflow Undeploy**                  | [Kubeflow Pipelines](https://www.kubeflow.org/) standalone deploy/destroy + arm64 image patches |
 | [nsight/](nsight/)             | **Nsight Operator Deploy** / **Nsight Operator Undeploy**    | [Nsight](https://developer.nvidia.com/nsight-systems) Operator Helm values |
@@ -40,12 +40,12 @@ ssh -L 8001:localhost:8001 <user>@spark-79b7.local
 Then open:
 
 ```
-http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/
+http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
 ```
 
 ## Reinstalling from scratch
 
-Run the **K3s Uninstall** workflow, then **K3s Install** (or **Bootstrap k3s** to also
+Run the **K3s Uninstall** workflow, then **K3s Install** (or **K3s Bootstrap** to also
 redeploy every workload). Both keep the `<RUNNER>_K3S_KUBECONFIG` org secret current.
 
 ## References
