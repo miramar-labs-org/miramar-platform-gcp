@@ -19,6 +19,10 @@ on:
         description: "Ollama model tag (e.g. llama3.3:70b-instruct-q4_K_M)"
         required: false
         default: llama3.3:70b-instruct-q4_K_M
+      context_length:
+        description: "OLLAMA_CONTEXT_LENGTH to pin via systemd drop-in (DGX only; AGX ignores it)"
+        required: false
+        default: "32768"
 
 jobs:
   deploy:
@@ -75,6 +79,9 @@ jobs:
 
       - name: Check conflicts and deploy
         shell: bash
+        env:
+          MODEL: ${{ inputs.model }}
+          CONTEXT_LENGTH: ${{ inputs.context_length }}
         run: |
           set -euo pipefail
           ssh -i /tmp/host_key \
@@ -85,7 +92,7 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
             "$HOST_USER@$HOST_IP" \
-            bash -s -- "${{ inputs.model }}" "$VRAM_USEABLE" \
+            bash -s -- "$MODEL" "$VRAM_USEABLE" "$CONTEXT_LENGTH" \
             < "$DEPLOY_SCRIPT"
 
       - name: Rollback on deploy failure
