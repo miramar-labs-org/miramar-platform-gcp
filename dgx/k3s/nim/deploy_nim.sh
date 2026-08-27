@@ -220,7 +220,7 @@ verify_nim_endpoint() {
   suggest_fix "This usually indicates a DNS or networking issue"
   suggest_fix "Verify DNS configuration:"
   echo "  cat /etc/hosts | grep nemo.test"
-  echo "  Expected: $(minikube ip) nemo.test"
+  echo "  Expected: $(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type==\"InternalIP\")].address}') nemo.test"
   echo ""
   suggest_fix "Test DNS resolution:"
   echo "  ping -c 1 nim.test"

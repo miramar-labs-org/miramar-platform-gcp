@@ -330,7 +330,7 @@ jobs:
             --namespace nemo-microservices \
             --create-namespace \
             --version "${NEMO_VERSION}" \
-            -f dgx/minikube/nemo/install/values.yaml \
+            -f dgx/k3s/nemo/install/values.yaml \
             --timeout 30m
 
       - name: Update hosts file
@@ -340,9 +340,9 @@ jobs:
         run: |
           CLUSTER_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
           if [[ "${{ inputs.runner }}" == "agx" ]]; then
-            HOSTS_FILE="agx/minikube/nemo/hosts.agx"
+            HOSTS_FILE="agx/k3s/nemo/hosts.agx"
           else
-            HOSTS_FILE="dgx/minikube/nemo/hosts.dgx"
+            HOSTS_FILE="dgx/k3s/nemo/hosts.dgx"
           fi
           printf '%s nemo.test nim.test data-store.test\n' "${CLUSTER_IP}" > "${HOSTS_FILE}"
           git config user.email "actions@github.com"
@@ -377,7 +377,7 @@ jobs:
         if: ${{ inputs.deploy_mlflow == true }}
         run: |
           MINIO_DATA_DIR="/home/${HOST_USER}/shared/mlflow/minio" \
-          bash dgx/minikube/mlflow/integrate-mlflow.sh
+          bash dgx/k3s/mlflow/integrate-mlflow.sh
 
       - name: Set MLflow active state
         env:
@@ -394,7 +394,7 @@ jobs:
         if: ${{ inputs.deploy_qdrant == true }}
         run: |
           QDRANT_DATA_DIR="/home/${HOST_USER}/shared/qdrant-data" \
-          bash dgx/minikube/qdrant/integrate-qdrant.sh
+          bash dgx/k3s/qdrant/integrate-qdrant.sh
 
       - name: Set Qdrant active state
         env:
@@ -417,7 +417,7 @@ jobs:
           MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
         run: |
           KFP_DATA_DIR="/home/${HOST_USER}/shared/kfp" \
-          bash dgx/minikube/kubeflow/deploy-kubeflow.sh
+          bash dgx/k3s/kubeflow/deploy-kubeflow.sh
 
       - name: Create KFP shared storage
         run: |

@@ -17,9 +17,9 @@ name: Build KFP arm64 Images
 # Two KFP components require patched Dockerfiles:
 #   kfp-api-server — upstream uses $TARGETARCH (unset in plain docker build) for
 #     the Argo CLI download URL, producing argo-linux-.gz (404); patch hardcodes
-#     arm64. Patched version: dgx/minikube/kubeflow/arm64/<version>/Dockerfile.api-server
+#     arm64. Patched version: dgx/k3s/kubeflow/arm64/<version>/Dockerfile.api-server
 #   kfp-visualization-server — upstream hardcodes x86_64 in the gcloud SDK URL;
-#     patched version: dgx/minikube/kubeflow/arm64/<version>/Dockerfile.visualization-server
+#     patched version: dgx/k3s/kubeflow/arm64/<version>/Dockerfile.visualization-server
 #
 # Images produced (all under ghcr.io/miramar-labs-org/):
 #   ml_metadata_store_server, kfp-metadata-writer,
@@ -30,7 +30,7 @@ name: Build KFP arm64 Images
 #
 # Run before Kubeflow Deploy when first deploying or after a version bump.
 # Set "component" to rebuild a single image (e.g. after a Dockerfile patch).
-# See dgx/minikube/kubeflow/arm64/README.md for full details.
+# See dgx/k3s/kubeflow/arm64/README.md for full details.
 
 on:
   workflow_dispatch:
@@ -154,7 +154,7 @@ jobs:
         run: |
           IMAGE="ghcr.io/${{ github.repository_owner }}/${{ matrix.component }}"
           if [ -n "${PATCHED_DOCKERFILE}" ]; then
-            DOCKERFILE="dgx/minikube/kubeflow/arm64/${KFP_VERSION}/${PATCHED_DOCKERFILE}"
+            DOCKERFILE="dgx/k3s/kubeflow/arm64/${KFP_VERSION}/${PATCHED_DOCKERFILE}"
           else
             DOCKERFILE="kfp-src/${{ matrix.dockerfile }}"
           fi
@@ -182,9 +182,9 @@ jobs:
           docker build \
             --network=host \
             ${BUILD_ARGS} \
-            -f "dgx/minikube/kubeflow/arm64/${KFP_VERSION}/${{ matrix.mlmd_dockerfile }}" \
+            -f "dgx/k3s/kubeflow/arm64/${KFP_VERSION}/${{ matrix.mlmd_dockerfile }}" \
             -t "${IMAGE}:${TAG}" \
-            "dgx/minikube/kubeflow/arm64/${KFP_VERSION}"
+            "dgx/k3s/kubeflow/arm64/${KFP_VERSION}"
           echo "BUILT_IMAGE=${IMAGE}:${TAG}" >> "$GITHUB_ENV"
 
       - name: Push to GHCR

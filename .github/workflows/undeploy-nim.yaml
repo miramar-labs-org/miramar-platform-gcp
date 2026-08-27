@@ -1,6 +1,6 @@
 name: NIM Undeploy
 
-# Undeploys a NIM from the target minikube cluster via the NeMo Microservices deployment API.
+# Undeploys a NIM from the target k3s cluster via the NeMo Microservices deployment API.
 # NeMo Microservices must be running. Safe to run if the NIM is already gone (404 → no-op).
 
 on:
@@ -65,8 +65,8 @@ jobs:
           NIM_ORG: ${{ inputs.nim_org }}
           NIM_NAME: ${{ inputs.nim_name }}
         run: |
-          # shellcheck source=dgx/minikube/nim/undeploy_nim.sh
-          source dgx/minikube/nim/undeploy_nim.sh
+          # shellcheck source=dgx/k3s/nim/undeploy_nim.sh
+          source dgx/k3s/nim/undeploy_nim.sh
           undeploy_nim "$NIM_ORG" "$NIM_NAME"
 
       - name: Update platform state

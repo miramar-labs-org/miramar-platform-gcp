@@ -61,7 +61,7 @@ jobs:
       - name: Deploy MLflow and integrate with NeMo
         run: |
           MINIO_DATA_DIR="/home/${HOST_USER}/shared/mlflow/minio" \
-          bash dgx/minikube/mlflow/integrate-mlflow.sh
+          bash dgx/k3s/mlflow/integrate-mlflow.sh
 
       - name: Create MinIO mlflow bucket
         run: |
@@ -80,7 +80,7 @@ jobs:
 
       - name: Smoke-test endpoints
         continue-on-error: true
-        run: bash dgx/minikube/mlflow/verify-mlflow-endpoints.sh
+        run: bash dgx/k3s/mlflow/verify-mlflow-endpoints.sh
 
       - name: Set MLflow active state
         env:

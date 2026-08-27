@@ -24,7 +24,7 @@ Keep your final message tight; that is the whole point of delegating to you.
   with `--platform linux/arm64`.
 - Registry: push to `ghcr.io/miramar-labs-org/<image>:<tag>`. Match the tag scheme
   already used by the MLMD images (KFP version tag, e.g. `2.16.1`).
-- Reference material: `dgx/minikube/kubeflow/arm64/README.md`, the existing
+- Reference material: `dgx/k3s/kubeflow/arm64/README.md`, the existing
   `build-mlmd-arm64.yaml` workflow, and the KFP kustomize manifests (env/dev).
 - Known arm64 gotchas to expect and handle: missing arm64 Python wheels (build
   from source or pin a version that has them), C/C++ deps needing `cmake`/`libtool`

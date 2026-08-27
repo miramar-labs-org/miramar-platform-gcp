@@ -121,7 +121,7 @@ jobs:
             --namespace nsight-operator \
             --create-namespace \
             --version "${{ inputs.chart_version }}" \
-            -f dgx/minikube/nsight/values.yaml \
+            -f dgx/k3s/nsight/values.yaml \
             --timeout 10m \
             nsight-operator \
             nvidia-devtools/nsight-operator

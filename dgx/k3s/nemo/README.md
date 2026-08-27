@@ -1,8 +1,8 @@
-# NVidia NeMo Microservices on DGX Spark (minikube)
+# NVidia NeMo Microservices on DGX Spark (k3s)
 
 ## Known issues
 
-- The current minikube `nvidia-device-plugin` addon has a bug preventing the GB10 GPU from advertising itself. The deploy workflow pins a newer version that contains the fix.
+- The stock `nvidia-device-plugin` has a bug preventing the GB10 GPU from advertising itself. The deploy workflow pins a newer version that contains the fix.
 - `guardrails` and `studio` are disabled in `install/values.yaml` — not yet ARM-compatible.
 - Current NIM images have a TensorRT bug on Spark DGX; the workflow uses patched image tags.
 - The upstream install requires 2 GPUs and GB10 is not on its approved list — both checks are patched.

@@ -1,6 +1,6 @@
 # Qdrant
 
-[Qdrant](https://qdrant.tech) ([docs](https://qdrant.tech/documentation/)) — vector database deployed into the `qdrant-system` namespace on minikube. Used as the vector store for RAG pipelines.
+[Qdrant](https://qdrant.tech) ([docs](https://qdrant.tech/documentation/)) — vector database deployed into the `qdrant-system` namespace on k3s. Used as the vector store for RAG pipelines.
 
 Managed via the **Qdrant Deploy** / **Qdrant Undeploy** GHA workflows. Manual scripts below are for diagnostics and local iteration.
 
@@ -38,4 +38,4 @@ print(client.get_collections())
 
 ## Storage
 
-PVC: `qdrant-pvc` — 20 Gi, `standard` StorageClass (minikube VM disk). Data persists across pod restarts but not across `destroy-qdrant.sh` runs.
+PVC: `qdrant-pvc` — 20 Gi, `local-path` StorageClass (k3s local-path provisioner). Data persists across pod restarts but not across `destroy-qdrant.sh` runs.

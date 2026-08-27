@@ -51,7 +51,7 @@ jobs:
       - name: Destroy MLflow and MinIO
         env:
           DELETE_NS: "true"
-        run: bash dgx/minikube/mlflow/destroy-mlflow.sh
+        run: bash dgx/k3s/mlflow/destroy-mlflow.sh
 
       - name: Cleanup SSH key
         if: always()

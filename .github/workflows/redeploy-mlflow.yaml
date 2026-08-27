@@ -33,7 +33,7 @@ jobs:
           echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Redeploy MLflow
-        run: bash dgx/minikube/mlflow/redeploy-mlflow.sh
+        run: bash dgx/k3s/mlflow/redeploy-mlflow.sh
 
       - name: Verify
         run: |

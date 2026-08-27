@@ -96,7 +96,7 @@ Stack deployment order:
 K3s Install -> NeMo Deploy -> MLflow Deploy -> Qdrant Deploy -> Kubeflow Deploy -> NIM Deploy (or Ollama Deploy)
 ```
 
-See [../dgx/minikube/](../dgx/minikube/) for legacy manifests (retained for reference).
+See [../dgx/k3s/](../dgx/k3s/) for the per-workload manifests and deploy/verify scripts.
 
 ## MLflow
 
@@ -110,7 +110,7 @@ Actions -> MLflow Undeploy
 
 NeMo must be deployed before MLflow because MLflow uses NeMo's postgres backend.
 
-The deploy workflow runs a smoke test after deployment (`dgx/minikube/mlflow/verify-mlflow-endpoints.sh`):
+The deploy workflow runs a smoke test after deployment (`dgx/k3s/mlflow/verify-mlflow-endpoints.sh`):
 - `GET /health` — tracking server up
 - `GET /api/2.0/mlflow/experiments/list` — PostgreSQL backend reachable
 
@@ -134,14 +134,14 @@ Actions -> Kubeflow Deploy
 Kubeflow is independent of NeMo and MLflow — it can be deployed on a fresh
 k3s cluster without any other workloads.
 
-The deploy workflow runs a smoke test after deployment (`dgx/minikube/kubeflow/verify-kfp-endpoints.sh`):
+The deploy workflow runs a smoke test after deployment (`dgx/k3s/kubeflow/verify-kfp-endpoints.sh`):
 - `GET /` on `svc/ml-pipeline-ui:80` — UI serving
 - `GET /apis/v2beta1/healthz` on `svc/ml-pipeline:8888` — API server healthy
 
 ### arm64 images (GHCR)
 
 All 13 KFP images are built natively on the DGX. Full image catalog and patch
-details: [../dgx/minikube/kubeflow/arm64/README.md](../dgx/minikube/kubeflow/arm64/README.md)
+details: [../dgx/k3s/kubeflow/arm64/README.md](../dgx/k3s/kubeflow/arm64/README.md)
 
 ## Qdrant
 
@@ -156,7 +156,7 @@ Actions -> Qdrant Undeploy
 
 Qdrant is independent of NeMo and MLflow — it can be deployed on a fresh k3s cluster. Conventional position: after MLflow Deploy, before Kubeflow Deploy.
 
-The deploy workflow runs a smoke test after deployment (`dgx/minikube/qdrant/verify-qdrant-endpoints.sh`):
+The deploy workflow runs a smoke test after deployment (`dgx/k3s/qdrant/verify-qdrant-endpoints.sh`):
 - `GET /health` — server up
 - `GET /collections` — API reachable
 

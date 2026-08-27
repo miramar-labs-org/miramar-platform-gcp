@@ -27,11 +27,11 @@ scripts/
   dashboard/       # generate-dashboard.sh (GitHub Pages platform dashboard)
 mlabs-runner/      # Docker image for self-hosted GHA runners
 dgx/               # DGX Spark host config and local tooling
-  minikube/        # legacy minikube manifests (retained for reference); k3s manifests in dgx/k3s/
+  k3s/             # k3s workload manifests + deploy/verify scripts (NeMo, NIM, MLflow, Qdrant, Kubeflow, Nsight)
   ollama/          # Ollama deploy/undeploy scripts and model catalog
   systemd/         # Systemd user service unit files + install/uninstall scripts
 agx/               # AGX Orin host config and local tooling (mirrors dgx/)
-  minikube/        # NeMo hosts file and AGX-specific configs
+  k3s/             # NeMo hosts file and AGX-specific configs
   ollama/          # Ollama deploy/undeploy scripts (NIM conflict check omitted — verify arm64 support per model)
 wsl2/              # WSL2 host config and bootstrap scripts
   README.md           # Operator quickstart for WSL2 provisioning
@@ -330,7 +330,7 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
-**NIM** — DGX default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). AGX support: platform variables (`CURRENT_NIM_MODEL_AGX` etc.) are wired; whether a given NIM container image supports `linux/arm64` depends on the model — check NGC before deploying. See `dgx/minikube/nim/NIM.md` for catalog.
+**NIM** — DGX default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). AGX support: platform variables (`CURRENT_NIM_MODEL_AGX` etc.) are wired; whether a given NIM container image supports `linux/arm64` depends on the model — check NGC before deploying. See `dgx/k3s/nim/NIM.md` for catalog.
 
 **Ollama** — runs as a systemd service on the host (not in k3s).
 - DGX: ~28 GB reserved for platform, **~100 GB for models** (`DGX_VRAM_USEABLE`)

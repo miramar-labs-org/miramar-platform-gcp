@@ -1,6 +1,6 @@
 name: Qdrant Undeploy
 
-# Removes Qdrant from the qdrant-system namespace on the target minikube cluster.
+# Removes Qdrant from the qdrant-system namespace on the target k3s cluster.
 # The PVC (vector data) is deleted along with the namespace.
 
 on:
@@ -51,7 +51,7 @@ jobs:
       - name: Destroy Qdrant
         env:
           DELETE_NS: "true"
-        run: bash dgx/minikube/qdrant/destroy-qdrant.sh
+        run: bash dgx/k3s/qdrant/destroy-qdrant.sh
 
       - name: Cleanup SSH key
         if: always()

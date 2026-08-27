@@ -10,7 +10,7 @@ name: Kubeflow Deploy
 #
 # Prerequisites (run in order before first deploy or after version bump):
 #   1. Build KFP arm64 Images (covers all 13 components including MLMD)
-# See dgx/minikube/kubeflow/arm64/README.md for details.
+# See dgx/k3s/kubeflow/arm64/README.md for details.
 #
 # UI is served by svc/ml-pipeline-ui:80, forwarded to host port 8080 by
 # kubeflow-portfwd.service. The REST API is served by svc/ml-pipeline:8888,
@@ -102,7 +102,7 @@ jobs:
           MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
         run: |
           KFP_DATA_DIR="/home/${HOST_USER}/shared/kfp" \
-          bash dgx/minikube/kubeflow/deploy-kubeflow.sh
+          bash dgx/k3s/kubeflow/deploy-kubeflow.sh
 
       - name: Wait for pods
         run: |
@@ -209,7 +209,7 @@ jobs:
 
       - name: Smoke-test endpoints
         continue-on-error: true
-        run: bash dgx/minikube/kubeflow/verify-kfp-endpoints.sh
+        run: bash dgx/k3s/kubeflow/verify-kfp-endpoints.sh
 
       - name: Sync API keys to cluster
         env:
