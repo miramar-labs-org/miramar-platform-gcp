@@ -284,7 +284,7 @@ Detailed operational procedures live in focused docs:
 | Workflow catalog                                 | [docs/workflows.md](docs/workflows.md)                                                                     |
 | DGX local AI stack                               | [docs/dgx.md](docs/dgx.md), [dgx/README.md](dgx/README.md)                                                 |
 | GPU profiling + AI analysis                      | [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp), [docs/dgx.md](docs/dgx.md#gpu-profiling) |
-| Model serving (vLLM on GKE)                      | [docs/workflows.md](docs/workflows.md#model-serving-llm-serving-vllm-projects)                             |
+| Model serving (vLLM on GKE)                      | [docs/workflows.md](docs/workflows.md#model-serving-serving--projects)                             |
 | WSL2 environments                                | [wsl2/README.md](wsl2/README.md), [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md)                                   |
 | SSH topology                                     | [docs/ssh-runbook.md](docs/ssh-runbook.md)                                                                 |
 | Shared DGX/WSL2 folder                           | [docs/shared.md](docs/shared.md)                                                                           |
@@ -299,7 +299,7 @@ Common entry points:
 | Scale GKE/GPU capacity         | [docs/workflows.md](docs/workflows.md), [docs/gpu-quota-request.md](docs/gpu-quota-request.md) |
 | Deploy DGX AI services         | [docs/dgx.md](docs/dgx.md)                                                                     |
 | Profile a KFP pipeline stage   | [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp)                               |
-| Publish adapter + serve on GKE | [docs/workflows.md](docs/workflows.md#model-serving-llm-serving-vllm-projects)                 |
+| Publish adapter + serve on GKE | [docs/workflows.md](docs/workflows.md#model-serving-serving--projects)                 |
 | Provision WSL2 distros         | [wsl2/README.md](wsl2/README.md)                                                               |
 | Troubleshoot SSH               | [docs/ssh-runbook.md](docs/ssh-runbook.md)                                                     |
 

@@ -392,24 +392,6 @@ _ksha="$(curl -fsSL "https://dl.k8s.io/release/${KVER}/bin/linux/${KARCH}/kubect
 echo "${_ksha}  ${_ktmp}" | sha256sum --check || die "kubectl checksum mismatch"
 sudo install -o root -g root -m 0755 "$_ktmp" /usr/local/bin/kubectl
 
-log "Install minikube"
-ARCHM="$(uname -m)"
-case "$ARCHM" in
-  x86_64)       MK_BIN="minikube-linux-amd64" ;;
-  aarch64|arm64) MK_BIN="minikube-linux-arm64" ;;
-  *) die "Unsupported arch for minikube: $ARCHM" ;;
-esac
-
-_mktmp="$(mktemp)"
-TMP_PATHS+=("$_mktmp")
-curl -fsSL -o "$_mktmp" \
-  "https://github.com/kubernetes/minikube/releases/latest/download/${MK_BIN}"
-_mksha="$(curl -fsSL \
-  "https://github.com/kubernetes/minikube/releases/latest/download/${MK_BIN}.sha256" \
-  | awk '{print $1}')"
-echo "${_mksha}  ${_mktmp}" | sha256sum --check || die "minikube checksum mismatch"
-sudo install "$_mktmp" /usr/local/bin/minikube
-
 log "Install Helm"
 case "$ARCH" in
   amd64) HARCH="amd64" ;;
@@ -475,7 +457,6 @@ echo "  neofetch"
 echo "  git --version"
 echo "  docker version"
 echo "  kubectl version --client"
-echo "  minikube version"
 echo "  go version"
 
 echo "  systemctl status ssh          # verify sshd is enabled"
