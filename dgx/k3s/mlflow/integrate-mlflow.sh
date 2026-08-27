@@ -20,6 +20,10 @@ NEMO_NS="nemo-microservices"
 
 MLFLOW_NS="mlflow-system"
 MLFLOW_RELEASE="mlflow-tracking"     # results in svc/mlflow-tracking
+# Pin the chart — community-charts/mlflow >= 1.9 ships a stricter values.schema.json
+# that breaks --reuse-values upgrades of older releases (see redeploy-mlflow.sh).
+# Keep this in lock-step with redeploy-mlflow.sh.
+MLFLOW_CHART_VERSION="${MLFLOW_CHART_VERSION:-1.8.5}"
 MINIO_RELEASE="minio"                # used only for cleanup now; we deploy MinIO via YAML
 
 # In-cluster URLs (stable DNS)
@@ -267,6 +271,7 @@ service:
 YAML
 
 helm upgrade --install "${MLFLOW_RELEASE}" community-charts/mlflow \
+  --version "${MLFLOW_CHART_VERSION}" \
   -n "${MLFLOW_NS}" \
   -f "${MLFLOW_VALUES}" \
   --wait --timeout 10m
