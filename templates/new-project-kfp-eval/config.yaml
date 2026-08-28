@@ -1,0 +1,69 @@
+description: ""  # One sentence — shown in KFP Pipelines + KFP Experiments + MLflow Experiments UI
+
+# ── Candidate models ─────────────────────────────────────────────────────────
+# One entry per model under evaluation. `id` is the leaderboard key and must be
+# unique. `ollama_tag` is required for serving_mode "ollama"; `hf_id` + `quant`
+# are required for serving_mode "guided" (vLLM). List only the fields the modes
+# you enable actually need.
+models:
+  - id: example-model
+    ollama_tag: "qwen3:4b"          # `ollama pull` target for serving_mode: ollama
+    hf_id: "Qwen/Qwen3-4B"          # HF repo for serving_mode: guided (vLLM)
+    quant: "fp8"                    # vLLM --quantization (fp8 on GB10 — never nvfp4)
+
+# ── Serving modes ────────────────────────────────────────────────────────────
+# The matrix is models × serving_modes, run SERIALLY (one GPU, Ollama pins one
+# resident model at a time).
+#   ollama  — evict any other resident model, pull + preload the target, hit
+#             /v1 on the shared Ollama (JSON mode).
+#   guided  — stand up a short-lived vLLM Deployment with xgrammar guided
+#             decoding, poll /health, tear it down after the combo.
+serving_modes: [ollama]
+
+# ── Task harnesses ───────────────────────────────────────────────────────────
+# Module-name-style keys; each must have a matching entry in the notebook's
+# HARNESSES registry (build_cases / run_case / gates / judge_prompt). The
+# template ships `example_harness` only — add your own in the notebook.
+tasks: [example_harness]
+
+# ── Frozen dataset (MinIO artifact) ──────────────────────────────────────────
+# load_dataset pulls s3://<bucket>/datasets/<version>/{<task>.jsonl, manifest.json}.
+# Produce it with scripts/export_dataset.py (LangSmith → JSONL → MinIO).
+dataset:
+  bucket: "{{PROJECT_NAME}}"
+  version: "v00000000"             # dated snapshot dir, e.g. v20260828
+
+# ── LLM-as-judge ─────────────────────────────────────────────────────────────
+# A single fixed judge model scores every candidate's output. Keep it local
+# (Ollama) by default. Note self-grading bias if the judge is also a candidate.
+judge:
+  model: "gpt-oss:120b"
+  base_url: "http://192.168.1.200:11434/v1"
+
+# ── Gate thresholds ──────────────────────────────────────────────────────────
+# Harness-specific keys, read by each harness's gates() block. Deterministic,
+# pass/fail — no model in the loop.
+gate_thresholds:
+  example_harness:
+    min_output_keys: 1
+
+# ── Score weights ────────────────────────────────────────────────────────────
+# Per task, per metric. Weights are normalized per task before the weighted
+# composite. `gate_pass` = fraction of cases passing all gates; `judge` = mean
+# judge score normalized to 0–1.
+score_weights:
+  example_harness:
+    gate_pass: 0.6
+    judge: 0.4
+
+# ── Timeouts / serving knobs ─────────────────────────────────────────────────
+case_timeout_s: 180               # hard cap per run_case (bounds every agentic loop)
+serving:
+  ollama_base_url: "http://192.168.1.200:11434/v1"
+  guided_readiness_timeout_s: 900 # max wait for a vLLM pod /health to go green
+  guided_namespace: "kubeflow"    # namespace the transient vLLM Deployment lands in
+
+# ── LangSmith (dataset source; tracing optional) ─────────────────────────────
+langsmith:
+  enabled: false
+  project: ""                     # LangSmith project scripts/export_dataset.py reads
