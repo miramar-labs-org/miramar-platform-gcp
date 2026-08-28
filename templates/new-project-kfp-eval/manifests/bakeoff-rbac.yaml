@@ -1,0 +1,44 @@
+# RBAC for serving_mode: "guided".
+#
+# The `serve_model` / `teardown_model` components create and delete a transient
+# vLLM Deployment + Service in the pipeline's namespace. KFP pods run as the
+# `pipeline-runner` ServiceAccount (or `default` on some installs) in the
+# `kubeflow` namespace — grant it deployments/services in that namespace.
+#
+#   kubectl apply -f manifests/bakeoff-rbac.yaml
+#
+# Not needed if you only use serving_mode: "ollama".
+# Adjust `namespace` / the subject name to match your KFP install
+# (`kubectl -n kubeflow get pods <a-pipeline-pod> -o jsonpath='{.spec.serviceAccountName}'`).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: bakeoff-vllm-manager
+  namespace: kubeflow
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bakeoff-vllm-manager
+  namespace: kubeflow
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: bakeoff-vllm-manager
+subjects:
+  - kind: ServiceAccount
+    name: pipeline-runner
+    namespace: kubeflow
+  - kind: ServiceAccount
+    name: default
+    namespace: kubeflow

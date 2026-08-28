@@ -35,6 +35,7 @@ inference workloads across local GPU systems and cloud infrastructure.
 | GKE transient GPU pool                           | ✅ Done        | L4 on-demand (`g2-standard-8`), `us-east1-b`; expand/restore workflow pair |
 | ft-eval pipeline type                            | ✅ Done        | 6-step eval-first fine-tuning; config-driven; MLflow tracking          |
 | kfp-rag pipeline type                            | ✅ Done        | 6-step RAG pipeline; Qdrant-backed; LLM-as-judge eval; CPU-only        |
+| kfp-eval pipeline type                           | ✅ Done        | Model bakeoff; N LLMs × M serving modes; gates + fixed LLM-as-judge; MinIO dataset; MLflow leaderboard |
 | kfp-nemo-curator pipeline type                        | ✅ Done        | 6-step NeMo Curator data-curation; CPU+GPU (RAPIDS cuDF dedup)         |
 | Adapter publish → GCS manifest                   | ✅ Done        | `publish-adapter.yaml`; `eval_passed` + `safety_passed` gate           |
 | vLLM LoRA adapter serving (DGX/AGX/GKE)          | ✅ Done        | `serving-vllm` template; LoRA adapter baked into image; L4 spot on GKE |
@@ -231,6 +232,7 @@ GitHub is the source-of-truth control plane:
 | `serving-triton-vllm`     | `miramar-serving-triton-vllm`      | dgx / gcp       | ✅ Done    | Triton Python backend + vLLM AsyncLLMEngine; LoRA adapter; DGX K3s or GKE L4 spot (no AGX) |
 | `serving-triton-trtllm`   | `miramar-serving-triton-trtllm`    | dgx / gcp       | ✅ Done    | Triton Python backend + TRT-LLM LLM API; baked engine (engine_gb10/engine_l4); ~30s start; no AGX |
 | `kfp-rag`            | `miramar-kfp-rag`              | dgx             | ✅ Done        | RAG pipeline: ingest_documents → retrieval_eval → generation_eval → faithfulness_eval → safety_eval → deployment_gate (CPU-only, Qdrant, LLM-as-judge) |
+| `kfp-eval`           | `miramar-kfp-eval`            | dgx             | ✅ Done        | Model bakeoff: load_dataset → per candidate (serve_model → task harnesses → teardown_model) → judge_and_score → report. Ranks N LLMs × M serving modes (ollama / guided vLLM) with deterministic gates + a fixed 1–5 LLM-as-judge; MinIO-frozen dataset; MLflow leaderboard |
 | `kfp-nemo-curator`        | `miramar-kfp-nemo-curator`          | dgx             | ✅ Done        | NeMo Curator data-curation: preflight_check → extract_text → quality_filter → deduplication → pii_redaction → curator_report (CPU + GPU via RAPIDS cuDF) |
 | `kfp-optimize`       | `miramar-kfp-optimize`         | dgx             | 📋 Planned     | Prune → distill → quantize FP8 pipeline (KFP v2); output: merged quantized checkpoint    |
 | `kfp`                | `miramar-kfp`                  | dgx / agx       | ✅ Done        | Generic KFP v2 pipeline stub                                                             |

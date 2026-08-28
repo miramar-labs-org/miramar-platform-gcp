@@ -28,7 +28,7 @@ on:
       project_type:
         description: Project type
         type: choice
-        options: [default, kfp, ft-eval, nemo-ft-eval, sequence-classify, serving-vllm, serving-nim, serving-llm-nim, serving-trt-fp8, serving-trt-engine, serving-triton-vllm, serving-triton-trtllm, kfp-rag, kfp-nemo-curator]
+        options: [default, kfp, ft-eval, nemo-ft-eval, sequence-classify, serving-vllm, serving-nim, serving-llm-nim, serving-trt-fp8, serving-trt-engine, serving-triton-vllm, serving-triton-trtllm, kfp-rag, kfp-eval, kfp-nemo-curator]
         default: default
         required: true
       host:
@@ -147,6 +147,7 @@ jobs:
               ft-eval)            DESCRIPTION="Fine-tune and evaluate an LLM on the Miramar platform" ;;
               sequence-classify)  DESCRIPTION="Sequence-encoder classification pipeline on the Miramar platform" ;;
               kfp-rag)            DESCRIPTION="RAG pipeline on the Miramar platform" ;;
+              kfp-eval)           DESCRIPTION="Model bakeoff — rank candidate LLMs on the Miramar platform" ;;
               kfp-nemo-curator)   DESCRIPTION="NeMo Curator data pipeline on the Miramar platform" ;;
               *)                  DESCRIPTION="${PROJECT_TYPE} project" ;;
             esac
@@ -283,7 +284,7 @@ jobs:
           # (which would break the YAML block scalar).
           ORG_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}"
           WF="${ORG_URL}/actions/workflows"
-          if [ "${PROJECT_TYPE}" = "ft-eval" ] || [ "${PROJECT_TYPE}" = "nemo-ft-eval" ] || [ "${PROJECT_TYPE}" = "sequence-classify" ]; then
+          if [ "${PROJECT_TYPE}" = "ft-eval" ] || [ "${PROJECT_TYPE}" = "nemo-ft-eval" ] || [ "${PROJECT_TYPE}" = "sequence-classify" ] || [ "${PROJECT_TYPE}" = "kfp-eval" ]; then
             BADGE_2="[![Deploy to KFP](${WF}/deploy-to-kfp.yaml/badge.svg)](${WF}/deploy-to-kfp.yaml)"
             BADGE_3="[![Undeploy from KFP](${WF}/undeploy-from-kfp.yaml/badge.svg)](${WF}/undeploy-from-kfp.yaml)"
           elif [ "${PROJECT_TYPE}" = "kfp" ]; then
@@ -341,6 +342,7 @@ jobs:
           [[ "${PROJECT_TYPE}" = "sequence-classify" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes scikit-learn peft"
           [[ "${PROJECT_TYPE}" = "nemo-ft-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes nemo-microservices"
           [[ "${PROJECT_TYPE}" = "kfp-rag" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes langchain langchain-text-splitters langchain-qdrant langsmith qdrant-client sentence-transformers"
+          [[ "${PROJECT_TYPE}" = "kfp-eval" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes openai langsmith boto3 mlflow pandas pyyaml"
           [[ "${PROJECT_TYPE}" = "kfp-nemo-curator" ]] && REQS="${REQS} kfp>=2.0.0 kfp-kubernetes nemo-curator trafilatura ftfy presidio-analyzer presidio-anonymizer spacy"
           printf '%s\n' ${REQS} > requirements.txt
 
@@ -649,6 +651,29 @@ jobs:
               "| Run | recall@5 | faithfulness | safety | Gate |" "|---|---|---|---|---|" \
               "| — | — | — | — | — |" "" \
               "## Next steps" "" "<!-- TODO -->")
+          elif [ "${PROJECT_TYPE}" = "kfp-eval" ]; then
+            CATS="miramar kubeflow bakeoff eval llm"
+            BODY=$(printf '%s\n' \
+              "${DESCRIPTION:-<!-- TODO: one-sentence description -->}" "" \
+              "**Platform:** [Miramar Platform](${DASHBOARD_URL})" \
+              "**Repo:** [miramar-labs-org/${PROJECT_NAME}](${REPO_URL})" "" \
+              "## Pipeline" "" \
+              "| Step | Purpose |" "|---|---|" \
+              "| \`load_dataset\` | Pull the frozen eval snapshot from MinIO |" \
+              "| \`serve_model\` / \`teardown_model\` | Bring each candidate up/down (\`ollama\` or transient vLLM) |" \
+              "| \`<task harness>\` | One per task — prompt the model, run deterministic gates <!-- TODO --> |" \
+              "| \`judge_and_score\` | Fixed 1–5 LLM-as-judge + weighted composite |" \
+              "| \`report\` | Winner to MLflow + \`runs/RUNS.md\` |" "" \
+              "## Configuration" "" \
+              "| | |" "|---|---|" \
+              "| Candidates | \`<!-- TODO: models[] -->\` |" \
+              "| Serving modes | \`<!-- TODO: ollama / guided -->\` |" \
+              "| Judge | \`<!-- TODO: judge.model -->\` |" \
+              "| Dataset version | \`<!-- TODO: dataset.version -->\` |" "" \
+              "## Leaderboard" "" \
+              "| Run | Winner | Composite | Key Finding |" "|---|---|---|---|" \
+              "| — | — | — | — |" "" \
+              "## Next steps" "" "<!-- TODO -->")
           elif [ "${PROJECT_TYPE}" = "kfp-nemo-curator" ]; then
             CATS="miramar kubeflow nemo-curator data-curation"
             BODY=$(printf '%s\n' \
@@ -898,6 +923,15 @@ jobs:
               echo "6. Trigger **Deploy to KFP** to ingest, eval, and gate"
               echo ""
               echo "Prerequisites: **Kubeflow Deploy** + **Qdrant Deploy** must be running on \`${HOST}\`; an active serving project for \`llm.base_url\`"
+            elif [ "${PROJECT_TYPE}" = "kfp-eval" ]; then
+              echo "### Next steps"
+              echo "1. Fill in \`langsmith.project\` + \`langsmith.export[]\` in \`config.yaml\`, then run \`scripts/export_dataset.py --version v\$(date +%Y%m%d)\` to freeze + upload the dataset"
+              echo "2. Copy the \`example_harness\` cell in \`notebook.ipynb\` per task — rewrite \`run_case\` / \`gates\`, register in \`_HARNESSES\` (see WORKBOOK.md)"
+              echo "3. Edit \`config.yaml\` — list candidates under \`models:\`, pick \`serving_modes:\`, set \`dataset.version\`, tune \`gate_thresholds\` / \`score_weights\`"
+              echo "4. Run the **Build → \`pipeline.py\`** cell in the notebook"
+              echo "5. Trigger **Deploy to KFP** to run the bakeoff"
+              echo ""
+              echo "Prerequisites: **Kubeflow Deploy** + **MLflow Deploy** must be running on \`${HOST}\`; for \`serving_mode: guided\`, \`kubectl apply -f manifests/bakeoff-rbac.yaml\` once"
             elif [ "${PROJECT_TYPE}" = "kfp-nemo-curator" ]; then
               echo "### Next steps"
               echo "1. Add source documents to \`data_src/\` (.txt, .md, .html, or .jsonl)"
