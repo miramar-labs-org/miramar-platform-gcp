@@ -146,6 +146,7 @@ Live templates:
 | `nemo-ft-eval` | Same arc via NeMo Customizer backend — NeMo catalog model IDs, `nemo2hf` checkpoint export, NeMo safety eval |
 | `kfp` | Blank KFP v2 pipeline scaffold with GPU stage stub, MLflow tracking, and Nsight profiling label |
 | `kfp-rag` | RAG pipeline — ingest\_documents → retrieval\_eval → generation\_eval → faithfulness\_eval → safety\_eval → deployment\_gate; Qdrant-backed, LLM-as-judge, CPU-only |
+| `kfp-eval` | Model bakeoff — load\_dataset → (serve\_model → task harnesses → teardown\_model) per candidate → judge\_and\_score → report; ranks N LLMs × M serving modes with deterministic gates + a fixed LLM-as-judge; MinIO-frozen dataset, MLflow leaderboard |
 | `kfp-nemo-curator` | NeMo Curator data-curation pipeline — extract\_text → quality\_filter → deduplication → pii\_redaction → curator\_report; CPU + GPU (RAPIDS cuDF) |
 | `serving-vllm` | vLLM + LoRA adapter serving on DGX (K3s) or GKE L4 spot — consumes the adapter bundle published by a `ft-eval` project |
 | `serving-nim` | Stock NGC NIM model serving on DGX (K3s) or GKE L4 spot |

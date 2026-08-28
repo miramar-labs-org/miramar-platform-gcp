@@ -28,7 +28,7 @@ Files in `.github/workflows/` inside the template are included automatically.
 **a. Input enum** (`inputs.project_type.options`, line ~27):
 
 ```yaml
-options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-nemo-curator, <type>]
+options: [default, kfp, ft-eval, nemo-ft-eval, serving-vllm, serving-nim, serving-trt-fp8, serving-trt-engine, kfp-rag, kfp-eval, kfp-nemo-curator, <type>]
 ```
 
 **b. CI badge injection** (line ~147) — add a branch for your type if it has
@@ -99,6 +99,7 @@ all other types use distinct non-green colours:
 - Green (NeMo): `nemo-ft-eval` = emerald green, `kfp-nemo-curator` = forest green/lime
 - Blue family: `kfp` = blue, `serving-vllm` = sky blue, `serving-nim` = dark cyan
 - Pink: `kfp-rag` = rose/pink
+- Magenta: `kfp-eval` = orchid/fuchsia
 - Purple: `ft-eval` = indigo/purple
 - Warm: `serving-trt-fp8` = gold/yellow, `serving-trt-engine` = orange, `default`/`other` = amber
 
