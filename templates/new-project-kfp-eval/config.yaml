@@ -84,3 +84,11 @@ langsmith:
       limit: 50
       input_path: "inputs"        # dotted path into the run for the case inputs
       output_path: "outputs"      # dotted path into the run for the reference output
+      # ── optional ──────────────────────────────────────────────────────────
+      # skip_where:               # drop a matched run entirely
+      #   - {path: "inputs.signal.action", equals: "HOLD"}
+      # drop_input_keys: [signal] # prune leaked downstream state from the case inputs
+      #                           # (LangGraph node runs carry the whole cumulative state)
+      # collect_child_tools:      # walk each run's trace, attach these tool outputs as
+      #   - get_option_chain      # case["fixtures"][<tool>] so an agentic loop replays offline
+      #   - get_option_snapshot

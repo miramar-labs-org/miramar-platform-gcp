@@ -26,11 +26,25 @@ langsmith:
   project: "my-langsmith-project"
   export:
     - task: analyst_universe
-      run_filter: 'eq(name, "analyst_universe")'   # LangSmith filter DSL
+      run_filter: 'eq(name, "llm_select")'         # LangSmith filter DSL
       limit: 20
       input_path: "inputs"        # dotted path into the run dict → case inputs
-      output_path: "outputs"      # dotted path into the run dict → reference
+      output_path: "outputs.selection"             # dotted path → reference
+      drop_input_keys: [selection]                 # optional: prune leaked state
+    - task: option_pick
+      run_filter: 'eq(name, "select_option_contract")'
+      limit: 100
+      input_path: "inputs"
+      output_path: "outputs.option_pick"
+      skip_where:
+        - {path: "inputs.signal.action", equals: "HOLD"}   # optional: drop no-op runs
+      collect_child_tools: [get_option_chain, get_option_snapshot]  # optional: freeze
+                                  # the tool responses so an agentic loop replays offline
 ```
+
+For a LangGraph node run, `inputs` and `outputs` both carry the whole cumulative
+graph state — point `output_path` at the one key the node produces and use
+`drop_input_keys` to strip the downstream keys back out of the case inputs.
 
 ```sh
 # dry run — just list what matches
@@ -42,7 +56,8 @@ LANGCHAIN_API_KEY=...  python3 scripts/export_dataset.py --version v$(date +%Y%m
 
 Then set `dataset.version` in `config.yaml` to that `v<date>`.
 
-- Each `dataset/<task>.jsonl` line: `{case_id, provenance, inputs, reference}`.
+- Each `dataset/<task>.jsonl` line: `{case_id, provenance, inputs, reference}`
+  (plus `fixtures` when `collect_child_tools` is set).
 - Thin on real cases? Hand-write extra lines with `"provenance": "synthetic"` —
   they're run + judged but excluded from `n_real`.
 - Verify: every `<task>.jsonl` non-empty; `manifest.json` counts match.

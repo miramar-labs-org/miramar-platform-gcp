@@ -17,7 +17,15 @@ Usage:
   python3 scripts/export_dataset.py --version v20260828 --dry-run      # list only
 
 Case row schema (each line of <task>.jsonl):
-  {"case_id": str, "provenance": "real"|"synthetic", "inputs": <any>, "reference": <any>}
+  {"case_id": str, "provenance": "real"|"synthetic", "inputs": <any>, "reference": <any>,
+   "fixtures": {<tool_name>: [<tool output>, ...]}}   # only when collect_child_tools is set
+
+Optional per-spec keys (all beyond run_filter / input_path / output_path / limit):
+  skip_where:         [{path: "inputs.signal.action", equals: "HOLD"}]  drop matching runs
+  drop_input_keys:    [signal, option_pick, execution_result]   prune leaked downstream state
+  collect_child_tools:[get_option_chain, get_option_snapshot, get_option_contracts]
+                      walk each run's trace and attach those tool outputs as case["fixtures"]
+                      so an agentic tool loop can replay offline
 """
 import argparse
 import datetime as dt
@@ -48,9 +56,26 @@ def _dig(obj, path: str):
     return cur
 
 
-def _load_cfg() -> dict:
+def _load_cfg(path: pathlib.Path | None = None) -> dict:
     import yaml
-    return yaml.safe_load((_ROOT / "config.yaml").read_text())
+    return yaml.safe_load((path or (_ROOT / "config.yaml")).read_text())
+
+
+def _collect_fixtures(client, project: str, trace_id: str, tool_names: list) -> dict:
+    """Walk one trace and gather the outputs of every child run whose name is in `tool_names`,
+    so an agentic tool loop can be replayed offline against the same responses."""
+    wanted = set(tool_names)
+    fixtures: dict = {}
+    kids = client.list_runs(
+        project_name=project,
+        filter=f'eq(trace_id, "{trace_id}")',
+        limit=100,
+    )
+    for k in kids:
+        krow = k.dict() if hasattr(k, "dict") else dict(k)
+        if krow.get("name") in wanted:
+            fixtures.setdefault(krow["name"], []).append(_dig(krow, "outputs"))
+    return fixtures
 
 
 def _export_task(client, project: str, spec: dict, dry_run: bool):
@@ -62,20 +87,32 @@ def _export_task(client, project: str, spec: dict, dry_run: bool):
     ))
     print(f"[{task}] {len(runs)} run(s) from LangSmith project {project!r}")
 
+    skip_where = spec.get("skip_where") or []
+    drop_keys = set(spec.get("drop_input_keys") or [])
+    tool_names = spec.get("collect_child_tools") or []
+
     cases, run_ids, times = [], [], []
-    for i, run in enumerate(runs):
+    for run in runs:
         row = run.dict() if hasattr(run, "dict") else dict(run)
         inputs = _dig(row, spec.get("input_path", "inputs"))
         reference = _dig(row, spec.get("output_path", "outputs"))
         if inputs is None:
             print(f"  skip {row.get('id')}: no inputs at {spec.get('input_path')!r}")
             continue
-        cases.append({
-            "case_id": f"{task}-{i:03d}",
+        if any(_dig(row, w["path"]) == w.get("equals") for w in skip_where):
+            print(f"  skip {row.get('id')}: matched skip_where")
+            continue
+        if drop_keys and isinstance(inputs, dict):
+            inputs = {k: v for k, v in inputs.items() if k not in drop_keys}
+        case = {
+            "case_id": f"{task}-{len(cases):03d}",
             "provenance": "real",
             "inputs": inputs,
             "reference": reference,
-        })
+        }
+        if tool_names and row.get("trace_id") and not dry_run:
+            case["fixtures"] = _collect_fixtures(client, project, str(row["trace_id"]), tool_names)
+        cases.append(case)
         run_ids.append(str(row.get("id")))
         if row.get("start_time"):
             times.append(str(row["start_time"]))
@@ -121,9 +158,11 @@ def main():
                     help="snapshot dir under datasets/ (default: v<today>)")
     ap.add_argument("--local-only", action="store_true", help="write ./dataset/ but skip MinIO upload")
     ap.add_argument("--dry-run", action="store_true", help="list matching runs, write nothing")
+    ap.add_argument("--config", type=pathlib.Path, default=None,
+                    help="config.yaml to read (default: the template's own)")
     args = ap.parse_args()
 
-    cfg = _load_cfg()
+    cfg = _load_cfg(args.config)
     project = (cfg.get("langsmith") or {}).get("project")
     specs = (cfg.get("langsmith") or {}).get("export") or []
     if not project or not specs:
