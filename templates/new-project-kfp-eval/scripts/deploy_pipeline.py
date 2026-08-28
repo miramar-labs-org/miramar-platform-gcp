@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Build pipeline.py from notebook, copy input data to PVC, compile, register in KFP, and submit a run.
+Build pipeline.py from notebook, compile, register in KFP, and submit a run.
+
+The eval dataset is pulled from MinIO by the `load_dataset` component at run
+time (see `config.yaml` → `dataset:` and `scripts/export_dataset.py`), so there
+is nothing to stage on the PVC here.
 
 Usage:
   python3 scripts/deploy_pipeline.py --run-name run-001
@@ -13,46 +17,11 @@ import argparse
 import importlib.util
 import os
 import pathlib
-import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Host-side PVC root — matches the k3s hostPath for hf-model-cache PVC.
-_PVC_HOST_ROOT = pathlib.Path(os.path.expanduser("~/shared/huggingface-kfp"))
 _PROJECT_ROOT = pathlib.Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-def _copy_inputs_to_pvc(project_name: str, run_name: str):
-    """Copy docs_src/ and eval_dataset.jsonl to the PVC input directory before submitting."""
-    dest = _PVC_HOST_ROOT / "rag-input" / project_name
-    dest.mkdir(parents=True, exist_ok=True)
-
-    # Copy eval dataset
-    eval_src = _PROJECT_ROOT / "eval_dataset.jsonl"
-    if eval_src.exists():
-        shutil.copy2(eval_src, dest / "eval_dataset.jsonl")
-        print(f"Copied eval_dataset.jsonl → {dest}/eval_dataset.jsonl")
-    else:
-        print("WARNING: eval_dataset.jsonl not found — retrieval_eval will fail", file=sys.stderr)
-
-    # Copy documents
-    docs_src = _PROJECT_ROOT / "docs_src"
-    docs_dest = dest / "docs"
-    if docs_src.exists() and any(docs_src.iterdir()):
-        docs_dest.mkdir(parents=True, exist_ok=True)
-        for f in docs_src.rglob("*"):
-            if f.is_file() and not f.name.startswith("."):
-                rel = f.relative_to(docs_src)
-                target = docs_dest / rel
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(f, target)
-        n_docs = sum(1 for _ in docs_dest.rglob("*") if _.is_file())
-        print(f"Copied {n_docs} file(s) from docs_src/ → {docs_dest}/")
-    else:
-        print("WARNING: docs_src/ is empty — ingest_documents will fail", file=sys.stderr)
-
-    print(f"PVC input dir: {dest}")
 
 
 def main():
@@ -70,13 +39,6 @@ def main():
     _cfg = _yaml.safe_load(_cfg_path.read_text()) if _cfg_path.exists() else {}
 
     pipeline_name = _PROJECT_ROOT.name
-
-    # ── Copy input data to PVC ────────────────────────────────────────────
-    if _PVC_HOST_ROOT.exists():
-        _copy_inputs_to_pvc(pipeline_name, run_name)
-    else:
-        print(f"WARNING: PVC host root not found at {_PVC_HOST_ROOT} — skipping input copy",
-              file=sys.stderr)
 
     # ── Always rebuild pipeline.py from notebook ──────────────────────────
     from scripts.build_pipeline import build_pipeline

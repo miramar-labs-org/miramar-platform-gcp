@@ -30,8 +30,14 @@ tasks: [example_harness]
 # load_dataset pulls s3://<bucket>/datasets/<version>/{<task>.jsonl, manifest.json}.
 # Produce it with scripts/export_dataset.py (LangSmith → JSONL → MinIO).
 dataset:
-  bucket: "{{PROJECT_NAME}}"
+  s3_endpoint_url: "http://minio.mlflow-system.svc.cluster.local:9000"
+  bucket: "{{PROJECT_NAME}}"       # export_dataset.py creates it if missing
   version: "v00000000"             # dated snapshot dir, e.g. v20260828
+  # MinIO creds — the miramar-platform dev defaults (see the platform repo's
+  # dgx/k3s/mlflow/integrate-mlflow.sh). Override in the deploy workflow if your
+  # MinIO uses different credentials.
+  access_key: "mlflowadmin"
+  secret_key: "mlflowadmin12345678"
 
 # ── LLM-as-judge ─────────────────────────────────────────────────────────────
 # A single fixed judge model scores every candidate's output. Keep it local
@@ -60,10 +66,21 @@ score_weights:
 case_timeout_s: 180               # hard cap per run_case (bounds every agentic loop)
 serving:
   ollama_base_url: "http://192.168.1.200:11434/v1"
+  ollama_pull_timeout_s: 1800     # max wait for `ollama pull` of a cold model
   guided_readiness_timeout_s: 900 # max wait for a vLLM pod /health to go green
   guided_namespace: "kubeflow"    # namespace the transient vLLM Deployment lands in
+  vllm_image: "vllm/vllm-openai:latest"
+  vllm_max_model_len: 8192
 
-# ── LangSmith (dataset source; tracing optional) ─────────────────────────────
+# ── LangSmith (dataset source) ───────────────────────────────────────────────
+# scripts/export_dataset.py reads one `export` spec per task from `project`,
+# writes ./dataset/<task>.jsonl + manifest.json, and uploads to
+# s3://<dataset.bucket>/datasets/<version>/. Needs LANGCHAIN_API_KEY in env.
 langsmith:
-  enabled: false
-  project: ""                     # LangSmith project scripts/export_dataset.py reads
+  project: ""                     # LangSmith project name
+  export:
+    - task: example_harness
+      run_filter: ""              # LangSmith filter DSL, e.g. eq(name, "analyst_universe")
+      limit: 50
+      input_path: "inputs"        # dotted path into the run for the case inputs
+      output_path: "outputs"      # dotted path into the run for the reference output

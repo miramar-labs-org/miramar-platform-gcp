@@ -37,8 +37,11 @@ models/
 checkpoints/
 outputs/
 
-# NOTE: eval_dataset.jsonl is intentionally tracked — it is project-specific eval data, not a generated artefact.
-# NOTE: docs_src/ documents are intentionally tracked.
+# Local dataset export staging — the frozen snapshot lives in MinIO
+# (s3://<bucket>/datasets/<version>/), not git. scripts/export_dataset.py
+# writes ./dataset/ before uploading; ./runs/ holds local dry-run output.
+/dataset/
+/runs/
 
 # Secrets / credentials
 *.key

@@ -4,8 +4,7 @@
 
 | | |
 | ----------- | -------------------------------------------------------------------- |
-| **Type**    | KFP v2 RAG pipeline with eval-first design                           |
-| **Qdrant**  | `{{PROJECT_NAME}}` collection on the platform Qdrant instance        |
+| **Type**    | KFP v2 model bakeoff (eval + rank)                                  |
 | **Host**    | {{PROJECT_HOST}}                                                     |
 
 {{DESCRIPTION}}
@@ -14,33 +13,44 @@
 
 ## 1. What this is
 
-An eval-first RAG pipeline that ingests documents into Qdrant, evaluates retrieval quality,
-generates answers via an OpenAI-compatible LLM endpoint, scores faithfulness and safety with
-an LLM judge, then gates on the results before marking the collection as deployment-ready.
+A repeatable **model bakeoff**: run every candidate LLM in `config.yaml` under
+every serving mode against a frozen set of task cases, score each output with
+deterministic **gates** + a fixed **LLM-as-judge** (1–5), and rank
+`(model, mode)` by a weighted composite. The winner is logged to MLflow and
+appended to `runs/RUNS.md`.
+
+Nothing here is task-specific — you supply the task **harnesses** (what to send
+the model, what a good answer looks like) and the frozen **dataset**.
 
 **DAG:**
 ```
-ingest_documents
-  → retrieval_eval
-      → generation_eval
-          → faithfulness_eval ─┐
-          → safety_eval ───────┤
-                               └→ deployment_gate
+load_dataset
+  → for each (model, mode) in models × serving_modes   [SERIAL — one GPU]:
+        serve_model → <harness> × tasks → teardown_model
+  → judge_and_score → report   (MLflow + runs/RUNS.md)
 ```
 
-All steps run CPU-only. The LLM endpoint (`llm.base_url` in `config.yaml`) must be an active
-serving project on the platform.
+The matrix is unrolled from `config.yaml` at build time. Combos run serially
+because the box has one GPU and Ollama pins a single resident model.
 
 ---
 
 ## 2. Quick start
 
-1. Edit `config.yaml` — set `qdrant.collection`, `llm.base_url`, `llm.model`, and eval thresholds
-2. Add domain documents to `docs_src/` (`.txt` or `.md` files)
-3. Edit `eval_dataset.jsonl` — replace the 3 stub rows with real Q&A pairs
-4. Open `notebook.ipynb` and implement the 4 `USER CODE BLOCK` sections (see `WORKBOOK.md`)
-5. Run the **Build → `pipeline.py`** cell
-6. Trigger **Deploy to KFP** from the Actions tab
+1. **Freeze a dataset.** Fill in `langsmith.project` + `langsmith.export[]` in
+   `config.yaml`, then:
+   ```sh
+   LANGCHAIN_API_KEY=...  python3 scripts/export_dataset.py --version v$(date +%Y%m%d)
+   ```
+   Set the resulting `dataset.version` in `config.yaml`.
+2. **Add a harness.** Copy the `example_harness` cell in `notebook.ipynb`, rename
+   it, rewrite `run_case` / `gates`, register it in `_HARNESSES` (Pipeline cell),
+   and add it to `tasks:` / `gate_thresholds:` / `score_weights:`. See `WORKBOOK.md`.
+3. **List candidates.** Add entries to `models:` (`ollama_tag` for `ollama` mode,
+   `hf_id` + `quant` for `guided` mode).
+4. **Build.** Run the **Build → `pipeline.py`** cell (or `python3 scripts/build_pipeline.py`).
+5. **Deploy.** Trigger **Deploy to KFP** from the Actions tab.
+   For `serving_modes: [guided]`, first `kubectl apply -f manifests/bakeoff-rbac.yaml`.
 
 ---
 
@@ -48,98 +58,62 @@ serving project on the platform.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `qdrant.url` | string | Qdrant service URL (platform default is pre-filled) |
-| `qdrant.collection` | string | Qdrant collection name (defaults to project name) |
-| `embedding.model` | string | Sentence-transformers model ID for chunking + embedding |
-| `embedding.chunk_size` | int | Characters per chunk |
-| `embedding.chunk_overlap` | int | Overlap between adjacent chunks |
-| `llm.base_url` | string | OpenAI-compatible endpoint (must be an active serving project) |
-| `llm.model` | string | Served model alias |
-| `llm.top_k` | int | Number of retrieved chunks to include in RAG context |
-| `eval.sample_size` | int | Number of eval_dataset.jsonl rows to evaluate |
-| `eval.min_faithfulness_score` | float | Gate threshold: avg faithfulness score (1–5) |
-| `eval.min_relevancy_score` | float | Gate threshold: avg answer correctness score (1–5) |
-| `eval.min_citation_coverage` | float | Gate threshold: fraction of answers with cited chunks |
-| `eval.max_unsupported_claim_rate` | float | Gate threshold: max fraction of unsupported claims |
-| `eval.min_safety_score` | float | Gate threshold: avg safety score (1–5) |
-| `judge.model` | string | LLM judge model ID (Ollama-compatible) |
-| `judge.base_url` | string | Judge LLM endpoint (usually Ollama at 11434) |
-| `judge.system_prompt` | string | System prompt — must elicit JSON output |
-| `langsmith.enabled` | bool | Enable LangSmith tracing (requires `LANGCHAIN_API_KEY`) |
-| `langsmith.project` | string | LangSmith project name |
+| `models[].id` | string | Leaderboard key — unique |
+| `models[].ollama_tag` | string | `ollama pull` target (serving_mode `ollama`) |
+| `models[].hf_id` | string | HF repo (serving_mode `guided`, vLLM) |
+| `models[].quant` | string | vLLM `--quantization` (`fp8` on GB10 — never nvfp4) |
+| `serving_modes` | list | Subset of `[ollama, guided]` |
+| `tasks` | list | Harness names — each needs a cell + `_HARNESSES` entry |
+| `dataset.s3_endpoint_url` | string | MinIO S3 endpoint (in-cluster default pre-filled) |
+| `dataset.bucket` | string | Bucket holding `datasets/<version>/` |
+| `dataset.version` | string | Dated snapshot dir, e.g. `v20260828` |
+| `dataset.access_key` / `secret_key` | string | MinIO creds (platform dev defaults pre-filled) |
+| `judge.model` | string | Fixed judge model (keep local — Ollama) |
+| `judge.base_url` | string | Judge endpoint |
+| `gate_thresholds.<task>` | map | Deterministic pass/fail knobs read by that harness's `gates()` |
+| `score_weights.<task>.gate_pass` | float | Weight on gate-pass rate (normalized per task) |
+| `score_weights.<task>.judge` | float | Weight on mean judge score |
+| `case_timeout_s` | int | Hard cap per model call — bounds every agentic loop |
+| `serving.ollama_base_url` | string | Shared Ollama `/v1` |
+| `serving.guided_*` / `vllm_*` | — | Transient vLLM Deployment knobs |
+| `langsmith.project` | string | LangSmith project `export_dataset.py` reads |
+| `langsmith.export[]` | list | One `{task, run_filter, limit, input_path, output_path}` per task |
 
 ---
 
-## 4. eval_dataset.jsonl format
+## 4. Dataset format
 
-Each row must be valid JSON:
+`scripts/export_dataset.py` writes `dataset/<task>.jsonl` — one case per line:
 ```json
-{
-  "question": "What is ...?",
-  "reference_answer": "...",
-  "gold_doc_ids": ["my-doc"],
-  "required_facts": ["fact 1", "fact 2"]
-}
+{"case_id": "analyst_universe-000", "provenance": "real",
+ "inputs": {"prompt": "..."}, "reference": {"...": "..."}}
 ```
-
-- `gold_doc_ids` — used by `retrieval_eval` to compute recall@k and MRR
-- `required_facts` — used by `generation_eval` judge to score fact coverage
-- Leave `gold_doc_ids` empty if you haven't labeled which documents contain the answer
+plus `dataset/manifest.json` (counts, date range, source run ids). Both are
+uploaded to `s3://<bucket>/datasets/<version>/`. `load_dataset` reads them back
+at run time. `provenance: "synthetic"` cases are run and judged but excluded
+from the real-case counts.
 
 ---
 
-## 5. MLflow
+## 5. Results
 
-Each component logs metrics to MLflow. Access the UI:
+- **MLflow** — `report` logs `winner_model`, `winner_mode`, `winner_composite`,
+  a `composite::<model>::<mode>` metric per combo, and the `leaderboard.md` /
+  `leaderboard.json` artifacts. Use the **ML** experiment type.
+  ```sh
+  ssh -L 5000:localhost:5000 <user>@spark-79b7.local   # → http://localhost:5000
+  ```
+- **`runs/RUNS.md`** — a dated winner block + leaderboard table appended per run
+  (on the PVC at `/root/.cache/huggingface/bakeoff-runs/RUNS.md`).
+
+---
+
+## 6. Kubeflow Pipelines UI
 
 ```sh
-ssh -L 5000:localhost:5000 <user>@spark-79b7.local
-# → http://localhost:5000
+ssh -L 8080:localhost:8080 <user>@spark-79b7.local   # → http://localhost:8080
 ```
 
-Use **ML** experiment type (not *GenAI apps & agents*).
-
-Key metrics logged per run:
-- `recall_at_1`, `recall_at_5`, `mrr`, `hit_rate` — retrieval quality
-- `avg_answer_correctness`, `avg_fact_coverage` — generation quality
-- `avg_faithfulness`, `avg_citation_coverage`, `unsupported_claim_rate` — faithfulness
-- `avg_safety_score`, `unsafe_response_rate` — safety
-- `gate_pass` — 1 if gate passed, 0 if failed
-
----
-
-## 6. Qdrant
-
-The platform runs Qdrant at `http://qdrant.qdrant-system.svc.cluster.local:6333` (in-cluster).
-Access from the DGX host:
-
-```sh
-# Port-forward for browser access
-kubectl port-forward -n qdrant-system svc/qdrant 6333:6333 &
-# → http://localhost:6333/dashboard
-```
-
-The `ingest_documents` step recreates the collection on every run (deletes and rebuilds).
-Collections persist between pipeline runs — only the most recent ingest's data is in the collection.
-
----
-
-## 7. LangSmith (optional)
-
-Enable tracing to LangSmith for distributed trace inspection of the RAG chain:
-
-1. Set `langsmith.enabled: true` and `langsmith.project: "{{PROJECT_NAME}}"` in `config.yaml`
-2. Add `LANGCHAIN_API_KEY` to the `mlabs-api-keys` K8s secret (already provisioned by the platform)
-
----
-
-## 8. Kubeflow Pipelines UI
-
-```sh
-ssh -L 8080:localhost:8080 <user>@spark-79b7.local
-# → http://localhost:8080
-```
-
-Prerequisites: **Kubeflow Deploy** must be running. Trigger it in
-[miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp) if the UI
-is unreachable.
+Prerequisites: **Kubeflow Deploy** + **MLflow Deploy** must be running. Trigger
+them in [miramar-platform-gcp](https://github.com/miramar-labs-org/miramar-platform-gcp)
+if unreachable.

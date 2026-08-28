@@ -1,8 +1,12 @@
 name: Deploy to KFP
 
-# Copies docs_src/ and eval_dataset.jsonl to the PVC, compiles pipeline.py,
-# registers it in KFP, and submits a run.
-# Prerequisites: KFP must be running on the DGX k3s cluster.
+# Builds pipeline.py from the notebook, compiles it, registers it in KFP, and
+# submits a bakeoff run. The eval dataset is pulled from MinIO by the
+# load_dataset component at run time (see config.yaml -> dataset:).
+# Prerequisites:
+#   - KFP + MLflow/MinIO running on the DGX k3s cluster.
+#   - The frozen dataset uploaded via scripts/export_dataset.py.
+#   - For serving_mode "guided": kubectl apply -f manifests/bakeoff-rbac.yaml
 # See: https://github.com/miramar-labs-org/miramar-platform-gcp — Kubeflow Deploy workflow.
 
 on:
@@ -50,7 +54,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## KFP RAG Pipeline Run"
+            echo "## Model Bakeoff Run"
             echo "| | |"
             echo "|---|---|"
             echo "| Run name | \`${{ inputs.run_name }}\` |"
