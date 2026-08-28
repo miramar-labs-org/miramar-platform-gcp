@@ -135,7 +135,36 @@ with its own trigger.
 
 ## Open items for future iterations (not blocking this design)
 
-- Top referrers/paths breakdown per repo.
+- Popular *paths* breakdown per repo.
 - Web analytics for `miramar-labs-org.github.io`.
 - Weekly/monthly rollup views once enough history accumulates in
   `repo_traffic_daily`.
+- Persist referrers to their own table for history (currently fetched live
+  and shown, not stored).
+
+## Amendments after the original design
+
+Changes made after the initial implementation, in `scripts/org-traffic-report.sh`:
+
+1. **Report date is "most recent complete day", not "yesterday".** GitHub's
+   Traffic API has an unpredictable multi-day processing lag, so a fixed
+   "yesterday" lookup silently produced all-zero rows. The script now resolves,
+   per repo, the latest day actually present in the API's rolling window that
+   is *not* today's still-accumulating UTC entry, and reports on whichever
+   date the most repos share (`effective_date`).
+2. **Public repos only.** `discover_repos` filters `.private == false` — private
+   repo traffic is never fetched or stored. The summary/leaderboard queries
+   also filter `visibility = 'public'` to exclude historical private rows.
+3. **Leaderboard lists every public repo**, not a top-5/top-10 slice.
+4. **Stars / forks / watchers.** New table `repo_stats_daily (date, repo,
+   stars, forks, watchers)` snapshotted each run from `gh api
+   repos/{org}/{repo}` (watchers = `subscribers_count`, not the legacy
+   `watchers_count` alias). The summary shows org-wide totals with a
+   day-over-day delta and a `:star:` callout naming repos that gained stars.
+5. **Top referrers.** `gh api repos/{org}/{repo}/traffic/popular/referrers`
+   per repo, summed by referrer across all public repos, top 5. This endpoint
+   is a trailing-14-day aggregate, so the section is labelled as such — it is
+   not a single-day figure like views/clones.
+6. **Clones demoted.** Clone counts are dominated by CI (`actions/checkout`)
+   and dev `git fetch`, so they moved to a single italic footnote line rather
+   than the headline.
