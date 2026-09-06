@@ -68,6 +68,22 @@ jobs:
             --force-update
           helm repo update
 
+      - name: Sync Nsight Operator CRDs
+        # Helm never upgrades CRDs on `helm upgrade` (only on first install). The
+        # nsight-operator chart evolves its CRD schemas between minor versions —
+        # e.g. 26.2.x -> 26.3.x moved the process include/exclude patterns into
+        # NsightOperatorProfileConfig.spec.injectionRules[] — so a stale CRD
+        # silently strips the new fields from the templated CR. Apply the chart's
+        # bundled CRDs (server-side; several exceed the client-side annotation
+        # limit) before the Helm release.
+        run: |
+          rm -rf /tmp/nsight-chart && mkdir -p /tmp/nsight-chart
+          helm pull nvidia-devtools/nsight-operator \
+            --version "${{ inputs.chart_version }}" \
+            --untar --untardir /tmp/nsight-chart
+          find /tmp/nsight-chart -path '*/crds/*.yaml' -print0 \
+            | xargs -0 -r -I{} kubectl apply --server-side --force-conflicts -f {}
+
       - name: Install Nsight Operator
         run: |
           helm upgrade --install \
