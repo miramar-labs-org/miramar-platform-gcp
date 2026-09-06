@@ -121,13 +121,28 @@ ssh -L 8080:localhost:8080 <user>@spark-79b7.local
 
 ## 8. GPU profiling (Nsight Operator)
 
-Same as `ft-eval`. Add a pod label in the pipeline definition to profile any stage:
+Same as `ft-eval` — opt in per stage via `config.yaml`'s `profiling:` block:
 
-```python
-from kfp import kubernetes
-kubernetes.add_pod_label(base_eval, label_key="nvidia-nsight-profile", label_value="enabled")
+```yaml
+profiling:
+  baseline-eval: true
+  baseline-safety-eval: false
+  export-adapter: false
+  post-finetune-eval: false
+  safety-eval: false
+  collection_window_s: 90
 ```
+
+`fine-tune` is **not** listed — it runs against the NeMo Microservices Customizer API, not a
+local GPU pod, so there is nothing for the operator to hook. A `true` value labels that
+stage pod `nvidia-nsight-profile=enabled` (done by the notebook's pipeline cell); the
+operator injects `nsys` and writes the report to its internal MinIO. `/kfp-monitor` drives
+`/nsight-export` during the stage's GPU-hot window to archive it to
+`~/shared/nsight/<project>/<run-id>/<stage>/` and auto-run `/nsight-interpret`. Manual
+fallback if the window is missed:
 
 ```bash
-/nsight-interpret run-NNN   # AI-assisted bottleneck analysis
+/nsight-export {{PROJECT_NAME}} run-NNN baseline-eval [--duration 120]
 ```
+
+See [miramar-platform-gcp — docs/dgx.md § GPU Profiling](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/dgx.md#gpu-profiling).

@@ -26,6 +26,7 @@ ssh -L 8002:localhost:8001 \
     -L 6335:localhost:6333 \
     -L 6336:localhost:6334 \
     -L 8892:localhost:8889 \
+    -L 13002:localhost:13001 \
     -L 8085:localhost:8084 \
     $USER@orin.local
 ```
@@ -41,7 +42,8 @@ ssh -L 8002:localhost:8001 \
 | `11435`    | `11434`  | Ollama API                              |
 | `6335`     | `6333`   | Qdrant REST API + web UI (`/dashboard`) |
 | `6336`     | `6334`   | Qdrant gRPC                             |
-| `8892`     | `8889`   | Nsight Operator UI                      |
+| `8892`     | `8889`   | Nsight Operator UI / SPA (not the REST API) |
+| `13002`    | `13001`  | Nsight Operator coordinator REST API    |
 | `8085`     | `8084`   | Open WebUI chat (Ollama / vLLM)         |
 
 See [../agx/systemd/README.md](../agx/systemd/README.md) for the service units.

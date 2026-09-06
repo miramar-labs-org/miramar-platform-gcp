@@ -15,7 +15,7 @@ AGX Orin runs the identical set of services — see [../../agx/systemd/README.md
 | `nemo-portfwd.service`      | `8082`      | `kubectl port-forward` — proxies `svc/ingress-nginx-controller:80` in `ingress-nginx`; exposes all NeMo ingress routes (`nemo.test`, `nim.test`, `data-store.test`) |
 | `qdrant-portfwd.service`    | `6333/6334` | `kubectl port-forward` — proxies `svc/qdrant` ([Qdrant](https://qdrant.tech)) in the `qdrant-system` namespace; exposes REST (6333) and gRPC (6334)                 |
 | `postgres-portfwd.service`  | `5432`      | `kubectl port-forward` — proxies `svc/postgres` ([Postgres](https://www.postgresql.org/)) in the `postgres-system` namespace                                       |
-| `nsight-portfwd.service`    | `8889`      | `kubectl port-forward` — proxies `svc/nsight-operator-gateway:8888` in the `nsight-operator` namespace; Nsight Operator UI                                          |
+| `nsight-portfwd.service`    | `8889` + `13001` | `kubectl port-forward` — `8889`→`svc/nsight-operator-gateway:8888` (Nsight Operator UI / SPA) and `13001`→`svc/nsight-operator-coordinator:80` (REST API used by `~/bin/nsight-export-report`). The SPA endpoint does **not** serve the REST API. |
 | `openwebui-portfwd.service` | `8084`      | `kubectl port-forward` — proxies `svc/openwebui:8080` in the `openwebui` namespace; [Open WebUI](https://github.com/open-webui/open-webui) chat interface over Ollama / vLLM |
 
 k3s itself runs as a system-level service (`sudo systemctl start k3s` / `sudo systemctl stop k3s`) — not a user unit. The port-forward services above start after k3s is ready.

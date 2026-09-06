@@ -24,6 +24,12 @@ Two Claude Code slash commands cover the full run lifecycle for any project scaf
 The log file is always `runs/run-NNN.md` (never chunk-suffixed). Purge is skipped for `chunk-index > 0`
 to preserve MinIO artifacts from earlier chunks.
 
+`--profile-<stage>` flags (`--profile-baseline`, `--profile-finetune`, `--profile-postft`,
+`--profile-safety`, `--profile-baseline-safety`, `--profile-nsight` = baseline + finetune) patch
+`config.yaml`'s `profiling:` block and regenerate `pipeline.py` so the operator injects `nsys` on
+that stage. `/kfp-monitor` then drives `/nsight-export` during the stage's GPU-hot window. See
+[Nsight Profiling in KFP](#nsight-profiling-in-kfp).
+
 The 8-stage pipeline: `download_model` → `prepare_dataset` → `baseline_eval` + `baseline_safety_eval`
 → `fine_tune` → `post_finetune_eval` + `safety_eval` → `deployment_gate`. `download_model`,
 `prepare_dataset`, and `deployment_gate` are fully implemented by the template.
@@ -188,6 +194,81 @@ settings — then offers the full card on request.
 
 ## Nsight Profiling in KFP
 
+GPU stages are profiled with the **NVIDIA Nsight Operator**: labelling a stage pod
+`nvidia-nsight-profile=enabled` makes the operator inject an `nsys` process hook. The
+operator writes the finished `.nsys-rep` **only to its internal MinIO** (namespace
+`nsight-operator`, bucket `nsight-reports`) — nothing lands on disk automatically.
+
+**`~/bin/nsight-export-report` / `/nsight-export`** is the bridge: it drives an Nsight
+Operator *coordinator session*, pulls the report out of MinIO, verifies it, and writes it
+to `~/shared/nsight/<project>/<run-id>/<stage>/profile.nsys-rep` with a `profile.json`
+metadata sidecar and a `summaries.csv` for `/nsight-interpret`. The coordinator REST API
+is reached at `http://localhost:13001/api/v1/` on the DGX host (forwarded by
+`nsight-portfwd.service`; `:8889` is the web UI / SPA only).
+
+> **MinIO is the operator's internal report storage. `~/shared/nsight` is the durable,
+> human-facing profiling archive.**
+
+**Turning profiling on** — set the per-stage toggle in the project's `config.yaml`
+`profiling:` block (keys are the hyphenated KFP component names, e.g. `baseline-eval`,
+`fine-tune`), or pass a `--profile-<stage>` flag to `/kfp-deploy` (which patches the block
+and regenerates `pipeline.py`). `collection_window_s` bounds the `nsys` collection.
+
+Full profiling arc:
+
+```bash
+/kfp-deploy run-032 --profile-baseline      # label baseline-eval, record it in runs/run-032.md
+/kfp-monitor run-032                         # drives ~/bin/nsight-export-report in the background
+                                             # when baseline-eval goes Running, then auto-runs
+                                             # /nsight-interpret on the archived report
+```
+
+If the GPU-hot window is missed, run the export by hand while the stage is still busy:
+
+```bash
+/nsight-export <project> run-032 baseline-eval [--duration 120]
+```
+
+### `/nsight-export <project> <run-NNN> <stage> [--duration N] [--tool systems|compute] [--adhoc]`
+
+**Archives an Nsight Operator report from MinIO into `~/shared/nsight/<project>/<run-id>/<stage>/`
+and auto-chains `/nsight-interpret`.**
+
+```bash
+# Standard: derive KFP/MLflow linkage from runs/<run-NNN>.md, drive a fresh collection
+/nsight-export my-project run-032 baseline-eval
+
+# Wider collection window (default 90s from config.yaml)
+/nsight-export my-project run-032 fine-tune --duration 180
+
+# Ad-hoc capture (no KFP run) — lands under ~/shared/nsight/systems/<project>-<date>/
+/nsight-export my-project run-000 main --adhoc
+
+# Export an already-collected MinIO report by id (no new collection)
+/nsight-export my-project run-032 baseline-eval --no-collect --report-id <uuid>
+```
+
+What it does:
+1. Parses args (`<project>` falls back to `basename $(pwd)`); reads `runs/<run-NNN>.md` for
+   the KFP Run ID and derives the MLflow run name from a stage→suffix map
+2. Sanity-checks the target stage pod is `Running` (collection must happen while its GPU
+   work is hot)
+3. Runs `~/bin/nsight-export-report` — `POST /sessions` → `POST /collect` → poll →
+   `GET /files` → pull from MinIO (`curl --aws-sigv4`) → verify (`nsys stats` returns ≥1
+   GPU kernel row) → write `profile.nsys-rep` + `profile.json` + `summaries.csv` +
+   `nsys_stats.txt` + `.sha256` → `DELETE /sessions/{sid}`
+4. Tags the stage's MLflow run with `nsight_report_path` / `nsight_report_sha256` /
+   `nsight_operator_session_id` / `nsight_report_dir`
+5. Auto-chains `/nsight-interpret <project> <run-NNN>` → produces `analysis-claude.md`
+6. Appends `- Nsight report (<stage>): <path>` to `runs/<run-NNN>.md`
+
+**Prerequisites:** Nsight Operator deployed (`deploy-nsight-operator.yaml`);
+`nsight-portfwd.service` forwarding `:13001`; MinIO credentials readable from the
+`nsight-operator-cloud-storage-minio-credentials` secret (read at runtime — never
+hardcoded); `nsys`, `kubectl`, `curl`, `jq` on `PATH`. Fails loudly (non-zero exit) if the
+coordinator is unreachable, the `default` session tag is busy, or the report cannot be
+verified — it will not report success when no report was retrieved.
+
 ### `/nsight-interpret <project-name> <run-NNN> [--ollama model]`
 
 **Extracts Nsight Systems profiling summaries and sends them to an LLM for bottleneck
@@ -242,7 +323,12 @@ be readable from the current machine (not inside a pod).
 - `runs/` directory exists (created by template or first `/kfp-deploy`)
 - MLflow accessible at `localhost:5000`
 - For GPU profiling: deploy Nsight Operator via `deploy-nsight-operator.yaml` in miramar-platform-gcp,
-  then add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to the target stage
+  then turn on the per-stage toggle in `config.yaml`'s `profiling:` block (or pass a
+  `--profile-<stage>` flag to `/kfp-deploy`). The template wires
+  `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` onto the flagged stage.
+  Reports are pulled out of the operator's MinIO into `~/shared/nsight/` by `/nsight-export`
+  (driven automatically by `/kfp-monitor`, or run by hand). See
+  [dgx.md § GPU Profiling](dgx.md#gpu-profiling) for the full picture.
 
 > **Warning:** Do NOT label the `kubeflow` namespace with `nvidia-nsight-profile=enabled` — it
 > injects nsys into ALL pods including KFP's DAG driver pods, which fail with `runAsNonRoot`.

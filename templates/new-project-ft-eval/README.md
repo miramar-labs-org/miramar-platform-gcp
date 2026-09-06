@@ -135,22 +135,39 @@ is unreachable.
 
 ## 7. GPU profiling (Nsight Operator)
 
-The Nsight Operator is a cluster-level profiler — no code changes needed in components. To profile a stage, add a pod label in the pipeline definition:
+The Nsight Operator is a cluster-level profiler — no code changes needed in components.
+Profiling is opt-in per stage via `config.yaml`:
 
-```python
-from kfp import kubernetes
-# Inside the pipeline() function, after creating the task:
-kubernetes.add_pod_label(base_eval, label_key="nvidia-nsight-profile", label_value="enabled")
+```yaml
+profiling:
+  baseline-eval: true          # profile this stage
+  baseline-safety-eval: false
+  fine-tune: false
+  post-finetune-eval: false
+  safety-eval: false
+  collection_window_s: 90      # nsys collection duration during the stage's GPU-hot window
 ```
 
-The operator injects `nsys` at pod creation and stores the report in its MinIO. Components already contain NVTX annotations (`nvtx.annotate(...)`) that appear on the timeline.
+A `true` value makes the notebook's pipeline cell label that stage pod
+`nvidia-nsight-profile=enabled`, so the operator injects `nsys` at pod creation. Or pass
+`--profile-baseline` / `--profile-finetune` / … to `/kfp-deploy`, which patches this block
+and regenerates `pipeline.py`. Components already contain NVTX annotations
+(`nvtx.annotate(...)`) that appear on the timeline.
 
-**Viewing results:** Open the Nsight Operator UI at [http://localhost:8889](http://localhost:8889) (via SSH tunnel on port 8889) and navigate to the captured session.
+**The operator writes the report only to its internal MinIO.** To get it onto disk, use
+`/nsight-export` — `/kfp-monitor` drives it automatically when the profiled stage goes
+`Running`, archiving the report to
+`~/shared/nsight/<project>/<run-id>/<stage>/profile.nsys-rep` (+ `profile.json` sidecar)
+and auto-running `/nsight-interpret`. If the GPU-hot window is missed, run it by hand:
 
-**Interpreting results:**
 ```bash
-/nsight-interpret run-NNN   # AI-assisted bottleneck analysis
+/nsight-export {{PROJECT_NAME}} run-NNN baseline-eval [--duration 120]
+/nsight-interpret {{PROJECT_NAME}} run-NNN            # (auto-chained by /nsight-export)
 ```
 
-See [miramar-platform-gcp — Nsight Operator Deploy workflow](https://github.com/miramar-labs-org/miramar-platform-gcp) for deployment instructions.
+**Viewing results:** Open the Nsight Operator UI at [http://localhost:8889](http://localhost:8889)
+(SSH tunnel port 8889), or `nsys-ui ~/shared/nsight/<project>/<run-id>/<stage>/profile.nsys-rep`.
+
+See [miramar-platform-gcp — docs/dgx.md § GPU Profiling](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/dgx.md#gpu-profiling)
+and the **Nsight Operator Deploy** workflow for deployment instructions.
 

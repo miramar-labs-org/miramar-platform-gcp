@@ -1,5 +1,5 @@
 [Unit]
-Description=kubectl port-forward Nsight Operator gateway (8889 -> svc/nsight-operator-gateway:8888)
+Description=kubectl port-forward Nsight Operator gateway (8889 -> gateway:8888) + coordinator REST API (13001 -> coordinator:80)
 After=network-online.target k3s.service
 Wants=network-online.target k3s.service
 StartLimitIntervalSec=0
@@ -9,17 +9,30 @@ Type=simple
 Environment=HOME=%h
 Environment=KUBECONFIG=%h/.kube/config
 
+# Wait for BOTH services to have a ready endpoint before starting the forwards.
+# gateway  = the SPA / web UI (port 8889)
+# coordinator = the REST API used by ~/bin/nsight-export-report (port 13001).
+# NOTE: 8889 serves the SPA only — the coordinator REST API is NOT reachable there.
 ExecStartPre=/usr/bin/bash -lc '\
-/usr/local/bin/kubectl -n nsight-operator get svc nsight-operator-gateway >/dev/null || { echo "svc/nsight-operator-gateway not found"; exit 1; }; \
-for i in {1..60}; do \
-  ip=$(/usr/local/bin/kubectl -n nsight-operator get endpoints nsight-operator-gateway -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
-  if [ -n "$ip" ]; then exit 0; fi; \
-  sleep 2; \
-done; \
-echo "Timed out waiting for ready endpoints for svc/nsight-operator-gateway"; \
-exit 1'
+for svc in nsight-operator-gateway nsight-operator-coordinator; do \
+  /usr/local/bin/kubectl -n nsight-operator get svc "$svc" >/dev/null || { echo "svc/$svc not found"; exit 1; }; \
+  ready=""; \
+  for i in {1..60}; do \
+    ip=$(/usr/local/bin/kubectl -n nsight-operator get endpoints "$svc" -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null || true); \
+    if [ -n "$ip" ]; then ready=1; break; fi; \
+    sleep 2; \
+  done; \
+  if [ -z "$ready" ]; then echo "Timed out waiting for ready endpoints for svc/$svc"; exit 1; fi; \
+done'
 
-ExecStart=/usr/local/bin/kubectl -n nsight-operator port-forward svc/nsight-operator-gateway 8889:8888 --address 0.0.0.0
+# Two long-lived kubectl children under one unit. wait -n returns when either exits;
+# the EXIT trap kills the survivor so Restart=on-failure brings the pair back cleanly.
+ExecStart=/usr/bin/bash -lc '\
+trap "kill 0" EXIT INT TERM; \
+/usr/local/bin/kubectl -n nsight-operator port-forward svc/nsight-operator-gateway 8889:8888 --address 0.0.0.0 & \
+/usr/local/bin/kubectl -n nsight-operator port-forward svc/nsight-operator-coordinator 13001:80 --address 0.0.0.0 & \
+wait -n; \
+exit 1'
 Restart=on-failure
 RestartSec=3
 

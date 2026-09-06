@@ -29,8 +29,14 @@
 | `/kfp-monitor [run-NNN]`     | Self-paced monitoring loop — checks pods + MLflow, appends to `runs/run-NNN.md`               |                                                                                                                   |
 | `/model-card [org/model-id]` | Fetch and display the HuggingFace model card (defaults to `base_model_id` from `config.yaml`) |                                                                                                                   |
 | `/nsight-interpret [run-NNN\ | path] [--ollama model]`                                                                       | Interpret an Nsight Systems `.nsys-rep` report with an LLM — bottlenecks, idle time, optimization recommendations |
+| `/nsight-export <project> <run-NNN> <stage> [--duration N] [--adhoc]`                                                          | Pull a profiled stage's Nsight report out of the operator's MinIO into `~/shared/nsight/<project>/<run-id>/<stage>/` and auto-run `/nsight-interpret` |
 
-> **Nsight Operator — namespace label warning:** Do NOT label the kubeflow namespace with `nvidia-nsight-profile=enabled`. It injects nsys into ALL pods including KFP's DAG driver pods, which fail with `runAsNonRoot`. Use per-pod `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` in the pipeline definition only.
+> **Nsight Operator — profiling is opt-in via `config.yaml`'s `profiling:` block** (per-stage
+> hyphenated keys + `collection_window_s`), or the `/kfp-deploy --profile-<stage>` flags. The
+> notebook pipeline cell labels the flagged stage pod; `/kfp-monitor` drives `/nsight-export`
+> during its GPU-hot window. Do NOT label the kubeflow namespace with
+> `nvidia-nsight-profile=enabled` — it injects nsys into ALL pods including KFP's DAG driver
+> pods, which fail with `runAsNonRoot`. Per-pod labels only.
 
 Full docs: [miramar-platform-gcp/docs/kfp-skills.md](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/kfp-skills.md)
 

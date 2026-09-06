@@ -39,7 +39,7 @@ wsl2/              # WSL2 host config and bootstrap scripts
   TECHNICAL.md        # Source of truth for template builds, lifecycle, on-demand SSH, and troubleshooting
 win/               # Windows SSH tunnel profiles (Bitvise)
   README.md           # How to import and use the tunnel profiles
-  dgx.tlp            # Bitvise profile: DGX Spark tunnels (ports 8001/8080/8082/8888/5000/8890/11434/6333/6334/8889/8084/5432)
+  dgx.tlp            # Bitvise profile: DGX Spark tunnels (ports 8001/8080/8082/8888/5000/8890/11434/6333/6334/8889/13001/8084/5432)
   agx.tlp            # Bitvise profile: AGX Orin tunnels (+1 offset ports)
 
 docs/              # Architecture and runbooks
@@ -284,7 +284,7 @@ Both DGX Spark and AGX Orin run the identical eleven systemd user services on bo
 | `nemo-portfwd`      | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (NeMo/NIM/Data Store) |
 | `qdrant-portfwd`    | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC)          |
 | `postgres-portfwd`  | `5432`      | `kubectl port-forward svc/postgres 5432:5432`                                |
-| `nsight-portfwd`    | `8889`      | `kubectl port-forward svc/nsight-operator-ui:8888` (Nsight Operator UI)      |
+| `nsight-portfwd`    | `8889` + `13001` | `8889`→`svc/nsight-operator-gateway:8888` (UI/SPA); `13001`→`svc/nsight-operator-coordinator:80` (REST API for `~/bin/nsight-export-report`) |
 | `openwebui-portfwd` | `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat over Ollama / vLLM) |
 
 **SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop:
@@ -302,6 +302,7 @@ Both DGX Spark and AGX Orin run the identical eleven systemd user services on bo
 | Qdrant gRPC        | `6334`         | `6336`         |
 | Postgres           | `5432`         | `5433`         |
 | Nsight Operator UI | `8889`         | `8892`         |
+| Nsight coordinator | `13001`        | `13002`        |
 | Open WebUI         | `8084`         | `8085`         |
 
 ```sh
@@ -310,7 +311,7 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 8080:localhost:8080 -L 8082:localhost:8082 -L 8890:localhost:8890 \
     -L 11434:localhost:11434 -L 6333:localhost:6333 -L 6334:localhost:6334 \
     -L 5432:localhost:5432 \
-    -L 8889:localhost:8889 \
+    -L 8889:localhost:8889 -L 13001:localhost:13001 \
     -L 8084:localhost:8084 \
     aaron@spark-79b7.local
 
@@ -319,7 +320,7 @@ ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
     -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
     -L 11435:localhost:11434 -L 6335:localhost:6333 -L 6336:localhost:6334 \
     -L 5433:localhost:5432 \
-    -L 8892:localhost:8889 \
+    -L 8892:localhost:8889 -L 13002:localhost:13001 \
     -L 8085:localhost:8084 \
     aaron@orin.local
 ```
