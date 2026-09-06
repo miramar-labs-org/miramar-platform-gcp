@@ -22,6 +22,7 @@
 | Command                      | What it does                                                           |                                                     |
 | ---------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
 | `/kfp-monitor [run-NNN]`     | Self-paced monitoring loop — checks pods, appends to `runs/run-NNN.md` |                                                     |
+| `/nsight-export <project> <run-NNN> <stage>` | Pull a profiled stage's Nsight report from MinIO into `~/shared/nsight/` + auto `/nsight-interpret` |     |
 | `/nsight-interpret [run-NNN\ | path]`                                                                 | Interpret an Nsight Systems `.nsys-rep` with an LLM |
 
 ## Workflows
@@ -61,12 +62,11 @@ def pipeline(run_id: str = "run-001"):
     my_step(x=run_id)
 ```
 
-To profile a stage with the Nsight Operator:
-
-```python
-from kfp import kubernetes
-kubernetes.add_pod_label(task, label_key="nvidia-nsight-profile", label_value="enabled")
-```
+To profile the GPU stage with the Nsight Operator, set `profiling.enabled: true` in
+`config.yaml` — the notebook's pipeline cell reads it and calls
+`kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` on the stage. The
+operator writes the report to its internal MinIO; `/nsight-export {{PROJECT_NAME}} run-NNN
+main` archives it to `~/shared/nsight/` and auto-runs `/nsight-interpret`.
 
 **Do not label the kubeflow namespace** (`nvidia-nsight-profile=enabled` at namespace level) — it injects nsys into ALL pods including KFP's own DAG driver pods, which fail with `runAsNonRoot`. Per-pod labels are the only correct approach.
 

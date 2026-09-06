@@ -15,7 +15,7 @@ AGX runs the same eleven systemd user services as DGX. Unit files live in `dgx/s
 | `nemo-portfwd.service`     | `8082`      | `kubectl port-forward svc/ingress-nginx-controller:80` (`nemo-microservices`) |
 | `qdrant-portfwd.service`   | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (`qdrant-system`)     |
 | `postgres-portfwd.service` | `5432`      | `kubectl port-forward svc/postgres 5432:5432` (`postgres-system`)           |
-| `nsight-portfwd.service`   | `8889`      | `kubectl port-forward svc/nsight-operator-gateway:8888` (`nsight-operator`) |
+| `nsight-portfwd.service`   | `8889` + `13001` | `kubectl port-forward` — `8889`→`svc/nsight-operator-gateway:8888` (UI/SPA), `13001`→`svc/nsight-operator-coordinator:80` (REST API for `~/bin/nsight-export-report`) |
 | `openwebui-portfwd.service`| `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat)                 |
 
 ## SSH tunnel from laptop
@@ -33,6 +33,7 @@ ssh -L 8002:localhost:8001 \
     -L 6336:localhost:6334 \
     -L 5433:localhost:5432 \
     -L 8892:localhost:8889 \
+    -L 13002:localhost:13001 \
     -L 11435:localhost:11434 \
     -L 8085:localhost:8084 \
     $USER@orin.local

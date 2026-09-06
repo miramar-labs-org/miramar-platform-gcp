@@ -29,6 +29,12 @@ stages use the same format as `ft-eval` projects.
 | `/kfp-deploy [run-NNN]`      | Purge KFP, deploy next run, create `runs/run-NNN.md`                                          |
 | `/kfp-monitor [run-NNN]`     | Self-paced monitoring loop — checks pods + MLflow, appends to `runs/run-NNN.md`               |
 | `/nsight-interpret [run-NNN]` | Interpret an Nsight Systems `.nsys-rep` report with an LLM                                   |
+| `/nsight-export <project> <run-NNN> <stage> [--duration N] [--adhoc]` | Pull a profiled stage's Nsight report from the operator's MinIO into `~/shared/nsight/<project>/<run-id>/<stage>/` and auto-run `/nsight-interpret` |
+
+> **Profiling is opt-in via `config.yaml`'s `profiling:` block** (per-stage keys +
+> `collection_window_s`), or the `/kfp-deploy --profile-<stage>` flags. `fine-tune` is not
+> profilable — it runs on the NeMo API, not a local GPU pod. Do NOT label the kubeflow
+> namespace with `nvidia-nsight-profile=enabled` — per-pod labels only.
 
 ## Pipeline stages
 

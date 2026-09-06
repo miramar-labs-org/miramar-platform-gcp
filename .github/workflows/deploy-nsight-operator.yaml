@@ -3,9 +3,13 @@ name: Nsight Operator Deploy
 # Deploys the NVIDIA Nsight Operator into the nsight-operator namespace on
 # the target k3s cluster via Helm from the NGC devtools registry.
 #
-# After deploy, the Nsight Operator UI is available on host port 8889 via
-# nsight-portfwd.service. Optionally labels the kubeflow namespace with
-# nvidia-nsight-profile=enabled so the injector can target KFP pods.
+# After deploy, nsight-portfwd.service forwards two host ports:
+#   8889  -> svc/nsight-operator-gateway:8888   (SPA / web UI)
+#   13001 -> svc/nsight-operator-coordinator:80 (REST API, used by
+#            ~/bin/nsight-export-report to drive collection + fetch reports)
+# The :8889 SPA endpoint does NOT serve the REST API. Optionally labels the
+# kubeflow namespace with nvidia-nsight-profile=enabled so the injector can
+# target KFP pods.
 #
 # Prerequisites:
 #   - k3s running on the target machine (K3s Install workflow)
@@ -208,13 +212,21 @@ jobs:
           kubectl label namespace kubeflow nvidia-nsight-profile=enabled --overwrite
 
       - name: Start port-forward service
+        # nsight-portfwd forwards BOTH the gateway SPA (8889) and the coordinator
+        # REST API (13001). ~/bin/nsight-export-report talks to :13001; the :8889
+        # SPA endpoint does not expose the REST API.
         run: |
           scp -i /tmp/k_key -o StrictHostKeyChecking=no \
             dgx/systemd/nsight-portfwd.service \
             "${HOST_USER}@${HOST_IP}:~/.config/systemd/user/nsight-portfwd.service"
           ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
-            'systemctl --user daemon-reload && systemctl --user enable --now nsight-portfwd.service'
+            'systemctl --user daemon-reload && systemctl --user enable nsight-portfwd.service && systemctl --user restart nsight-portfwd.service'
+          # Give the pair a moment to bind, then verify the coordinator REST API is
+          # reachable (JSON), not the SPA fallback.
+          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            'for i in $(seq 1 20); do curl -fsS localhost:13001/api/v1/sessions/ | head -c 1 | grep -q "[[{]" && { echo "coordinator REST API OK on :13001"; exit 0; }; sleep 2; done; echo "WARNING: coordinator REST API not confirmed on :13001"; systemctl --user status nsight-portfwd.service --no-pager || true'
 
       - name: Set Nsight Operator active state
         env:

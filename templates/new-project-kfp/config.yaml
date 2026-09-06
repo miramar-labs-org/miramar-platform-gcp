@@ -1,1 +1,10 @@
 description: ""   # One sentence — shown in KFP Pipelines + KFP Experiments UI
+
+profiling:
+  # NVIDIA Nsight Operator GPU profiling opt-in. `enabled: true` labels the pipeline's
+  # GPU stage pod `nvidia-nsight-profile=enabled` so the operator injects nsys capture.
+  # Then run `/nsight-export <project> <run-NNN> main` while the stage is GPU-hot to
+  # archive the report to `~/shared/nsight/<project>/<run-id>/main/` (auto-runs
+  # `/nsight-interpret`).
+  enabled: false
+  collection_window_s: 90   # nsys collection duration; must fit inside the stage's GPU-hot window

@@ -32,6 +32,14 @@ deterministic gates + a fixed LLM-as-judge.
 | `/kfp-deploy [run-NNN]` | Purge KFP, deploy next run |
 | `/kfp-monitor [run-NNN]` | Self-paced monitoring loop — checks pods + MLflow |
 | `/model-card [org/model-id]` | Fetch and display the HuggingFace model card |
+| `/nsight-export <project> run-NNN main --adhoc [--duration N]` | Ad-hoc Nsight capture of a serving backend while a combo is GPU-hot → `~/shared/nsight/systems/<project>-<date>/` + auto `/nsight-interpret` |
+
+**GPU profiling.** This bakeoff's GPU work runs on the host Ollama service or a transient
+vLLM `Deployment` that `serve_model` creates directly — neither is a KFP task pod, so the
+Nsight Operator's per-pod webhook has nothing to hook. `config.yaml`'s `profiling:` block
+is kept for parity (`collection_window_s` only, no per-stage toggle). To profile a
+candidate's serving backend, run `/nsight-export {{PROJECT_NAME}} run-NNN main --adhoc`
+on the host while a combo is running.
 
 Full docs: [miramar-platform-gcp/docs/kfp-skills.md](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/kfp-skills.md)
 

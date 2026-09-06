@@ -72,6 +72,18 @@ serving:
   vllm_image: "vllm/vllm-openai:latest"
   vllm_max_model_len: 8192
 
+# ── GPU profiling (Nsight Operator) ──────────────────────────────────────────
+# This bakeoff's GPU work runs either on the host Ollama service (serving_mode:
+# ollama) or in a transient vLLM Deployment that serve_model creates directly
+# (serving_mode: guided) — neither is a KFP task pod, so the operator's per-pod
+# webhook has nothing to hook here. To profile a candidate's serving backend,
+# capture it on the host while a combo is GPU-hot:
+#   /nsight-export {{PROJECT_NAME}} run-NNN main --adhoc --duration 90
+# The block is kept for parity with the other templates; there is no per-stage
+# toggle because there is no KFP GPU stage to toggle.
+profiling:
+  collection_window_s: 90
+
 # ── LangSmith (dataset source) ───────────────────────────────────────────────
 # scripts/export_dataset.py reads one `export` spec per task from `project`,
 # writes ./dataset/<task>.jsonl + manifest.json, and uploads to

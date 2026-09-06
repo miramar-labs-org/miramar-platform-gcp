@@ -92,12 +92,21 @@ python3 scripts/purge_kfp_mlflow.py
 python3 scripts/deploy_pipeline.py --run-name run-001
 ```
 
-To profile a stage with the Nsight Operator, add before deploying:
+To profile the GPU stage with the Nsight Operator, set the toggle in `config.yaml` (the
+notebook's pipeline cell reads it and labels the stage pod — do not hand-edit `pipeline.py`):
 
-```python
-# In pipeline.py, after creating the task:
-from kfp import kubernetes
-kubernetes.add_pod_label(task, label_key="nvidia-nsight-profile", label_value="enabled")
+```yaml
+profiling:
+  enabled: true
+  collection_window_s: 90
+```
+
+The operator injects `nsys` and writes the report to its internal MinIO. While the stage is
+GPU-hot, pull it onto disk:
+
+```bash
+/nsight-export {{PROJECT_NAME}} run-001 main [--duration 90]
+# → ~/shared/nsight/{{PROJECT_NAME}}/run-001/main/profile.nsys-rep (+ auto /nsight-interpret)
 ```
 
 ---

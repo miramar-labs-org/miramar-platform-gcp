@@ -45,7 +45,8 @@ ssh -L 8001:localhost:8001 \
 | `11434`    | Ollama API                              |
 | `6333`     | Qdrant REST API + web UI (`/dashboard`) |
 | `6334`     | Qdrant gRPC                             |
-| `8889`     | Nsight Operator UI                      |
+| `8889`     | Nsight Operator UI / SPA (not the REST API) |
+| `13001`    | Nsight Operator coordinator REST API   |
 | `8084`     | Open WebUI chat (Ollama / NIM / vLLM)   |
 
 See [../dgx/README.md](../dgx/README.md) and
@@ -353,7 +354,53 @@ images or embedded `nsys` wrappers are needed — profiling is controlled entire
 
 Deploy the operator via the **Nsight Operator Deploy** workflow in miramar-platform-gcp, then add
 `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to any KFP stage you want
-profiled. Reports land in `~/shared/nsight/<project>/<run-id>/` as before.
+profiled (the ft-eval / kfp templates drive this from a `profiling:` block in `config.yaml` —
+see the project README).
+
+**Where reports live.** The operator writes every `.nsys-rep` **only to its own internal
+object store** — a MinIO instance in the `nsight-operator` namespace (bucket `nsight-reports`).
+Nothing lands on the host filesystem automatically. The durable, human-facing archive at
+`~/shared/nsight/<project>/<run-id>/<stage>/` is populated by **`~/bin/nsight-export-report`**
+(usually via the **`/nsight-export`** skill, which also auto-runs `/nsight-interpret`), which
+drives an Nsight Operator *coordinator session*, pulls the finished report out of MinIO, verifies
+it, and writes a `profile.json` sidecar.
+
+> **MinIO is the operator's internal report storage. `~/shared/nsight` is the durable
+> profiling archive** that `/nsight-interpret`, the desktop GUI, and the template READMEs
+> all expect.
+
+The coordinator REST API is reached at `http://localhost:13001/api/v1/` on the DGX host —
+`nsight-portfwd.service` forwards it (alongside `:8889`, which serves the web UI / SPA only,
+**not** the REST API).
+
+### Collecting a profile
+
+**Via a KFP run (normal path).** Set the stage's flag in the project `config.yaml`
+`profiling:` block, `/kfp-deploy`, then `/kfp-monitor` — when the profiled stage's pod goes
+`Running`, `/kfp-monitor` kicks off `nsight-export-report` in the background so collection
+happens while the stage is hot on GPU. When the run reaches a terminal state it reports the
+export path and the `/nsight-interpret` analysis file.
+
+**Manually, while a stage is hot:**
+
+```bash
+/nsight-export <project> <run-NNN> <stage> [--duration 90]
+# or directly:
+~/bin/nsight-export-report --project <project> --run-id run-NNN --stage <stage> --duration 90
+```
+
+**Ad-hoc (no KFP run)** — a report already sitting in MinIO, or a one-off capture:
+
+```bash
+~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main \
+  --no-collect --report-id <minio-report-uuid>        # export an existing report
+~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main --adhoc
+# --adhoc lands under ~/shared/nsight/systems/<slug>-<date>/ instead of project/run/stage
+```
+
+`nsight-export-report` fails loudly (non-zero exit) if the coordinator is unreachable, the
+`default` service tag is held by another session, or the retrieved report shows no GPU
+kernel activity — it never reports success when a usable report was not archived.
 
 #### Privileged-mode reconciliation (automatic)
 
@@ -408,10 +455,16 @@ driver reinstalls — re-verify after any NVIDIA driver upgrade.
 
 ### Infrastructure (one-time per fresh k3s deploy)
 
-Profiling uses a dedicated PVC (`nsight-reports`) mounted at `/nsight-reports/` inside each GPU
-component pod, backed by a k3s hostPath PV pointing directly at the DGX host. This is created
-automatically by the **Kubeflow Deploy** workflow, but the steps are documented here for reference
-or manual recovery.
+> **Legacy — not written by the Nsight Operator.** The `nsight-reports` PVC below dates from a
+> removed profiling mechanism (an `nsys`-wrapper entrypoint image that `cp`'d reports into the
+> hostPath). The operator does **not** use this PVC — it writes to its own MinIO, and
+> `~/bin/nsight-export-report` writes the host archive directly. The PV/PVC is still created by
+> **Kubeflow Deploy** (harmless; removal is tracked as a follow-up) and the directory doubles as
+> a scratch location for ad-hoc host-side `nsys`/`ncu` captures.
+
+The PVC (`nsight-reports`) is mounted at `/nsight-reports/` inside each GPU component pod, backed
+by a k3s hostPath PV pointing directly at the DGX host. Created automatically by the
+**Kubeflow Deploy** workflow; steps documented here for reference or manual recovery.
 
 ```bash
 # 1. Create host directory with world-writable permissions.
@@ -468,27 +521,42 @@ kubectl get pvc nsight-reports -n kubeflow
   <project-name>/
     <run-id>/
       baseline-eval/
-        profile.nsys-rep    # Nsight Systems report
-        nsys_stats.txt      # text summary (cuda_gpu_kern_sum, cuda_api_sum, etc.)
+        profile.nsys-rep       # Nsight Systems report (pulled from the operator's MinIO)
+        profile.nsys-rep.sha256
+        profile.json           # metadata sidecar (operator session/report ids, sha256,
+                               #   kfp_run_id, mlflow_run, collection window)
+        profile.sqlite         # nsys export (reused by nsys stats / nsys-ui)
+        manifest.json          # the operator's own report manifest
+        summaries.csv          # nsys stats output, consumed by /nsight-interpret
+        nsys_stats.txt
+        analysis-claude.md     # written by the auto-chained /nsight-interpret
       fine-tune/
-        profile.nsys-rep
-        nsys_stats.txt
-      post-finetune-eval/
-        profile.nsys-rep
-        nsys_stats.txt
-      safety-eval/
-        profile.nsys-rep
-        nsys_stats.txt
+        ...
+  systems/<slug>-<YYYY-MM-DD>/  # ad-hoc Nsight Systems captures (--adhoc)
+  compute/<slug>-<YYYY-MM-DD>/  # ad-hoc Nsight Compute captures (--adhoc --tool compute)
 ```
+
+`<stage>` is the hyphenated KFP component name (`baseline-eval`, `fine-tune`,
+`post-finetune-eval`, `safety-eval`, `baseline-safety-eval`), or `main` for a single-stage
+pipeline. Existing report history is not reorganised — the convention is forward-only.
+
+### Retention
+
+`nsight-export-report` never deletes the MinIO copy. MinIO `nsight-reports` is the operator's
+working set (retained ~7–30 days); `~/shared/nsight` is the archive, kept indefinitely. MinIO
+objects should only be pruned **after** a verified export exists on disk. A `nsight-retention`
+systemd timer to automate the MinIO prune is a future item.
 
 ---
 
 ### Interpreting reports
 
-Use the `/nsight-interpret` skill to send `nsys stats` output to an LLM for bottleneck analysis:
+`/nsight-export` auto-chains `/nsight-interpret` on the report it just archived. To (re-)run the
+analysis by hand, use the `/nsight-interpret` skill to send `nsys stats` output to an LLM for
+bottleneck analysis:
 
 ```bash
-/nsight-interpret run-032               # auto-locate report by run name
+/nsight-interpret <project> run-032       # locate report by project + run name
 /nsight-interpret run-032 --ollama llama3  # use local model instead of Claude
 ```
 

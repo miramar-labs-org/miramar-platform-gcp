@@ -54,6 +54,19 @@ chunking:
   chunk_index: 0       # which slice to train on — overridden at deploy time via --chunk-index
   shuffle_seed: 42     # fixed seed: same shuffle order every run so slices don't overlap
 
+profiling:
+  # Per-stage NVIDIA Nsight Operator GPU profiling opt-in. A `true` value labels that
+  # stage's pod `nvidia-nsight-profile=enabled` so the operator injects nsys capture.
+  # `/kfp-monitor` then drives `~/bin/nsight-export-report` during the hot window and
+  # archives the report to `~/shared/nsight/<project>/<run-id>/<stage>/` (auto-runs
+  # `/nsight-interpret`). Profile one stage at a time — the trace is large.
+  baseline-eval: false
+  baseline-safety-eval: false
+  fine-tune: false
+  post-finetune-eval: false
+  safety-eval: false
+  collection_window_s: 90   # nsys collection duration; must fit inside the stage's GPU-hot window
+
 nsight_interpret:
   ollama_model: phi4
 
