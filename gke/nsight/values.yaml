@@ -2,6 +2,10 @@
 # GKE uses dynamic storage provisioning — no static PV required.
 # The StatefulSet PVC binds to the cluster's default StorageClass automatically.
 # (On k3s/DGX, a static hostPath PV is created before helm install — not needed here.)
+#
+# Chart 26.3.x reshaped nsight-injector.nsightToolConfig into nsightToolConfigs[] +
+# injectionRules[]; the chart's legacy shim still maps the old keys used below, so
+# this file is kept in the old shape. Migrate if NVIDIA drops the shim.
 
 # nsight-tenant-operator provides remote-streaming access via STUNner (a WebRTC
 # TURN gateway), which requires an external Gateway + LoadBalancer for NAT
