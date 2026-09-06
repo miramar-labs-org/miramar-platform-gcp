@@ -1,5 +1,12 @@
 # Nsight Operator Helm values — miramar-platform-gcp
 # Injection targets: kubeflow namespace pods labeled nvidia-nsight-profile=enabled
+#
+# Chart 26.3.x replaced the flat nsight-injector.nsightToolConfig block with
+# nsightToolConfigs[] + injectionRules[]. The chart still ships a legacy shim
+# (charts/nsight-injector/templates/default-injection-config.yaml) that maps the
+# keys below — privileged, nsightToolArgs, injectionIncludePatterns — into the
+# new NsightOperatorProfileConfig CR, so this file is kept in the old shape.
+# Migrate to the new schema if/when NVIDIA drops the shim.
 
 nsight-injector:
   # privileged: required for hardware GPU trace on GB10.
