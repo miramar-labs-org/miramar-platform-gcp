@@ -84,6 +84,17 @@ jobs:
           find /tmp/nsight-chart -path '*/crds/*.yaml' -print0 \
             | xargs -0 -r -I{} kubectl apply --server-side --force-conflicts -f {}
 
+      - name: Clear stale injection ProfileConfigs
+        # helm's 3-way merge only repairs a field when the old and new release
+        # manifests differ for it. If an earlier upgrade wrote the CR against a
+        # stale CRD that stripped a field, both manifests now agree and helm will
+        # never re-add it to the live object. Delete the helm-managed ProfileConfig
+        # CRs so the Helm release below recreates them cleanly against the CRDs
+        # just applied. Safe: this runs mid-deploy, injection is reconfigured anyway.
+        run: |
+          kubectl delete nsightoperatorprofileconfig \
+            -n nsight-operator --all --ignore-not-found
+
       - name: Install Nsight Operator
         run: |
           helm upgrade --install \
