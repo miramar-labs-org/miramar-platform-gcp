@@ -428,27 +428,33 @@ kernel activity — it never reports success when a usable report was not archiv
 `--tool compute` path applies the same rule: it verifies the `.ncu-rep` with an `ncu -i`
 readback and fails if no kernels were profiled.
 
-**Fire it while the GPU is already hot — the window opens, it does not "catch up".**
-GB10 uses hardware tracing for CUDA. On a KFP-injected `nsys` collection, only kernels that
-run in **roughly the first few seconds after the collection window opens** get GPU-side
-timestamps retrieved; every kernel launched later stays "incomplete" at session stop and is
-dropped ("Number of incomplete CUPTI events dropped: N"). The `.nsys-rep` then comes back with
-CUDA API rows but no `cuda_gpu_kern_sum`, and the helper's verify fails it.
+**Trigger the collection in the stage process's first few seconds — a late trigger loses the
+kernels even on a hot GPU.** GB10 uses hardware tracing for CUDA. On a KFP-injected `nsys`
+collection the operator only retrieves GPU-side kernel timestamps when the `collect` is
+triggered within **roughly the first few seconds of the profiled process starting**. Trigger
+it ~60 s in and every kernel's GPU-side record stays "incomplete" at session stop and is
+dropped ("Number of incomplete CUPTI events dropped: N") — even while the GPU is fully
+saturated at that moment. The `.nsys-rep` then comes back with CUDA API rows but no
+`cuda_gpu_kern_sum`, and the helper's verify fails it. (Mechanism is likely hw-trace attach
+timing or CUPTI kernel-buffer overflow from the launches already accumulated; both give the
+same rule.)
 
 Consequences:
 
 - The profiled stage must issue representative GPU kernels **from its very first line — no
-  startup `sleep`, no idle warm-up**. A pipeline that sleeps before its GPU work will always
-  produce a kernel-less report, no matter how long the window is.
-- Run `/nsight-export` (or let `/kfp-monitor` fire it) the **instant** the stage pod is
-  `Running` and hot, with `--delay 0`.
+  startup `sleep`, no idle warm-up**. A pipeline that idles before its GPU work misses the
+  attach window entirely.
+- Run `/nsight-export` (or let `/kfp-monitor` fire it) with `--delay 0` the **instant** the
+  stage pod goes `Running` — do not wait for a "warm-up". Even ~30 s of slack can lose the
+  capture.
 - A **longer `--duration` does not help** and neither does raising the iteration count — the
-  retrieval window is anchored to when collection *opens*, not to how much GPU work happens.
-  ~30–90 s is plenty; the template's `collection_window_s` can stay small.
+  retrieval depends on *when the collect is triggered relative to process start*, not on how
+  much GPU work happens. ~30–90 s is plenty; the template's `collection_window_s` can stay small.
 
-(Confirmed 2026-09-06: identical injected `nsys` cmd, identical stage code — the only
-difference between a capture with 46 GB10 kernel rows and one with zero was whether the GPU
-loop was already running when collection opened.)
+(Confirmed 2026-09-06 across three controlled runs: identical injected `nsys` cmd, identical
+stage code. Triggered ~1–2 s into the process → 46–400 GB10 kernel rows. Triggered ~60–70 s
+into the same loop, GPU demonstrably saturated (88 s of compute in the 90 s window) → zero
+kernel rows. The distinguishing variable is trigger-time-vs-process-start, not GPU hotness.)
 
 #### Privileged-mode reconciliation (automatic)
 

@@ -589,7 +589,7 @@ if [ "$NO_COLLECT" = 0 ]; then
     -H 'content-type: application/json' \
     -d "{\"duration\":$DURATION,\"delay\":$DELAY}" \
     || die "POST /sessions/$SID/collect failed"
-  info "collecting: delay=${DELAY}s duration=${DURATION}s (stage pod must be hot on GPU now)"
+  info "collecting: delay=${DELAY}s duration=${DURATION}s (trigger must land in the stage process's first few seconds — GPU hot from its first line)"
 
   # --- wait for the collection to finish ---
   sleep "$((DELAY + DURATION))"
@@ -664,12 +664,13 @@ fi
 # data rows past the header/blank/title lines
 if ! grep -Eq '^\s*[0-9]' "$STAGING/.verify.txt"; then
   rm -f "$STAGING/.verify.txt"
-  die "no GPU kernel activity in the collected report — the GPU was not hot when the
-     collection window opened. On GB10 hw-trace only kernels running in the first few
-     seconds after the window opens get GPU-side timestamps; the rest drop 'incomplete'.
-     Fire this while the stage is ALREADY running GPU kernels (delay=0), and make the
-     workload issue kernels from its first line — no startup sleep. A longer --duration
-     does not help."
+  die "no GPU kernel activity in the collected report — the collection was triggered too
+     late in the stage process's life. On GB10 hw-trace the operator only retrieves GPU-side
+     kernel timestamps when the collect is triggered within roughly the first few seconds of
+     the profiled process starting; fire it ~60s in and the GPU-side records drop 'incomplete'
+     even while the GPU is saturated (confirmed: hot GPU, window open, still zero kernels).
+     Fire this with --delay 0 the instant the stage pod is Running, and make the workload
+     issue kernels from its first line — no startup sleep. A longer --duration does not help."
 fi
 rm -f "$STAGING/.verify.txt"
 
