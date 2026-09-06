@@ -365,6 +365,17 @@ Nothing lands on the host filesystem automatically. The durable, human-facing ar
 drives an Nsight Operator *coordinator session*, pulls the finished report out of MinIO, verifies
 it, and writes a `profile.json` sidecar.
 
+The helper's implementation lives in the repo at **`scripts/nsight/export-report.sh`**;
+`~/bin/nsight-export-report` is a symlink to it, so every caller and doc keeps using the
+`~/bin/...` path unchanged.
+
+**Systems vs Compute.** `--tool systems` (default) is the KFP-integrated path above — the
+operator injects `nsys` into the stage pod and the coordinator drives collection out of band.
+`--tool compute` is **host-only and ad-hoc**: it runs `ncu`
+(`/opt/nvidia/nsight-compute/2026.2.1/ncu`, `RmProfilingAdminOnly=0` so no sudo) directly on the
+DGX as the parent process of the workload, replaying kernels — it cannot attach to a live KFP
+pod, touches no operator/coordinator/MinIO, and writes a verified `profile.ncu-rep`.
+
 > **MinIO is the operator's internal report storage. `~/shared/nsight` is the durable
 > profiling archive** that `/nsight-interpret`, the desktop GUI, and the template READMEs
 > all expect.
@@ -392,15 +403,24 @@ export path and the `/nsight-interpret` analysis file.
 **Ad-hoc (no KFP run)** — a report already sitting in MinIO, or a one-off capture:
 
 ```bash
+# Systems: export a report already in MinIO
 ~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main \
-  --no-collect --report-id <minio-report-uuid>        # export an existing report
+  --no-collect --report-id <minio-report-uuid>
+# Systems: drive a fresh operator collection, land it ad-hoc
 ~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main --adhoc
-# --adhoc lands under ~/shared/nsight/systems/<slug>-<date>/ instead of project/run/stage
+# Compute: run host `ncu` against the bundled GPU smoke bench (or `-- <your cmd>`)
+~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main --adhoc \
+  --tool compute --ncu-set basic --launch-count 20
+# --adhoc lands under ~/shared/nsight/{systems,compute}/<slug>-<UTC-timestamp>/ instead of
+# project/run/stage. Non-adhoc compute re-captures of the same stage overwrite in place, same
+# as systems. --no-collect / --report-id are systems-only.
 ```
 
 `nsight-export-report` fails loudly (non-zero exit) if the coordinator is unreachable, the
 `default` service tag is held by another session, or the retrieved report shows no GPU
-kernel activity — it never reports success when a usable report was not archived.
+kernel activity — it never reports success when a usable report was not archived. The
+`--tool compute` path applies the same rule: it verifies the `.ncu-rep` with an `ncu -i`
+readback and fails if no kernels were profiled.
 
 #### Privileged-mode reconciliation (automatic)
 
@@ -532,8 +552,12 @@ kubectl get pvc nsight-reports -n kubeflow
         analysis-claude.md     # written by the auto-chained /nsight-interpret
       fine-tune/
         ...
-  systems/<slug>-<YYYY-MM-DD>/  # ad-hoc Nsight Systems captures (--adhoc)
-  compute/<slug>-<YYYY-MM-DD>/  # ad-hoc Nsight Compute captures (--adhoc --tool compute)
+  systems/<slug>-<UTC-timestamp>/   # ad-hoc Nsight Systems captures (--adhoc)
+  compute/<slug>-<UTC-timestamp>/   # ad-hoc host-ncu captures (--adhoc --tool compute):
+                                    #   profile.ncu-rep + .sha256, summaries.csv (ncu --page raw),
+                                    #   ncu_details.txt (ncu --page details), profile.json
+                                    #   (tool=nsight-compute, ncu_version, ncu_set, launch_count,
+                                    #    command; operator ids null)
 ```
 
 `<stage>` is the hyphenated KFP component name (`baseline-eval`, `fine-tune`,
