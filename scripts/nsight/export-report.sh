@@ -47,6 +47,7 @@ PROJECT="" RUN_ID="" STAGE=""
 DURATION=60 DELAY=0
 TOOL=systems
 ADHOC=0
+DEST_ROOT="${NSIGHT_DEST_ROOT:-$HOME/shared/nsight}"
 KFP_RUN_ID="" MLFLOW_RUN=""
 COORD_URL="http://localhost:13001"
 MLFLOW_URL="${MLFLOW_TRACKING_URI:-http://localhost:5000}"
@@ -117,8 +118,11 @@ Compute collection (--tool compute):
 
 Destination:
   --adhoc                 land under
-                          ~/shared/nsight/<systems|compute>/<project>-<UTC-ts>/
+                          <root>/<systems|compute>/<project>-<UTC-ts>/
                           instead of <project>/<run-id>/<stage>/
+  --dest-root <dir>       archive root (default ~/shared/nsight, or
+                          \$NSIGHT_DEST_ROOT). Point validation / throwaway
+                          captures elsewhere to keep the durable archive clean.
 
 Metadata / linkage:
   --kfp-run-id <uuid>     KFP run UUID (metadata + MLflow tag)
@@ -282,9 +286,9 @@ compute_export() {
   local ts dest
   ts=$(date -u +%Y-%m-%dT%H%M%SZ)
   if [ "$ADHOC" = 1 ]; then
-    dest="$HOME/shared/nsight/compute/${PROJECT}-${ts}"
+    dest="$DEST_ROOT/compute/${PROJECT}-${ts}"
   else
-    dest="$HOME/shared/nsight/$PROJECT/$RUN_ID/$STAGE"
+    dest="$DEST_ROOT/$PROJECT/$RUN_ID/$STAGE"
   fi
   mkdir -p "$dest" || die "cannot create destination: $dest"
   info "destination: $dest"
@@ -388,6 +392,7 @@ while [ $# -gt 0 ]; do
     --delay)           DELAY="${2:-}"; shift 2 ;;
     --tool)            TOOL="${2:-}"; shift 2 ;;
     --adhoc)           ADHOC=1; shift ;;
+    --dest-root)       DEST_ROOT="${2:-}"; shift 2 ;;
     --ncu-set)         NCU_SET="${2:-}"; shift 2 ;;
     --launch-count)    NCU_LAUNCH_COUNT="${2:-}"; shift 2 ;;
     --kernel-name)     KERNEL_NAME="${2:-}"; shift 2 ;;
@@ -419,6 +424,7 @@ done
 [ -n "$PROJECT" ] || { usage; die "--project is required"; }
 [ -n "$RUN_ID" ]  || { usage; die "--run-id is required"; }
 [ -n "$STAGE" ]   || { usage; die "--stage is required"; }
+[ -n "$DEST_ROOT" ] || die "--dest-root / \$NSIGHT_DEST_ROOT cannot be empty"
 
 case "$TOOL" in
   systems) EXT="nsys-rep" ;;
@@ -453,9 +459,9 @@ export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 # resolve destination
 # ---------------------------------------------------------------------------
 if [ "$ADHOC" = 1 ]; then
-  DEST="$HOME/shared/nsight/systems/${PROJECT}-$(date -u +%Y-%m-%dT%H%M%SZ)"
+  DEST="$DEST_ROOT/systems/${PROJECT}-$(date -u +%Y-%m-%dT%H%M%SZ)"
 else
-  DEST="$HOME/shared/nsight/$PROJECT/$RUN_ID/$STAGE"
+  DEST="$DEST_ROOT/$PROJECT/$RUN_ID/$STAGE"
 fi
 mkdir -p "$DEST" || die "cannot create destination: $DEST"
 REPORT_PATH="$DEST/profile.$EXT"
@@ -578,10 +584,18 @@ if [ "$NO_COLLECT" = 0 ]; then
   info "collection complete"
 
   # --- resolve the produced report ---
-  files=$(curl -fsS "$COORD_URL/api/v1/sessions/$SID/files") || die "GET /sessions/$SID/files failed"
-  REPORT_ID=$(echo "$files"   | jq -r '.files[0].uuid // empty')
-  REPORT_NAME=$(echo "$files" | jq -r '.files[0].filename // empty')
-  [ -n "$REPORT_ID" ] || die "no report file listed for session $SID — collection produced nothing (stage too short / not on GPU?)"
+  # The coordinator marks the collection stopped (and the session IDLE) a beat
+  # before the finalized .nsys-rep is registered and listed under /files, so poll
+  # the file list rather than reading it once.
+  fdeadline=$(( $(date +%s) + 120 ))
+  while :; do
+    files=$(curl -fsS "$COORD_URL/api/v1/sessions/$SID/files" 2>/dev/null) || files=""
+    REPORT_ID=$(echo "$files"   | jq -r '.files[0].uuid // empty' 2>/dev/null || echo "")
+    REPORT_NAME=$(echo "$files" | jq -r '.files[0].filename // empty' 2>/dev/null || echo "")
+    [ -n "$REPORT_ID" ] && break
+    [ "$(date +%s)" -gt "$fdeadline" ] && die "no report file listed for session $SID after 120s — collection produced nothing (stage too short / not on GPU?)"
+    sleep 5
+  done
 fi
 
 # ---------------------------------------------------------------------------
