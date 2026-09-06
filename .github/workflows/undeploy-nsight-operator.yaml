@@ -25,6 +25,11 @@ on:
         type: boolean
         default: true
         required: false
+      restore_kubeflow_psa:
+        description: "Restore the kubeflow namespace PodSecurity 'enforce' to baseline (the upstream KFP default). Set false only if you deliberately relaxed it by hand for another reason."
+        type: boolean
+        default: true
+        required: false
 
 permissions:
   contents: read
@@ -72,6 +77,25 @@ jobs:
         if: ${{ inputs.unlabel_kubeflow_namespace }}
         run: kubectl label namespace kubeflow nvidia-nsight-profile- 2>/dev/null || true
 
+      - name: Restore kubeflow PodSecurity enforcement
+        if: ${{ inputs.restore_kubeflow_psa }}
+        # Undo the deploy-time relax: put 'enforce' back to the upstream KFP
+        # default of 'baseline'. Leaves 'warn'/'audit' untouched.
+        run: |
+          if kubectl get namespace kubeflow >/dev/null 2>&1; then
+            kubectl label namespace kubeflow \
+              pod-security.kubernetes.io/enforce=baseline --overwrite
+          fi
+
+      - name: Remove APE fixup webhook
+        # The MutatingWebhookConfiguration is cluster-scoped, so it is NOT removed
+        # by deleting the nsight-operator namespace. Delete it explicitly first so
+        # no dangling webhook (failurePolicy: Ignore, but still) survives.
+        run: |
+          kubectl delete mutatingwebhookconfiguration nsight-ape-webhook --ignore-not-found
+          kubectl delete clusterrolebinding nsight-ape-webhook --ignore-not-found
+          kubectl delete clusterrole nsight-ape-webhook --ignore-not-found
+
       - name: Helm uninstall
         run: helm uninstall nsight-operator -n nsight-operator --wait || true
 
@@ -104,4 +128,5 @@ jobs:
             echo "| Runner | \`${{ inputs.runner }}\` |"
             echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
             echo "| kubeflow label removed | \`${{ inputs.unlabel_kubeflow_namespace }}\` |"
+            echo "| kubeflow PSA restored to baseline | \`${{ inputs.restore_kubeflow_psa }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

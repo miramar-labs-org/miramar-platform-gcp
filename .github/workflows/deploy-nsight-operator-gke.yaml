@@ -27,6 +27,15 @@ on:
         type: boolean
         default: false
         required: false
+      relax_kubeflow_psa:
+        description: "Relax the kubeflow namespace PodSecurity 'enforce' from baseline to privileged while the operator is deployed (restored on undeploy). No-op if the kubeflow namespace is absent. warn:restricted is left in place."
+        type: boolean
+        default: true
+        required: false
+      ape_webhook_tag:
+        description: "Image tag for the nsight-ape-webhook admission webhook (reconciles the injector's privileged:true with PSS-hardened KFP step pods)."
+        default: "latest"
+        required: false
 
 permissions:
   contents: read
@@ -110,6 +119,38 @@ jobs:
       - name: Wait for pods
         run: kubectl get pods -n nsight-operator
 
+      - name: Deploy APE fixup webhook
+        # Reconciles the Nsight injector's securityContext.privileged=true with
+        # PSS-hardened KFP step pods (allowPrivilegeEscalation=false + drop:[ALL]
+        # + RuntimeDefault). Only touches pods labelled nvidia-nsight-profile=
+        # enabled. See nsight-ape-webhook/README.md.
+        env:
+          MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
+          WEBHOOK_TAG: ${{ inputs.ape_webhook_tag }}
+        run: |
+          # namespace already exists — helm ran with --create-namespace above.
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io \
+            --docker-username=miramar-labs-org \
+            --docker-password="${MIRAMAR_ORG_GHCR_PAT}" \
+            --namespace=nsight-operator \
+            --dry-run=client -o yaml | kubectl apply -f -
+          IMAGE="ghcr.io/miramar-labs-org/nsight-ape-webhook:${WEBHOOK_TAG}"
+          sed "s|__IMAGE__|${IMAGE}|g" nsight-ape-webhook/manifests/webhook.yaml | kubectl apply -f -
+          kubectl rollout status deploy/nsight-ape-webhook -n nsight-operator --timeout=120s
+
+      - name: Relax kubeflow PodSecurity enforcement
+        if: ${{ inputs.relax_kubeflow_psa }}
+        # PSA 'baseline' on the kubeflow namespace forbids privileged:true. Relax
+        # 'enforce' to 'privileged' for the duration; undeploy restores 'baseline'.
+        run: |
+          if kubectl get namespace kubeflow >/dev/null 2>&1; then
+            kubectl label namespace kubeflow \
+              pod-security.kubernetes.io/enforce=privileged --overwrite
+          else
+            echo "kubeflow namespace not present — skipping PSA relax"
+          fi
+
       - name: Label kubeflow namespace
         if: ${{ inputs.label_kubeflow_namespace }}
         run: |
@@ -129,6 +170,8 @@ jobs:
         run: |
           POD_COUNT=$(kubectl get pods -n nsight-operator --no-headers 2>/dev/null | grep -c . || echo 0)
           KF_LABEL=$(kubectl get namespace kubeflow --show-labels 2>/dev/null | grep -o 'nvidia-nsight-profile=enabled' || echo 'not labeled')
+          KF_PSA=$(kubectl get namespace kubeflow -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}' 2>/dev/null || echo 'n/a')
+          APE_WEBHOOK=$(kubectl get deploy nsight-ape-webhook -n nsight-operator -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
           {
             echo "## Nsight Operator Deployed (GKE)"
             echo "| | |"
@@ -138,6 +181,8 @@ jobs:
             echo "| Chart version | \`${{ inputs.chart_version }}\` |"
             echo "| Namespace | \`nsight-operator\` |"
             echo "| Pods | \`${POD_COUNT}\` |"
+            echo "| APE fixup webhook ready | \`${APE_WEBHOOK:-0}\` |"
+            echo "| kubeflow enforce PSA | \`${KF_PSA:-n/a}\` |"
             echo "| kubeflow label | \`${KF_LABEL}\` |"
             echo ""
             echo "Port-forward to access the UI:"

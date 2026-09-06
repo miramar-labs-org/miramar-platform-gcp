@@ -1,0 +1,69 @@
+name: Build Nsight APE Webhook Image
+
+# Builds the multi-arch nsight-ape-webhook admission webhook image and pushes it
+# to GHCR. This webhook reconciles Nsight Operator process-hook injection with
+# PSS-hardened KFP step pods (see nsight-ape-webhook/README.md).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'nsight-ape-webhook/**'
+      - '.github/workflows/build-nsight-ape-webhook.yml'
+  pull_request:
+    paths:
+      - 'nsight-ape-webhook/**'
+      - '.github/workflows/build-nsight-ape-webhook.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/${{ github.repository_owner }}/nsight-ape-webhook
+
+jobs:
+  build:
+    name: Build multi-arch webhook image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: nsight-ape-webhook
+          file: nsight-ape-webhook/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

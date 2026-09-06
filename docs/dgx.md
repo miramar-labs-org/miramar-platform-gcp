@@ -355,6 +355,23 @@ Deploy the operator via the **Nsight Operator Deploy** workflow in miramar-platf
 `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to any KFP stage you want
 profiled. Reports land in `~/shared/nsight/<project>/<run-id>/` as before.
 
+#### Privileged-mode reconciliation (automatic)
+
+Full GB10 hardware GPU trace (~47 CUDA kernel records vs ~7) needs
+`securityContext.privileged: true` on the profiled container. The Nsight injector adds it, but
+KFP step pods bake in `allowPrivilegeEscalation: false` + `drop: [ALL]` + `RuntimeDefault`
+(not overridable via the KFP SDK — upstream rejected privileged support), and the `kubeflow`
+namespace enforces PodSecurity `baseline`. **Nsight Operator Deploy** handles both automatically:
+
+- deploys `nsight-ape-webhook` (`nsight-ape-webhook/` in this repo) — a mutating webhook that,
+  on pods labelled `nvidia-nsight-profile=enabled`, strips `allowPrivilegeEscalation`/all-drop
+  caps/`RuntimeDefault` from containers the injector marked `privileged`;
+- relaxes the `kubeflow` namespace `pod-security.kubernetes.io/enforce` from `baseline` to
+  `privileged` (input `relax_kubeflow_psa`, default `true`; `warn: restricted` is kept).
+
+**Nsight Operator Undeploy** removes the webhook (cluster-scoped) and restores `enforce=baseline`.
+No pipeline-code change is needed beyond the pod label.
+
 ---
 
 ### Host prerequisites (one-time per DGX install, survives reboots)

@@ -15,6 +15,11 @@ on:
         type: boolean
         default: false
         required: false
+      restore_kubeflow_psa:
+        description: "Restore the kubeflow namespace PodSecurity 'enforce' to baseline (no-op if the namespace is absent)."
+        type: boolean
+        default: true
+        required: false
 
 permissions:
   contents: read
@@ -43,6 +48,13 @@ jobs:
           location: ${{ vars.GKE_ZONE }}
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
+      - name: Remove APE fixup webhook
+        # Cluster-scoped — not removed by deleting the nsight-operator namespace.
+        run: |
+          kubectl delete mutatingwebhookconfiguration nsight-ape-webhook --ignore-not-found
+          kubectl delete clusterrolebinding nsight-ape-webhook --ignore-not-found
+          kubectl delete clusterrole nsight-ape-webhook --ignore-not-found
+
       - name: Uninstall Nsight Operator
         run: |
           helm uninstall nsight-operator -n nsight-operator --ignore-not-found || true
@@ -56,6 +68,14 @@ jobs:
         if: ${{ inputs.unlabel_kubeflow_namespace }}
         run: |
           kubectl label namespace kubeflow nvidia-nsight-profile- || true
+
+      - name: Restore kubeflow PodSecurity enforcement
+        if: ${{ inputs.restore_kubeflow_psa }}
+        run: |
+          if kubectl get namespace kubeflow >/dev/null 2>&1; then
+            kubectl label namespace kubeflow \
+              pod-security.kubernetes.io/enforce=baseline --overwrite
+          fi
 
       - name: Clear Nsight Operator active state
         env:
@@ -76,4 +96,5 @@ jobs:
             echo "| Cluster | \`${{ vars.GKE_CLUSTER_NAME }}\` |"
             echo "| Namespace deleted | \`${{ inputs.delete_namespace }}\` |"
             echo "| kubeflow unlabeled | \`${{ inputs.unlabel_kubeflow_namespace }}\` |"
+            echo "| kubeflow PSA restored to baseline | \`${{ inputs.restore_kubeflow_psa }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

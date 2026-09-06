@@ -58,10 +58,11 @@ All workflows accept a `runner` input (`dgx` or `agx`) to target either machine.
 | Ollama Undeploy | `undeploy-ollama.yaml` | Unload/delete an Ollama model; clears `CURRENT_OLLAMA_MODEL[_AGX]` + `CURRENT_OLLAMA_VRAM_GB[_AGX]` and `{MACHINE}_OLLAMA_ACTIVE` org var. Inputs: `runner`                                                                                            |
 | Ollama Update   | `update-ollama.yaml`   | Install or upgrade Ollama on target host; writes `OLLAMA_VERSION`. Inputs: `runner`                                                                                                                                                                    |
 
-| Nsight Operator Deploy      | `deploy-nsight-operator.yaml`      | Install NVIDIA Nsight Operator via Helm on DGX/AGX; writes `{MACHINE}_NSIGHT_OPERATOR_ACTIVE`. Inputs: `runner` |
-| Nsight Operator Undeploy    | `undeploy-nsight-operator.yaml`    | Helm uninstall Nsight Operator; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE`. Inputs: `runner` |
-| Nsight Operator Deploy GKE  | `deploy-nsight-operator-gke.yaml`  | Install Nsight Operator on GKE with dynamic PVC; wsl2 runner; writes `GKE_NSIGHT_OPERATOR_ACTIVE` |
-| Nsight Operator Undeploy GKE | `undeploy-nsight-operator-gke.yaml` | Helm uninstall Nsight Operator from GKE; clears `GKE_NSIGHT_OPERATOR_ACTIVE` |
+| Nsight Operator Deploy      | `deploy-nsight-operator.yaml`      | Install NVIDIA Nsight Operator via Helm on DGX/AGX; deploy the `nsight-ape-webhook` mutating webhook + relax kubeflow PSA `enforce`→`privileged` (`relax_kubeflow_psa`, default true) so KFP step pods can run `privileged` for GB10 hardware trace; writes `{MACHINE}_NSIGHT_OPERATOR_ACTIVE`. Inputs: `runner`, `relax_kubeflow_psa`, `ape_webhook_tag` |
+| Nsight Operator Undeploy    | `undeploy-nsight-operator.yaml`    | Helm uninstall Nsight Operator; delete the cluster-scoped `nsight-ape-webhook` MWC + ClusterRole/Binding; restore kubeflow PSA `enforce`→`baseline` (`restore_kubeflow_psa`); clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE`. Inputs: `runner`, `restore_kubeflow_psa` |
+| Nsight Operator Deploy GKE  | `deploy-nsight-operator-gke.yaml`  | Install Nsight Operator on GKE with dynamic PVC; wsl2 runner; also deploys `nsight-ape-webhook` (PSA relax is a no-op if no kubeflow ns); writes `GKE_NSIGHT_OPERATOR_ACTIVE` |
+| Nsight Operator Undeploy GKE | `undeploy-nsight-operator-gke.yaml` | Helm uninstall Nsight Operator from GKE; delete `nsight-ape-webhook`; clears `GKE_NSIGHT_OPERATOR_ACTIVE` |
+| Build Nsight APE Webhook Image | `build-nsight-ape-webhook.yml` | Build + push the multi-arch `nsight-ape-webhook` image to `ghcr.io/miramar-labs-org/nsight-ape-webhook`. Triggers: push to `main` under `nsight-ape-webhook/**`, `workflow_dispatch` |
 | Open WebUI Deploy       | `deploy-openwebui.yaml`       | Deploy Open WebUI on DGX/AGX/GKE; wires to active serving backend (NIM, Ollama, or vLLM); writes `{MACHINE}_OPENWEBUI_ACTIVE`. Inputs: `host` |
 | Open WebUI Undeploy     | `undeploy-openwebui.yaml`     | Remove Open WebUI; stop port-forward; clears `{MACHINE}_OPENWEBUI_ACTIVE`. Inputs: `host` |
 
