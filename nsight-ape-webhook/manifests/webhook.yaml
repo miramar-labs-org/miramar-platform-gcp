@@ -1,0 +1,157 @@
+# nsight-ape-webhook — mutating admission webhook that reconciles Nsight Operator
+# process-hook injection (adds securityContext.privileged) with PSS-hardened pods
+# (KFP step pods set allowPrivilegeEscalation:false + drop ALL + RuntimeDefault).
+#
+# Deployed into the nsight-operator namespace by the "Nsight Operator Deploy"
+# workflow, immediately after the Helm release. The __IMAGE__ token is substituted
+# by the workflow. The MutatingWebhookConfiguration.caBundle is left empty here and
+# patched at runtime by the pod itself (self-signed cert bootstrap).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nsight-ape-webhook
+  namespace: nsight-operator
+  labels:
+    app: nsight-ape-webhook
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nsight-ape-webhook
+  labels:
+    app: nsight-ape-webhook
+rules:
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations"]
+    resourceNames: ["nsight-ape-webhook"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nsight-ape-webhook
+  labels:
+    app: nsight-ape-webhook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nsight-ape-webhook
+subjects:
+  - kind: ServiceAccount
+    name: nsight-ape-webhook
+    namespace: nsight-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsight-ape-webhook
+  namespace: nsight-operator
+  labels:
+    app: nsight-ape-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nsight-ape-webhook
+  template:
+    metadata:
+      labels:
+        app: nsight-ape-webhook
+    spec:
+      serviceAccountName: nsight-ape-webhook
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: webhook
+          image: __IMAGE__
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: https
+              containerPort: 8443
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nsight-ape-webhook
+  namespace: nsight-operator
+  labels:
+    app: nsight-ape-webhook
+spec:
+  selector:
+    app: nsight-ape-webhook
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: nsight-ape-webhook
+  labels:
+    app: nsight-ape-webhook
+webhooks:
+  - name: ape-fixup.nsight.miramar-labs.com
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    # Never block pod creation if the webhook is unavailable — a profiling run
+    # simply fails the same way it does today.
+    failurePolicy: Ignore
+    # The key setting: get re-invoked after the Nsight injector adds
+    # securityContext.privileged, regardless of admission plugin ordering.
+    reinvocationPolicy: IfNeeded
+    matchPolicy: Equivalent
+    timeoutSeconds: 5
+    clientConfig:
+      service:
+        name: nsight-ape-webhook
+        namespace: nsight-operator
+        path: /mutate
+        port: 443
+      # caBundle is patched at runtime by the webhook pod.
+    objectSelector:
+      matchLabels:
+        nvidia-nsight-profile: enabled
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["nsight-operator", "kube-system", "kube-node-lease", "kube-public"]
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+        scope: "Namespaced"

@@ -61,6 +61,7 @@ flowchart LR
 [![GCP Platform Create](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-create.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-create.yaml)
 [![GCP Platform Destroy](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-destroy.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gcp-platform-destroy.yaml)
 [![Build mlabs-runner](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-mlabs-runner.yml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-mlabs-runner.yml)
+[![Build Nsight APE Webhook Image](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-nsight-ape-webhook.yml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/build-nsight-ape-webhook.yml)
 [![GKE Expand](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand.yaml)
 [![GKE Restore](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-restore.yaml)
 [![GKE Expand GPU](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/gke-expand-gpu.yaml)
@@ -172,6 +173,10 @@ with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
   ```python
   kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")
   ```
+  Full GB10 hardware GPU kernel trace needs `privileged` step pods, which collides with KFP's
+  PSS hardening and the `kubeflow` namespace's PodSecurity `baseline`. `deploy-nsight-operator.yaml`
+  resolves both automatically — a small mutating webhook (`nsight-ape-webhook/`) plus a scoped
+  PSA relax on the `kubeflow` namespace, both reverted on undeploy.
 
 - **AI-assisted interpretation** — `/nsight-interpret` extracts `nsys stats` summaries and sends
   them to an LLM of your choice for structured bottleneck analysis — top GPU utilization gaps, memory transfer

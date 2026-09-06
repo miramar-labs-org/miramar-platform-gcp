@@ -26,6 +26,7 @@ scripts/
   security/        # scan-actions-risk.sh, repo-security-check.sh
   dashboard/       # generate-dashboard.sh (GitHub Pages platform dashboard)
 mlabs-runner/      # Docker image for self-hosted GHA runners
+nsight-ape-webhook/ # Mutating admission webhook: reconciles Nsight injection (privileged) with PSS-hardened KFP step pods
 dgx/               # DGX Spark host config and local tooling
   k3s/             # k3s workload manifests + deploy/verify scripts (NeMo, NIM, MLflow, Qdrant, Kubeflow, Nsight)
   ollama/          # Ollama deploy/undeploy scripts and model catalog
@@ -136,8 +137,8 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | GKE Gateway Undeploy         | `undeploy-gke-gateway.yaml`         | Remove Gateway + HTTPRoute; stops LB billing; clears `GKE_GATEWAY_ACTIVE` + `GKE_GATEWAY_URL`; called automatically by GKE serving undeploy |
 | Open WebUI Deploy            | `deploy-openwebui.yaml`             | Deploy Open WebUI on DGX/AGX/GKE; wires active serving backend      |
 | Open WebUI Undeploy          | `undeploy-openwebui.yaml`           | Remove Open WebUI; stops portfwd; clears `{MACHINE}_OPENWEBUI_ACTIVE` |
-| Nsight Operator Deploy       | `deploy-nsight-operator.yaml`       | Install Nsight Operator via Helm; sets `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
-| Nsight Operator Undeploy     | `undeploy-nsight-operator.yaml`     | Helm uninstall Nsight Operator; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
+| Nsight Operator Deploy       | `deploy-nsight-operator.yaml`       | Install Nsight Operator via Helm; deploy `nsight-ape-webhook` + relax kubeflow PSA `enforce`→`privileged` (`relax_kubeflow_psa`); sets `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
+| Nsight Operator Undeploy     | `undeploy-nsight-operator.yaml`     | Helm uninstall Nsight Operator; delete `nsight-ape-webhook` (cluster-scoped MWC); restore kubeflow PSA `enforce`→`baseline`; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
 | Nsight Operator Deploy GKE   | `deploy-nsight-operator-gke.yaml`   | Install Nsight Operator on GKE; dynamic PVC; wsl2 runner             |
 | Nsight Operator Undeploy GKE | `undeploy-nsight-operator-gke.yaml` | Helm uninstall Nsight Operator from GKE; clears `GKE_NSIGHT_OPERATOR_ACTIVE` |
 | MLflow Deploy                | `deploy-mlflow.yaml`                | Deploy MLflow + MinIO into mlflow-system; sets `{MACHINE}_MLFLOW_ACTIVE` |
@@ -159,6 +160,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | WSL2 Verify SSH Topology     | `verify-ssh-topology.yaml`          | Test all SSH paths for active distros in WSL2_DISTROS                |
 | WSL2 Unprovision             | `unprovision-wsl2.yaml`             | Unregister distro, remove from WSL2_DISTROS                          |
 | Build MLABS Runner           | `build-mlabs-runner.yml`            | Build + push multi-arch mlabs-runner image to GHCR                   |
+| Build Nsight APE Webhook Image | `build-nsight-ape-webhook.yml`    | Build + push multi-arch `nsight-ape-webhook` image to GHCR (mutating webhook that reconciles Nsight injection with PSS-hardened KFP pods) |
 | Repo Code Quality            | `repo-quality-manual.yaml`          | Run formatters/linters in check mode (or `fix_mode=true`)            |
 
 **Platform state repo variables** (NIM/Ollama current model + VRAM, read by dashboard):
