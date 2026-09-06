@@ -6,5 +6,10 @@ profiling:
   # Then run `/nsight-export <project> <run-NNN> main` while the stage is GPU-hot to
   # archive the report to `~/shared/nsight/<project>/<run-id>/main/` (auto-runs
   # `/nsight-interpret`).
+  #
+  # GB10 hw-trace catches only kernels running in the first few seconds after collection
+  # opens. Your gpu_stage MUST start issuing GPU kernels on its first line (no startup
+  # sleep / data-load idle before the compute), and /kfp-monitor must fire the export the
+  # instant the pod is Running. A bigger collection_window_s does NOT recover a slow start.
   enabled: false
-  collection_window_s: 90   # nsys collection duration; must fit inside the stage's GPU-hot window
+  collection_window_s: 90   # nsys collection duration once hot; 30-90s is plenty

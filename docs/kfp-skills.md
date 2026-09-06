@@ -214,6 +214,13 @@ is reached at `http://localhost:13001/api/v1/` on the DGX host (forwarded by
 `fine-tune`), or pass a `--profile-<stage>` flag to `/kfp-deploy` (which patches the block
 and regenerates `pipeline.py`). `collection_window_s` bounds the `nsys` collection.
 
+> **The GPU must be hot the moment collection opens.** On GB10 hw-trace only kernels running
+> in the first few seconds after the window opens get GPU-side timestamps — later ones drop
+> "incomplete". So the profiled stage must issue GPU kernels **from its first line, with no
+> startup sleep**, and `/kfp-monitor` fires the export with `--delay 0` the instant the pod is
+> `Running`. A larger `collection_window_s` / `--duration` does **not** rescue a stage that
+> idles before its GPU work — see `docs/dgx.md` "Fire it while the GPU is already hot".
+
 Full profiling arc:
 
 ```bash
@@ -223,11 +230,15 @@ Full profiling arc:
                                              # /nsight-interpret on the archived report
 ```
 
-If the GPU-hot window is missed, run the export by hand while the stage is still busy:
+If the GPU-hot window is missed, run the export by hand **while the stage is still running
+GPU kernels** (not idling, not finished):
 
 ```bash
-/nsight-export <project> run-032 baseline-eval [--duration 120]
+/nsight-export <project> run-032 baseline-eval
 ```
+
+If the stage has already finished, don't re-collect — pull the report the operator already
+wrote: `/nsight-export <project> run-032 baseline-eval --no-collect --report-id <uuid>`.
 
 ### `/nsight-export <project> <run-NNN> <stage> [--duration N] [--tool systems|compute] [--adhoc]`
 
@@ -238,7 +249,8 @@ and auto-chains `/nsight-interpret`.**
 # Standard: derive KFP/MLflow linkage from runs/<run-NNN>.md, drive a fresh collection
 /nsight-export my-project run-032 baseline-eval
 
-# Wider collection window (default 90s from config.yaml)
+# Longer collection window (default 90s from config.yaml). Note: a longer window does NOT
+# recover kernels missed at window-open — it only keeps collecting longer once hot.
 /nsight-export my-project run-032 fine-tune --duration 180
 
 # Ad-hoc capture (no KFP run) — lands under ~/shared/nsight/systems/<project>-<date>/

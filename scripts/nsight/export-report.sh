@@ -56,6 +56,13 @@ DO_SHA=1
 NAMESPACE=kubeflow
 POD=""
 
+# Nothing is written to the durable archive until a report has passed
+# verification. All intermediate work lands in $STAGING (a mktemp dir) and is
+# copied to $DEST as the last step; a failed run leaves the archive untouched.
+STAGING=""
+PROMOTED=0
+COMPUTE_DEST=""
+
 # --tool compute only
 NCU_SET=basic
 NCU_LAUNCH_COUNT=20
@@ -290,8 +297,11 @@ compute_export() {
   else
     dest="$DEST_ROOT/$PROJECT/$RUN_ID/$STAGE"
   fi
-  mkdir -p "$dest" || die "cannot create destination: $dest"
-  info "destination: $dest"
+  # stage in a temp dir; nothing reaches the archive until ncu + readback pass
+  STAGING=$(mktemp -d "${TMPDIR:-/tmp}/${PROG}.XXXXXX") || die "cannot create staging dir"
+  COMPUTE_DEST="$dest"
+  trap 'rc=$?; if [ "$PROMOTED" = 0 ]; then [ -n "$STAGING" ] && rm -rf "$STAGING"; [ "$rc" -ne 0 ] && info "run failed before verification — archive left untouched ($COMPUTE_DEST not created)"; fi; exit $rc' EXIT INT TERM
+  info "destination: $dest (staging in $STAGING until verified)"
 
   if [ "${#TARGET_CMD[@]}" -eq 0 ]; then
     local bench="$SCRIPT_DIR/ncu-bench.py"
@@ -302,15 +312,15 @@ compute_export() {
     TARGET_CMD=("$bench_py" "$bench")
   fi
 
-  run_ncu "$dest" "$ncu"
+  run_ncu "$STAGING" "$ncu"
 
   local ncu_version
   ncu_version=$("$ncu" --version 2>&1 | grep -oE '[0-9]{4}\.[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
 
   local sha=""
   if [ "$DO_SHA" = 1 ]; then
-    sha=$(sha256sum "$dest/profile.ncu-rep" | awk '{print $1}')
-    echo "$sha  profile.ncu-rep" >"$dest/profile.ncu-rep.sha256"
+    sha=$(sha256sum "$STAGING/profile.ncu-rep" | awk '{print $1}')
+    echo "$sha  profile.ncu-rep" >"$STAGING/profile.ncu-rep.sha256"
   fi
 
   NSE_PROJECT="$PROJECT" \
@@ -328,7 +338,7 @@ compute_export() {
   NSE_SHA="$sha" \
   NSE_KFP_RUN_ID="$KFP_RUN_ID" \
   NSE_MLFLOW_RUN="$MLFLOW_RUN" \
-  python3 - "$dest/profile.json" <<'PY'
+  python3 - "$STAGING/profile.json" <<'PY'
 import json, os, sys
 
 def s(k):
@@ -365,7 +375,14 @@ with open(sys.argv[1], "w") as fh:
     json.dump(doc, fh, indent=2)
     fh.write("\n")
 PY
-  info "wrote $dest/profile.json"
+  info "wrote profile.json"
+
+  # promote the staged, verified report into the durable archive
+  mkdir -p "$dest" || die "cannot create destination: $dest"
+  cp -p "$STAGING"/* "$dest"/ || die "could not promote staged report into $dest"
+  PROMOTED=1
+  rm -rf "$STAGING"
+  info "archived to $dest"
 
   mlflow_link \
     "nsight_tool=compute" \
@@ -463,9 +480,9 @@ if [ "$ADHOC" = 1 ]; then
 else
   DEST="$DEST_ROOT/$PROJECT/$RUN_ID/$STAGE"
 fi
-mkdir -p "$DEST" || die "cannot create destination: $DEST"
-REPORT_PATH="$DEST/profile.$EXT"
-info "destination: $DEST"
+STAGING=$(mktemp -d "${TMPDIR:-/tmp}/${PROG}.XXXXXX") || die "cannot create staging dir"
+REPORT_PATH="$STAGING/profile.$EXT"
+info "destination: $DEST (staging in $STAGING until verified)"
 
 # ---------------------------------------------------------------------------
 # preflight — coordinator reachable
@@ -538,6 +555,10 @@ cleanup() {
     SID=""
   fi
   minio_down
+  if [ "$PROMOTED" = 0 ] && [ -n "$STAGING" ] && [ -d "$STAGING" ]; then
+    rm -rf "$STAGING"
+    [ "$rc" -ne 0 ] && info "run failed before verification — archive left untouched ($DEST not created)"
+  fi
   exit $rc
 }
 trap cleanup EXIT INT TERM
@@ -604,12 +625,12 @@ fi
 minio_up
 
 if [ -z "$REPORT_NAME" ]; then
-  minio_get "manifest/$REPORT_ID.json" "$DEST/manifest.json" \
+  minio_get "manifest/$REPORT_ID.json" "$STAGING/manifest.json" \
     || die "cannot fetch manifest for report $REPORT_ID from MinIO"
-  REPORT_NAME=$(jq -r '.files[0].name // empty' "$DEST/manifest.json")
+  REPORT_NAME=$(jq -r '.files[0].name // empty' "$STAGING/manifest.json")
   [ -n "$REPORT_NAME" ] || die "manifest for $REPORT_ID lists no report file"
 else
-  minio_get "manifest/$REPORT_ID.json" "$DEST/manifest.json" \
+  minio_get "manifest/$REPORT_ID.json" "$STAGING/manifest.json" \
     || warn "could not save manifest.json for $REPORT_ID"
 fi
 
@@ -627,26 +648,30 @@ minio_get "$REPORT_ID/$REPORT_NAME" "$REPORT_PATH" \
 # nsys's "sqlite older than input" staleness check on repeat runs.
 STATS_INPUT="$REPORT_PATH"
 if ! nsys export --type sqlite --force-overwrite=true \
-       --output "$DEST/profile.sqlite" "$REPORT_PATH" >"$DEST/.verify.txt" 2>&1; then
-  cat "$DEST/.verify.txt" >&2
-  rm -f "$DEST/.verify.txt"
+       --output "$STAGING/profile.sqlite" "$REPORT_PATH" >"$STAGING/.verify.txt" 2>&1; then
+  cat "$STAGING/.verify.txt" >&2
+  rm -f "$STAGING/.verify.txt"
   die "nsys export could not parse $REPORT_PATH"
 fi
-rm -f "$DEST/.verify.txt"
-STATS_INPUT="$DEST/profile.sqlite"
+rm -f "$STAGING/.verify.txt"
+STATS_INPUT="$STAGING/profile.sqlite"
 
-if ! nsys stats --report cuda_gpu_kern_sum "$STATS_INPUT" >"$DEST/.verify.txt" 2>&1; then
-  cat "$DEST/.verify.txt" >&2
-  rm -f "$DEST/.verify.txt"
+if ! nsys stats --report cuda_gpu_kern_sum "$STATS_INPUT" >"$STAGING/.verify.txt" 2>&1; then
+  cat "$STAGING/.verify.txt" >&2
+  rm -f "$STAGING/.verify.txt"
   die "nsys stats could not read $STATS_INPUT"
 fi
 # data rows past the header/blank/title lines
-if ! grep -Eq '^\s*[0-9]' "$DEST/.verify.txt"; then
-  rm -f "$DEST/.verify.txt"
-  die "no GPU kernel activity in $REPORT_PATH — collection missed the hot window
-     re-run while the stage pod is busy, raise --duration, or raise the stage's iteration count"
+if ! grep -Eq '^\s*[0-9]' "$STAGING/.verify.txt"; then
+  rm -f "$STAGING/.verify.txt"
+  die "no GPU kernel activity in the collected report — the GPU was not hot when the
+     collection window opened. On GB10 hw-trace only kernels running in the first few
+     seconds after the window opens get GPU-side timestamps; the rest drop 'incomplete'.
+     Fire this while the stage is ALREADY running GPU kernels (delay=0), and make the
+     workload issue kernels from its first line — no startup sleep. A longer --duration
+     does not help."
 fi
-rm -f "$DEST/.verify.txt"
+rm -f "$STAGING/.verify.txt"
 
 SHA=""
 if [ "$DO_SHA" = 1 ]; then
@@ -660,7 +685,7 @@ fi
 { for _r in cuda_gpu_kern_sum cuda_api_sum cuda_gpu_mem_time_sum cuda_gpu_mem_size_sum nvtx_sum; do
     echo "=== ${_r} ==="
     nsys stats --report "${_r}" "$STATS_INPUT" 2>/dev/null || echo "(skipped)"
-  done; } | tee "$DEST/summaries.csv" > "$DEST/nsys_stats.txt"
+  done; } | tee "$STAGING/summaries.csv" > "$STAGING/nsys_stats.txt"
 
 # ---------------------------------------------------------------------------
 # profile.json sidecar
@@ -690,7 +715,7 @@ NSE_MLFLOW_RUN="$MLFLOW_RUN" \
 NSE_MLFLOW_EXPERIMENT="$PROJECT" \
 NSE_DURATION="$DURATION" \
 NSE_DELAY="$DELAY" \
-python3 - "$DEST/profile.json" <<'PY'
+python3 - "$STAGING/profile.json" <<'PY'
 import json, os, sys
 
 def s(k):
@@ -724,7 +749,18 @@ with open(sys.argv[1], "w") as fh:
     json.dump(doc, fh, indent=2)
     fh.write("\n")
 PY
-info "wrote $DEST/profile.json"
+info "wrote profile.json"
+
+# ---------------------------------------------------------------------------
+# promote the staged, verified report into the durable archive
+# ---------------------------------------------------------------------------
+mkdir -p "$DEST" || die "cannot create destination: $DEST"
+cp -p "$STAGING"/* "$DEST"/ || die "could not promote staged report into $DEST"
+PROMOTED=1
+rm -rf "$STAGING"
+REPORT_PATH="$DEST/profile.$EXT"
+STATS_INPUT="$DEST/profile.sqlite"
+info "archived to $DEST"
 
 # ---------------------------------------------------------------------------
 # MLflow linkage (additive — tags on the stage run; no template code needed)

@@ -428,14 +428,27 @@ kernel activity — it never reports success when a usable report was not archiv
 `--tool compute` path applies the same rule: it verifies the `.ncu-rep` with an `ncu -i`
 readback and fails if no kernels were profiled.
 
-**Stop-while-busy (`--duration` too short).** GB10 uses hardware tracing for CUDA, and
-GPU-side activity records are only timestamped when the collection *stops*. If the
-collection window closes while the stage's GPU work is still saturated, `nsys` drops the
-in-flight kernel/memcpy records as "incomplete CUPTI events" — the `.nsys-rep` comes back
-with CUDA API rows but no `cuda_gpu_kern_sum`, and the helper's verify fails it. Size
-`--duration` / the template's `collection_window_s` so the profiled GPU phase (and a
-`torch.cuda.synchronize()` + brief idle tail) finishes *inside* the window rather than
-running the window over a still-hot GPU.
+**Fire it while the GPU is already hot — the window opens, it does not "catch up".**
+GB10 uses hardware tracing for CUDA. On a KFP-injected `nsys` collection, only kernels that
+run in **roughly the first few seconds after the collection window opens** get GPU-side
+timestamps retrieved; every kernel launched later stays "incomplete" at session stop and is
+dropped ("Number of incomplete CUPTI events dropped: N"). The `.nsys-rep` then comes back with
+CUDA API rows but no `cuda_gpu_kern_sum`, and the helper's verify fails it.
+
+Consequences:
+
+- The profiled stage must issue representative GPU kernels **from its very first line — no
+  startup `sleep`, no idle warm-up**. A pipeline that sleeps before its GPU work will always
+  produce a kernel-less report, no matter how long the window is.
+- Run `/nsight-export` (or let `/kfp-monitor` fire it) the **instant** the stage pod is
+  `Running` and hot, with `--delay 0`.
+- A **longer `--duration` does not help** and neither does raising the iteration count — the
+  retrieval window is anchored to when collection *opens*, not to how much GPU work happens.
+  ~30–90 s is plenty; the template's `collection_window_s` can stay small.
+
+(Confirmed 2026-09-06: identical injected `nsys` cmd, identical stage code — the only
+difference between a capture with 46 GB10 kernel rows and one with zero was whether the GPU
+loop was already running when collection opened.)
 
 #### Privileged-mode reconciliation (automatic)
 
