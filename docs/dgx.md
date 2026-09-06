@@ -416,11 +416,26 @@ export path and the `/nsight-interpret` analysis file.
 # as systems. --no-collect / --report-id are systems-only.
 ```
 
+**Keeping throwaway captures out of the archive.** Every path above writes under
+`~/shared/nsight/` (the durable archive). For validation runs, one-off experiments, or
+anything you do not want kept, pass `--dest-root <dir>` (or set `$NSIGHT_DEST_ROOT`) to
+redirect the whole `{<project>/<run>/<stage>, systems/…, compute/…}` tree elsewhere — e.g. a
+scratch dir. The helper otherwise has no non-archive output mode.
+
 `nsight-export-report` fails loudly (non-zero exit) if the coordinator is unreachable, the
 `default` service tag is held by another session, or the retrieved report shows no GPU
 kernel activity — it never reports success when a usable report was not archived. The
 `--tool compute` path applies the same rule: it verifies the `.ncu-rep` with an `ncu -i`
 readback and fails if no kernels were profiled.
+
+**Stop-while-busy (`--duration` too short).** GB10 uses hardware tracing for CUDA, and
+GPU-side activity records are only timestamped when the collection *stops*. If the
+collection window closes while the stage's GPU work is still saturated, `nsys` drops the
+in-flight kernel/memcpy records as "incomplete CUPTI events" — the `.nsys-rep` comes back
+with CUDA API rows but no `cuda_gpu_kern_sum`, and the helper's verify fails it. Size
+`--duration` / the template's `collection_window_s` so the profiled GPU phase (and a
+`torch.cuda.synchronize()` + brief idle tail) finishes *inside* the window rather than
+running the window over a still-hot GPU.
 
 #### Privileged-mode reconciliation (automatic)
 
