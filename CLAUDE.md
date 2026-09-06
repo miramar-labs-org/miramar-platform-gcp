@@ -25,6 +25,7 @@ scripts/
   ubuntu/          # Host setup scripts
   security/        # scan-actions-risk.sh, repo-security-check.sh
   dashboard/       # generate-dashboard.sh (GitHub Pages platform dashboard)
+  nsight/          # export-report.sh (Nsight archive helper; ~/bin/nsight-export-report symlinks here) + ncu-bench.py
 mlabs-runner/      # Docker image for self-hosted GHA runners
 nsight-ape-webhook/ # Mutating admission webhook: reconciles Nsight injection (privileged) with PSS-hardened KFP step pods
 dgx/               # DGX Spark host config and local tooling
@@ -62,6 +63,7 @@ docs/              # Architecture and runbooks
 | `scripts/gha/sync-github-tf-vars.sh`              | Sync `gcp/terraform/terraform.tfvars` → GitHub org variables. Never edit GitHub vars directly — edit tfvars and re-sync.                      |
 | `scripts/gha/launch-runner.sh` / `stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. Idempotent.                                                                    |
 | `scripts/gha/flush-queues.sh`                     | Cancel all in-progress, queued, and waiting workflow runs                                                                                     |
+| `scripts/nsight/export-report.sh`                 | Get an Nsight profile into `~/shared/nsight/`. `--tool systems` (default): drive an Nsight Operator coordinator session, pull the `.nsys-rep` from MinIO, verify. `--tool compute`: run host `ncu` (ad-hoc, no operator) → verified `.ncu-rep`. `~/bin/nsight-export-report` is a symlink to this. |
 | `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the ten systemd user services (used on both DGX and AGX)                                                                    |
 | `wsl2/bootstrap.sh`                               | One-time setup for a fresh WSL2 template base. Run inside the clean template before exporting.                                                |
 | `wsl2/rebuild-template.ps1`                       | Rebuild the configured template tarball. Params: `-SmbPassword` (required). Run after changing `bootstrap.sh` or rotating the Samba password. |
