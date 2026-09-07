@@ -67,21 +67,22 @@ Drive the green/red dashboard badges. Set by deploy workflows, cleared by undepl
 | Variable            | Set to `true` by      | Set to `false` by               |
 | ------------------- | --------------------- | ------------------------------- |
 | `DGX_K3S_ACTIVE`    | K3s Install (dgx)     | K3s Uninstall (dgx)             |
-| `AGX_K3S_ACTIVE`    | K3s Install (agx)     | K3s Uninstall (agx)             |
 | `DGX_NEMO_ACTIVE`   | NeMo Deploy (dgx)     | NeMo Undeploy (dgx)             |
-| `AGX_NEMO_ACTIVE`   | NeMo Deploy (agx)     | NeMo Undeploy (agx)             |
 | `DGX_MLFLOW_ACTIVE` | MLflow Deploy (dgx)   | MLflow Undeploy (dgx)           |
-| `AGX_MLFLOW_ACTIVE` | MLflow Deploy (agx)   | MLflow Undeploy (agx)           |
 | `DGX_QDRANT_ACTIVE` | Qdrant Deploy (dgx)   | Qdrant Undeploy (dgx)           |
-| `AGX_QDRANT_ACTIVE` | Qdrant Deploy (agx)   | Qdrant Undeploy (agx)           |
 | `DGX_KFP_ACTIVE`    | Kubeflow Deploy (dgx) | Kubeflow Undeploy (dgx)         |
-| `AGX_KFP_ACTIVE`    | Kubeflow Deploy (agx) | Kubeflow Undeploy (agx)         |
 | `DGX_OLLAMA_ACTIVE`          | Ollama Deploy (dgx)                             | Ollama Undeploy (dgx), rollback |
 | `AGX_OLLAMA_ACTIVE`          | Ollama Deploy (agx)                             | Ollama Undeploy (agx), rollback |
 | `DGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (dgx)                    | Nsight Operator Undeploy (dgx)  |
-| `AGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (agx)                    | Nsight Operator Undeploy (agx)  |
 | `GKE_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy GKE; GCP Platform Create | Nsight Operator Undeploy GKE    |
 | `GKE_GPU_POOL_ACTIVE`        | GKE Expand GPU                                  | GKE Restore GPU                 |
+
+`AGX_OLLAMA_ACTIVE` is the only AGX badge the dashboard reads. The AGX runs
+Ollama and nothing else ([agx.md](agx.md)), so `AGX_K3S_ACTIVE`,
+`AGX_NEMO_ACTIVE`, `AGX_MLFLOW_ACTIVE`, `AGX_QDRANT_ACTIVE`, `AGX_KFP_ACTIVE`,
+`AGX_NSIGHT_OPERATOR_ACTIVE` and `AGX_OPENWEBUI_ACTIVE` are unread. The
+workflows still write them if you point one at `runner: agx`; nothing renders
+the result.
 
 ### Repo-Level Variables
 
@@ -93,10 +94,12 @@ Drive the green/red dashboard badges. Set by deploy workflows, cleared by undepl
 | `CURRENT_OLLAMA_MODEL`       | `none`        | Ollama model currently loaded on DGX                            |
 | `CURRENT_NIM_VRAM_GB`        | `0`           | VRAM used by NIM on DGX                                         |
 | `CURRENT_OLLAMA_VRAM_GB`     | `0`           | VRAM used by Ollama on DGX                                      |
-| `CURRENT_NIM_MODEL_AGX`      | `none`        | NIM currently loaded on AGX                                     |
 | `CURRENT_OLLAMA_MODEL_AGX`   | `none`        | Ollama model currently loaded on AGX                            |
-| `CURRENT_NIM_VRAM_GB_AGX`    | `0`           | VRAM used by NIM on AGX                                         |
-| `CURRENT_OLLAMA_VRAM_GB_AGX` | `0`           | VRAM used by Ollama on AGX                                      |
+| `CURRENT_OLLAMA_VRAM_GB_AGX` | `0`           | VRAM used by Ollama on AGX — the AGX band's whole VRAM figure   |
+
+`CURRENT_NIM_MODEL_AGX` / `CURRENT_NIM_VRAM_GB_AGX` are obsolete: NIM has no
+`linux/arm64` images and the AGX no longer runs k3s. The dashboard no longer
+reads them.
 
 ## GitHub Actions Org Secrets (PATs)
 

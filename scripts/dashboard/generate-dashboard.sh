@@ -40,7 +40,6 @@ echo "    Found ${REPO_COUNT} repos tagged miramar-project"
 # Build HTML rows in a bash loop so we can augment each repo with live workflow status
 ROWS=""
 DGX_VLLM_TOTAL_GB=0
-AGX_VLLM_TOTAL_GB=0
 DGX_TRITON_TOTAL_GB=0
 while IFS= read -r repo_json; do
   name=$(echo    "$repo_json" | jq -r '.name')
@@ -89,13 +88,8 @@ while IFS= read -r repo_json; do
           [[ "$_triton_gb" =~ ^[0-9]+$ ]] || _triton_gb=0
           DGX_TRITON_TOTAL_GB=$(( DGX_TRITON_TOTAL_GB + _triton_gb ))
           ;;
-        agx)
-          _vllm_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
-            "repos/${ORG}/${name}/actions/variables/AGX_VLLM_VRAM_GB" 2>/dev/null \
-            | jq -r '.value // "0"' 2>/dev/null) || _vllm_gb=0
-          [[ "$_vllm_gb" =~ ^[0-9]+$ ]] || _vllm_gb=0
-          AGX_VLLM_TOTAL_GB=$(( AGX_VLLM_TOTAL_GB + _vllm_gb ))
-          ;;
+        # No agx case: the AGX runs Ollama only — no k3s, so no serving projects
+        # land there and its VRAM accounting is the Ollama model alone.
       esac
       host_html="<span class=\"badge badge-${active_host}\">${active_host}</span>"
       serving_html="<span class=\"serving-dot serving-on\" title=\"Serving on ${active_host}\">&#x25CF;</span>"
@@ -175,19 +169,12 @@ DGX_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "DGX_NSIGHT_OPERATOR_ACTIVE")
 DGX_OPENWEBUI_ACTIVE=$(read_org_var "DGX_OPENWEBUI_ACTIVE")
 DGX_OPENWEBUI_API_URL=$(read_org_var "DGX_OPENWEBUI_API_URL")
 
+# AGX Orin is an Ollama-only secondary model runner — no k3s, and therefore no
+# NeMo / KFP / NIM / MLflow / Qdrant / Nsight / Open WebUI. Only read what it has.
 AGX_OLLAMA_MODEL=$(read_platform_var "CURRENT_OLLAMA_MODEL_AGX")
 AGX_OLLAMA_VRAM_GB=$(read_platform_var "CURRENT_OLLAMA_VRAM_GB_AGX")
-AGX_NIM_MODEL=$(read_platform_var "CURRENT_NIM_MODEL_AGX")
-AGX_NIM_VRAM_GB=$(read_platform_var "CURRENT_NIM_VRAM_GB_AGX")
 AGX_VRAM_USEABLE=$(read_org_var "AGX_VRAM_USEABLE")
-AGX_K3S_ACTIVE=$(read_org_var "AGX_K3S_ACTIVE")
-AGX_NEMO_ACTIVE=$(read_org_var "AGX_NEMO_ACTIVE")
-AGX_KFP_ACTIVE=$(read_org_var "AGX_KFP_ACTIVE")
 AGX_OLLAMA_ACTIVE=$(read_org_var "AGX_OLLAMA_ACTIVE")
-AGX_MLFLOW_ACTIVE=$(read_org_var "AGX_MLFLOW_ACTIVE")
-AGX_QDRANT_ACTIVE=$(read_org_var "AGX_QDRANT_ACTIVE")
-AGX_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "AGX_NSIGHT_OPERATOR_ACTIVE")
-AGX_OPENWEBUI_ACTIVE=$(read_org_var "AGX_OPENWEBUI_ACTIVE")
 AGX_OPENWEBUI_API_URL=$(read_org_var "AGX_OPENWEBUI_API_URL")
 GKE_NSIGHT_OPERATOR_ACTIVE=$(read_org_var "GKE_NSIGHT_OPERATOR_ACTIVE")
 GKE_OPENWEBUI_ACTIVE=$(read_org_var "GKE_OPENWEBUI_ACTIVE")
@@ -212,8 +199,6 @@ GKE_MACHINE_TYPE=$(read_org_var "GKE_MACHINE_TYPE")
 [[ -z "$AGX_OLLAMA_MODEL" ]]   && AGX_OLLAMA_MODEL="none"
 [[ -z "$AGX_OLLAMA_VRAM_GB" || "$AGX_OLLAMA_VRAM_GB" == "null" ]] && AGX_OLLAMA_VRAM_GB="0"
 [[ -z "$AGX_VRAM_USEABLE" || "$AGX_VRAM_USEABLE" == "null" ]] && AGX_VRAM_USEABLE="40"
-[[ -z "$AGX_NIM_MODEL" ]]      && AGX_NIM_MODEL="none"
-[[ -z "$AGX_NIM_VRAM_GB" || "$AGX_NIM_VRAM_GB" == "null" ]] && AGX_NIM_VRAM_GB="0"
 [[ -z "$GCP_PROJECT_ID" ]]      && GCP_PROJECT_ID="miramar-platform"
 [[ -z "$GCP_REGION" ]]          && GCP_REGION="us-central1"
 [[ -z "$GAR_REPO" ]]            && GAR_REPO="apps"
@@ -229,7 +214,7 @@ VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB + DGX_VLLM_TOTAL_GB + DGX_TRITON_T
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
 (( VRAM_AVAIL_GB < 0 )) && VRAM_AVAIL_GB=0
 
-AGX_VRAM_USED_GB=$(( AGX_NIM_VRAM_GB + AGX_OLLAMA_VRAM_GB + AGX_VLLM_TOTAL_GB ))
+AGX_VRAM_USED_GB=$(( AGX_OLLAMA_VRAM_GB ))
 AGX_VRAM_AVAIL_GB=$(( AGX_VRAM_USEABLE - AGX_VRAM_USED_GB ))
 (( AGX_VRAM_AVAIL_GB < 0 )) && AGX_VRAM_AVAIL_GB=0
 
@@ -243,10 +228,6 @@ OLLAMA_PILL=$( [[ "$DGX_OLLAMA_ACTIVE" == "true" && "$OLLAMA_MODEL" != "none" ]]
 VRAM_AVAIL_CLASS="ps-value"
 (( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
 
-AGX_NIM_SHORT="${AGX_NIM_MODEL##*/}"
-AGX_NIM_PILL=$( [[ "$AGX_NIM_MODEL" != "none" ]] \
-  && echo "<span class=\"ps-active\">${AGX_NIM_SHORT}</span>" \
-  || echo "<span class=\"ps-inactive\">inactive</span>" )
 AGX_OLLAMA_PILL=$( [[ "$AGX_OLLAMA_ACTIVE" == "true" && "$AGX_OLLAMA_MODEL" != "none" ]] \
   && echo "<span class=\"ps-active\">${AGX_OLLAMA_MODEL}</span>" \
   || echo "<span class=\"ps-inactive\">inactive</span>" )
@@ -291,18 +272,10 @@ DGX_K3S_BADGE=$([ "$DGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhos
 DGX_MLFLOW_BADGE=$([ "$DGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5000" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 DGX_QDRANT_BADGE=$([ "$DGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6333/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
-AGX_NEMO_BADGE=$([ "$AGX_NEMO_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_KFP_BADGE=$([ "$AGX_KFP_ACTIVE" = "true" ] && echo '<a href="http://localhost:8081/#/pipelines" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_K3S_BADGE=$([ "$AGX_K3S_ACTIVE" = "true" ] && echo '<a href="http://localhost:8002/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:443/proxy/#/overview?namespace=_all" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_MLFLOW_BADGE=$([ "$AGX_MLFLOW_ACTIVE" = "true" ] && echo '<a href="http://localhost:5001" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_QDRANT_BADGE=$([ "$AGX_QDRANT_ACTIVE" = "true" ] && echo '<a href="http://localhost:6335/dashboard" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-
 DGX_NSIGHT_BADGE=$([ "$DGX_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<a href="http://localhost:8889" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_NSIGHT_BADGE=$([ "$AGX_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<a href="http://localhost:8892" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 GKE_NSIGHT_BADGE=$([ "$GKE_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 
 DGX_OPENWEBUI_BADGE=$([ "$DGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="http://localhost:8084" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
-AGX_OPENWEBUI_BADGE=$([ "$AGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="http://localhost:8085" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 GKE_OPENWEBUI_BADGE=$([ "$GKE_OPENWEBUI_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
 OPENWEBUI_API_CLASS="ps-value"; [[ -z "$DGX_OPENWEBUI_API_URL" ]] && OPENWEBUI_API_CLASS="ps-value ps-none"
 [[ -n "$DGX_OPENWEBUI_API_URL" ]] \
@@ -490,41 +463,9 @@ cat > "$OUTPUT" <<HTMLEOF
 <div class="machine-section">
   <div class="machine-label">AGX Orin</div>
   <div class="platform-status">
-    <div class="ps-item">
-      <div class="ps-label">NeMo</div>
-      ${AGX_NEMO_BADGE}
-    </div>
-    <div class="ps-item">
-      <div class="ps-label">KFP</div>
-      ${AGX_KFP_BADGE}
-    </div>
-    <div class="ps-item ps-wide">
-      <div class="ps-label">NIM</div>
-      ${AGX_NIM_PILL}
-    </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">Ollama</div>
       ${AGX_OLLAMA_PILL}
-    </div>
-    <div class="ps-item">
-      <div class="ps-label">k3s</div>
-      ${AGX_K3S_BADGE}
-    </div>
-    <div class="ps-item">
-      <div class="ps-label">MLflow</div>
-      ${AGX_MLFLOW_BADGE}
-    </div>
-    <div class="ps-item">
-      <div class="ps-label">Qdrant</div>
-      ${AGX_QDRANT_BADGE}
-    </div>
-    <div class="ps-item">
-      <div class="ps-label">Nsight</div>
-      ${AGX_NSIGHT_BADGE}
-    </div>
-    <div class="ps-item">
-      <div class="ps-label">OpenUI</div>
-      ${AGX_OPENWEBUI_BADGE}
     </div>
     <div class="ps-item ps-wide">
       <div class="ps-label">OpenUI backend</div>
@@ -598,7 +539,7 @@ cat > "$OUTPUT" <<HTMLEOF
 ${ROWS}
 </tbody>
 </table>
-<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. JupyterLab: DGX port 8888 / AGX port 8887. MLflow: DGX 5000 / AGX 5001. KFP: DGX 8080 / AGX 8081. k3s Dashboard: DGX 8001 / AGX 8002. Qdrant: DGX 6333 / AGX 6335. OpenUI: DGX 8084 / AGX 8085.</p>
+<p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. DGX: JupyterLab 8888, MLflow 5000, KFP 8080, k3s Dashboard 8001, Qdrant 6333, OpenUI 8084. AGX Orin runs Ollama only (11435) &mdash; JupyterLab 8887.</p>
 
 <div class="modal-overlay" id="new-proj-modal">
   <div class="modal">

@@ -165,7 +165,7 @@ Do this in a single PR so all workflows stay consistent.
 
 ## 6. Dashboard
 
-`scripts/dashboard/generate-dashboard.sh` has hardcoded status sections for DGX and AGX. Add a DGX2 section following the same pattern (reads `DGX2_*_ACTIVE`, `CURRENT_OLLAMA_MODEL_DGX2`, etc.).
+`scripts/dashboard/generate-dashboard.sh` has hardcoded status sections for DGX and AGX. Add a DGX2 section following the same pattern (reads `DGX2_*_ACTIVE`, `CURRENT_OLLAMA_MODEL_DGX2`, etc.). Model the new section on the **DGX** band — the AGX band is deliberately reduced to four items because the AGX runs Ollama only ([agx.md](agx.md)).
 
 ---
 
@@ -173,15 +173,17 @@ Do this in a single PR so all workflows stay consistent.
 
 Each machine needs its own local port offset so multiple Bitvise tunnels can run simultaneously from the laptop:
 
-| Service       | DGX   | AGX   | DGX2 (suggested) |
-| ------------- | ----- | ----- | ---------------- |
-| K8s dashboard | 8001  | 8002  | 8003             |
-| JupyterLab    | 8888  | 8887  | 8886             |
-| MLflow        | 5000  | 5001  | 5002             |
-| KFP UI        | 8080  | 8081  | 8079             |
-| NeMo / NIM    | 8082  | 8083  | 8084             |
-| KFP API       | 8890  | 8891  | 8892             |
-| Ollama        | 11434 | 11435 | 11436            |
+| Service       | DGX   | AGX      | DGX2 (suggested) |
+| ------------- | ----- | -------- | ---------------- |
+| K8s dashboard | 8001  | 8002 †   | 8003             |
+| JupyterLab    | 8888  | 8887     | 8886             |
+| MLflow        | 5000  | 5001 †   | 5002             |
+| KFP UI        | 8080  | 8081 †   | 8079             |
+| NeMo / NIM    | 8082  | 8083 †   | 8084             |
+| KFP API       | 8890  | 8891 †   | 8892             |
+| Ollama        | 11434 | 11435    | 11436            |
+
+† Reserved but dead — the AGX runs no k3s, so nothing listens on these.
 
 Add a Bitvise profile (or SSH alias) for the new machine using these local ports.
 
