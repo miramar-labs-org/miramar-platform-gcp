@@ -18,15 +18,35 @@ nsight-injector:
     injectionIncludePatterns:
       - ".*python3.*"
     # Core profiling flags.
-    # NOTE: In process hook injection mode, COLLECT_CUDA_TRACE=false is expected —
-    # it means nsys uses hardware trace (not software CUPTI) for GPU-side kernel
-    # records. The hardware trace captures a single ~1.89s snapshot (~45 kernels)
-    # at CUDA init time. CPU-side CUDA API trace (CUPTI_ACTIVITY_KIND_RUNTIME) and
-    # NVTX events are captured continuously for the full collection window.
-    # DO NOT add --env-var NVIDIA_VISIBLE_DEVICES=all: this disrupts the hardware
-    # trace snapshot timing and reduces kernel coverage from 47 to 2 records.
+    #
+    # --trace=cuda-sw (NOT cuda) is load-bearing. On a CUDA >= 13.0 driver,
+    # `--trace=cuda` selects nsys's *hardware* CUDA trace; `--trace=cuda-sw`
+    # selects the software CUPTI path. The operator always does a time-boxed
+    # collection (`nsys start` ... `nsys stop`) while the profiled process keeps
+    # running, and hardware trace only reconciles GPU-side kernel timestamps to
+    # the host at process teardown. Every GPU record still unreconciled at
+    # `nsys stop` is discarded ("Number of incomplete CUPTI events dropped: N"),
+    # so a hardware-trace collection over a running process yields a report with
+    # a full CPU-side API trace and NO CUPTI_ACTIVITY_KIND_KERNEL table at all.
+    #
+    # Measured on the DGX with nsys 2026.3.1.157 (the build this operator
+    # injects), same workload, same 90s window, collection triggered 60s into the
+    # process while the GPU was saturated:
+    #   --trace=cuda      ->     0 kernel records (table absent), 8400 dropped
+    #   --trace=cuda-sw   ->  8624 kernel records,                 176 dropped
+    # Cost of the switch: ~3.5% runtime overhead on a gemm-bound loop.
+    #
+    # Trade-off: --cuda-graph-trace=node granularity and device-side graph launch
+    # tracing require hardware trace and are unavailable under cuda-sw. Nothing on
+    # this platform traces CUDA graphs at node granularity.
+    #
+    # --cuda-flush-interval only governs the software path; it was a no-op while
+    # hardware trace was selected (CUDA_FLUSH_PERIODICALLY stayed false either way).
+    #
+    # DO NOT add --env-var NVIDIA_VISIBLE_DEVICES=all: it was observed to disrupt
+    # GPU-side record collection.
     nsightToolArgs: >-
-      --trace=cuda,nvtx,cublas,cudnn
+      --trace=cuda-sw,nvtx,cublas,cudnn
       --sample=none
       --cuda-flush-interval=100
       --force-overwrite=true
