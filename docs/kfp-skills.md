@@ -214,14 +214,13 @@ is reached at `http://localhost:13001/api/v1/` on the DGX host (forwarded by
 `fine-tune`), or pass a `--profile-<stage>` flag to `/kfp-deploy` (which patches the block
 and regenerates `pipeline.py`). `collection_window_s` bounds the `nsys` collection.
 
-> **The collect must be triggered in the stage process's first few seconds.** On GB10 hw-trace
-> the operator only retrieves GPU-side kernel timestamps when the `collect` fires within roughly
-> the first few seconds of the profiled process starting — trigger it ~60s in and the kernels
-> drop "incomplete" even on a saturated GPU. So the profiled stage must issue GPU kernels **from
-> its first line, with no startup sleep**, and `/kfp-monitor` fires the export with `--delay 0`
-> the instant the pod is `Running` (not after a warm-up). A larger `collection_window_s` /
-> `--duration` does **not** rescue a late trigger — see `docs/dgx.md` "Trigger the collection in
-> the stage process's first few seconds".
+> **The collect must land while the stage is actually on the GPU — trigger time is not
+> critical.** Fire the collect any time the stage is doing GPU work; a collect fired 60s into a
+> saturated stage returns full kernel data. What *is* load-bearing is that the operator collects
+> with `--trace=cuda-sw`: under `--trace=cuda` (nsys hardware trace) GPU-side records are only
+> reconciled at process teardown, so the operator's mid-process `nsys stop` drops every one of
+> them and the report comes back with no kernel table. See `docs/dgx.md` "The operator must
+> collect with `--trace=cuda-sw`, not `--trace=cuda`".
 
 Full profiling arc:
 
@@ -232,11 +231,10 @@ Full profiling arc:
                                              # /nsight-interpret on the archived report
 ```
 
-If `/kfp-monitor` did not fire the export in time, a hand-run collection only works if the
-stage process is **still young** (it just went `Running` and is issuing GPU kernels). Once the
-stage has been running a minute or more, a fresh collect will come back kernel-less — restart
-the stage instead, or pull whatever the operator already captured with `--no-collect
---report-id <uuid>`:
+If `/kfp-monitor` did not fire the export, a hand-run collection works fine as long as the stage
+is still running and on the GPU — how far into the stage it lands does not matter. If the stage
+is nearly done, pull whatever the operator already captured with `--no-collect --report-id
+<uuid>` instead:
 
 ```bash
 /nsight-export <project> run-032 baseline-eval
@@ -254,9 +252,9 @@ and auto-chains `/nsight-interpret`.**
 # Standard: derive KFP/MLflow linkage from runs/<run-NNN>.md, drive a fresh collection
 /nsight-export my-project run-032 baseline-eval
 
-# Longer collection window (default 90s from config.yaml). Note: a longer window does NOT
-# recover kernels missed by a late trigger — retrieval depends on triggering the collect
-# within the stage process's first few seconds, not on how long it then runs.
+# Longer collection window (default 90s from config.yaml) — widens the slice of GPU work
+# captured. The collect just has to overlap the stage's GPU activity; where in the stage it
+# lands does not matter.
 /nsight-export my-project run-032 fine-tune --duration 180
 
 # Ad-hoc capture (no KFP run) — lands under ~/shared/nsight/systems/<project>-<date>/

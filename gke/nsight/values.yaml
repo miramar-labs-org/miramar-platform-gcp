@@ -20,7 +20,7 @@ nsight-tenant-operator:
     enabled: false
 
 nsight-injector:
-  # privileged: required for hardware GPU trace.
+  # privileged: required for CUPTI GPU-side collection (see dgx/k3s/nsight/values.yaml).
   privileged: true
 
   nsightToolConfig:

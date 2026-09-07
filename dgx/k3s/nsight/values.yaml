@@ -9,8 +9,10 @@
 # Migrate to the new schema if/when NVIDIA drops the shim.
 
 nsight-injector:
-  # privileged: required for hardware GPU trace on GB10.
-  # Without it, ~7 kernel records; with it, ~47 records (1.89s hardware trace snapshot).
+  # privileged: required for CUPTI GPU-side collection on GB10. Orthogonal to the trace-mode
+  # note below — privileged governs whether CUPTI can attach at all; --trace governs whether
+  # its records survive the operator's mid-process `nsys stop`. Not re-tested as removable
+  # under software trace, so leave it on.
   privileged: true
 
   nsightToolConfig:

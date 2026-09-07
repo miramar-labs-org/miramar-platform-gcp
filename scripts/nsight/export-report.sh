@@ -623,7 +623,7 @@ if [ "$NO_COLLECT" = 0 ]; then
     -H 'content-type: application/json' \
     -d "{\"duration\":$DURATION,\"delay\":$DELAY}" \
     || die "POST /sessions/$SID/collect failed"
-  info "collecting: delay=${DELAY}s duration=${DURATION}s (trigger must land in the stage process's first few seconds — GPU hot from its first line)"
+  info "collecting: delay=${DELAY}s duration=${DURATION}s (fire while the stage is on GPU; trigger time is not critical)"
 
   # --- wait for the collection to finish ---
   sleep "$((DELAY + DURATION))"
@@ -698,13 +698,19 @@ fi
 # data rows past the header/blank/title lines
 if ! grep -Eq '^\s*[0-9]' "$STAGING/.verify.txt"; then
   rm -f "$STAGING/.verify.txt"
-  die "no GPU kernel activity in the collected report — the collection was triggered too
-     late in the stage process's life. On GB10 hw-trace the operator only retrieves GPU-side
-     kernel timestamps when the collect is triggered within roughly the first few seconds of
-     the profiled process starting; fire it ~60s in and the GPU-side records drop 'incomplete'
-     even while the GPU is saturated (confirmed: hot GPU, window open, still zero kernels).
-     Fire this with --delay 0 the instant the stage pod is Running, and make the workload
-     issue kernels from its first line — no startup sleep. A longer --duration does not help."
+  die "no GPU kernel activity in the collected report — the operator is almost certainly
+     collecting with nsys hardware CUDA trace instead of software CUPTI. Hardware trace
+     reconciles GPU-side kernel timestamps only at process teardown, so a time-boxed
+     collection that stops while the stage process is still running discards every GPU
+     record ('Number of incomplete CUPTI events dropped: N') and leaves a report with a
+     full CPU-side API trace and no kernel table.
+     Fix it in the operator config, not in the trigger timing: dgx/k3s/nsight/values.yaml
+     must set --trace=cuda-sw (NOT cuda) in nsightToolArgs, then redeploy via the
+     'Nsight Operator Deploy' workflow. Verify with:
+       kubectl -n nsight-operator get nsightoperatorprofileconfigs.nvidia.com \\
+         default-profile-config -o jsonpath='{.spec.nsightToolConfigs[0].nsightToolArgs}'
+     Trigger time and --duration are not the variable; a collect fired 60s into a saturated
+     stage returns full kernel data once cuda-sw is in effect."
 fi
 rm -f "$STAGING/.verify.txt"
 
