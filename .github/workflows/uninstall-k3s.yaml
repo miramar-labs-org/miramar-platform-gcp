@@ -23,16 +23,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Uninstall k3s
+      # k3s lives on the HOST, but this job runs inside the mlabs-runner container,
+      # where /usr/local/bin/k3s-uninstall.sh does not exist and $HOME is /home/runner.
+      # Running the uninstall directly here takes the "already uninstalled" branch,
+      # deletes a container-local kubeconfig, clears {MACHINE}_K3S_ACTIVE and reports
+      # success while k3s keeps running on the host. Reach the host over SSH, the way
+      # install-k3s.yaml does.
+      - name: Resolve host
         run: |
-          if [[ -x /usr/local/bin/k3s-uninstall.sh ]]; then
-            /usr/local/bin/k3s-uninstall.sh
-            echo "==> k3s uninstalled."
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            echo "HOST_IP=${{ vars.AGX_HOST_IP }}"     >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
           else
-            echo "==> k3s-uninstall.sh not found — already uninstalled."
+            echo "HOST_IP=${{ vars.DGX_HOST_IP }}"     >> "$GITHUB_ENV"
+            echo "HOST_USER=${{ vars.DGX_HOST_USER }}" >> "$GITHUB_ENV"
           fi
-          rm -f "${HOME}/.kube/config"
-          echo "==> kubeconfig removed."
+
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
+          chmod 600 /tmp/k_key
+          ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Uninstall k3s on the host
+        env:
+          SCRIPT: |
+            set -euo pipefail
+            if [[ -x /usr/local/bin/k3s-uninstall.sh ]]; then
+              sudo /usr/local/bin/k3s-uninstall.sh
+              echo "==> k3s uninstalled."
+            else
+              echo "==> k3s-uninstall.sh not found — already uninstalled."
+            fi
+            rm -f "${HOME}/.kube/config"
+            echo "==> kubeconfig removed."
+            # Verify rather than trust: the uninstall script exits 0 in cases where
+            # the service survives, and a false success here is what this fix is for.
+            if systemctl is-active --quiet k3s 2>/dev/null; then
+              echo "ERROR: k3s service is still active after uninstall" >&2
+              exit 1
+            fi
+            if pgrep -x k3s-server >/dev/null 2>&1; then
+              echo "ERROR: k3s-server is still running after uninstall" >&2
+              exit 1
+            fi
+            echo "==> verified: k3s is not running."
+        run: |
+          printf '%s' "$SCRIPT" | ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" "bash -s"
 
       - name: Clear k3s active state
         env:
