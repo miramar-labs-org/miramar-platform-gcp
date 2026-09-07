@@ -101,11 +101,15 @@ profiling:
   collection_window_s: 90
 ```
 
-The operator injects `nsys` and writes the report to its internal MinIO. While the stage is
-GPU-hot, pull it onto disk:
+The operator injects `nsys` and writes the report to its internal MinIO. Pull it onto disk by
+firing the export the **instant** the stage pod is `Running` — on GB10 hw-trace the operator
+only retrieves GPU-side kernel timestamps when the collect is triggered within the stage
+process's first few seconds. Trigger it ~60s in (or let `gpu_stage` idle before its compute)
+and the report comes back kernel-less even though the GPU is saturated. A bigger
+`collection_window_s` does **not** fix that; keep the GPU work on `gpu_stage`'s first line.
 
 ```bash
-/nsight-export {{PROJECT_NAME}} run-001 main [--duration 90]
+/nsight-export {{PROJECT_NAME}} run-001 main
 # → ~/shared/nsight/{{PROJECT_NAME}}/run-001/main/profile.nsys-rep (+ auto /nsight-interpret)
 ```
 

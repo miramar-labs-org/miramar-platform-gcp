@@ -3,8 +3,14 @@ description: ""   # One sentence — shown in KFP Pipelines + KFP Experiments UI
 profiling:
   # NVIDIA Nsight Operator GPU profiling opt-in. `enabled: true` labels the pipeline's
   # GPU stage pod `nvidia-nsight-profile=enabled` so the operator injects nsys capture.
-  # Then run `/nsight-export <project> <run-NNN> main` while the stage is GPU-hot to
-  # archive the report to `~/shared/nsight/<project>/<run-id>/main/` (auto-runs
+  # Then run `/nsight-export <project> <run-NNN> main` the instant the stage pod goes
+  # Running to archive the report to `~/shared/nsight/<project>/<run-id>/main/` (auto-runs
   # `/nsight-interpret`).
+  #
+  # GB10 hw-trace only retrieves GPU-side kernel timestamps when the collect is triggered
+  # within the stage process's first few seconds — trigger it ~60s in and the kernels drop
+  # "incomplete" even on a saturated GPU. Your gpu_stage MUST issue GPU kernels on its first
+  # line (no startup sleep / data-load idle), and /kfp-monitor must fire the export the
+  # instant the pod is Running. A bigger collection_window_s does NOT recover a late trigger.
   enabled: false
-  collection_window_s: 90   # nsys collection duration; must fit inside the stage's GPU-hot window
+  collection_window_s: 90   # nsys collection duration; 30-90s is plenty (the trigger timing matters, not this)

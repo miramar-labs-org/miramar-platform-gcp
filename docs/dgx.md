@@ -428,14 +428,33 @@ kernel activity — it never reports success when a usable report was not archiv
 `--tool compute` path applies the same rule: it verifies the `.ncu-rep` with an `ncu -i`
 readback and fails if no kernels were profiled.
 
-**Stop-while-busy (`--duration` too short).** GB10 uses hardware tracing for CUDA, and
-GPU-side activity records are only timestamped when the collection *stops*. If the
-collection window closes while the stage's GPU work is still saturated, `nsys` drops the
-in-flight kernel/memcpy records as "incomplete CUPTI events" — the `.nsys-rep` comes back
-with CUDA API rows but no `cuda_gpu_kern_sum`, and the helper's verify fails it. Size
-`--duration` / the template's `collection_window_s` so the profiled GPU phase (and a
-`torch.cuda.synchronize()` + brief idle tail) finishes *inside* the window rather than
-running the window over a still-hot GPU.
+**Trigger the collection in the stage process's first few seconds — a late trigger loses the
+kernels even on a hot GPU.** GB10 uses hardware tracing for CUDA. On a KFP-injected `nsys`
+collection the operator only retrieves GPU-side kernel timestamps when the `collect` is
+triggered within **roughly the first few seconds of the profiled process starting**. Trigger
+it ~60 s in and every kernel's GPU-side record stays "incomplete" at session stop and is
+dropped ("Number of incomplete CUPTI events dropped: N") — even while the GPU is fully
+saturated at that moment. The `.nsys-rep` then comes back with CUDA API rows but no
+`cuda_gpu_kern_sum`, and the helper's verify fails it. (Mechanism is likely hw-trace attach
+timing or CUPTI kernel-buffer overflow from the launches already accumulated; both give the
+same rule.)
+
+Consequences:
+
+- The profiled stage must issue representative GPU kernels **from its very first line — no
+  startup `sleep`, no idle warm-up**. A pipeline that idles before its GPU work misses the
+  attach window entirely.
+- Run `/nsight-export` (or let `/kfp-monitor` fire it) with `--delay 0` the **instant** the
+  stage pod goes `Running` — do not wait for a "warm-up". Even ~30 s of slack can lose the
+  capture.
+- A **longer `--duration` does not help** and neither does raising the iteration count — the
+  retrieval depends on *when the collect is triggered relative to process start*, not on how
+  much GPU work happens. ~30–90 s is plenty; the template's `collection_window_s` can stay small.
+
+(Confirmed 2026-09-06 across three controlled runs: identical injected `nsys` cmd, identical
+stage code. Triggered ~1–2 s into the process → 46–400 GB10 kernel rows. Triggered ~60–70 s
+into the same loop, GPU demonstrably saturated (88 s of compute in the 90 s window) → zero
+kernel rows. The distinguishing variable is trigger-time-vs-process-start, not GPU hotness.)
 
 #### Privileged-mode reconciliation (automatic)
 
@@ -578,6 +597,17 @@ kubectl get pvc nsight-reports -n kubeflow
 `<stage>` is the hyphenated KFP component name (`baseline-eval`, `fine-tune`,
 `post-finetune-eval`, `safety-eval`, `baseline-safety-eval`), or `main` for a single-stage
 pipeline. Existing report history is not reorganised — the convention is forward-only.
+
+**`~/shared/nsight/` has exactly three kinds of top-level entry** and nothing else:
+`<project-name>/` trees (durable per-project history), `systems/`, and `compute/`. A
+throwaway or validation capture — anything not tied to a real project's `runs/<run-id>.md`
+— must land in `systems/` / `compute/` via `--adhoc`, or off the archive entirely via
+`--dest-root <scratch>` (`$NSIGHT_DEST_ROOT`). It must never create a new top-level
+`<name>/` dir. The helper enforces this: a non-adhoc run whose destination falls under
+`~/shared/nsight/` is **refused** unless `./runs/<run-id>.md` exists in `$PWD` (i.e. it is
+being driven from the project repo). An already-existing dir left by a past mistake is not
+a free pass — it does not satisfy the check. Run `/nsight-export` and `/kfp-monitor` only
+from a real project repo; for a one-off test app, use `/nsight-export … --adhoc`.
 
 ### Retention
 
