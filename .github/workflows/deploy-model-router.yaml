@@ -63,9 +63,26 @@ jobs:
         run: |
           kubectl port-forward svc/model-router 18000:8000 -n model-router &
           PF_PID=$!
-          sleep 8
-          trap "kill $PF_PID 2>/dev/null || true" EXIT
-          curl -sf http://localhost:18000/v1/models | python3 -c "
+          trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
+          # Poll for readiness instead of sleeping a fixed interval. The port-forward
+          # needs a moment to establish, and the hardcoded `sleep 8` this replaces is
+          # what reported a false failure on a perfectly healthy router (2026-09-07)
+          # once the routing table grew past a single upstream. The trap is armed
+          # before the wait so a timeout here cannot leak the port-forward.
+          ready=""
+          for _ in $(seq 1 30); do
+            if curl -sf -m 5 http://localhost:18000/health/readiness >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ -z "$ready" ]; then
+            echo "ERROR: router did not answer /health/readiness within 60s" >&2
+            kubectl logs -n model-router deployment/model-router --tail=50 >&2 || true
+            exit 1
+          fi
+          curl -sf -m 10 http://localhost:18000/v1/models | python3 -c "
           import json, sys
           d = json.load(sys.stdin)
           models = [m['id'] for m in d.get('data', [])]
@@ -163,9 +180,26 @@ jobs:
         run: |
           kubectl port-forward svc/model-router 18000:8000 -n model-router &
           PF_PID=$!
-          sleep 8
-          trap "kill $PF_PID 2>/dev/null || true" EXIT
-          curl -sf http://localhost:18000/v1/models | python3 -c "
+          trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
+          # Poll for readiness instead of sleeping a fixed interval. The port-forward
+          # needs a moment to establish, and the hardcoded `sleep 8` this replaces is
+          # what reported a false failure on a perfectly healthy router (2026-09-07)
+          # once the routing table grew past a single upstream. The trap is armed
+          # before the wait so a timeout here cannot leak the port-forward.
+          ready=""
+          for _ in $(seq 1 30); do
+            if curl -sf -m 5 http://localhost:18000/health/readiness >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ -z "$ready" ]; then
+            echo "ERROR: router did not answer /health/readiness within 60s" >&2
+            kubectl logs -n model-router deployment/model-router --tail=50 >&2 || true
+            exit 1
+          fi
+          curl -sf -m 10 http://localhost:18000/v1/models | python3 -c "
           import json, sys
           d = json.load(sys.stdin)
           models = [m['id'] for m in d.get('data', [])]

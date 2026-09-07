@@ -29,6 +29,20 @@ spec:
             - "8000"
           ports:
             - containerPort: 8000
+          # Without this, `kubectl rollout status` returns as soon as the container
+          # PROCESS starts, which says nothing about whether uvicorn has bound :8000.
+          # LiteLLM parses the whole routing table before it listens, so the gap grows
+          # with the number of upstreams — it is what made the deploy workflow's smoke
+          # test report a false failure on a healthy router (2026-09-07).
+          # /health/readiness is unauthenticated and returns 200 once the proxy is up.
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            timeoutSeconds: 3
+            failureThreshold: 40
           volumeMounts:
             - name: config
               mountPath: /app/config.yaml
