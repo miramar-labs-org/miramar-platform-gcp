@@ -193,19 +193,42 @@ kubectl -n nsight-operator get nsightoperatorprofileconfigs.nvidia.com \
 ### Privileged mode is decided by the host driver
 
 Whether the profiled container needs `securityContext.privileged: true` is decided by the
-**host driver**, not by the trace mode. The gate is `RmProfilingAdminOnly` in
-`/proc/driver/nvidia/params`:
+**host driver**, not by the trace mode. Specifically, by *which driver serves CUDA* — because
+that determines whether a non-root profiling knob exists at all:
 
-| Host | `RmProfilingAdminOnly` | `privileged` | Values file |
-|---|---|---|---|
-| DGX Spark (GB10) | `0` — non-admin profiling allowed | `false` | `dgx/k3s/nsight/values.yaml` |
-| AGX Orin | `1` — profiling is admin-only | `true` | `agx/k3s/nsight/values.yaml` |
+| Host | CUDA served by | Non-root profiling | `privileged` | Values file |
+|---|---|---|---|---|
+| DGX Spark (GB10) | `nvidia.ko` RM | opt-in, see [Host prerequisites](#host-prerequisites) | `false` | `dgx/k3s/nsight/values.yaml` |
+| AGX Orin (JetPack 6.2) | `nvgpu` (Tegra) | **impossible** — no equivalent knob | `true` | `agx/k3s/nsight/values.yaml` |
+
+**Do not read `RmProfilingAdminOnly` as the gate on Tegra.** `/proc/driver/nvidia/params` exists
+on the AGX and reports `1`, which invites the conclusion that the DGX's modprobe fix would align
+it. It would not. On JetPack 6.x Orin the `nvidia`/`nvidia_modeset`/`nvidia_drm` modules are the
+*display* stack; CUDA runs on `nvgpu` (`nvidia-smi` names the device `Orin (nvgpu)`, no
+`nvidia_uvm` is loaded, and the device nodes are `/dev/nvhost-gpu` + `/dev/nvgpu/igpu0`). Setting
+`NVreg_RestrictProfilingToAdminUsers=0` there flips a reading on a driver that is not serving
+CUDA, and changes nothing. Measured on the AGX with a non-root `ncu`:
+
+```
+==WARNING== Insufficient privileges to launch app for profiling. Launch app with root privileges
+```
+
+Note that this is the **Tegra** message, not the desktop `ERR_NVGPUCTRPERM` that the modprobe
+knob addresses — a different gate, with no user-space control (`/sys/module/nvgpu/parameters/`
+exposes nothing profiling-related). The same workload runs fine as non-root when not profiled.
+
+**This is a JetPack 6.x property, not a permanent one.** JetPack 7.x replaces the proprietary
+`nvgpu` with OpenRM, and JetPack 7.2 (Jetson Linux R39.2) extends that to the whole Orin family.
+On an Orin running JetPack 7.x, CUDA is served by the RM that *does* have this knob, so the DGX's
+configuration should apply and `privileged: false` becomes possible. **Verify before relying on
+it** — confirm with a non-root `ncu` on the host, not from the `/proc` reading alone. The AGX is
+on JetPack 6.2 (L4T R36.5) as of 2026-09-07; moving to 7.x is a full flash, not an apt upgrade.
 
 **Nsight Operator Deploy** picks the values file from the `runner` input. Measured on the DGX
 through the real operator path (KFP stage, collect fired 60 s in, 90 s window): `privileged: true`
 → 7,992 kernel records, `privileged: false` → 8,539. Dropping it costs nothing there and lets KFP
 step pods keep their own hardening. Do not copy `privileged: false` to a host whose driver you
-have not checked — on AGX it would simply fail to attach.
+have not checked — on a `nvgpu` host it would simply fail to attach.
 
 `privileged` is read by the injector **at startup**. `helm upgrade` only rewrites the
 `nsight-injector` ConfigMap, so the deploy workflow explicitly rolls the injector Deployment
@@ -224,10 +247,10 @@ KFP SDK — upstream rejected privileged support), and the `kubeflow` namespace 
 
 **Both are gated on `nsight-injector.privileged`** and are not deployed where they are not needed:
 
-| Host | `RmProfilingAdminOnly` | `privileged` | APE webhook + PSA relax |
+| Host | CUDA driver | `privileged` | APE webhook + PSA relax |
 |---|---|---|---|
-| DGX | `0` | `false` | skipped |
-| AGX | `1` | `true`  | applied |
+| DGX | `nvidia.ko` RM | `false` | skipped |
+| AGX (JetPack 6.2) | `nvgpu` | `true`  | applied |
 
 On the DGX both would be inert anyway — the webhook only patches containers the injector marked
 `privileged`, and the injector's added containers carry no `securityContext` at all, so PSA
@@ -237,10 +260,13 @@ patch logged. A host that flips from `true` to `false` is converged by the **Rem
 privileged-only workarounds** step, which deletes the webhook (Deployment, Service,
 ServiceAccount, MWC, ClusterRole/Binding) and restores `enforce=baseline`.
 
-A **preflight** hard-fails the deploy when the host reports `RmProfilingAdminOnly: 1` while the
-values file says `privileged: false`. That combination fails *silently* otherwise — collection
-runs, the coordinator reports success, the report exports and verifies, and it simply contains no
-GPU records.
+A **preflight** hard-fails the deploy when an RM-served host reports `RmProfilingAdminOnly: 1`
+while the values file says `privileged: false`. That combination fails *silently* otherwise —
+collection runs, the coordinator reports success, the report exports and verifies, and it simply
+contains no GPU records. The check is skipped on `nvgpu` hosts, where the reading is not the gate
+(see above); `scripts/ubuntu/preflight-host.sh` keys on the driver — `/dev/nvgpu` or a loaded
+`nvgpu` module — rather than on "is this Tegra", so an Orin moved to JetPack 7.x starts being
+checked automatically.
 
 ---
 
@@ -527,6 +553,18 @@ By default NVIDIA drivers restrict hardware performance counter access to root. 
 UID 65532 — without this, `nsys` silently captures zero CUDA kernels and CUPTI returns
 `CUPTI_ERROR_INVALID_DEVICE`.
 
+**RM-served hosts only** (the DGX; and Orin from JetPack 7.x, which replaces `nvgpu` with
+OpenRM). On a `nvgpu` host — the AGX on JetPack 6.x — this parameter belongs to the display
+driver, not to the driver serving CUDA, and setting it achieves nothing; that host runs the
+injector `privileged` instead. Check which you have first:
+
+```bash
+[ -e /dev/nvgpu ] && echo "nvgpu — skip this section, use privileged: true" || echo "RM — proceed"
+```
+
+`scripts/ubuntu/preflight-host.sh` makes this determination for you and registers the fix below
+as `nvidia-profiling` when it applies.
+
 ```bash
 # Check current state (1 = restricted, 0 = open)
 grep RmProfilingAdminOnly /proc/driver/nvidia/params
@@ -558,8 +596,8 @@ entrypoint image that `cp`'d reports into a hostPath) and exposed the whole arch
 
 **Report has NVTX ranges and CUDA API calls but zero kernels.**
 The classic `--trace=cuda` failure. Check the live operator args (above) — you want `cuda-sw`.
-On AGX, also check `RmProfilingAdminOnly` vs the values file's `privileged`; the mismatch fails
-silently in exactly this way.
+Also check the values file's `privileged` against what the host's CUDA driver actually allows —
+`false` on a host that needs `true` (any `nvgpu` Orin) fails silently in exactly this way.
 
 **`ncu` produces nothing and seems to succeed.**
 `ncu` is **not on `$PATH`** on the DGX. A bare `ncu` invocation silently does nothing. Use

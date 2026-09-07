@@ -386,10 +386,13 @@ MLflow, and Postgres forwards.
 
 - the operator must collect with `--trace=cuda-sw`, not `--trace=cuda`
   ([why](nsight.md#--tracecuda-sw-is-load-bearing));
-- `nsight-injector.privileged` must match the host's `RmProfilingAdminOnly` — `false` on DGX
-  (`0`), `true` on AGX (`1`) ([why](nsight.md#privileged-mode-is-decided-by-the-host-driver)).
+- `nsight-injector.privileged` must match whichever driver serves CUDA on the host — `false` on
+  DGX (`nvidia.ko` RM, where non-root profiling can be enabled), `true` on a JetPack 6.x AGX
+  (`nvgpu`, where it cannot)
+  ([why](nsight.md#privileged-mode-is-decided-by-the-host-driver)).
 
 **Host prerequisite.** Non-root CUPTI access must be enabled once per install
 (`NVreg_RestrictProfilingToAdminUsers=0`, reboot required) — see
-[nsight.md § Host prerequisites](nsight.md#host-prerequisites). There is no `nsight-reports` PV
-or PVC and no k3s storage setup for profiling.
+[nsight.md § Host prerequisites](nsight.md#host-prerequisites). This applies to the DGX; it is
+inert on a `nvgpu` Orin, and `scripts/ubuntu/preflight-host.sh` decides which case a host is.
+There is no `nsight-reports` PV or PVC and no k3s storage setup for profiling.
