@@ -119,7 +119,7 @@ Teardown (all verified):
 3. Disabled the four dead portfwd/dashboard user units.
 4. Registered AGX Ollama with the DGX model router.
 5. Docs + dashboard corrected to match (this file; the dashboard's AGX Orin
-   band now shows only Ollama, OpenUI backend, VRAM Used, VRAM Available).
+   band now shows only Ollama, OpenUI backend, VRAM Reserved, VRAM Free).
 
 To restore the full stack, the workflows are unchanged: **K3s Install** →
 **NeMo Deploy** → **MLflow Deploy** → **Qdrant Deploy** → **Kubeflow Deploy**,
