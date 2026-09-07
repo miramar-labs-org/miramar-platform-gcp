@@ -31,7 +31,7 @@ set -u
 
 PROG=$(basename "$0")
 
-# resolve through the ~/bin symlink so we can find sibling files (ncu-bench.py)
+# resolve through the ~/bin symlink so we can find sibling files (gpu-bench.py)
 _src="${BASH_SOURCE[0]}"
 while [ -h "$_src" ]; do
   _dir=$(cd -P "$(dirname "$_src")" >/dev/null 2>&1 && pwd)
@@ -138,16 +138,18 @@ Systems export-only:
   --coordinator-url <url> default $COORD_URL
 
 Compute collection (--tool compute):
-  --ncu-set <set>         ncu metric set: basic|detailed|full|roofline
-                          (default $NCU_SET)
+  --ncu-set <set>         ncu metric set (default $NCU_SET). One of:
+                          basic|detailed|full|roofline|pmsampling|nvlink
+                          (nvlink is inert on the single-GPU GB10).
   --launch-count <N>      kernels to profile (default $NCU_LAUNCH_COUNT)
   --kernel-name <spec>    limit to matching kernels. <spec> is a plain function
                           name or 'regex:<expr>'. Passed to \`ncu --kernel-name\`.
   --kernel-regex <expr>   DEPRECATED alias for --kernel-name 'regex:<expr>'
   -- <command...>         workload to profile (must be last). If omitted, the
-                          bundled scripts/nsight/ncu-bench.py GPU smoke bench is
+                          bundled scripts/nsight/gpu-bench.py GPU smoke bench is
                           run with the first torch+CUDA python found (override
-                          with \$NCU_BENCH_PYTHON).
+                          with \$GPU_BENCH_PYTHON). That same bench serves the
+                          systems path in-cluster: \`gpu-bench.py --submit\`.
 
 Destination:
   --adhoc                 land under
@@ -252,11 +254,13 @@ resolve_ncu() {
   return 1
 }
 
-# Interpreter for the bundled bench. $NCU_BENCH_PYTHON wins; otherwise the first
-# of `python3` / `/usr/bin/python3` that can import torch with CUDA. Falls back to
-# `python3` so the bench's own guard prints the clear "pass a workload" message.
+# Interpreter for the bundled bench. $GPU_BENCH_PYTHON wins ($NCU_BENCH_PYTHON is
+# honoured as a deprecated alias); otherwise the first of `python3` /
+# `/usr/bin/python3` that can import torch with CUDA. Falls back to `python3` so
+# the bench's own guard prints the clear "pass a workload" message.
 pick_bench_python() {
   local p
+  if [ -n "${GPU_BENCH_PYTHON:-}" ]; then echo "$GPU_BENCH_PYTHON"; return 0; fi
   if [ -n "${NCU_BENCH_PYTHON:-}" ]; then echo "$NCU_BENCH_PYTHON"; return 0; fi
   for p in python3 /usr/bin/python3; do
     have_cmd "$p" || continue
@@ -307,9 +311,11 @@ compute_export() {
   [ "$NO_COLLECT" = 0 ] || die "--no-collect is systems-only (compute never touches operator storage)"
   [ -z "$REPORT_ID" ]   || die "--report-id is systems-only (compute never touches operator storage)"
 
+  # Mirrors `ncu --list-sets` on the DGX (Nsight Compute 2026.2.1). Validated here
+  # rather than left to ncu so a typo fails before the workload runs, not after.
   case "$NCU_SET" in
-    basic|detailed|full|roofline) : ;;
-    *) die "--ncu-set must be one of: basic detailed full roofline (got: $NCU_SET)" ;;
+    basic|detailed|full|roofline|pmsampling|nvlink) : ;;
+    *) die "--ncu-set must be one of: basic detailed full roofline pmsampling nvlink (got: $NCU_SET)" ;;
   esac
   case "$NCU_LAUNCH_COUNT" in
     ''|*[!0-9]*) die "--launch-count must be a positive integer (got: $NCU_LAUNCH_COUNT)" ;;
@@ -337,7 +343,7 @@ compute_export() {
   info "destination: $dest (staging in $STAGING until verified)"
 
   if [ "${#TARGET_CMD[@]}" -eq 0 ]; then
-    local bench="$SCRIPT_DIR/ncu-bench.py"
+    local bench="$SCRIPT_DIR/gpu-bench.py"
     [ -f "$bench" ] || die "bundled bench not found at $bench — pass a workload with '-- <command>'"
     local bench_py
     bench_py=$(pick_bench_python)

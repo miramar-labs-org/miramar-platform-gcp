@@ -25,7 +25,7 @@ scripts/
   ubuntu/          # Host setup scripts
   security/        # scan-actions-risk.sh, repo-security-check.sh
   dashboard/       # generate-dashboard.sh (GitHub Pages platform dashboard)
-  nsight/          # export-report.sh (Nsight archive helper; ~/bin/nsight-export-report symlinks here) + ncu-bench.py
+  nsight/          # export-report.sh (Nsight archive helper; ~/bin/nsight-export-report symlinks here) + gpu-bench.py
 mlabs-runner/      # Docker image for self-hosted GHA runners
 nsight-ape-webhook/ # Mutating admission webhook: reconciles Nsight injection (privileged) with PSS-hardened KFP step pods
 dgx/               # DGX Spark host config and local tooling
@@ -50,6 +50,7 @@ docs/              # Architecture and runbooks
   gcp.md           # GCP bootstrap, Terraform, WIF, and state storage
   workflows.md     # Workflow catalog
   dgx.md           # DGX local AI stack operations
+  nsight.md        # GPU profiling manual — Nsight Systems + Compute, flags, scenarios
   ssh-runbook.md   # Full SSH mesh topology and troubleshooting
 .github/workflows/ # CI/CD workflows
 ```
@@ -64,6 +65,7 @@ docs/              # Architecture and runbooks
 | `scripts/gha/launch-runner.sh` / `stop-runner.sh` | Start / gracefully stop+deregister the mlabs-runner container. Idempotent.                                                                    |
 | `scripts/gha/flush-queues.sh`                     | Cancel all in-progress, queued, and waiting workflow runs                                                                                     |
 | `scripts/nsight/export-report.sh`                 | Get an Nsight profile into `~/shared/nsight/`. `--tool systems` (default): drive an Nsight Operator coordinator session, pull the `.nsys-rep` from MinIO, verify. `--tool compute`: run host `ncu` (ad-hoc, no operator) → verified `.ncu-rep`. `~/bin/nsight-export-report` is a symlink to this. |
+| `scripts/nsight/gpu-bench.py`                     | The committed GPU smoke workload for both Nsight paths. Bare invocation = short iteration-bounded run (the default `--tool compute` target); `--submit` runs the same function in-cluster as a labelled KFP stage for Nsight Systems. See `docs/nsight.md`. |
 | `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the ten systemd user services (used on both DGX and AGX)                                                                    |
 | `wsl2/bootstrap.sh`                               | One-time setup for a fresh WSL2 template base. Run inside the clean template before exporting.                                                |
 | `wsl2/rebuild-template.ps1`                       | Rebuild the configured template tarball. Params: `-SmbPassword` (required). Run after changing `bootstrap.sh` or rotating the Samba password. |
