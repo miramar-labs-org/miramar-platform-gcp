@@ -150,6 +150,15 @@ EOF
 echo "==> Removing arm64-incompatible controller-manager ..."
 kubectl delete deployment controller-manager -n kubeflow --ignore-not-found || true
 
+# proxy-agent (ghcr.io/kubeflow/kfp-inverse-proxy-agent:master) is the GCP
+# Marketplace inverse-proxy agent: it publishes the KFP UI through a Google-managed
+# Inverse Proxy endpoint. It is meaningless on standalone k3s — the UI is reached
+# via kubeflow-portfwd -> svc/ml-pipeline-ui — and the image has NO arm64 manifest
+# at all ("no match for platform in manifest"), so on DGX/AGX it can only ever sit
+# in ImagePullBackOff and fail the caller's "Wait for pods" gate.
+echo "==> Removing arm64-incompatible proxy-agent ..."
+kubectl delete deployment proxy-agent -n kubeflow --ignore-not-found || true
+
 # Create (or update) a GHCR imagePullSecret in the kubeflow namespace.
 # Uses MIRAMAR_ORG_GHCR_PAT (passed from the org-level GHA secret by the
 # caller workflow) so the credential is always live regardless of runner env.

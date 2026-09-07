@@ -5,6 +5,7 @@ name: Kubeflow Deploy
 # automatically and includes built-in SeaweedFS and MySQL — no external dependencies.
 # arm64 image overrides applied post-apply:
 #   - controller-manager removed (Application CRD, display-only, amd64-only binary)
+#   - proxy-agent removed (GCP Marketplace inverse proxy; image has no arm64 manifest)
 #   - All upstream amd64-only images replaced with ghcr.io/miramar-labs-org arm64 builds
 #     when use_native_kfp_images=true (the default)
 #
