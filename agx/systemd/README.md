@@ -2,7 +2,23 @@
 
 Systemd user services for the [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/). Unit files live in `dgx/systemd/` and are shared with the DGX — `install.sh` copies the relevant subset here. Run `install.sh` / `uninstall.sh` from this directory on the AGX host.
 
-AGX runs the same eleven systemd user services as DGX. Unit files live in `dgx/systemd/` and are shared — `install.sh` copies them here.
+**The AGX does not run the same stack as the DGX.** It is an Ollama-only
+secondary model runner with no k3s (see [../../docs/agx.md](../../docs/agx.md)),
+so only two of the units below are enabled:
+
+| Enabled on AGX         | Why                                          |
+| ---------------------- | -------------------------------------------- |
+| `mlabs-runner.service` | GHA self-hosted runner, label `agx`          |
+| `jupyterlab.service`   | Convenience notebook env                     |
+
+`dashboard`, `kubeflow-portfwd`, `kfp-api-portfwd` and `nsight-portfwd` were
+disabled on 2026-09-07 (`systemctl --user disable --now`); the remaining
+port-forward units were never enabled here. They all forward to k3s Services
+that no longer exist. Ollama itself is a **system** service on the host, not one
+of these user units.
+
+`install.sh` still installs the full set — re-enable what you need if the k3s
+stack is ever restored. The full catalogue:
 
 | Service                    | Host port   | Purpose                                                                     |
 | -------------------------- | ----------- | --------------------------------------------------------------------------- |

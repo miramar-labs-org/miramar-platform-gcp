@@ -3,8 +3,9 @@
 DGX Spark runs the local AI stack: k3s, NeMo Microservices, MLflow, Qdrant, NIM,
 and Ollama. The runner label is `dgx`.
 
-AGX Orin runs the same stack minus NIM (no arm64 NIM images exist) — see
-[agx.md](agx.md) for AGX-specific details and SSH tunnel port assignments.
+AGX Orin does **not** run this stack. It is an Ollama-only secondary model
+runner — no k3s, no NeMo/KFP/MLflow/Qdrant/Nsight/NIM — reached through the DGX
+model router. See [agx.md](agx.md).
 
 ## Host prerequisites
 

@@ -32,8 +32,8 @@ dgx/               # DGX Spark host config and local tooling
   k3s/             # k3s workload manifests + deploy/verify scripts (NeMo, NIM, MLflow, Qdrant, Kubeflow, Nsight)
   ollama/          # Ollama deploy/undeploy scripts and model catalog
   systemd/         # Systemd user service unit files + install/uninstall scripts
-agx/               # AGX Orin host config and local tooling (mirrors dgx/)
-  k3s/             # NeMo hosts file and AGX-specific configs
+agx/               # AGX Orin host config (legacy — AGX is Ollama-only, see docs/agx.md)
+  k3s/             # NeMo hosts file and AGX-specific configs (unused; kept for restore)
   ollama/          # Ollama deploy/undeploy scripts (NIM conflict check omitted — verify arm64 support per model)
 wsl2/              # WSL2 host config and bootstrap scripts
   README.md           # Operator quickstart for WSL2 provisioning
@@ -66,7 +66,7 @@ docs/              # Architecture and runbooks
 | `scripts/gha/flush-queues.sh`                     | Cancel all in-progress, queued, and waiting workflow runs                                                                                     |
 | `scripts/nsight/export-report.sh`                 | Get an Nsight profile into `~/shared/nsight/`. `--tool systems` (default): drive an Nsight Operator coordinator session, pull the `.nsys-rep` from MinIO, verify. `--tool compute`: run host `ncu` (ad-hoc, no operator) → verified `.ncu-rep`. `~/bin/nsight-export-report` is a symlink to this. |
 | `scripts/nsight/gpu-bench.py`                     | The committed GPU smoke workload for both Nsight paths. Bare invocation = short iteration-bounded run (the default `--tool compute` target); `--submit` runs the same function in-cluster as a labelled KFP stage for Nsight Systems. See `docs/nsight.md`. |
-| `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the ten systemd user services (used on both DGX and AGX)                                                                    |
+| `dgx/systemd/install.sh` / `uninstall.sh`         | Install or remove the ten systemd user services. DGX runs all of them; on AGX only `mlabs-runner` + `jupyterlab` are enabled (no k3s)         |
 | `wsl2/bootstrap.sh`                               | One-time setup for a fresh WSL2 template base. Run inside the clean template before exporting.                                                |
 | `wsl2/rebuild-template.ps1`                       | Rebuild the configured template tarball. Params: `-SmbPassword` (required). Run after changing `bootstrap.sh` or rotating the Samba password. |
 | `wsl2/firstboot.sh`                               | One-shot provisioning inside a new distro via `wsl -d NAME --user root -- bash`. Sets hostname, sshd port, calls `setup-shared-ssh.sh`.       |
@@ -175,9 +175,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | `CURRENT_OLLAMA_MODEL`       | Ollama Deploy (dgx) | Ollama Undeploy, Ollama Deploy rollback, serving-xxx deploy (dgx job) | `none`  |
 | `CURRENT_NIM_VRAM_GB`        | NIM Deploy (dgx)    | NIM Undeploy, NIM Deploy rollback       | `0`     |
 | `CURRENT_OLLAMA_VRAM_GB`     | Ollama Deploy (dgx) | Ollama Undeploy, Ollama Deploy rollback, serving-xxx deploy (dgx job) | `0`     |
-| `CURRENT_NIM_MODEL_AGX`      | NIM Deploy (agx)    | NIM Undeploy (agx), rollback            | `none`  |
 | `CURRENT_OLLAMA_MODEL_AGX`   | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback, serving-xxx deploy (agx job) | `none`  |
-| `CURRENT_NIM_VRAM_GB_AGX`    | NIM Deploy (agx)    | NIM Undeploy (agx), rollback            | `0`     |
 | `CURRENT_OLLAMA_VRAM_GB_AGX` | Ollama Deploy (agx) | Ollama Undeploy (agx), rollback, serving-xxx deploy (agx job) | `0`     |
 
 **Active state org variables** (drive the green/red dashboard badges; seed with `gh api` on fresh install):
@@ -185,28 +183,22 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Variable                     | Set to `true` by                                | Set to `false` by               |
 | ---------------------------- | ----------------------------------------------- | ------------------------------- |
 | `DGX_K3S_ACTIVE`             | K3s Install (dgx)                               | K3s Uninstall (dgx)             |
-| `AGX_K3S_ACTIVE`             | K3s Install (agx)                               | K3s Uninstall (agx)             |
 | `DGX_NEMO_ACTIVE`            | NeMo Deploy (dgx)                               | NeMo Undeploy (dgx)             |
-| `AGX_NEMO_ACTIVE`            | NeMo Deploy (agx)                               | NeMo Undeploy (agx)             |
 | `DGX_MLFLOW_ACTIVE`          | MLflow Deploy (dgx)                             | MLflow Undeploy (dgx)           |
-| `AGX_MLFLOW_ACTIVE`          | MLflow Deploy (agx)                             | MLflow Undeploy (agx)           |
 | `DGX_QDRANT_ACTIVE`          | Qdrant Deploy (dgx)                             | Qdrant Undeploy (dgx)           |
-| `AGX_QDRANT_ACTIVE`          | Qdrant Deploy (agx)                             | Qdrant Undeploy (agx)           |
 | `DGX_POSTGRES_ACTIVE`        | Postgres Deploy (dgx)                           | Postgres Undeploy (dgx)         |
-| `AGX_POSTGRES_ACTIVE`        | Postgres Deploy (agx)                           | Postgres Undeploy (agx)         |
 | `DGX_KFP_ACTIVE`             | Kubeflow Deploy (dgx)                           | Kubeflow Undeploy (dgx)         |
-| `AGX_KFP_ACTIVE`             | Kubeflow Deploy (agx)                           | Kubeflow Undeploy (agx)         |
 | `DGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (dgx)                    | Nsight Operator Undeploy (dgx)  |
-| `AGX_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy (agx)                    | Nsight Operator Undeploy (agx)  |
 | `GKE_NSIGHT_OPERATOR_ACTIVE` | Nsight Operator Deploy GKE; GCP Platform Create | Nsight Operator Undeploy GKE    |
 | `DGX_OLLAMA_ACTIVE`          | Ollama Deploy (dgx)                             | Ollama Undeploy (dgx), rollback, serving-xxx deploy (dgx job) |
 | `AGX_OLLAMA_ACTIVE`          | Ollama Deploy (agx)                             | Ollama Undeploy (agx), rollback, serving-xxx deploy (agx job) |
 | `DGX_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (dgx)                         | Open WebUI Undeploy (dgx)       |
-| `AGX_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (agx)                         | Open WebUI Undeploy (agx)       |
 | `GKE_OPENWEBUI_ACTIVE`       | Open WebUI Deploy (gke)                         | Open WebUI Undeploy (gke)       |
 | `GKE_GPU_POOL_ACTIVE`        | GKE Expand GPU                                  | GKE Restore GPU                 |
 | `GKE_MODEL_ROUTER_ACTIVE`    | Model Router Deploy (gke)                       | Model Router Undeploy (gke), GCP Platform Destroy |
 | `GKE_GATEWAY_ACTIVE`         | GKE Gateway Deploy                              | GKE Gateway Undeploy, GCP Platform Destroy |
+
+`AGX_OLLAMA_ACTIVE` is the only AGX badge the dashboard reads — the AGX is an Ollama-only model runner (`docs/agx.md`). The `AGX_K3S_ACTIVE` / `AGX_NEMO_ACTIVE` / `AGX_MLFLOW_ACTIVE` / `AGX_QDRANT_ACTIVE` / `AGX_POSTGRES_ACTIVE` / `AGX_KFP_ACTIVE` / `AGX_NSIGHT_OPERATOR_ACTIVE` / `AGX_OPENWEBUI_ACTIVE` / `CURRENT_NIM_*_AGX` variables still exist and are still written if you point a workflow at `runner: agx`, but nothing renders them.
 
 **GKE Gateway URL org variable** (set by Gateway deploy; read by external clients):
 
@@ -273,9 +265,15 @@ Local env vars required: `GITHUB_ORG_GHCR_PAT` (`read:packages`), `GITHUB_ORG_AD
 
 To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`.
 
-## Local AI stack (DGX + AGX)
+## Local AI stack (DGX)
 
-Both DGX Spark and AGX Orin run the identical eleven systemd user services on boot (via linger). All platform workflows accept a `runner` input (`dgx` or `agx`) to target the appropriate machine. See `dgx/systemd/` and `agx/systemd/`.
+**The DGX and AGX are not symmetric.** The DGX Spark runs the eleven systemd
+user services below on boot (via linger). The **AGX Orin runs only three** —
+`mlabs-runner`, `jupyterlab`, and host-native Ollama — because it has no k3s and
+is an Ollama-only secondary model runner. Everything else was torn down on
+2026-09-07; see `docs/agx.md`. Platform workflows still accept `runner: agx`,
+but pointing a k3s workflow at the AGX stands up a stack nothing consumes.
+See `dgx/systemd/` and `agx/systemd/`.
 
 | Service             | Host port   | Purpose                                                                      |
 | ------------------- | ----------- | ---------------------------------------------------------------------------- |
@@ -291,23 +289,23 @@ Both DGX Spark and AGX Orin run the identical eleven systemd user services on bo
 | `nsight-portfwd`    | `8889` + `13001` | `8889`→`svc/nsight-operator-gateway:8888` (UI/SPA); `13001`→`svc/nsight-operator-coordinator:80` (REST API for `~/bin/nsight-export-report`) |
 | `openwebui-portfwd` | `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat over Ollama / vLLM) |
 
-**SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop:
+**SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop. Only the two AGX ports marked live have anything listening:
 
-| Service            | DGX local port | AGX local port |
-| ------------------ | -------------- | -------------- |
-| K8s dashboard      | `8001`         | `8002`         |
-| JupyterLab         | `8888`         | `8887`         |
-| MLflow             | `5000`         | `5001`         |
-| KFP UI             | `8080`         | `8081`         |
-| NeMo / NIM         | `8082`         | `8083`         |
-| KFP API            | `8890`         | `8891`         |
-| Ollama             | `11434`        | `11435`        |
-| Qdrant REST        | `6333`         | `6335`         |
-| Qdrant gRPC        | `6334`         | `6336`         |
-| Postgres           | `5432`         | `5433`         |
-| Nsight Operator UI | `8889`         | `8892`         |
-| Nsight coordinator | `13001`        | `13002`        |
-| Open WebUI         | `8084`         | `8085`         |
+| Service            | DGX local port | AGX local port      |
+| ------------------ | -------------- | ------------------- |
+| K8s dashboard      | `8001`         | `8002` (dead)       |
+| JupyterLab         | `8888`         | `8887` (live)       |
+| MLflow             | `5000`         | `5001` (dead)       |
+| KFP UI             | `8080`         | `8081` (dead)       |
+| NeMo / NIM         | `8082`         | `8083` (dead)       |
+| KFP API            | `8890`         | `8891` (dead)       |
+| Ollama             | `11434`        | `11435` (live)      |
+| Qdrant REST        | `6333`         | `6335` (dead)       |
+| Qdrant gRPC        | `6334`         | `6336` (dead)       |
+| Postgres           | `5432`         | `5433` (dead)       |
+| Nsight Operator UI | `8889`         | `8892` (dead)       |
+| Nsight coordinator | `13001`        | `13002` (dead)      |
+| Open WebUI         | `8084`         | `8085` (dead)       |
 
 ```sh
 # DGX Spark (spark-79b7.local)
@@ -319,25 +317,19 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
     -L 8084:localhost:8084 \
     aaron@spark-79b7.local
 
-# AGX Orin (orin.local)
-ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
-    -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
-    -L 11435:localhost:11434 -L 6335:localhost:6333 -L 6336:localhost:6334 \
-    -L 5433:localhost:5432 \
-    -L 8892:localhost:8889 -L 13002:localhost:13001 \
-    -L 8085:localhost:8084 \
-    aaron@orin.local
+# AGX Orin (orin.local) — Ollama + JupyterLab only
+ssh -L 11435:localhost:11434 -L 8887:localhost:8888 aaron@orin.local
 ```
 
 **k3s** is managed exclusively via GHA workflows (K3s Install / Uninstall). Kubeconfig is written to `~/.kube/config` on the host and mounted into the runner container.
 
 **Workload stack** (deployment order):
 - DGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
-- AGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → Ollama Deploy
+- AGX: Ollama Deploy only. Its models are registered as `agx/<model>` upstreams in the DGX model router (`dgx/k3s/model-router/litellm-config.yaml`), reached by host IP — the AGX has no k3s Service and no CoreDNS record.
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
-**NIM** — DGX default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). AGX support: platform variables (`CURRENT_NIM_MODEL_AGX` etc.) are wired; whether a given NIM container image supports `linux/arm64` depends on the model — check NGC before deploying. See `dgx/k3s/nim/NIM.md` for catalog.
+**NIM** — DGX only. Default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). See `dgx/k3s/nim/NIM.md` for catalog. NIM is **not** available on AGX: NGC publishes no `linux/arm64` NIM LLM images, and the AGX no longer runs k3s. `CURRENT_NIM_MODEL_AGX` / `CURRENT_NIM_VRAM_GB_AGX` are obsolete and unread.
 
 **Ollama** — runs as a systemd service on the host (not in k3s).
 - DGX: ~28 GB reserved for platform, **~100 GB for models** (`DGX_VRAM_USEABLE`)

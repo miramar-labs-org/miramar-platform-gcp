@@ -21,15 +21,14 @@ inference workloads across local GPU systems and cloud infrastructure.
 | ------------------------------------------------ | -------------- | ---------------------------------------------------------------------- |
 | Multi-arch runner image (`mlabs-runner`)         | ✅ Done        | `linux/amd64` + `linux/arm64`; GHCR                                    |
 | DGX k3s cluster                                  | ✅ Done        | NVIDIA device plugin, nginx-ingress, CoreDNS patch                     |
-| AGX k3s cluster                                  | ✅ Done        | Same image as DGX; AGX currently offline                               |
+| AGX k3s cluster                                  | 🗑️ Removed     | Torn down 2026-09-07 — AGX is an Ollama-only model runner ([agx.md](agx.md)) |
 | NeMo Microservices (DGX)                         | ✅ Done        | `nemo-microservices` namespace; exposes `nemo.test` / `nim.test`       |
-| Kubeflow Pipelines (DGX + AGX)                   | ✅ Done        | Native arm64 images built and patched                                  |
-| MLflow + MinIO (DGX + AGX)                       | ✅ Done        | `mlflow-system` namespace; port-forwarded at `:5000`                   |
-| Qdrant vector DB (DGX + AGX)                     | ✅ Done        | `qdrant-system` namespace; REST `:6333`, gRPC `:6334`                  |
+| Kubeflow Pipelines (DGX)                         | ✅ Done        | Native arm64 images built and patched; not deployed on AGX             |
+| MLflow + MinIO (DGX)                             | ✅ Done        | `mlflow-system` namespace; port-forwarded at `:5000`                   |
+| Qdrant vector DB (DGX)                           | ✅ Done        | `qdrant-system` namespace; REST `:6333`, gRPC `:6334`                  |
 | NIM inference (DGX)                              | ✅ Done        | Blackwell-optimised models; auto-swap and rollback                     |
-| Ollama (DGX + AGX)                               | ✅ Done        | Host systemd service; up to 100 GB model budget on DGX                 |
+| Ollama (DGX + AGX)                               | ✅ Done        | Host systemd service; ~100 GB budget on DGX, ~40 GB on AGX             |
 | Nsight Operator (DGX)                            | ✅ Done        | Helm (NGC devtools); UI port-forwarded at `:8889`                      |
-| Nsight Operator (AGX)                            | ✅ Done        | Inactive until AGX comes back online                                   |
 | Nsight Operator (GKE)                            | ✅ Done        | Auto-installed by Platform Create; no persistent port-forward          |
 | GKE Standard cluster                             | ✅ Done        | `e2-standard-4`, single node, `us-east1-b`                             |
 | GKE transient GPU pool                           | ✅ Done        | L4 on-demand (`g2-standard-8`), `us-east1-b`; expand/restore workflow pair |
@@ -48,7 +47,6 @@ inference workloads across local GPU systems and cloud infrastructure.
 | Platform dashboard (GitHub Pages)                | ✅ Done        | Hourly refresh; per-machine service badges; project table              |
 | Nsight profiling of vLLM serving                 | 📋 Planned     | Profile vLLM on GKE L4 via Nsight Operator pod injection               |
 | Inference optimization pipeline (`kfp-optimize`) | 📋 Planned     | Prune → distill → quantize (FP8) on DGX; KFP pipeline type             |
-| AGX back online                                  | 📋 Planned     | Waiting on hardware                                                    |
 
 ---
 
@@ -165,10 +163,8 @@ flowchart TD
     DGX --> NIM[NVIDIA NIM]
     DGX --> Ollama[Ollama]
 
-    AGX --> K3sAGX[AGX k3s]
-    K3sAGX --> KFPAGX[Kubeflow Pipelines]
-    K3sAGX --> QdrantAGX[Qdrant]
-    K3sAGX --> OllamaAGX[Ollama]
+    AGX --> OllamaAGX[Ollama - host systemd, no k3s]
+    OllamaAGX --> Router[DGX model router]
 
     GH --> GHCR[GHCR]
     GHCR --> SelfHosted
@@ -182,21 +178,26 @@ flowchart TD
 
 ### Local domain (DGX + AGX)
 
-Owned GPU hardware. All PHI workloads stay here. Self-hosted runners
-(`dgx`, `agx`) manage local Kubernetes via `kubectl` and Helm.
+Owned GPU hardware. All PHI workloads stay here. The `dgx` self-hosted runner
+manages local Kubernetes via `kubectl` and Helm.
 
-| Service               | Namespace            | DGX port | AGX port |
-| --------------------- | -------------------- | -------- | -------- |
-| Kubernetes Dashboard  | —                    | 8001     | 8002     |
-| JupyterLab            | —                    | 8888     | 8887     |
-| Kubeflow Pipelines UI | `kubeflow`           | 8080     | 8081     |
-| KFP REST API          | `kubeflow`           | 8890     | 8891     |
-| NeMo / NIM            | `nemo-microservices` | 8082     | 8083     |
-| MLflow                | `mlflow-system`      | 5000     | 5001     |
-| Qdrant REST           | `qdrant-system`      | 6333     | 6335     |
-| Qdrant gRPC           | `qdrant-system`      | 6334     | 6336     |
-| Ollama                | host systemd         | 11434    | 11435    |
-| Nsight Operator UI    | `nsight-operator`    | 8889     | 8892     |
+**The two machines are not symmetric.** The DGX Spark carries the whole local
+stack. The AGX Orin runs Ollama on the host and nothing else — no k3s, so none
+of the namespaced services below exist there. Its models are reached through
+the DGX model router. See [agx.md](agx.md).
+
+| Service               | Namespace            | DGX port | AGX port      |
+| --------------------- | -------------------- | -------- | ------------- |
+| Kubernetes Dashboard  | —                    | 8001     | —             |
+| JupyterLab            | —                    | 8888     | 8887          |
+| Kubeflow Pipelines UI | `kubeflow`           | 8080     | —             |
+| KFP REST API          | `kubeflow`           | 8890     | —             |
+| NeMo / NIM            | `nemo-microservices` | 8082     | —             |
+| MLflow                | `mlflow-system`      | 5000     | —             |
+| Qdrant REST           | `qdrant-system`      | 6333     | —             |
+| Qdrant gRPC           | `qdrant-system`      | 6334     | —             |
+| Ollama                | host systemd         | 11434    | 11435         |
+| Nsight Operator UI    | `nsight-operator`    | 8889     | —             |
 
 All services are reached via SSH tunnels from the laptop (Bitvise profiles in `win/`).
 
@@ -248,10 +249,10 @@ GitHub is the source-of-truth control plane:
 | GCP platform lifecycle | `ubuntu-latest` (WIF) | Platform Create/Destroy, GKE Expand/Restore, GPU pool            |
 | Nsight Operator (GKE)  | `ubuntu-latest` (WIF) | Deploy/Undeploy Nsight Operator on GKE                           |
 | Runner image build     | `ubuntu-latest`       | Build + push multi-arch `mlabs-runner` to GHCR                   |
-| Local k3s lifecycle    | `dgx` / `agx`         | K3s Install/Uninstall                                            |
-| Local AI services      | `dgx` / `agx`         | NeMo, KFP, MLflow, Qdrant, Nsight Operator deploy/undeploy       |
-| NIM / Ollama           | `dgx` / `agx`         | Deploy, undeploy, model swap with rollback                       |
-| Project lifecycle      | `dgx` / `agx`         | Create Project, Delete Project                                   |
+| Local k3s lifecycle    | `dgx`                 | K3s Install/Uninstall (accepts `agx`, but the AGX runs no k3s)   |
+| Local AI services      | `dgx`                 | NeMo, KFP, MLflow, Qdrant, Nsight Operator deploy/undeploy       |
+| NIM / Ollama           | `dgx` / `agx`         | Deploy, undeploy, model swap with rollback (AGX: Ollama only)    |
+| Project lifecycle      | `dgx`                 | Create Project, Delete Project                                   |
 | vLLM serving           | `ubuntu-latest` (WIF) | build-push, deploy (expand GPU → rollout → smoke test), undeploy |
 | Adapter publish        | `dgx`                 | publish-adapter.yaml — eval gate → GCS manifest                  |
 | Dashboard              | `ubuntu-latest`       | Deploy GitHub Pages dashboard (hourly + on state-change)         |

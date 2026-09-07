@@ -100,7 +100,9 @@ On-premises machines acting as self-hosted GitHub Actions runners and general co
 | [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) 128GB                       | DGX OS (Ubuntu 24.04)                                                       | aarch64 / arm64 | 20-core Arm (10× Cortex-X925 + 10× Cortex-A725) | GB10 Superchip — Blackwell, 6144 CUDA cores, 192 Tensor Cores (sm_100, 5th-gen)  | 128 GB unified | 13.0                                              | `dgx`        |
 | [NVIDIA Jetson AGX Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) 64GB | Ubuntu 22.04 ([JetPack 6.x](https://developer.nvidia.com/embedded/jetpack)) | aarch64 / arm64 | 12-core Cortex-A78AE                            | Ampere — 2048 CUDA cores, 64 Tensor Cores (sm_87)                                | 64 GB unified  | 12.6                                              | `agx`        |
 
-All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`. GPU access works the same way on both arm64 machines via the NVIDIA container runtime.
+All three machines run the [mlabs-runner](mlabs-runner/) Docker image — WSL2 pulls `linux/amd64`, DGX and Orin both pull `linux/arm64`.
+
+The two arm64 machines are **not** interchangeable. The DGX Spark carries the full local stack (k3s, NeMo, KFP, MLflow, Qdrant, NIM, Ollama) and exposes its GPU to containers through the NVIDIA container runtime. The AGX Orin is an Ollama-only secondary model runner: no k3s, and its GPU is reachable only from host-native processes (on JetPack 6.x, CUDA is served by the proprietary `nvgpu` driver and no `libcuda` lands inside a glibc container). See [docs/agx.md](docs/agx.md).
 
 ### Cloud infrastructure (GCP)
 
