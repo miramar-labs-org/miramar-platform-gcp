@@ -101,11 +101,17 @@ profiling:
   collection_window_s: 90
 ```
 
-The operator injects `nsys` and writes the report to its internal MinIO. While the stage is
-GPU-hot, pull it onto disk:
+The operator injects `nsys` and writes the report to its internal MinIO. Pull it onto disk by
+firing the export any time while the stage pod is `Running` and doing GPU work — the collect
+just has to overlap that activity; how far into the stage it lands does not matter.
+
+If a report comes back with no kernel table, the cause is almost always the operator's trace
+mode, not your timing: `--trace=cuda` (nsys hardware trace) reconciles GPU-side records only at
+process teardown, so the operator's mid-process `nsys stop` drops all of them. The platform's
+Nsight values files pin `--trace=cuda-sw`; see `docs/dgx.md` in `miramar-platform-gcp`.
 
 ```bash
-/nsight-export {{PROJECT_NAME}} run-001 main [--duration 90]
+/nsight-export {{PROJECT_NAME}} run-001 main
 # → ~/shared/nsight/{{PROJECT_NAME}}/run-001/main/profile.nsys-rep (+ auto /nsight-interpret)
 ```
 

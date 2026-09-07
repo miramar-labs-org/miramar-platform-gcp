@@ -3,8 +3,13 @@ description: ""   # One sentence — shown in KFP Pipelines + KFP Experiments UI
 profiling:
   # NVIDIA Nsight Operator GPU profiling opt-in. `enabled: true` labels the pipeline's
   # GPU stage pod `nvidia-nsight-profile=enabled` so the operator injects nsys capture.
-  # Then run `/nsight-export <project> <run-NNN> main` while the stage is GPU-hot to
+  # Then run `/nsight-export <project> <run-NNN> main` while the stage pod is Running to
   # archive the report to `~/shared/nsight/<project>/<run-id>/main/` (auto-runs
   # `/nsight-interpret`).
+  #
+  # The collect only has to overlap the stage's GPU activity — where in the stage it lands
+  # does not matter. If a report comes back with no kernel table, check that the operator is
+  # collecting with `--trace=cuda-sw` (see docs/dgx.md); under `--trace=cuda` every GPU-side
+  # record is dropped at the operator's mid-process `nsys stop`.
   enabled: false
-  collection_window_s: 90   # nsys collection duration; must fit inside the stage's GPU-hot window
+  collection_window_s: 90   # nsys collection duration; 30-90s is plenty

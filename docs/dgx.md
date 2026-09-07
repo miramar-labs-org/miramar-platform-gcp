@@ -428,19 +428,56 @@ kernel activity — it never reports success when a usable report was not archiv
 `--tool compute` path applies the same rule: it verifies the `.ncu-rep` with an `ncu -i`
 readback and fails if no kernels were profiled.
 
-**Stop-while-busy (`--duration` too short).** GB10 uses hardware tracing for CUDA, and
-GPU-side activity records are only timestamped when the collection *stops*. If the
-collection window closes while the stage's GPU work is still saturated, `nsys` drops the
-in-flight kernel/memcpy records as "incomplete CUPTI events" — the `.nsys-rep` comes back
-with CUDA API rows but no `cuda_gpu_kern_sum`, and the helper's verify fails it. Size
-`--duration` / the template's `collection_window_s` so the profiled GPU phase (and a
-`torch.cuda.synchronize()` + brief idle tail) finishes *inside* the window rather than
-running the window over a still-hot GPU.
+**The operator must collect with `--trace=cuda-sw`, not `--trace=cuda`.** This is the single
+setting that decides whether a KFP capture comes back with GPU kernels at all, and it is
+already set in `dgx/k3s/nsight/values.yaml` — the note is here so a future edit does not
+silently undo it.
+
+On a CUDA ≥ 13.0 driver `--trace=cuda` selects nsys's **hardware** CUDA trace, which reconciles
+GPU-side kernel timestamps to the host only at process teardown. The operator always runs a
+**time-boxed** collection — `nsys start`, wait `duration`, `nsys stop` — while the profiled
+stage keeps running, so at stop every GPU-side record is still unreconciled and is discarded
+("Number of incomplete CUPTI events dropped: N"). The `.nsys-rep` comes back with a complete
+CPU-side CUDA API trace, NVTX ranges, and **no `CUPTI_ACTIVITY_KIND_KERNEL` table at all**, and
+the helper's verify fails it. `--trace=cuda-sw` selects the software CUPTI path, which survives
+a mid-process stop.
+
+Measured on the DGX with nsys 2026.3.1.157 (the build the operator injects), reproducing the
+operator's invocation shape — `profile --start-later=true`, separate `nsys start`/`nsys stop`,
+target still running at stop — with only the trace value changed:
+
+| Trigger / window | `--trace=cuda` | `--trace=cuda-sw` |
+|---|---|---|
+| t+25 s, 30 s window | 0 kernels (2800 dropped) | 2553 kernels (47 dropped) |
+| t+60 s, 90 s window | 0 kernels (8400 dropped) | 8624 kernels (176 dropped) |
+
+Consequences:
+
+- **Trigger timing is not the variable.** A collect fired 60 s into a saturated stage returns
+  full kernel data under `cuda-sw`. Firing early is still sensible (you get the window you
+  asked for), but a late trigger no longer costs you the kernels, and neither `--delay 0` nor
+  a workload that issues kernels from its first line is required for correctness.
+- **`--cuda-flush-interval` is not a workaround.** It governs only the software path, so it was
+  inert while hardware trace was selected (`CUDA_FLUSH_PERIODICALLY` stayed `false` either way).
+  It is now genuinely in effect at 100 ms.
+- **Cost:** ~3.5 % runtime overhead on a gemm-bound loop. `--cuda-graph-trace=node` granularity
+  and device-side graph launch tracing require hardware trace and are unavailable under
+  `cuda-sw`; nothing on this platform traces CUDA graphs at node granularity.
+
+Check what the live operator is actually collecting with:
+
+```sh
+kubectl -n nsight-operator get nsightoperatorprofileconfigs.nvidia.com \
+  default-profile-config -o jsonpath='{.spec.nsightToolConfigs[0].nsightToolArgs}'
+```
 
 #### Privileged-mode reconciliation (automatic)
 
-Full GB10 hardware GPU trace (~47 CUDA kernel records vs ~7) needs
-`securityContext.privileged: true` on the profiled container. The Nsight injector adds it, but
+CUPTI GPU-side collection on GB10 needs `securityContext.privileged: true` on the profiled
+container (this is orthogonal to the `--trace=cuda-sw` fix above — privileged governs whether
+CUPTI can attach at all; the trace mode governs whether the records survive `nsys stop`. The
+values files keep `privileged: true`; it has not been re-tested as removable under software
+trace, so don't drop it speculatively). The Nsight injector adds it, but
 KFP step pods bake in `allowPrivilegeEscalation: false` + `drop: [ALL]` + `RuntimeDefault`
 (not overridable via the KFP SDK — upstream rejected privileged support), and the `kubeflow`
 namespace enforces PodSecurity `baseline`. **Nsight Operator Deploy** handles both automatically:
@@ -578,6 +615,17 @@ kubectl get pvc nsight-reports -n kubeflow
 `<stage>` is the hyphenated KFP component name (`baseline-eval`, `fine-tune`,
 `post-finetune-eval`, `safety-eval`, `baseline-safety-eval`), or `main` for a single-stage
 pipeline. Existing report history is not reorganised — the convention is forward-only.
+
+**`~/shared/nsight/` has exactly three kinds of top-level entry** and nothing else:
+`<project-name>/` trees (durable per-project history), `systems/`, and `compute/`. A
+throwaway or validation capture — anything not tied to a real project's `runs/<run-id>.md`
+— must land in `systems/` / `compute/` via `--adhoc`, or off the archive entirely via
+`--dest-root <scratch>` (`$NSIGHT_DEST_ROOT`). It must never create a new top-level
+`<name>/` dir. The helper enforces this: a non-adhoc run whose destination falls under
+`~/shared/nsight/` is **refused** unless `./runs/<run-id>.md` exists in `$PWD` (i.e. it is
+being driven from the project repo). An already-existing dir left by a past mistake is not
+a free pass — it does not satisfy the check. Run `/nsight-export` and `/kfp-monitor` only
+from a real project repo; for a one-off test app, use `/nsight-export … --adhoc`.
 
 ### Retention
 

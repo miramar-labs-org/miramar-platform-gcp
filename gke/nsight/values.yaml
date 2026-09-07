@@ -20,7 +20,7 @@ nsight-tenant-operator:
     enabled: false
 
 nsight-injector:
-  # privileged: required for hardware GPU trace.
+  # privileged: required for CUPTI GPU-side collection (see dgx/k3s/nsight/values.yaml).
   privileged: true
 
   nsightToolConfig:
@@ -28,13 +28,21 @@ nsight-injector:
     injectionIncludePatterns:
       - ".*python3.*"
     # Core profiling flags.
-    # NOTE: In process hook injection mode, COLLECT_CUDA_TRACE=false is expected —
-    # it means nsys uses hardware trace (not software CUPTI) for GPU-side kernel
-    # records. The hardware trace captures a single ~1.89s snapshot at CUDA init time.
-    # CPU-side CUDA API trace (CUPTI_ACTIVITY_KIND_RUNTIME) and NVTX events are
-    # captured continuously for the full collection window.
+    #
+    # --trace=cuda-sw (NOT cuda) is load-bearing — see the long note in
+    # dgx/k3s/nsight/values.yaml. Short version: on a CUDA >= 13.0 driver
+    # `--trace=cuda` selects nsys's hardware CUDA trace, which only reconciles
+    # GPU-side kernel timestamps at process teardown. The operator always stops
+    # collection while the profiled process is still running, so every GPU record
+    # is dropped as "incomplete" and the report comes back with no
+    # CUPTI_ACTIVITY_KIND_KERNEL table. --trace=cuda-sw uses software CUPTI and
+    # survives a mid-process stop (measured on DGX/GB10: 0 -> 8624 kernel records
+    # over an identical 90s window, ~3.5% overhead).
+    #
+    # Trade-off: --cuda-graph-trace=node granularity requires hardware trace and
+    # is unavailable under cuda-sw.
     nsightToolArgs: >-
-      --trace=cuda,nvtx,cublas,cudnn
+      --trace=cuda-sw,nvtx,cublas,cudnn
       --sample=none
       --cuda-flush-interval=100
       --force-overwrite=true

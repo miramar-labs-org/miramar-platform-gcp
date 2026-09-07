@@ -214,6 +214,14 @@ is reached at `http://localhost:13001/api/v1/` on the DGX host (forwarded by
 `fine-tune`), or pass a `--profile-<stage>` flag to `/kfp-deploy` (which patches the block
 and regenerates `pipeline.py`). `collection_window_s` bounds the `nsys` collection.
 
+> **The collect must land while the stage is actually on the GPU — trigger time is not
+> critical.** Fire the collect any time the stage is doing GPU work; a collect fired 60s into a
+> saturated stage returns full kernel data. What *is* load-bearing is that the operator collects
+> with `--trace=cuda-sw`: under `--trace=cuda` (nsys hardware trace) GPU-side records are only
+> reconciled at process teardown, so the operator's mid-process `nsys stop` drops every one of
+> them and the report comes back with no kernel table. See `docs/dgx.md` "The operator must
+> collect with `--trace=cuda-sw`, not `--trace=cuda`".
+
 Full profiling arc:
 
 ```bash
@@ -223,11 +231,17 @@ Full profiling arc:
                                              # /nsight-interpret on the archived report
 ```
 
-If the GPU-hot window is missed, run the export by hand while the stage is still busy:
+If `/kfp-monitor` did not fire the export, a hand-run collection works fine as long as the stage
+is still running and on the GPU — how far into the stage it lands does not matter. If the stage
+is nearly done, pull whatever the operator already captured with `--no-collect --report-id
+<uuid>` instead:
 
 ```bash
-/nsight-export <project> run-032 baseline-eval [--duration 120]
+/nsight-export <project> run-032 baseline-eval
 ```
+
+If the stage has already finished, don't re-collect — pull the report the operator already
+wrote: `/nsight-export <project> run-032 baseline-eval --no-collect --report-id <uuid>`.
 
 ### `/nsight-export <project> <run-NNN> <stage> [--duration N] [--tool systems|compute] [--adhoc]`
 
@@ -238,7 +252,9 @@ and auto-chains `/nsight-interpret`.**
 # Standard: derive KFP/MLflow linkage from runs/<run-NNN>.md, drive a fresh collection
 /nsight-export my-project run-032 baseline-eval
 
-# Wider collection window (default 90s from config.yaml)
+# Longer collection window (default 90s from config.yaml) — widens the slice of GPU work
+# captured. The collect just has to overlap the stage's GPU activity; where in the stage it
+# lands does not matter.
 /nsight-export my-project run-032 fine-tune --duration 180
 
 # Ad-hoc capture (no KFP run) — lands under ~/shared/nsight/systems/<project>-<date>/
