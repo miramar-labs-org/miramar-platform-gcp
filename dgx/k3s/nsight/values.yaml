@@ -9,11 +9,30 @@
 # Migrate to the new schema if/when NVIDIA drops the shim.
 
 nsight-injector:
-  # privileged: required for CUPTI GPU-side collection on GB10. Orthogonal to the trace-mode
-  # note below — privileged governs whether CUPTI can attach at all; --trace governs whether
-  # its records survive the operator's mid-process `nsys stop`. Not re-tested as removable
-  # under software trace, so leave it on.
-  privileged: true
+  # privileged: NOT required on this host. Under software CUPTI trace
+  # (--trace=cuda-sw, below) the profiled container collects GPU-side kernel
+  # records with no capabilities at all. What actually authorises CUPTI here is
+  # the host driver setting `RmProfilingAdminOnly: 0` (/proc/driver/nvidia/params),
+  # not the container's privilege level.
+  #
+  # Measured on the DGX, two arms, single variable = securityContext:
+  #   standalone pods, nsys 2026.3.1.157, mid-process stop at 45s
+  #     privileged:true + seccomp Unconfined                    -> 3926 kernels
+  #     privileged:false + drop:[ALL] + RuntimeDefault          -> 4310 kernels
+  #       (CapEff=0000000000000000, /dev/nvidia-caps empty)
+  #   real operator path, KFP stage, collect fired 60s in, 90s window
+  #     privileged:true  (injector default)                     -> 7992 kernels
+  #     privileged:false (this setting)                         -> 8539 kernels
+  #
+  # Keeping this false lets KFP step pods retain their own hardening
+  # (allowPrivilegeEscalation:false, capabilities.drop:[ALL], RuntimeDefault),
+  # which in turn makes nsight-ape-webhook a no-op — it only patches containers
+  # the injector already marked privileged.
+  #
+  # This result is host-specific: it depends on RmProfilingAdminOnly=0. Do not
+  # copy it to a cluster whose driver has not been checked (gke/nsight/values.yaml
+  # is deliberately left privileged: true for that reason).
+  privileged: false
 
   nsightToolConfig:
     # Match python3 processes (KFP component scripts)

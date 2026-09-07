@@ -1,0 +1,39 @@
+# Nsight Operator Helm values — AGX Orin
+#
+# Identical to dgx/k3s/nsight/values.yaml except for `privileged`. Keep the two
+# in sync when changing anything else (notably nsightToolArgs).
+#
+# Chart 26.3.x replaced the flat nsight-injector.nsightToolConfig block with
+# nsightToolConfigs[] + injectionRules[]. The chart still ships a legacy shim
+# (charts/nsight-injector/templates/default-injection-config.yaml) that maps the
+# keys below into the new NsightOperatorProfileConfig CR, so this file is kept in
+# the old shape. Migrate to the new schema if/when NVIDIA drops the shim.
+
+nsight-injector:
+  # privileged: REQUIRED on AGX. Unlike the DGX, this host's driver has
+  #   RmProfilingAdminOnly: 1   (/proc/driver/nvidia/params)
+  # so CUPTI will not attach for GPU-side collection without elevated privilege.
+  # The DGX runs RmProfilingAdminOnly: 0 and therefore sets privileged: false —
+  # do NOT copy that setting here without first re-checking this host's driver.
+  #
+  # Because this stays true, the nsight-ape-webhook is still load-bearing on AGX:
+  # it reconciles the injector's privileged:true with KFP's baked-in
+  # allowPrivilegeEscalation:false + drop:[ALL] + RuntimeDefault.
+  privileged: true
+
+  nsightToolConfig:
+    # Match python3 processes (KFP component scripts)
+    injectionIncludePatterns:
+      - ".*python3.*"
+    # --trace=cuda-sw (NOT cuda) is load-bearing — see the long note in
+    # dgx/k3s/nsight/values.yaml. Short version: on a CUDA >= 13.0 driver
+    # `--trace=cuda` selects nsys's hardware CUDA trace, which only reconciles
+    # GPU-side kernel timestamps at process teardown. The operator always stops
+    # collection while the profiled process is still running, so every GPU record
+    # is dropped as "incomplete" and the report comes back with no
+    # CUPTI_ACTIVITY_KIND_KERNEL table.
+    nsightToolArgs: >-
+      --trace=cuda-sw,nvtx,cublas,cudnn
+      --sample=none
+      --cuda-flush-interval=100
+      --force-overwrite=true
