@@ -11,6 +11,18 @@ name: Nsight Operator Deploy
 # kubeflow namespace with nvidia-nsight-profile=enabled so the injector can
 # target KFP pods.
 #
+# Privileged-mode workarounds are gated on nsight-injector.privileged, read from
+# the per-host values file. Whether elevation is needed is a property of the HOST
+# DRIVER (RmProfilingAdminOnly), not of the trace mode:
+#
+#   dgx  RmProfilingAdminOnly: 0  privileged: false  -> webhook + PSA relax skipped
+#   agx  RmProfilingAdminOnly: 1  privileged: true   -> webhook + PSA relax applied
+#
+# On a privileged:false host the injector's added containers carry no securityContext
+# at all, so PSA 'baseline' admits them and the APE webhook has nothing to reconcile.
+# A host that flips from true to false is converged by "Remove privileged-only
+# workarounds", which tears both back down.
+#
 # Prerequisites:
 #   - k3s running on the target machine (K3s Install workflow)
 #   - nsight-portfwd.service installed on the host (dgx/systemd/install.sh)
@@ -41,12 +53,12 @@ on:
         default: false
         required: false
       relax_kubeflow_psa:
-        description: "Relax the kubeflow namespace PodSecurity 'enforce' from baseline to privileged while the operator is deployed (restored on undeploy). Required for GB10 hardware GPU trace on KFP step pods — PSA baseline forbids privileged:true. warn:restricted is left in place."
+        description: "Permit relaxing the kubeflow namespace PodSecurity 'enforce' from baseline to privileged (restored on undeploy). Only consulted on hosts whose values file sets nsight-injector.privileged=true (AGX: RmProfilingAdminOnly=1) — PSA baseline forbids privileged:true. Ignored where privileged=false (DGX), which needs no relax. warn:restricted is left in place."
         type: boolean
         default: true
         required: false
       ape_webhook_tag:
-        description: "Image tag for the nsight-ape-webhook admission webhook (reconciles the injector's privileged:true with PSS-hardened KFP step pods)."
+        description: "Image tag for the nsight-ape-webhook admission webhook (reconciles the injector's privileged:true with PSS-hardened KFP step pods). Only deployed where nsight-injector.privileged=true."
         default: "latest"
         required: false
 
@@ -117,6 +129,68 @@ jobs:
               type: DirectoryOrCreate
           EOF
 
+      - name: Resolve injector privilege mode
+        # Single source of truth for everything downstream that depends on whether
+        # the injector runs privileged: the per-host values file. Whether elevation
+        # is needed at all is decided by the HOST DRIVER, not by the trace mode:
+        #
+        #   RmProfilingAdminOnly: 0  (DGX)  -> CUPTI attaches unprivileged
+        #   RmProfilingAdminOnly: 1  (AGX)  -> CUPTI needs elevation
+        #
+        # When privileged is false there is nothing for the APE webhook to reconcile
+        # (it only rewrites containers already marked privileged) and nothing for PSA
+        # 'baseline' to reject, so both are skipped — and any leftovers from a
+        # previous privileged deploy are removed further down.
+        run: |
+          VALUES="dgx/k3s/nsight/values.yaml"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            VALUES="agx/k3s/nsight/values.yaml"
+          fi
+          PRIV=$(python3 -c "
+          import sys, yaml
+          v = yaml.safe_load(open('$VALUES', 'rb').read()) or {}
+          print(str(v.get('nsight-injector', {}).get('privileged', False)).lower())
+          ")
+          case "$PRIV" in
+            true|false) ;;
+            *) echo "ERROR: could not read nsight-injector.privileged from $VALUES (got '${PRIV}')" >&2; exit 1 ;;
+          esac
+          echo "NSIGHT_VALUES=$VALUES"        >> "$GITHUB_ENV"
+          echo "INJECTOR_PRIVILEGED=$PRIV"    >> "$GITHUB_ENV"
+          echo "Values file: $VALUES"
+          echo "nsight-injector.privileged: $PRIV"
+
+      - name: Preflight — driver vs privilege mode
+        # Guards the one failure this gating can introduce, and the one it inherits:
+        # a host that REQUIRES elevation running with privileged:false. That fails
+        # silently — collection runs, the coordinator reports success, the report is
+        # exported and verified, and it simply contains no GPU records. Catch it here
+        # instead of three steps into an interpretation session.
+        run: |
+          ADMIN_ONLY=$(ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+            "${HOST_USER}@${HOST_IP}" \
+            "awk '/RmProfilingAdminOnly/ {print \$2}' /proc/driver/nvidia/params" 2>/dev/null || echo "")
+
+          if [[ -z "$ADMIN_ONLY" ]]; then
+            echo "WARNING: could not read RmProfilingAdminOnly from the host driver — skipping the check."
+            exit 0
+          fi
+          echo "host RmProfilingAdminOnly: $ADMIN_ONLY | values privileged: ${INJECTOR_PRIVILEGED}"
+
+          if [[ "$ADMIN_ONLY" == "1" && "${INJECTOR_PRIVILEGED}" == "false" ]]; then
+            echo "ERROR: ${{ inputs.runner }} reports RmProfilingAdminOnly: 1, so CUPTI cannot" >&2
+            echo "       attach without elevation, but ${NSIGHT_VALUES} sets privileged: false." >&2
+            echo "       Profiling would appear to succeed and produce reports with no GPU" >&2
+            echo "       records. Set privileged: true in that file, or clear the driver flag." >&2
+            exit 1
+          fi
+
+          if [[ "$ADMIN_ONLY" == "0" && "${INJECTOR_PRIVILEGED}" == "true" ]]; then
+            echo "NOTE: this host allows unprivileged profiling (RmProfilingAdminOnly: 0) but"
+            echo "      ${NSIGHT_VALUES} still sets privileged: true. That works, but it"
+            echo "      needs the APE webhook and the kubeflow PSA relax to do so."
+          fi
+
       - name: Add NGC Helm repo
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
@@ -158,18 +232,15 @@ jobs:
         # Values are per-host: the injector's securityContext.privileged depends on
         # the host driver's RmProfilingAdminOnly. DGX runs 0 (non-admin profiling
         # allowed) and sets privileged:false; AGX runs 1 and must stay privileged.
+        # NSIGHT_VALUES is resolved once by "Resolve injector privilege mode".
         run: |
-          VALUES="dgx/k3s/nsight/values.yaml"
-          if [[ "${{ inputs.runner }}" == "agx" ]]; then
-            VALUES="agx/k3s/nsight/values.yaml"
-          fi
-          echo "Using values: $VALUES"
+          echo "Using values: ${NSIGHT_VALUES}"
           helm upgrade --install \
             --wait \
             --namespace nsight-operator \
             --create-namespace \
             --version "${{ inputs.chart_version }}" \
-            -f "$VALUES" \
+            -f "${NSIGHT_VALUES}" \
             --timeout 10m \
             nsight-operator \
             nvidia-devtools/nsight-operator
@@ -189,12 +260,17 @@ jobs:
           kubectl rollout status deploy/nsight-injector -n nsight-operator --timeout=180s
 
       - name: Deploy APE fixup webhook
-        # The Nsight injector stamps securityContext.privileged=true on every
-        # container of a labelled pod (required for GB10 hardware GPU trace). KFP
-        # bakes allowPrivilegeEscalation=false + drop:[ALL] + RuntimeDefault into
-        # its step containers, and the apiserver rejects privileged+APE:false. This
-        # tiny mutating webhook (reinvocationPolicy: IfNeeded) reconciles the two
-        # on pods carrying nvidia-nsight-profile=enabled. See nsight-ape-webhook/.
+        if: ${{ env.INJECTOR_PRIVILEGED == 'true' }}
+        # Only needed when the injector runs privileged. It stamps
+        # securityContext.privileged=true on every container of a labelled pod; KFP
+        # bakes allowPrivilegeEscalation=false + drop:[ALL] + RuntimeDefault into its
+        # step containers, and the apiserver rejects privileged+APE:false. This tiny
+        # mutating webhook (reinvocationPolicy: IfNeeded) reconciles the two on pods
+        # carrying nvidia-nsight-profile=enabled. See nsight-ape-webhook/.
+        #
+        # With privileged:false the webhook is a no-op by construction — buildPatch()
+        # returns early for any container not already marked privileged — so it is
+        # skipped rather than deployed inert.
         env:
           MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
           WEBHOOK_TAG: ${{ inputs.ape_webhook_tag }}
@@ -211,18 +287,59 @@ jobs:
           kubectl rollout status deploy/nsight-ape-webhook -n nsight-operator --timeout=120s
 
       - name: Relax kubeflow PodSecurity enforcement
-        if: ${{ inputs.relax_kubeflow_psa }}
+        if: ${{ inputs.relax_kubeflow_psa && env.INJECTOR_PRIVILEGED == 'true' }}
         # PSA 'baseline' on the kubeflow namespace (set by upstream KFP kustomize)
-        # forbids privileged:true, so it blocks GB10 hardware GPU trace on KFP step
-        # pods even after the APE webhook resolves the apiserver conflict. Relax
-        # 'enforce' to 'privileged' for the duration; undeploy restores 'baseline'.
-        # 'warn: restricted' is kept so non-profiling manifests still get warnings.
+        # forbids privileged:true, so on a host that must run the injector privileged
+        # it blocks profiling of KFP step pods even after the APE webhook resolves the
+        # apiserver conflict. Relax 'enforce' to 'privileged' for the duration;
+        # undeploy restores 'baseline'. 'warn: restricted' is kept so non-profiling
+        # manifests still get warnings.
+        #
+        # Skipped entirely when privileged is false: the injector's added containers
+        # then carry no securityContext at all, which 'baseline' admits. The input
+        # remains a permission, not a command — it can still be declined on a host
+        # that does need the relax.
         run: |
           if kubectl get namespace kubeflow >/dev/null 2>&1; then
             kubectl label namespace kubeflow \
               pod-security.kubernetes.io/enforce=privileged --overwrite
           else
             echo "kubeflow namespace not present — skipping PSA relax"
+          fi
+
+      - name: Remove privileged-only workarounds
+        if: ${{ env.INJECTOR_PRIVILEGED != 'true' }}
+        # Converge a host that used to run privileged. Without this, flipping a values
+        # file to privileged:false would leave the webhook Running and the kubeflow
+        # namespace at enforce=privileged indefinitely — the deploy would simply stop
+        # touching them, and the cluster would keep a permanently relaxed namespace
+        # plus an admission webhook in every profiled pod's create path for no reason.
+        #
+        # Mirrors what Nsight Operator Undeploy does, so the two stay symmetric.
+        run: |
+          echo "--- removing the APE webhook (nothing privileged to reconcile) ---"
+          # Delete the MutatingWebhookConfiguration FIRST: while it exists with
+          # failurePolicy Ignore it is harmless, but removing the backing Deployment
+          # first would leave a window with a registered webhook and no endpoint.
+          kubectl delete mutatingwebhookconfiguration nsight-ape-webhook --ignore-not-found
+          kubectl delete clusterrolebinding nsight-ape-webhook --ignore-not-found
+          kubectl delete clusterrole nsight-ape-webhook --ignore-not-found
+          kubectl delete deploy,svc,serviceaccount -n nsight-operator \
+            -l app=nsight-ape-webhook --ignore-not-found
+
+          echo "--- restoring kubeflow PSA enforce=baseline ---"
+          if kubectl get namespace kubeflow >/dev/null 2>&1; then
+            current=$(kubectl get namespace kubeflow \
+              -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')
+            if [[ "$current" == "privileged" ]]; then
+              kubectl label namespace kubeflow \
+                pod-security.kubernetes.io/enforce=baseline --overwrite
+              echo "restored enforce: privileged -> baseline"
+            else
+              echo "enforce already '${current:-unset}' — left alone"
+            fi
+          else
+            echo "kubeflow namespace not present — nothing to restore"
           fi
 
       - name: Label kubeflow namespace
@@ -269,6 +386,11 @@ jobs:
           KF_LABEL=$(kubectl get namespace kubeflow --show-labels 2>/dev/null | grep -o 'nvidia-nsight-profile=enabled' || echo 'not labeled')
           KF_PSA=$(kubectl get namespace kubeflow -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}' 2>/dev/null || echo 'n/a')
           APE_WEBHOOK=$(kubectl get deploy nsight-ape-webhook -n nsight-operator -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+          if [[ "${INJECTOR_PRIVILEGED:-}" == "true" ]]; then
+            PRIV_NOTE="privileged — APE webhook + PSA relax active"
+          else
+            PRIV_NOTE="unprivileged — APE webhook + PSA relax not needed"
+          fi
           {
             echo "## Nsight Operator Deployed"
             echo "| | |"
@@ -277,6 +399,7 @@ jobs:
             echo "| Chart version | \`${{ inputs.chart_version }}\` |"
             echo "| Namespace | \`nsight-operator\` |"
             echo "| Pods | \`${POD_COUNT}\` |"
+            echo "| Injector mode | \`${INJECTOR_PRIVILEGED:-unknown}\` — ${PRIV_NOTE} |"
             echo "| APE fixup webhook ready | \`${APE_WEBHOOK:-0}\` |"
             echo "| kubeflow enforce PSA | \`${KF_PSA:-n/a}\` |"
             echo "| kubeflow label | \`${KF_LABEL}\` |"

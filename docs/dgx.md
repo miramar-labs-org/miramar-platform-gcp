@@ -506,10 +506,33 @@ namespace enforces PodSecurity `baseline`. **Nsight Operator Deploy** handles bo
 **Nsight Operator Undeploy** removes the webhook (cluster-scoped) and restores `enforce=baseline`.
 No pipeline-code change is needed beyond the pod label.
 
-On the DGX (`privileged: false`) both mechanisms are inert: the webhook only patches containers
-the injector marked `privileged`, so it logs nothing, and the profiled pod satisfies PodSecurity
-`baseline` on its own. They are still deployed because the same workflow serves AGX, where they
-remain load-bearing.
+### Both are gated on `nsight-injector.privileged`
+
+Neither mechanism is deployed on a host that does not need it. **Nsight Operator Deploy** reads
+`nsight-injector.privileged` from the per-host values file and branches on it:
+
+| Host | `RmProfilingAdminOnly` | `privileged` | APE webhook + PSA relax |
+|---|---|---|---|
+| DGX | `0` | `false` | skipped |
+| AGX | `1` | `true`  | applied |
+
+On the DGX both would be inert anyway — the webhook only patches containers the injector marked
+`privileged`, and the injector's added containers carry no `securityContext` at all, so PSA
+`baseline` admits them unchanged. Verified by probing a labelled pod in the `kubeflow` namespace:
+three init containers with `securityContext: null`, the workload container's
+`allowPrivilegeEscalation: false` + `drop: [ALL]` + `RuntimeDefault` untouched, and no webhook
+patch logged. So rather than deploy them inert, the workflow skips them — and a host that flips
+from `true` to `false` is converged by the **Remove privileged-only workarounds** step, which
+deletes the webhook (Deployment, Service, ServiceAccount, MWC, ClusterRole/Binding) and restores
+`enforce=baseline`.
+
+`relax_kubeflow_psa` remains a permission rather than a command: it is only consulted where
+`privileged` is `true`, and can still be declined there.
+
+A **preflight** hard-fails the deploy when the host reports `RmProfilingAdminOnly: 1` while the
+values file says `privileged: false`. That combination fails silently otherwise — collection
+runs, the coordinator reports success, the report exports and verifies, and it simply contains no
+GPU records.
 
 ---
 

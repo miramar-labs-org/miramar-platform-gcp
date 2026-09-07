@@ -139,7 +139,7 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | GKE Gateway Undeploy         | `undeploy-gke-gateway.yaml`         | Remove Gateway + HTTPRoute; stops LB billing; clears `GKE_GATEWAY_ACTIVE` + `GKE_GATEWAY_URL`; called automatically by GKE serving undeploy |
 | Open WebUI Deploy            | `deploy-openwebui.yaml`             | Deploy Open WebUI on DGX/AGX/GKE; wires active serving backend      |
 | Open WebUI Undeploy          | `undeploy-openwebui.yaml`           | Remove Open WebUI; stops portfwd; clears `{MACHINE}_OPENWEBUI_ACTIVE` |
-| Nsight Operator Deploy       | `deploy-nsight-operator.yaml`       | Install Nsight Operator via Helm; deploy `nsight-ape-webhook` + relax kubeflow PSA `enforce`→`privileged` (`relax_kubeflow_psa`); sets `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
+| Nsight Operator Deploy       | `deploy-nsight-operator.yaml`       | Install Nsight Operator via Helm; deploy `nsight-ape-webhook` + relax kubeflow PSA `enforce`→`privileged` (`relax_kubeflow_psa`) **only where `nsight-injector.privileged=true`** (AGX); skipped and torn down where `false` (DGX); sets `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
 | Nsight Operator Undeploy     | `undeploy-nsight-operator.yaml`     | Helm uninstall Nsight Operator; delete `nsight-ape-webhook` (cluster-scoped MWC); restore kubeflow PSA `enforce`→`baseline`; clears `{MACHINE}_NSIGHT_OPERATOR_ACTIVE` |
 | Nsight Operator Deploy GKE   | `deploy-nsight-operator-gke.yaml`   | Install Nsight Operator on GKE; dynamic PVC; wsl2 runner             |
 | Nsight Operator Undeploy GKE | `undeploy-nsight-operator-gke.yaml` | Helm uninstall Nsight Operator from GKE; clears `GKE_NSIGHT_OPERATOR_ACTIVE` |
