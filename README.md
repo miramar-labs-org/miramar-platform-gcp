@@ -193,7 +193,7 @@ with LLM-assisted interpretation — no manual `.nsys-rep` inspection required.
 /nsight-interpret run-NNN
 ```
 
-Full details: [docs/kfp-skills.md — Nsight Profiling in KFP](docs/kfp-skills.md#nsight-profiling-in-kfp) · [docs/dgx.md — GPU Profiling](docs/dgx.md#gpu-profiling)
+Full details: **[docs/nsight.md — GPU Profiling Manual](docs/nsight.md)** · [docs/kfp-skills.md — Nsight Profiling in KFP](docs/kfp-skills.md#nsight-profiling-in-kfp) · [docs/dgx.md — GPU Profiling](docs/dgx.md#gpu-profiling)
 
 ---
 
@@ -289,7 +289,7 @@ Detailed operational procedures live in focused docs:
 | GCP bootstrap, Terraform, WIF, and state storage | [docs/gcp.md](docs/gcp.md)                                                                                 |
 | Workflow catalog                                 | [docs/workflows.md](docs/workflows.md)                                                                     |
 | DGX local AI stack                               | [docs/dgx.md](docs/dgx.md), [dgx/README.md](dgx/README.md)                                                 |
-| GPU profiling + AI analysis                      | [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp), [docs/dgx.md](docs/dgx.md#gpu-profiling) |
+| GPU profiling + AI analysis                      | **[docs/nsight.md](docs/nsight.md)**, [docs/kfp-skills.md](docs/kfp-skills.md#nsight-profiling-in-kfp), [docs/dgx.md](docs/dgx.md#gpu-profiling) |
 | Model serving (vLLM on GKE)                      | [docs/workflows.md](docs/workflows.md#model-serving-serving--projects)                             |
 | WSL2 environments                                | [wsl2/README.md](wsl2/README.md), [wsl2/TECHNICAL.md](wsl2/TECHNICAL.md)                                   |
 | SSH topology                                     | [docs/ssh-runbook.md](docs/ssh-runbook.md)                                                                 |

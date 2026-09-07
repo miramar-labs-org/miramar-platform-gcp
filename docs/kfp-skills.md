@@ -344,7 +344,8 @@ be readable from the current machine (not inside a pod).
   `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` onto the flagged stage.
   Reports are pulled out of the operator's MinIO into `~/shared/nsight/` by `/nsight-export`
   (driven automatically by `/kfp-monitor`, or run by hand). See
-  [dgx.md § GPU Profiling](dgx.md#gpu-profiling) for the full picture.
+  **[nsight.md](nsight.md)** for the full picture — quickstart, both tools, every flag, profiling
+  scenarios, and troubleshooting.
 
 > **Warning:** Do NOT label the `kubeflow` namespace with `nvidia-nsight-profile=enabled` — it
 > injects nsys into ALL pods including KFP's DAG driver pods, which fail with `runAsNonRoot`.

@@ -348,327 +348,48 @@ Available DGX Spark NIMs: [NVIDIA NIM supported models](https://docs.nvidia.com/
 
 ## GPU Profiling
 
-KFP pipeline projects profile GPU stages using the **NVIDIA Nsight Operator**, which injects
-`nsys` tooling at pod creation time via a Kubernetes mutating webhook. No specialised Docker
-images or embedded `nsys` wrappers are needed — profiling is controlled entirely by pod labels.
+> **Full documentation: [nsight.md](nsight.md)** — quickstart, both tools, all flags, scenarios,
+> troubleshooting, and links to the official NVIDIA docs. This section covers only the
+> DGX-operational parts.
 
-Deploy the operator via the **Nsight Operator Deploy** workflow in miramar-platform-gcp, then add
-`kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to any KFP stage you want
-profiled (the ft-eval / kfp templates drive this from a `profiling:` block in `config.yaml` —
-see the project README).
+KFP pipeline stages are profiled with the **NVIDIA Nsight Operator**, which injects `nsys` at pod
+creation time via a mutating webhook. No specialised images and no `nsys` wrappers — profiling is
+controlled entirely by pod labels. Deploy it with the **Nsight Operator Deploy** workflow, then
+add `kubernetes.add_pod_label(task, "nvidia-nsight-profile", "enabled")` to any stage you want
+profiled (the ft-eval / kfp templates drive this from a `profiling:` block in `config.yaml`).
 
-**Where reports live.** The operator writes every `.nsys-rep` **only to its own internal
-object store** — a MinIO instance in the `nsight-operator` namespace (bucket `nsight-reports`).
-Nothing lands on the host filesystem automatically. The durable, human-facing archive at
-`~/shared/nsight/<project>/<run-id>/<stage>/` is populated by **`~/bin/nsight-export-report`**
-(usually via the **`/nsight-export`** skill, which also auto-runs `/nsight-interpret`), which
-drives an Nsight Operator *coordinator session*, pulls the finished report out of MinIO, verifies
-it, and writes a `profile.json` sidecar.
+Host-side **Nsight Compute** (`ncu`) is a separate, operator-free path — see
+[nsight.md § The two tools](nsight.md#the-two-tools) for why they cannot be interchanged.
 
-The helper's implementation lives in the repo at **`scripts/nsight/export-report.sh`**;
-`~/bin/nsight-export-report` is a symlink to it, so every caller and doc keeps using the
-`~/bin/...` path unchanged.
-
-**Systems vs Compute.** `--tool systems` (default) is the KFP-integrated path above — the
-operator injects `nsys` into the stage pod and the coordinator drives collection out of band.
-`--tool compute` is **host-only and ad-hoc**: it runs `ncu`
-(`/opt/nvidia/nsight-compute/2026.2.1/ncu`, `RmProfilingAdminOnly=0` so no sudo) directly on the
-DGX as the parent process of the workload, replaying kernels — it cannot attach to a live KFP
-pod, touches no operator/coordinator/MinIO, and writes a verified `profile.ncu-rep`.
-
-> **MinIO is the operator's internal report storage. `~/shared/nsight` is the durable
-> profiling archive** that `/nsight-interpret`, the desktop GUI, and the template READMEs
-> all expect.
-
-The coordinator REST API is reached at `http://localhost:13001/api/v1/` on the DGX host —
-`nsight-portfwd.service` forwards it (alongside `:8889`, which serves the web UI / SPA only,
-**not** the REST API).
-
-### Collecting a profile
-
-**Via a KFP run (normal path).** Set the stage's flag in the project `config.yaml`
-`profiling:` block, `/kfp-deploy`, then `/kfp-monitor` — when the profiled stage's pod goes
-`Running`, `/kfp-monitor` kicks off `nsight-export-report` in the background so collection
-happens while the stage is hot on GPU. When the run reaches a terminal state it reports the
-export path and the `/nsight-interpret` analysis file.
-
-**Manually, while a stage is hot:**
+**Smoke test.** `scripts/nsight/gpu-bench.py` is the committed workload for both paths:
 
 ```bash
-/nsight-export <project> <run-NNN> <stage> [--duration 90]
-# or directly:
-~/bin/nsight-export-report --project <project> --run-id run-NNN --stage <stage> --duration 90
+python3 scripts/nsight/gpu-bench.py --submit          # in-cluster, for Nsight Systems
+~/bin/nsight-export-report --project gpu-bench --run-id run-001 --stage main \
+  --duration 90 --adhoc                               # capture it
+~/bin/nsight-export-report --project gpu-bench --run-id run-001 --stage main \
+  --adhoc --tool compute                              # host ncu, no cluster involved
 ```
 
-**Ad-hoc (no KFP run)** — a report already sitting in MinIO, or a one-off capture:
+**Where reports live.** The operator writes every `.nsys-rep` **only to its own MinIO** (namespace
+`nsight-operator`, bucket `nsight-reports`). Nothing lands on the host automatically. The durable
+archive at `~/shared/nsight/` is populated by **`~/bin/nsight-export-report`** — a symlink to
+`scripts/nsight/export-report.sh` — usually via the **`/nsight-export`** skill, which also
+auto-runs `/nsight-interpret`.
 
-```bash
-# Systems: export a report already in MinIO
-~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main \
-  --no-collect --report-id <minio-report-uuid>
-# Systems: drive a fresh operator collection, land it ad-hoc
-~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main --adhoc
-# Compute: run host `ncu` against the bundled GPU smoke bench (or `-- <your cmd>`)
-~/bin/nsight-export-report --project <slug> --run-id run-000 --stage main --adhoc \
-  --tool compute --ncu-set basic --launch-count 20
-# --adhoc lands under ~/shared/nsight/{systems,compute}/<slug>-<UTC-timestamp>/ instead of
-# project/run/stage. Non-adhoc compute re-captures of the same stage overwrite in place, same
-# as systems. --no-collect / --report-id are systems-only.
-```
+The coordinator REST API is at `http://localhost:13001/api/v1/` (`nsight-portfwd.service`);
+`:8889` serves the web UI only. Do not `pkill -f port-forward` — it would also kill the KFP,
+MLflow, and Postgres forwards.
 
-**Keeping throwaway captures out of the archive.** Every path above writes under
-`~/shared/nsight/` (the durable archive). For validation runs, one-off experiments, or
-anything you do not want kept, pass `--dest-root <dir>` (or set `$NSIGHT_DEST_ROOT`) to
-redirect the whole `{<project>/<run>/<stage>, systems/…, compute/…}` tree elsewhere — e.g. a
-scratch dir. The helper otherwise has no non-archive output mode.
+**Two settings that fail silently if changed.** Both are documented in full in
+[nsight.md](nsight.md), noted here so a DGX-side edit does not undo them:
 
-`nsight-export-report` fails loudly (non-zero exit) if the coordinator is unreachable, the
-`default` service tag is held by another session, or the retrieved report shows no GPU
-kernel activity — it never reports success when a usable report was not archived. The
-`--tool compute` path applies the same rule: it verifies the `.ncu-rep` with an `ncu -i`
-readback and fails if no kernels were profiled.
+- the operator must collect with `--trace=cuda-sw`, not `--trace=cuda`
+  ([why](nsight.md#--tracecuda-sw-is-load-bearing));
+- `nsight-injector.privileged` must match the host's `RmProfilingAdminOnly` — `false` on DGX
+  (`0`), `true` on AGX (`1`) ([why](nsight.md#privileged-mode-is-decided-by-the-host-driver)).
 
-**The operator must collect with `--trace=cuda-sw`, not `--trace=cuda`.** This is the single
-setting that decides whether a KFP capture comes back with GPU kernels at all, and it is
-already set in `dgx/k3s/nsight/values.yaml` — the note is here so a future edit does not
-silently undo it.
-
-On a CUDA ≥ 13.0 driver `--trace=cuda` selects nsys's **hardware** CUDA trace, which reconciles
-GPU-side kernel timestamps to the host only at process teardown. The operator always runs a
-**time-boxed** collection — `nsys start`, wait `duration`, `nsys stop` — while the profiled
-stage keeps running, so at stop every GPU-side record is still unreconciled and is discarded
-("Number of incomplete CUPTI events dropped: N"). The `.nsys-rep` comes back with a complete
-CPU-side CUDA API trace, NVTX ranges, and **no `CUPTI_ACTIVITY_KIND_KERNEL` table at all**, and
-the helper's verify fails it. `--trace=cuda-sw` selects the software CUPTI path, which survives
-a mid-process stop.
-
-Measured on the DGX with nsys 2026.3.1.157 (the build the operator injects), reproducing the
-operator's invocation shape — `profile --start-later=true`, separate `nsys start`/`nsys stop`,
-target still running at stop — with only the trace value changed:
-
-| Trigger / window | `--trace=cuda` | `--trace=cuda-sw` |
-|---|---|---|
-| t+25 s, 30 s window | 0 kernels (2800 dropped) | 2553 kernels (47 dropped) |
-| t+60 s, 90 s window | 0 kernels (8400 dropped) | 8624 kernels (176 dropped) |
-
-Consequences:
-
-- **Trigger timing is not the variable.** A collect fired 60 s into a saturated stage returns
-  full kernel data under `cuda-sw`. Firing early is still sensible (you get the window you
-  asked for), but a late trigger no longer costs you the kernels, and neither `--delay 0` nor
-  a workload that issues kernels from its first line is required for correctness.
-- **`--cuda-flush-interval` is not a workaround.** It governs only the software path, so it was
-  inert while hardware trace was selected (`CUDA_FLUSH_PERIODICALLY` stayed `false` either way).
-  It is now genuinely in effect at 100 ms.
-- **Cost:** ~3.5 % runtime overhead on a gemm-bound loop. `--cuda-graph-trace=node` granularity
-  and device-side graph launch tracing require hardware trace and are unavailable under
-  `cuda-sw`; nothing on this platform traces CUDA graphs at node granularity.
-
-Check what the live operator is actually collecting with:
-
-```sh
-kubectl -n nsight-operator get nsightoperatorprofileconfigs.nvidia.com \
-  default-profile-config -o jsonpath='{.spec.nsightToolConfigs[0].nsightToolArgs}'
-```
-
-#### Privileged-mode reconciliation (automatic)
-
-Whether the profiled container needs `securityContext.privileged: true` is decided by the
-**host driver**, not by the trace mode. The gate is `RmProfilingAdminOnly` in
-`/proc/driver/nvidia/params`:
-
-| Host | `RmProfilingAdminOnly` | `privileged` | Values file |
-|---|---|---|---|
-| DGX Spark (GB10) | `0` — non-admin profiling allowed | `false` | `dgx/k3s/nsight/values.yaml` |
-| AGX Orin | `1` — profiling is admin-only | `true` | `agx/k3s/nsight/values.yaml` |
-
-**Nsight Operator Deploy** picks the values file from the `runner` input. Measured on the DGX
-through the real operator path (KFP stage, collect fired 60s in, 90s window): `privileged: true`
-→ 7,992 kernel records, `privileged: false` → 8,539. Dropping it there costs nothing and lets KFP
-step pods keep their own hardening. Do not copy `privileged: false` to a host whose driver you
-have not checked — on AGX it would simply fail to attach.
-
-Note that `privileged` is read by the injector **at startup**. `helm upgrade` only rewrites the
-`nsight-injector` ConfigMap, so the deploy workflow explicitly rolls the injector Deployment
-afterwards; without that a values change appears applied but is not.
-
-On a host that does need `privileged` (AGX today), the Nsight injector adds it, but
-KFP step pods bake in `allowPrivilegeEscalation: false` + `drop: [ALL]` + `RuntimeDefault`
-(not overridable via the KFP SDK — upstream rejected privileged support), and the `kubeflow`
-namespace enforces PodSecurity `baseline`. **Nsight Operator Deploy** handles both automatically:
-
-- deploys `nsight-ape-webhook` (`nsight-ape-webhook/` in this repo) — a mutating webhook that,
-  on pods labelled `nvidia-nsight-profile=enabled`, strips `allowPrivilegeEscalation`/all-drop
-  caps/`RuntimeDefault` from containers the injector marked `privileged`;
-- relaxes the `kubeflow` namespace `pod-security.kubernetes.io/enforce` from `baseline` to
-  `privileged` (input `relax_kubeflow_psa`, default `true`; `warn: restricted` is kept).
-
-**Nsight Operator Undeploy** removes the webhook (cluster-scoped) and restores `enforce=baseline`.
-No pipeline-code change is needed beyond the pod label.
-
-### Both are gated on `nsight-injector.privileged`
-
-Neither mechanism is deployed on a host that does not need it. **Nsight Operator Deploy** reads
-`nsight-injector.privileged` from the per-host values file and branches on it:
-
-| Host | `RmProfilingAdminOnly` | `privileged` | APE webhook + PSA relax |
-|---|---|---|---|
-| DGX | `0` | `false` | skipped |
-| AGX | `1` | `true`  | applied |
-
-On the DGX both would be inert anyway — the webhook only patches containers the injector marked
-`privileged`, and the injector's added containers carry no `securityContext` at all, so PSA
-`baseline` admits them unchanged. Verified by probing a labelled pod in the `kubeflow` namespace:
-three init containers with `securityContext: null`, the workload container's
-`allowPrivilegeEscalation: false` + `drop: [ALL]` + `RuntimeDefault` untouched, and no webhook
-patch logged. So rather than deploy them inert, the workflow skips them — and a host that flips
-from `true` to `false` is converged by the **Remove privileged-only workarounds** step, which
-deletes the webhook (Deployment, Service, ServiceAccount, MWC, ClusterRole/Binding) and restores
-`enforce=baseline`.
-
-`relax_kubeflow_psa` remains a permission rather than a command: it is only consulted where
-`privileged` is `true`, and can still be declined there.
-
-A **preflight** hard-fails the deploy when the host reports `RmProfilingAdminOnly: 1` while the
-values file says `privileged: false`. That combination fails silently otherwise — collection
-runs, the coordinator reports success, the report exports and verifies, and it simply contains no
-GPU records.
-
----
-
-### Host prerequisites (one-time per DGX install, survives reboots)
-
-#### 1. Allow non-root CUPTI access
-
-By default, NVIDIA drivers on DGX restrict hardware performance counter access to root.
-KFP pods run as UID 65532 — without this fix, `nsys` silently captures zero CUDA kernels and
-CUPTI returns `CUPTI_ERROR_INVALID_DEVICE`.
-
-```bash
-# Check current state (1 = restricted, 0 = open)
-cat /proc/driver/nvidia/params | grep RmProfilingAdminOnly
-
-# Write the modprobe option
-sudo tee /etc/modprobe.d/nvidia.conf <<'EOF'
-# Allow non-root CUPTI/Nsight profiling (required for KFP pod UID 65532)
-options nvidia NVreg_RestrictProfilingToAdminUsers=0
-EOF
-
-# Reboot to apply (cannot hot-reload while the GPU is active)
-sudo reboot
-```
-
-After reboot, verify:
-
-```bash
-cat /proc/driver/nvidia/params | grep RmProfilingAdminOnly
-# Expected: RmProfilingAdminOnly: 0
-```
-
-This setting persists across reboots via `/etc/modprobe.d/nvidia.conf`. It does not persist across
-driver reinstalls — re-verify after any NVIDIA driver upgrade.
-
-### Infrastructure (one-time per fresh k3s deploy)
-
-> **Removed.** There is no longer any `nsight-reports` PV or PVC, and no k3s storage setup is
-> needed for profiling at all.
->
-> It dated from a removed profiling mechanism (an `nsys`-wrapper entrypoint image that `cp`'d
-> reports into a hostPath). The Nsight Operator replaced that path entirely: it writes to its own
-> MinIO, and `scripts/nsight/export-report.sh` writes the host archive directly. Nothing had
-> mounted the claim since — verified on the DGX 2026-09-07: no pod in any namespace referenced it,
-> and there were zero references in `templates/` or any project repo, only in the workflows that
-> created it.
->
-> Its hostPath was `~/shared/nsight` — the profiling **archive root**, exposed `ReadWriteMany`. Any
-> pod that mounted it would have had read-write access to every captured report. **Kubeflow Deploy**
-> now deletes the PV and PVC instead of creating them; `bootstrap-k3s.yaml` no longer creates them.
->
-> The archive directory itself is unaffected. `scripts/nsight/export-report.sh` `mkdir -p`s its full
-> destination, so `~/shared/nsight/` is created on demand and remains available as a scratch
-> location for ad-hoc host-side `nsys`/`ncu` captures.
-
----
-
-### Output location
-
-```
-~/shared/nsight/
-  <project-name>/
-    <run-id>/
-      baseline-eval/
-        profile.nsys-rep       # Nsight Systems report (pulled from the operator's MinIO)
-        profile.nsys-rep.sha256
-        profile.json           # metadata sidecar (operator session/report ids, sha256,
-                               #   kfp_run_id, mlflow_run, collection window)
-        profile.sqlite         # nsys export (reused by nsys stats / nsys-ui)
-        manifest.json          # the operator's own report manifest
-        summaries.csv          # nsys stats output, consumed by /nsight-interpret
-        nsys_stats.txt
-        analysis-claude.md     # written by the auto-chained /nsight-interpret
-      fine-tune/
-        ...
-  systems/<slug>-<UTC-timestamp>/   # ad-hoc Nsight Systems captures (--adhoc)
-  compute/<slug>-<UTC-timestamp>/   # ad-hoc host-ncu captures (--adhoc --tool compute):
-                                    #   profile.ncu-rep + .sha256, summaries.csv (ncu --page raw),
-                                    #   ncu_details.txt (ncu --page details), profile.json
-                                    #   (tool=nsight-compute, ncu_version, ncu_set, launch_count,
-                                    #    command; operator ids null)
-```
-
-`<stage>` is the hyphenated KFP component name (`baseline-eval`, `fine-tune`,
-`post-finetune-eval`, `safety-eval`, `baseline-safety-eval`), or `main` for a single-stage
-pipeline. Existing report history is not reorganised — the convention is forward-only.
-
-**`~/shared/nsight/` has exactly three kinds of top-level entry** and nothing else:
-`<project-name>/` trees (durable per-project history), `systems/`, and `compute/`. A
-throwaway or validation capture — anything not tied to a real project's `runs/<run-id>.md`
-— must land in `systems/` / `compute/` via `--adhoc`, or off the archive entirely via
-`--dest-root <scratch>` (`$NSIGHT_DEST_ROOT`). It must never create a new top-level
-`<name>/` dir. The helper enforces this: a non-adhoc run whose destination falls under
-`~/shared/nsight/` is **refused** unless `./runs/<run-id>.md` exists in `$PWD` (i.e. it is
-being driven from the project repo). An already-existing dir left by a past mistake is not
-a free pass — it does not satisfy the check. Run `/nsight-export` and `/kfp-monitor` only
-from a real project repo; for a one-off test app, use `/nsight-export … --adhoc`.
-
-### Retention
-
-`nsight-export-report` never deletes the MinIO copy. MinIO `nsight-reports` is the operator's
-working set (retained ~7–30 days); `~/shared/nsight` is the archive, kept indefinitely. MinIO
-objects should only be pruned **after** a verified export exists on disk. A `nsight-retention`
-systemd timer to automate the MinIO prune is a future item.
-
----
-
-### Interpreting reports
-
-`/nsight-export` auto-chains `/nsight-interpret` on the report it just archived. To (re-)run the
-analysis by hand, use the `/nsight-interpret` skill to send `nsys stats` output to an LLM for
-bottleneck analysis:
-
-```bash
-/nsight-interpret <project> run-032       # locate report by project + run name
-/nsight-interpret run-032 --ollama llama3  # use local model instead of Claude
-```
-
-Or open the desktop GUI directly:
-
-```bash
-nsys-ui ~/shared/nsight/<project>/<run-id>/baseline-eval/profile.nsys-rep
-```
-
----
-
-### Troubleshooting
-
-**PVC reads as empty inside a pod**
-
-k3s hostPath PVs are stable across reboots — no mount daemon to restart. If the directory
-appears empty inside a pod, verify the host path exists and has correct permissions:
-
-```bash
-ls -la ~/shared/nsight
-# Expected: drwxrwxrwx  (777)
-```
-
-If missing, re-create: `mkdir -p ~/shared/nsight && chmod 777 ~/shared/nsight`.
+**Host prerequisite.** Non-root CUPTI access must be enabled once per install
+(`NVreg_RestrictProfilingToAdminUsers=0`, reboot required) — see
+[nsight.md § Host prerequisites](nsight.md#host-prerequisites). There is no `nsight-reports` PV
+or PVC and no k3s storage setup for profiling.
