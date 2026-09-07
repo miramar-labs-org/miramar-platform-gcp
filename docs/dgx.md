@@ -547,62 +547,23 @@ driver reinstalls — re-verify after any NVIDIA driver upgrade.
 
 ### Infrastructure (one-time per fresh k3s deploy)
 
-> **Legacy — not written by the Nsight Operator.** The `nsight-reports` PVC below dates from a
-> removed profiling mechanism (an `nsys`-wrapper entrypoint image that `cp`'d reports into the
-> hostPath). The operator does **not** use this PVC — it writes to its own MinIO, and
-> `~/bin/nsight-export-report` writes the host archive directly. The PV/PVC is still created by
-> **Kubeflow Deploy** (harmless; removal is tracked as a follow-up) and the directory doubles as
-> a scratch location for ad-hoc host-side `nsys`/`ncu` captures.
-
-The PVC (`nsight-reports`) is mounted at `/nsight-reports/` inside each GPU component pod, backed
-by a k3s hostPath PV pointing directly at the DGX host. Created automatically by the
-**Kubeflow Deploy** workflow; steps documented here for reference or manual recovery.
-
-```bash
-# 1. Create host directory with world-writable permissions.
-#    IMPORTANT: must be 777 — k3s pods run as non-root UIDs and cannot write
-#    into a 755 dir owned by another user.
-mkdir -p ~/shared/nsight
-chmod 777 ~/shared/nsight
-
-# 2. Apply the PV and PVC.
-#    k3s hostPath PVs reference the actual host path directly — no mount daemon needed.
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: nsight-reports
-spec:
-  capacity:
-    storage: 50Gi
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  hostPath:
-    path: ${HOME}/shared/nsight
-    type: DirectoryOrCreate
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: nsight-reports
-  namespace: kubeflow
-spec:
-  accessModes: [ReadWriteMany]
-  resources:
-    requests:
-      storage: 50Gi
-  storageClassName: ""
-  volumeName: nsight-reports
-EOF
-```
-
-Verify:
-
-```bash
-ls ~/shared/nsight
-kubectl get pvc nsight-reports -n kubeflow
-```
+> **Removed.** There is no longer any `nsight-reports` PV or PVC, and no k3s storage setup is
+> needed for profiling at all.
+>
+> It dated from a removed profiling mechanism (an `nsys`-wrapper entrypoint image that `cp`'d
+> reports into a hostPath). The Nsight Operator replaced that path entirely: it writes to its own
+> MinIO, and `scripts/nsight/export-report.sh` writes the host archive directly. Nothing had
+> mounted the claim since — verified on the DGX 2026-09-07: no pod in any namespace referenced it,
+> and there were zero references in `templates/` or any project repo, only in the workflows that
+> created it.
+>
+> Its hostPath was `~/shared/nsight` — the profiling **archive root**, exposed `ReadWriteMany`. Any
+> pod that mounted it would have had read-write access to every captured report. **Kubeflow Deploy**
+> now deletes the PV and PVC instead of creating them; `bootstrap-k3s.yaml` no longer creates them.
+>
+> The archive directory itself is unaffected. `scripts/nsight/export-report.sh` `mkdir -p`s its full
+> destination, so `~/shared/nsight/` is created on demand and remains available as a scratch
+> location for ad-hoc host-side `nsys`/`ncu` captures.
 
 ---
 

@@ -139,10 +139,12 @@ jobs:
       - name: Create KFP shared storage
         run: |
           # --- Host directories: create via SSH (not mounted in runner container) ---
+          # ~/shared/nsight is deliberately NOT created here: it is the profiling
+          # archive root, owned by scripts/nsight/export-report.sh (which mkdir -p's
+          # the full destination), not by KFP storage provisioning.
           ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             mkdir -p /home/${HOST_USER}/shared/huggingface-kfp/hub \
-                     /home/${HOST_USER}/shared/huggingface-kfp/adapters \
-                     /home/${HOST_USER}/shared/nsight
+                     /home/${HOST_USER}/shared/huggingface-kfp/adapters
           "
 
           # --- PVs: skip if already exist (spec.persistentvolumesource is immutable after creation)
@@ -160,20 +162,24 @@ jobs:
             hostPath:
               path: /home/${HOST_USER}/shared/huggingface-kfp
           EOF
-          kubectl get pv nsight-reports &>/dev/null || kubectl apply -f - <<EOF
-          apiVersion: v1
-          kind: PersistentVolume
-          metadata:
-            name: nsight-reports
-          spec:
-            capacity:
-              storage: 50Gi
-            accessModes: [ReadWriteMany]
-            persistentVolumeReclaimPolicy: Retain
-            storageClassName: ""
-            hostPath:
-              path: /home/${HOST_USER}/shared/nsight
-          EOF
+          # --- Retire the legacy nsight-reports PV/PVC ---
+          # It dates from a removed profiling mechanism (an nsys-wrapper entrypoint
+          # image that cp'd reports into the hostPath). The Nsight Operator replaced
+          # that path entirely: it writes to its own MinIO, and
+          # scripts/nsight/export-report.sh writes the host archive directly.
+          #
+          # Nothing has mounted it since. Verified on the DGX 2026-09-07: no pod in any
+          # namespace referenced the claim, and there are zero references in templates/
+          # or any project repo — only the workflows that created it.
+          #
+          # Its hostPath was /home/$HOST_USER/shared/nsight — the profiling archive ROOT,
+          # RWX. Any pod that mounted it would have had read-write access to every
+          # captured report in the archive. Inert only because nothing mounted it.
+          #
+          # This cleanup is idempotent and can be dropped once dgx/agx have each
+          # redeployed past this commit.
+          kubectl delete pvc nsight-reports -n kubeflow --ignore-not-found --wait --timeout=120s
+          kubectl delete pv nsight-reports --ignore-not-found --wait --timeout=120s
 
           # --- PVCs: always apply (no immutable fields; idempotent)
           kubectl apply -f - <<'EOF'
@@ -189,23 +195,10 @@ jobs:
                 storage: 200Gi
             storageClassName: ""
             volumeName: hf-model-cache
-          ---
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: nsight-reports
-            namespace: kubeflow
-          spec:
-            accessModes: [ReadWriteMany]
-            resources:
-              requests:
-                storage: 50Gi
-            storageClassName: ""
-            volumeName: nsight-reports
           EOF
 
-          kubectl get pv hf-model-cache nsight-reports 2>/dev/null || true
-          kubectl get pvc hf-model-cache nsight-reports -n kubeflow 2>/dev/null || true
+          kubectl get pv hf-model-cache 2>/dev/null || true
+          kubectl get pvc hf-model-cache -n kubeflow 2>/dev/null || true
 
       - name: Smoke-test endpoints
         continue-on-error: true

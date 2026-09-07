@@ -436,20 +436,12 @@ jobs:
             hostPath:
               path: /home/${HOST_USER}/shared/huggingface-kfp
           EOF
-          kubectl get pv nsight-reports &>/dev/null || kubectl apply -f - <<EOF
-          apiVersion: v1
-          kind: PersistentVolume
-          metadata:
-            name: nsight-reports
-          spec:
-            capacity:
-              storage: 50Gi
-            accessModes: [ReadWriteMany]
-            persistentVolumeReclaimPolicy: Retain
-            storageClassName: ""
-            hostPath:
-              path: /home/${HOST_USER}/shared/nsight
-          EOF
+          # The legacy nsight-reports PV/PVC is deliberately not created. It dates from
+          # a removed nsys-wrapper profiling path; the Nsight Operator writes to its own
+          # MinIO and scripts/nsight/export-report.sh writes the host archive directly,
+          # so nothing mounts it. Its hostPath was the profiling archive ROOT
+          # (~/shared/nsight) exposed RWX. See deploy-kubeflow.yaml for the cleanup that
+          # removes it from clusters provisioned before this commit.
           kubectl apply -f - <<'EOF'
           apiVersion: v1
           kind: PersistentVolumeClaim
@@ -463,19 +455,6 @@ jobs:
                 storage: 200Gi
             storageClassName: ""
             volumeName: hf-model-cache
-          ---
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: nsight-reports
-            namespace: kubeflow
-          spec:
-            accessModes: [ReadWriteMany]
-            resources:
-              requests:
-                storage: 50Gi
-            storageClassName: ""
-            volumeName: nsight-reports
           EOF
 
       - name: Set KFP active state
