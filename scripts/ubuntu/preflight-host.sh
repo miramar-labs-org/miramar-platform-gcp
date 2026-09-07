@@ -59,6 +59,17 @@ fix_gpu_runtime() {
     sudo systemctl restart docker
 }
 
+fix_nvidia_profiling() {
+    printf "  Writing /etc/modprobe.d/nvidia.conf\n"
+    printf '%s\n' \
+        '# Allow non-root CUPTI/Nsight profiling (required for KFP pod UID 65532)' \
+        'options nvidia NVreg_RestrictProfilingToAdminUsers=0' \
+        | sudo tee /etc/modprobe.d/nvidia.conf > /dev/null
+    printf "  ${YELLOW}REBOOT REQUIRED${NC} — the parameter is read when nvidia.ko loads and\n"
+    printf "  cannot be hot-applied while the GPU is in use. Verify after reboot:\n"
+    printf "    grep RmProfilingAdminOnly /proc/driver/nvidia/params   # expect 0\n"
+}
+
 # ── 1. OS & Hardware ──────────────────────────────────────────────────────────
 section "1. OS & Hardware"
 
@@ -186,6 +197,30 @@ else
         "nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"
     command -v nvidia-ctk &>/dev/null && \
         _add_fix "gpu-runtime" "Configure NVIDIA container runtime for Docker" "fix_gpu_runtime"
+fi
+
+# Non-root GPU profiling. The knob belongs to the NVIDIA RM (nvidia.ko / OpenRM) and only
+# governs profiling where the RM is what serves CUDA. Gate on the *driver*, not on "is this
+# Tegra": JetPack <=6.x Orin serves its iGPU with the proprietary nvgpu, which has no
+# equivalent knob (profiling is root-only, hence nsight-injector.privileged=true there), but
+# JetPack 7.x replaces nvgpu with OpenRM, at which point this check applies to Orin too and
+# starts running on its own. See docs/nsight.md § Privileged mode is decided by the host driver.
+if [[ -e /dev/nvgpu ]] || lsmod 2>/dev/null | grep -q '^nvgpu'; then
+    _info "Non-root GPU profiling: n/a — iGPU served by nvgpu (no RM knob; profiling is root-only)"
+    _info "  JetPack 7.x swaps nvgpu for OpenRM; this check applies automatically after that"
+elif [[ -r /proc/driver/nvidia/params ]]; then
+    PROF_ADMIN_ONLY=$(awk -F': *' '/RmProfilingAdminOnly/ { print $2 }' /proc/driver/nvidia/params)
+    if [[ "$PROF_ADMIN_ONLY" == "0" ]]; then
+        _pass "Non-root GPU profiling enabled (RmProfilingAdminOnly: 0)"
+    else
+        _fail "Non-root GPU profiling disabled (RmProfilingAdminOnly: ${PROF_ADMIN_ONLY:-unknown})" \
+            "Nsight/CUPTI in KFP pods (UID 65532) will capture zero kernels — silently"
+        _add_fix "nvidia-profiling" \
+            "Allow non-root CUPTI/Nsight profiling (writes /etc/modprobe.d/nvidia.conf; REBOOT required)" \
+            "fix_nvidia_profiling"
+    fi
+else
+    _warn "Cannot read /proc/driver/nvidia/params" "unable to verify non-root GPU profiling"
 fi
 
 # ── 6. Kernel Limits ─────────────────────────────────────────────────────────
