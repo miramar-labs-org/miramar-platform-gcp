@@ -32,6 +32,7 @@ ssh -L 8001:localhost:8001 \
     -L 6334:localhost:6334 \
     -L 8889:localhost:8889 \
     -L 8084:localhost:8084 \
+    -L 8095:localhost:31740 \
     $USER@spark-79b7.local
 ```
 
@@ -49,6 +50,7 @@ ssh -L 8001:localhost:8001 \
 | `8889`     | Nsight Operator UI / SPA (not the REST API) |
 | `13001`    | Nsight Operator coordinator REST API   |
 | `8084`     | Open WebUI chat (Ollama / NIM / vLLM)   |
+| `8095`     | AI mock interviewer (k3s NodePort `31740`) |
 
 See [../dgx/README.md](../dgx/README.md) and
 [../dgx/systemd/README.md](../dgx/systemd/README.md).
@@ -397,3 +399,21 @@ MLflow, and Postgres forwards.
 [nsight.md § Host prerequisites](nsight.md#host-prerequisites). This applies to the DGX; it is
 inert on a `nvgpu` Orin, and `scripts/ubuntu/preflight-host.sh` decides which case a host is.
 There is no `nsight-reports` PV or PVC and no k3s storage setup for profiling.
+
+## AI mock interviewer
+
+The [`ai-interviewer`](https://github.com/miramar-labs-org/ai-interviewer) project
+serves an AI-assisted mock interviewer (system-design track) from k3s namespace
+`ai-interviewer`: a CPU FastAPI + React SPA app pod and a GPU STT pod
+(VAD-gated faster-whisper). It is a **consumer** of the model router, not a
+served model — it does not register in `litellm-config.yaml`.
+
+Deploy/undeploy is driven from that repo's own workflows (`build-push.yaml`,
+`init-db.yaml`, `deploy.yaml`, `undeploy.yaml`), all on the `dgx` runner.
+`undeploy.yaml` deletes the namespace and frees the STT GPU slice.
+
+Unlike the other services, access is a **k3s NodePort** (`31740`), which binds
+directly on the host — no `*-portfwd.service` unit is needed. Tunnel it with
+`ssh -L 8095:localhost:31740 $USER@spark-79b7.local` (included in the block
+above) and open <http://localhost:8095/>. The deploy job summary prints the same
+command.
