@@ -473,11 +473,26 @@ kubectl -n nsight-operator get nsightoperatorprofileconfigs.nvidia.com \
 
 #### Privileged-mode reconciliation (automatic)
 
-CUPTI GPU-side collection on GB10 needs `securityContext.privileged: true` on the profiled
-container (this is orthogonal to the `--trace=cuda-sw` fix above — privileged governs whether
-CUPTI can attach at all; the trace mode governs whether the records survive `nsys stop`. The
-values files keep `privileged: true`; it has not been re-tested as removable under software
-trace, so don't drop it speculatively). The Nsight injector adds it, but
+Whether the profiled container needs `securityContext.privileged: true` is decided by the
+**host driver**, not by the trace mode. The gate is `RmProfilingAdminOnly` in
+`/proc/driver/nvidia/params`:
+
+| Host | `RmProfilingAdminOnly` | `privileged` | Values file |
+|---|---|---|---|
+| DGX Spark (GB10) | `0` — non-admin profiling allowed | `false` | `dgx/k3s/nsight/values.yaml` |
+| AGX Orin | `1` — profiling is admin-only | `true` | `agx/k3s/nsight/values.yaml` |
+
+**Nsight Operator Deploy** picks the values file from the `runner` input. Measured on the DGX
+through the real operator path (KFP stage, collect fired 60s in, 90s window): `privileged: true`
+→ 7,992 kernel records, `privileged: false` → 8,539. Dropping it there costs nothing and lets KFP
+step pods keep their own hardening. Do not copy `privileged: false` to a host whose driver you
+have not checked — on AGX it would simply fail to attach.
+
+Note that `privileged` is read by the injector **at startup**. `helm upgrade` only rewrites the
+`nsight-injector` ConfigMap, so the deploy workflow explicitly rolls the injector Deployment
+afterwards; without that a values change appears applied but is not.
+
+On a host that does need `privileged` (AGX today), the Nsight injector adds it, but
 KFP step pods bake in `allowPrivilegeEscalation: false` + `drop: [ALL]` + `RuntimeDefault`
 (not overridable via the KFP SDK — upstream rejected privileged support), and the `kubeflow`
 namespace enforces PodSecurity `baseline`. **Nsight Operator Deploy** handles both automatically:
@@ -490,6 +505,11 @@ namespace enforces PodSecurity `baseline`. **Nsight Operator Deploy** handles bo
 
 **Nsight Operator Undeploy** removes the webhook (cluster-scoped) and restores `enforce=baseline`.
 No pipeline-code change is needed beyond the pod label.
+
+On the DGX (`privileged: false`) both mechanisms are inert: the webhook only patches containers
+the injector marked `privileged`, so it logs nothing, and the profiled pod satisfies PodSecurity
+`baseline` on its own. They are still deployed because the same workflow serves AGX, where they
+remain load-bearing.
 
 ---
 

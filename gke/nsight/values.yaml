@@ -20,7 +20,11 @@ nsight-tenant-operator:
     enabled: false
 
 nsight-injector:
-  # privileged: required for CUPTI GPU-side collection (see dgx/k3s/nsight/values.yaml).
+  # privileged: kept true here as the safe default. Whether it is actually needed
+  # depends on the node driver's RmProfilingAdminOnly (/proc/driver/nvidia/params):
+  # 0 means CUPTI can attach unprivileged and this can be false (as on the DGX),
+  # 1 means it cannot. GKE's L4 spot nodes are transient and their driver setting
+  # has not been verified, so this stays true. See dgx/k3s/nsight/values.yaml.
   privileged: true
 
   nsightToolConfig:

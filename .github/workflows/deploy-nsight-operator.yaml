@@ -155,19 +155,38 @@ jobs:
             -n nsight-operator --all --ignore-not-found
 
       - name: Install Nsight Operator
+        # Values are per-host: the injector's securityContext.privileged depends on
+        # the host driver's RmProfilingAdminOnly. DGX runs 0 (non-admin profiling
+        # allowed) and sets privileged:false; AGX runs 1 and must stay privileged.
         run: |
+          VALUES="dgx/k3s/nsight/values.yaml"
+          if [[ "${{ inputs.runner }}" == "agx" ]]; then
+            VALUES="agx/k3s/nsight/values.yaml"
+          fi
+          echo "Using values: $VALUES"
           helm upgrade --install \
             --wait \
             --namespace nsight-operator \
             --create-namespace \
             --version "${{ inputs.chart_version }}" \
-            -f dgx/k3s/nsight/values.yaml \
+            -f "$VALUES" \
             --timeout 10m \
             nsight-operator \
             nvidia-devtools/nsight-operator
 
       - name: Wait for pods
         run: kubectl get pods -n nsight-operator
+
+      - name: Roll the injector so values changes take effect
+        # helm only rewrites the nsight-injector ConfigMap; the Deployment spec is
+        # unchanged, so no rollout is triggered and the injector keeps serving the
+        # sidecar config it parsed at startup (privileged, injection patterns, tool
+        # setup). Values changes then silently do not apply until the pod happens to
+        # restart. Observed 2026-09-06: privileged:false sat in the ConfigMap for a
+        # full deploy while pods were still being stamped privileged:true.
+        run: |
+          kubectl rollout restart deploy/nsight-injector -n nsight-operator
+          kubectl rollout status deploy/nsight-injector -n nsight-operator --timeout=180s
 
       - name: Deploy APE fixup webhook
         # The Nsight injector stamps securityContext.privileged=true on every
