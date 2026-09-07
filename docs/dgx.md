@@ -598,6 +598,17 @@ kubectl get pvc nsight-reports -n kubeflow
 `post-finetune-eval`, `safety-eval`, `baseline-safety-eval`), or `main` for a single-stage
 pipeline. Existing report history is not reorganised — the convention is forward-only.
 
+**`~/shared/nsight/` has exactly three kinds of top-level entry** and nothing else:
+`<project-name>/` trees (durable per-project history), `systems/`, and `compute/`. A
+throwaway or validation capture — anything not tied to a real project's `runs/<run-id>.md`
+— must land in `systems/` / `compute/` via `--adhoc`, or off the archive entirely via
+`--dest-root <scratch>` (`$NSIGHT_DEST_ROOT`). It must never create a new top-level
+`<name>/` dir. The helper enforces this: a non-adhoc run whose destination falls under
+`~/shared/nsight/` is **refused** unless `./runs/<run-id>.md` exists in `$PWD` (i.e. it is
+being driven from the project repo). An already-existing dir left by a past mistake is not
+a free pass — it does not satisfy the check. Run `/nsight-export` and `/kfp-monitor` only
+from a real project repo; for a one-off test app, use `/nsight-export … --adhoc`.
+
 ### Retention
 
 `nsight-export-report` never deletes the MinIO copy. MinIO `nsight-reports` is the operator's

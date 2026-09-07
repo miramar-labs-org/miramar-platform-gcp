@@ -84,6 +84,32 @@ info()     { echo "$PROG: $*" >&2; }
 warn()     { echo "$PROG: WARNING: $*" >&2; }
 die()      { echo "$PROG: ERROR: $*" >&2; exit 1; }
 
+# guard_durable_dest <dest> — refuse to mint a <project>/<run-id>/<stage>/ tree
+# inside the durable archive (~/shared/nsight) unless this is a real project run.
+# Only three kinds of entry belong directly under ~/shared/nsight: real
+# <project>/<run-id>/<stage>/ trees, systems/, and compute/. A real project run is
+# always driven from the project repo, so ./runs/<run-id>.md is present in $PWD
+# (the skills cd into the repo; /nsight-export reads runs/<run>.md from there).
+# Anything else is a throwaway / validation capture and must pass --adhoc (-> the
+# systems/ | compute/ buckets) or --dest-root <scratch> (-> off the durable
+# archive entirely). Note: an already-existing $DEST_ROOT/<project>/ dir is NOT a
+# free pass — a dir left behind by a past mistake must not legitimise the next one.
+guard_durable_dest() {
+  local dest="$1"
+  case "$dest/" in
+    "$HOME/shared/nsight/"*) : ;;
+    *) return 0 ;;                       # redirected off the durable archive — caller's call
+  esac
+  [ -f "./runs/$RUN_ID.md" ] && return 0
+  die "refusing to write the durable archive path
+     $dest
+   '$PROJECT' has no ./runs/$RUN_ID.md in \$PWD ($PWD) — this looks like a
+   throwaway / validation capture, not a real project run. Use one of:
+     --adhoc                -> $DEST_ROOT/{systems,compute}/$PROJECT-<UTC-ts>/
+     --dest-root <scratch>  -> keep it out of ~/shared/nsight entirely
+   or run this from the project repo so ./runs/$RUN_ID.md is found."
+}
+
 usage() {
   cat >&2 <<EOF
 Usage: $PROG --project <name> --run-id <run-NNN> --stage <stage> [options]
@@ -130,6 +156,12 @@ Destination:
   --dest-root <dir>       archive root (default ~/shared/nsight, or
                           \$NSIGHT_DEST_ROOT). Point validation / throwaway
                           captures elsewhere to keep the durable archive clean.
+
+  A non-adhoc run writes the durable <project>/<run-id>/<stage>/ tree. Under
+  ~/shared/nsight that is allowed only for a real project run — one driven from
+  its repo, so ./runs/<run-id>.md is present in \$PWD. Otherwise the run is
+  refused: pass --adhoc or --dest-root for a throwaway. An existing
+  <root>/<project>/ dir left by a past mistake does not lift the refusal.
 
 Metadata / linkage:
   --kfp-run-id <uuid>     KFP run UUID (metadata + MLflow tag)
@@ -296,6 +328,7 @@ compute_export() {
     dest="$DEST_ROOT/compute/${PROJECT}-${ts}"
   else
     dest="$DEST_ROOT/$PROJECT/$RUN_ID/$STAGE"
+    guard_durable_dest "$dest"
   fi
   # stage in a temp dir; nothing reaches the archive until ncu + readback pass
   STAGING=$(mktemp -d "${TMPDIR:-/tmp}/${PROG}.XXXXXX") || die "cannot create staging dir"
@@ -479,6 +512,7 @@ if [ "$ADHOC" = 1 ]; then
   DEST="$DEST_ROOT/systems/${PROJECT}-$(date -u +%Y-%m-%dT%H%M%SZ)"
 else
   DEST="$DEST_ROOT/$PROJECT/$RUN_ID/$STAGE"
+  guard_durable_dest "$DEST"
 fi
 STAGING=$(mktemp -d "${TMPDIR:-/tmp}/${PROG}.XXXXXX") || die "cannot create staging dir"
 REPORT_PATH="$STAGING/profile.$EXT"
