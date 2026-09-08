@@ -69,6 +69,49 @@ Secrets should live in the narrowest appropriate store:
 
 Do not echo secrets in workflow logs. For scripts, prefer explicit input validation and redacted logging.
 
+### Never put a PAT in a git remote URL
+
+`git clone https://x-access-token:$PAT@github.com/...` and
+`git remote set-url origin https://x-access-token:$PAT@github.com/...` both write the
+token **verbatim** into that repository's `.git/config`, in plaintext, mode 644, with no
+expiry. It is not a transient credential at that point — it is a file on disk.
+
+This bit us on 2026-09-08: `create-project.yaml` used a tokenised clone URL for the
+convenience checkout it drops in `~/git-miramar-labs-org/projects/` on the DGX, so five
+project repos were each holding a copy of `MIRAMAR_ORG_ADMIN_PAT` (`admin:org`, `repo`).
+JupyterLab serves that same tree on `:8888` as the same user, and the directory sits next
+to the SMB-exported `~/shared`. It surfaced only because the token had since been rotated
+and pushes started failing — a URL-embedded token takes precedence over the credential
+helper, so git never consulted `gh` and never fell back to working credentials.
+
+A runner workspace is not exempt. Self-hosted runners keep `_work` between jobs, so a
+tokenised remote there outlives the run that wrote it.
+
+Two safe patterns:
+
+1. **Let the host authenticate.** The DGX has
+   `credential.helper = !/usr/bin/gh auth git-credential` configured globally, so a plain
+   `https://github.com/...` URL just works. Prefer this whenever the checkout is persistent.
+
+2. **Throwaway credential helper**, where a workflow must supply its own PAT. The token
+   travels in the environment only — never argv (world-readable in `/proc`), never a
+   config file:
+
+   ```sh
+   git \
+     -c credential.helper= \
+     -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${MIRAMAR_ORG_ADMIN_PAT}"; fi; }; f' \
+     push https://github.com/miramar-labs-org/<repo>.git HEAD:main
+   ```
+
+   The empty first helper resets any helper already configured, so only this one is
+   consulted. `-c` values are command-line only and are never persisted to `.git/config`.
+
+For the same reason, do not pass a PAT as an `ssh ... env PAT=...` argument: it is visible
+in `ps`/`/proc` on both ends for the life of the call.
+
+To audit: `grep -rl x-access-token ~/git-miramar-labs-org/*/.git/config`.
+
 ## Network model
 
 ### Local network
