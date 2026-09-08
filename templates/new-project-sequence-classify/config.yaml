@@ -1,13 +1,13 @@
 description: "{{DESCRIPTION}}"
 
 model:
-  id: {{HF_MODEL_ID}}
+  id: "{{HF_MODEL_ID}}"
   type: sequence_classification   # drives AutoModelForSequenceClassification
   num_labels: 2                   # 2 for binary (pathogenic/benign), N for multi-class
 
 # Single dataset block — sequence classification uses one dataset at a time
 dataset:
-  id: {{HF_DATASET_ID}}
+  id: "{{HF_DATASET_ID}}"
   loader_key: null                # defaults to the last segment of id; override if LOADERS key differs
   split_strategy: random          # "random" or "chromosome" (chromosome requires chromosome field in rows)
   test_chromosome: chr22          # held-out test chromosome (only used when split_strategy=chromosome)
