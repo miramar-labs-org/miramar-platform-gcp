@@ -44,6 +44,7 @@ fine-tune templates still require you to name the model you are training.
 |---|---|---|---|---|---|
 | agent-model-bakeoff | `qwen3.6:35b-a3b`, `gpt-oss:120b`, `nemotron-3-super:latest` | Ollama `192.168.1.200` | **DGX** | `gpt-oss:120b` | **DGX** ⚠ |
 | ai-interviewer | `agx/qwen2.5:32b` (interviewer + grader + coach)<br>embed `BAAI/bge-small-en-v1.5` | model router → `agx/` upstream | **AGX** (routed via DGX) | — | — |
+| ai-jobsearch | `qwen3.6:35b-a3b` | Ollama AGX `.202` → `localhost` fallback | **AGX**, falls back to **DGX** | — | — |
 | alpaca-options-trading-agents | `qwen2.5:32b-instruct-q4_K_M` | Ollama `192.168.1.200` | **DGX** | — | — |
 | dnabert2-clinvar-kfp-sequence-classify | `zhihan1996/DNABERT-2-117M` | HF weights, in-pipeline | **DGX** | — | — |
 | kfp-nemo-curator-verify | *none* — rule-based filters + Presidio PII | — | **DGX** (CPU) | — | — |
@@ -56,7 +57,6 @@ fine-tune templates still require you to name the model you are training.
 | qwen25-7b-ftuned-serving-vllm | `Qwen/Qwen2.5-7B-Instruct` + LoRA → `qwen25-arc` | vLLM, k3s (`gpu_type: gb10`) | **DGX** | — | — |
 | qwen25-7b-medmcqa-kfp-ft-eval-pipeline | `Qwen/Qwen2.5-7B-Instruct` | HF weights, in-pipeline | **DGX** | `phi4` | **DGX** ⚠ |
 | qwen25-arc-kfp-rag | `qwen25-arc`<br>embed `BAAI/bge-small-en-v1.5` | in-cluster vLLM Service | **DGX** | `phi4` | **DGX** ⚠ |
-| recruiter-inbox-agent | `qwen3.6:35b-a3b` | Ollama AGX `.202` → `localhost` fallback | **AGX**, falls back to **DGX** | — | — |
 | slac-science-kfp-rag | `gpt-oss:20b`<br>embed `BAAI/bge-small-en-v1.5` | Ollama `192.168.1.200` | **DGX** | `gpt-oss:20b` | **DGX** ⚠ |
 
 ⚠ = deviates from the platform-judge rule **on that repo's `main`**. Every one of them
@@ -118,7 +118,7 @@ Two further issues:
 - **Self-grading bias** — `slac-science-kfp-rag` scores `gpt-oss:20b` output with
   `gpt-oss:20b`. Candidate and judge are the same model. `agent-model-bakeoff` had
   the same shape: its `gpt-oss:120b` judge was also one of the candidates it ranked.
-- **`recruiter-inbox-agent` addresses the AGX as `orin.local`** — a convention
+- **`ai-jobsearch` (the recruiter-inbox poller) addresses the AGX as `orin.local`** — a convention
   deviation, not a bug. It runs as a systemd `--user` timer on the DGX *host*, where
   mDNS resolves (`getent hosts orin.local` → `192.168.1.202`), so it has been reaching
   the Orin correctly. The IP is still the right form: mDNS does not resolve from a k3s
@@ -139,7 +139,7 @@ patched directly instead, one PR each, on the operator's explicit call.
 | agent-model-bakeoff | [#2](https://github.com/miramar-labs-org/agent-model-bakeoff/pull/2) |
 | slac-science-kfp-rag | [#1](https://github.com/miramar-labs-org/slac-science-kfp-rag/pull/1) |
 | pharma-promo-compliance-vlm-eval | [#1](https://github.com/miramar-labs-org/pharma-promo-compliance-vlm-eval/pull/1) |
-| recruiter-inbox-agent | [#2](https://github.com/miramar-labs-org/recruiter-inbox-agent/pull/2) |
+| ai-jobsearch | [#2](https://github.com/miramar-labs-org/ai-jobsearch/pull/2) |
 
 ⚠️ `pharma-promo-compliance-vlm-eval` is the one whose *model* changes, so its stored
 notebook outputs and `results/scoring/` were produced by the old judge and need a re-run
