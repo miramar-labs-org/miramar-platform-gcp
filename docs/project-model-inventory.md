@@ -1,9 +1,9 @@
 # Project model inventory
 
-Which LLM every project under `~/git-miramar-labs-org/projects/` is configured to
-use, and **which machine that model actually runs on**.
+Which LLM every template and every project under `~/git-miramar-labs-org/projects/`
+is configured to use, and **which machine that model actually runs on**.
 
-Generated 2026-09-08 by reading each project's `config.yaml` /
+Rebuilt 2026-09-08 by reading each template's and project's `config.yaml` /
 `serving-config.yaml` (and `notebook.ipynb` where there is no config), then
 cross-checking every Ollama tag against the live `/api/tags` on both hosts.
 
@@ -12,11 +12,37 @@ Host key: **DGX** = DGX Spark, `192.168.1.200`, ~100 GB model budget ·
 Every project's GHA jobs run on the `dgx` runner; the host column below is where
 the *model* executes, which is not always the same machine.
 
-## Inventory
+## Templates — what a new project gets
+
+Templates no longer name a model. They carry `"{{DGX_DEFAULT_MODEL}}"` and
+`"{{AGX_DEFAULT_MODEL}}"`, which **Create Project** substitutes from the org
+variables and freezes into the new repo at scaffold time.
+
+| Org variable | Current value | Host | Role |
+|---|---|---|---|
+| `DGX_DEFAULT_MODEL` | `qwen3.6:35b-a3b` | **DGX** | the primary LLM a scaffolded project queries |
+| `AGX_DEFAULT_MODEL` | `phi4` | **AGX** | the one shared platform judge |
+
+| Template | Primary model | **Runs on** | Judge | **Judge runs on** |
+|---|---|---|---|---|
+| `ft-eval` | `model.id` — a HuggingFace repo you pick | **DGX** | `{{AGX_DEFAULT_MODEL}}` | **AGX** |
+| `nemo-ft-eval` | `model.id` / `hf_id` — NeMo + HF repo you pick | **DGX** | `{{AGX_DEFAULT_MODEL}}` | **AGX** |
+| `kfp-rag` | `{{DGX_DEFAULT_MODEL}}`<br>embed `BAAI/bge-small-en-v1.5` | **DGX** | `{{AGX_DEFAULT_MODEL}}` | **AGX** |
+| `kfp-eval` | `{{DGX_DEFAULT_MODEL}}` (candidate) | **DGX** | `{{AGX_DEFAULT_MODEL}}` | **AGX** |
+| `sequence-classify` | `{{HF_MODEL_ID}}` — a HuggingFace repo | **DGX** | — | — |
+| `serving-vllm`, `serving-triton-vllm` | `{{HF_MODEL_ID}}` → `{{SERVED_MODEL_NAME}}` | **DGX** or GKE | — | — |
+| `serving-nim`, `serving-llm-nim`, `serving-trt-fp8`, `serving-trt-engine`, `serving-triton-trtllm` | `{{SERVED_MODEL_NAME}}` | **DGX** or GKE | — | — |
+| `kfp-nemo-curator` | *none* — rule-based filters + Presidio PII | **DGX** (CPU) | — | — |
+
+The default-model variables are deliberately **not** substituted into any
+HuggingFace `model.id`: an Ollama tag is not a LoRA-fine-tunable HF repo, so the
+fine-tune templates still require you to name the model you are training.
+
+## Projects
 
 | Project | Model(s) | How it is served | **Model runs on** | Judge | **Judge runs on** |
 |---|---|---|---|---|---|
-| agent-model-bakeoff | `qwen3.6:35b-a3b`, `gpt-oss:120b`, `nemotron-3-super:latest` | Ollama `192.168.1.200` | **DGX** | `gpt-oss:120b` | **DGX** |
+| agent-model-bakeoff | `qwen3.6:35b-a3b`, `gpt-oss:120b`, `nemotron-3-super:latest` | Ollama `192.168.1.200` | **DGX** | `gpt-oss:120b` | **DGX** ⚠ |
 | ai-interviewer | `agx/qwen2.5:32b` (interviewer + grader + coach)<br>embed `BAAI/bge-small-en-v1.5` | model router → `agx/` upstream | **AGX** (routed via DGX) | — | — |
 | alpaca-options-trading-agents | `qwen2.5:32b-instruct-q4_K_M` | Ollama `192.168.1.200` | **DGX** | — | — |
 | dnabert2-clinvar-kfp-sequence-classify | `zhihan1996/DNABERT-2-117M` | HF weights, in-pipeline | **DGX** | — | — |
@@ -37,30 +63,40 @@ the *model* executes, which is not always the same machine.
 
 ## Cache verification
 
-Every Ollama tag referenced above was checked against the live catalogs
-(DGX 17 models, AGX 7 models). All are present on the host they are pointed at.
+Every Ollama tag referenced above was checked against the live catalogs on
+2026-09-08 (**DGX 17 models, AGX 7 models**). All are present on the host they
+are pointed at, including both default-model variables — `qwen3.6:35b-a3b` on
+the DGX and `phi4` on the AGX.
 
-Three models are **DGX-only by size** — they exceed the AGX's ~40 GB budget and
+Six models are **DGX-only by size** — they exceed the AGX's ~40 GB budget and
 could never be moved there:
 
 | Model | Size | Fits AGX? |
 |---|---|---|
 | `nemotron-3-super:latest` | 86.8 GB | no |
+| `qwen2.5-coder:32b-instruct-fp16` | 65.5 GB | no |
 | `gpt-oss:120b` | 65.4 GB | no |
+| `qwen3-coder-next:latest` | 51.7 GB | no |
 | `qwen2.5vl:72b` | 48.7 GB | no |
+| `llama3.3:70b-instruct-q4_K_M` | 42.5 GB | no |
 
 Models present on **both** hosts: `gpt-oss:20b`, `nemotron-3-nano:30b`, `phi4`,
 `qwen3.6:35b-a3b`. For these the config's `base_url` is the only thing deciding
 which machine does the work.
 
-Note `qwen2.5:32b-instruct-q4_K_M` (DGX) and `qwen2.5:32b` (AGX) are *different
-tags*, not the same model on two hosts.
+Two naming traps:
+
+- `qwen2.5:32b-instruct-q4_K_M` (DGX) and `qwen2.5:32b` (AGX) are *different
+  tags*, not the same model on two hosts.
+- Configs say `phi4`; the catalogs list `phi4:latest`. Same model — Ollama
+  resolves a bare name to `:latest`.
 
 ## Deviations from the platform judge
 
-The platform judge is **one** model at **one** endpoint — `phi4` at
-`http://192.168.1.202:11434/v1` (AGX) — so scores stay comparable across runs,
-projects and time. It landed in the templates in PR #80 (`b6802c5`).
+The platform judge is **one** model at **one** endpoint — `AGX_DEFAULT_MODEL`
+(currently `phi4`) at `http://192.168.1.202:11434/v1` (AGX) — so scores stay
+comparable across runs, projects and time. It landed in the templates in PR #80
+(`b6802c5`) and became a variable in PR #82 (`8e705e8`).
 
 All 8 judge-bearing projects predate that and deviate:
 
@@ -79,5 +115,5 @@ Two further issues:
   mDNS, so in-cluster this silently falls through to the `localhost` entry and
   runs on the **DGX** instead of the AGX. Should be `http://192.168.1.202:11434`.
 
-PR #80 changed templates only. Per the standing rule, existing projects are
-brought in line by re-scaffolding, not by patching the project repos.
+PRs #80 and #82 changed templates only. Per the standing rule, existing projects
+are brought in line by re-scaffolding, not by patching the project repos.
