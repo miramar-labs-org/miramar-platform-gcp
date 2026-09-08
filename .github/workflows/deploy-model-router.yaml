@@ -45,7 +45,7 @@ jobs:
       - name: Apply base manifests
         run: kubectl apply -f dgx/k3s/model-router/router.yaml
 
-      - name: Build effective litellm config (repo + generated AGX upstreams)
+      - name: Build effective litellm config (repo + generated Ollama upstreams)
         run: |
           CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
           [[ "${{ inputs.runner }}" == "agx" ]] && CONFIG_PATH="agx/k3s/model-router/litellm-config.yaml"
@@ -63,6 +63,17 @@ jobs:
             python3 scripts/gha/gen-ollama-upstreams.py \
               --host-ip "${{ vars.AGX_HOST_IP }}" --prefix "agx/" >> "${EFFECTIVE}"
           fi
+
+          # Nothing static is left in the committed file, so an effective config with no
+          # model_list means both hosts were unreachable. Fail rather than hand LiteLLM
+          # an empty routing table — the running router keeps its previous config.
+          python3 -c "
+          import sys, yaml
+          cfg = yaml.safe_load(open('${EFFECTIVE}')) or {}
+          if not (cfg.get('model_list') or []):
+              sys.exit('ERROR: effective litellm config has no models — both Ollama hosts unreachable?')
+          print(f\"Effective config: {len(cfg['model_list'])} model(s)\")
+          "
 
           echo "EFFECTIVE_CONFIG=${EFFECTIVE}" >> "${GITHUB_ENV}"
 
