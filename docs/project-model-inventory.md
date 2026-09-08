@@ -56,10 +56,11 @@ fine-tune templates still require you to name the model you are training.
 | qwen25-7b-ftuned-serving-vllm | `Qwen/Qwen2.5-7B-Instruct` + LoRA → `qwen25-arc` | vLLM, k3s (`gpu_type: gb10`) | **DGX** | — | — |
 | qwen25-7b-medmcqa-kfp-ft-eval-pipeline | `Qwen/Qwen2.5-7B-Instruct` | HF weights, in-pipeline | **DGX** | `phi4` | **DGX** ⚠ |
 | qwen25-arc-kfp-rag | `qwen25-arc`<br>embed `BAAI/bge-small-en-v1.5` | in-cluster vLLM Service | **DGX** | `phi4` | **DGX** ⚠ |
-| recruiter-inbox-agent | `qwen3.6:35b-a3b` | Ollama `orin.local` → `localhost` fallback | **AGX**, falls back to **DGX** ⚠ | — | — |
+| recruiter-inbox-agent | `qwen3.6:35b-a3b` | Ollama AGX `.202` → `localhost` fallback | **AGX**, falls back to **DGX** | — | — |
 | slac-science-kfp-rag | `gpt-oss:20b`<br>embed `BAAI/bge-small-en-v1.5` | Ollama `192.168.1.200` | **DGX** | `gpt-oss:20b` | **DGX** ⚠ |
 
-⚠ = deviates from the platform-judge rule, or has a host-resolution problem. See below.
+⚠ = deviates from the platform-judge rule **on that repo's `main`**. Every one of them
+has an open PR fixing it; the marks clear as those merge. See below.
 
 ## Cache verification
 
@@ -98,7 +99,8 @@ The platform judge is **one** model at **one** endpoint — `AGX_DEFAULT_MODEL`
 comparable across runs, projects and time. It landed in the templates in PR #80
 (`b6802c5`) and became a variable in PR #82 (`8e705e8`).
 
-All 8 judge-bearing projects predate that and deviate:
+All 8 judge-bearing projects predate that and deviated. Each now has an open PR
+bringing it in line (see the table below).
 
 | Deviation | Projects | Detail |
 |---|---|---|
@@ -106,14 +108,39 @@ All 8 judge-bearing projects predate that and deviate:
 | Right host, wrong model | pharma-promo-compliance-vlm-eval | `nemotron-3-nano:30b` on the AGX |
 | Wrong model and host | agent-model-bakeoff (`gpt-oss:120b`), slac-science-kfp-rag (`gpt-oss:20b`) | both on the DGX |
 
+**Not every fix costs the same.** Moving the judge *host* DGX → AGX is score-neutral:
+same model at `temperature: 0` gives identical verdicts on either, ~5.6× slower per
+call (`agx.md`). Changing the judge *model* is not — it invalidates comparison with
+every score the project has already recorded. Only the bottom two rows do that.
+
 Two further issues:
 
 - **Self-grading bias** — `slac-science-kfp-rag` scores `gpt-oss:20b` output with
-  `gpt-oss:20b`. Candidate and judge are the same model.
-- **`orin.local` is not resolvable from pods/containers** —
-  `recruiter-inbox-agent` lists `http://orin.local:11434` first. CoreDNS does no
-  mDNS, so in-cluster this silently falls through to the `localhost` entry and
-  runs on the **DGX** instead of the AGX. Should be `http://192.168.1.202:11434`.
+  `gpt-oss:20b`. Candidate and judge are the same model. `agent-model-bakeoff` had
+  the same shape: its `gpt-oss:120b` judge was also one of the candidates it ranked.
+- **`recruiter-inbox-agent` addresses the AGX as `orin.local`** — a convention
+  deviation, not a bug. It runs as a systemd `--user` timer on the DGX *host*, where
+  mDNS resolves (`getent hosts orin.local` → `192.168.1.202`), so it has been reaching
+  the Orin correctly. The IP is still the right form: mDNS does not resolve from a k3s
+  pod (CoreDNS does no mDNS) or from the runner container without the avahi socket, so
+  `http://192.168.1.202:11434` keeps the config correct if the poller ever moves.
 
-PRs #80 and #82 changed templates only. Per the standing rule, existing projects
-are brought in line by re-scaffolding, not by patching the project repos.
+PRs #80 and #82 changed templates only. The standing rule is that project-repo issues
+are fixed at template level and the project re-scaffolded — that rule assumes throwaway
+template-test projects. These eight carry 4–47 commits of real results, so they were
+patched directly instead, one PR each, on the operator's explicit call.
+
+| Project | PR |
+|---|---|
+| medgemma-27b-med-kfp-ft-eval-pipeline | [#1](https://github.com/miramar-labs-org/medgemma-27b-med-kfp-ft-eval-pipeline/pull/1) |
+| qwen25-7b-arc-ft-eval-pipeline | [#2](https://github.com/miramar-labs-org/qwen25-7b-arc-ft-eval-pipeline/pull/2) |
+| qwen25-7b-medmcqa-kfp-ft-eval-pipeline | [#1](https://github.com/miramar-labs-org/qwen25-7b-medmcqa-kfp-ft-eval-pipeline/pull/1) |
+| qwen25-arc-kfp-rag | [#3](https://github.com/miramar-labs-org/qwen25-arc-kfp-rag/pull/3) |
+| agent-model-bakeoff | [#2](https://github.com/miramar-labs-org/agent-model-bakeoff/pull/2) |
+| slac-science-kfp-rag | [#1](https://github.com/miramar-labs-org/slac-science-kfp-rag/pull/1) |
+| pharma-promo-compliance-vlm-eval | [#1](https://github.com/miramar-labs-org/pharma-promo-compliance-vlm-eval/pull/1) |
+| recruiter-inbox-agent | [#2](https://github.com/miramar-labs-org/recruiter-inbox-agent/pull/2) |
+
+⚠️ `pharma-promo-compliance-vlm-eval` is the one whose *model* changes, so its stored
+notebook outputs and `results/scoring/` were produced by the old judge and need a re-run
+before they are cited again.
