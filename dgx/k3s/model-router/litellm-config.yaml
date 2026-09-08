@@ -1,43 +1,22 @@
+# Routing table for the DGX model router. Serving projects add and remove their own
+# entries here automatically on deploy/undeploy (GitHub Contents API, yaml.dump — which
+# is why this file carries no comments it cannot afford to lose).
+#
+# The meta/llama-3.1-8b-instruct-dgx-spark entry that used to sit here was stale: the
+# NeMo modeldeployment Service it pointed at no longer exists and the route returned 500.
+#
+# Ollama models are NOT listed here. Both hosts' catalogs are appended at deploy time as
+# dgx/<model> and agx/<model> — see below.
 model_list:
-- litellm_params:
-    api_base: http://modeldeployment-meta-llama-3-1-8b-instruct-dgx-spark.nemo-microservices.svc.cluster.local:8000/v1
-    api_key: none
-    model: openai/meta/llama-3.1-8b-instruct-dgx-spark
-  model_name: meta/llama-3.1-8b-instruct-dgx-spark
 
-# --- AGX Orin (secondary Ollama model runner) -------------------------------
-# The AGX runs Ollama natively on the host and nothing else — no k3s, so there
-# is no in-cluster Service to target and no CoreDNS record. Reach it by host IP
-# (AGX_HOST_IP org variable, 192.168.1.202) on the Ollama OpenAI-compatible
-# /v1 endpoint. Ollama loads a model on first request, subject to the ~40 GB
-# AGX_VRAM_USEABLE budget — one large model at a time.
-- litellm_params:
-    api_base: http://192.168.1.202:11434/v1
-    api_key: none
-    model: openai/qwen3.6:35b-a3b
-  model_name: agx/qwen3.6:35b-a3b
-- litellm_params:
-    api_base: http://192.168.1.202:11434/v1
-    api_key: none
-    model: openai/nemotron-3-nano:30b
-  model_name: agx/nemotron-3-nano:30b
-- litellm_params:
-    api_base: http://192.168.1.202:11434/v1
-    api_key: none
-    model: openai/qwen2.5:32b
-  model_name: agx/qwen2.5:32b
-- litellm_params:
-    api_base: http://192.168.1.202:11434/v1
-    api_key: none
-    model: openai/gpt-oss:20b
-  model_name: agx/gpt-oss:20b
-- litellm_params:
-    api_base: http://192.168.1.202:11434/v1
-    api_key: none
-    model: openai/gemma4:e4b
-  model_name: agx/gemma4:e4b
-- litellm_params:
-    api_base: http://192.168.1.202:11434/v1
-    api_key: none
-    model: openai/llama3.2:latest
-  model_name: agx/llama3.2:latest
+# --- Ollama on the DGX Spark and AGX Orin -------------------------------
+# Generated at deploy time by scripts/gha/gen-ollama-upstreams.py from each host's
+# live /api/tags and appended to a copy of this file by deploy-model-router.yaml.
+# The catalogs are dynamic — `ollama pull` and the model exists — so a hand-maintained
+# block drifts silently; the AGX one was listing 6 of 7 cached models.
+#
+# Ollama is host-native systemd on both machines, so neither has an in-cluster Service
+# or a CoreDNS record: both are reached by host IP ({MACHINE}_HOST_IP) on Ollama's
+# OpenAI-compatible /v1 endpoint. Entries are host-prefixed because both hosts carry
+# qwen3.6:35b-a3b, gpt-oss:20b, nemotron-3-nano:30b and phi4, and Open WebUI reaches
+# Ollama only through this router — these entries are the whole model picker.

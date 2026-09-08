@@ -253,6 +253,12 @@ Actions -> Model Router Undeploy  (deletes namespace, clears {MACHINE}_OPENWEBUI
 ```
 
 The routing table lives in the platform repo at `dgx/k3s/model-router/litellm-config.yaml`.
+The deploy appends both hosts' Ollama upstreams to it at run time as `dgx/<model>`
+and `agx/<model>` (see
+[AGX: reached from the DGX model router](agx.md#reached-from-the-dgx-model-router));
+the ConfigMap therefore holds far more entries than the committed file. Open WebUI
+has its direct Ollama connector disabled and sees Ollama only through these, so the
+router is the whole picker.
 
 **Serving projects register automatically.** When a serving project (`serving-vllm`, `serving-trt-engine`, etc.) deploys and the model-router namespace exists, the deploy workflow adds its entry to `litellm-config.yaml` via the GitHub Contents API and triggers a router redeploy. Undeploy removes the entry. No manual edits are needed for serving project models.
 

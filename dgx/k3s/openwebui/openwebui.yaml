@@ -1,8 +1,19 @@
 # Open WebUI — private chat interface for vLLM / Ollama model endpoints
 # Namespace: openwebui | Port: 8080 (in-cluster) → host port 8084 via openwebui-portfwd.service
 #
-# OPENAI_API_BASE_URL and ENABLE_OPENAI_API are substituted by deploy-openwebui.yaml at deploy time.
-# When no serving project is active ENABLE_OPENAI_API=false and Ollama is the only backend.
+# OPENAI_API_BASE_URL and ENABLE_OPENAI_API are substituted by deploy-openwebui.yaml
+# at deploy time; the model router is the only backend.
+#
+# ENABLE_OLLAMA_API=false is deliberate. Open WebUI concatenates its Ollama and OpenAI
+# model lists without deduplicating (open_webui/utils/models.py: function_models +
+# openai_models + ollama_models), and the router already carries every Ollama model on
+# both hosts as dgx/<model> and agx/<model>. A direct Ollama connection would therefore
+# list each DGX model a second time under its bare name. Routing everything keeps one
+# host-prefixed namespace in the picker.
+#
+# Consequence: the picker is only as current as the last Model Router Deploy — a newly
+# pulled Ollama model appears after that workflow re-reads /api/tags. And with no router
+# ({MACHINE}_OPENWEBUI_API_URL empty) there is no fallback backend; the picker is empty.
 # ENABLE_DIRECT_CONNECTIONS=false mitigates CVE-2025-64496.
 ---
 apiVersion: v1
@@ -40,9 +51,9 @@ spec:
             - name: ENABLE_OPENAI_API
               value: "ENABLE_OPENAI_API_PLACEHOLDER"
             - name: ENABLE_OLLAMA_API
-              value: "true"
-            - name: OLLAMA_BASE_URL
-              value: "http://host.k3s.internal:11434"
+              value: "false"
+            - name: ENABLE_EVALUATION_ARENA_MODELS
+              value: "false"
             - name: ENABLE_SIGNUP
               value: "false"
             - name: WEBUI_AUTH
