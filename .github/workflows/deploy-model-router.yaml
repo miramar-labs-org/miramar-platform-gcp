@@ -52,13 +52,16 @@ jobs:
           EFFECTIVE="${RUNNER_TEMP}/litellm-config.yaml"
           cp "${CONFIG_PATH}" "${EFFECTIVE}"
 
-          # The AGX Ollama catalog is dynamic, so its upstreams are generated from
-          # the live /api/tags rather than hand-maintained in the repo. Only the DGX
-          # router fans out to the AGX; the (legacy) agx config would be pointing at
-          # its own host. A powered-off AGX warns and emits nothing, it is not fatal.
+          # Both hosts run Ollama natively and both catalogs are dynamic, so their
+          # upstreams are generated from the live /api/tags rather than hand-maintained
+          # in the repo. Host prefixes keep the two apart — Open WebUI reaches Ollama
+          # only through this router, so these entries are the whole picker.
+          # An unreachable host warns and emits nothing; it is not fatal.
           if [[ "${{ inputs.runner }}" == "dgx" ]]; then
-            python3 scripts/gha/gen-agx-upstreams.py \
-              --host-ip "${{ vars.AGX_HOST_IP }}" >> "${EFFECTIVE}"
+            python3 scripts/gha/gen-ollama-upstreams.py \
+              --host-ip "${{ vars.DGX_HOST_IP }}" --prefix "dgx/" >> "${EFFECTIVE}"
+            python3 scripts/gha/gen-ollama-upstreams.py \
+              --host-ip "${{ vars.AGX_HOST_IP }}" --prefix "agx/" >> "${EFFECTIVE}"
           fi
 
           echo "EFFECTIVE_CONFIG=${EFFECTIVE}" >> "${GITHUB_ENV}"

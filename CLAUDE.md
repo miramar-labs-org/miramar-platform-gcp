@@ -287,7 +287,7 @@ See `dgx/systemd/` and `agx/systemd/`.
 | `qdrant-portfwd`    | `6333/6334` | `kubectl port-forward svc/qdrant 6333:6333 6334:6334` (REST + gRPC)          |
 | `postgres-portfwd`  | `5432`      | `kubectl port-forward svc/postgres 5432:5432`                                |
 | `nsight-portfwd`    | `8889` + `13001` | `8889`→`svc/nsight-operator-gateway:8888` (UI/SPA); `13001`→`svc/nsight-operator-coordinator:80` (REST API for `~/bin/nsight-export-report`) |
-| `openwebui-portfwd` | `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat over Ollama / vLLM) |
+| `openwebui-portfwd` | `8084`      | `kubectl port-forward svc/openwebui:8080` (Open WebUI chat, model router only) |
 
 **SSH tunnels** — DGX and AGX use offset local ports so both tunnels can run simultaneously from the laptop. Only the two AGX ports marked live have anything listening:
 
@@ -325,7 +325,7 @@ ssh -L 11435:localhost:11434 -L 8887:localhost:8888 aaron@orin.local
 
 **Workload stack** (deployment order):
 - DGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
-- AGX: Ollama Deploy only. Its models are registered as `agx/<model>` upstreams in the DGX model router, generated at deploy time from the AGX's live `/api/tags` by `scripts/gha/gen-agx-upstreams.py` (not committed to `litellm-config.yaml`), reached by host IP — the AGX has no k3s Service and no CoreDNS record.
+- AGX: Ollama Deploy only. Its models are registered as `agx/<model>` upstreams in the DGX model router (DGX models as `dgx/<model>`), generated at deploy time from each host's live `/api/tags` by `scripts/gha/gen-ollama-upstreams.py` (not committed to `litellm-config.yaml`), reached by host IP — Ollama is host-native on both machines, so neither has a k3s Service or CoreDNS record.
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
