@@ -7,7 +7,7 @@ set -euo pipefail
 #   - Configures NVIDIA container runtime for containerd
 #   - Copies kubeconfig to ~/.kube/config
 #   - Waits for node ready
-#   - Patches CoreDNS ConfigMap to resolve host.k3s.internal → node IP
+#   - Leaves CoreDNS alone: pods reach host-native services by node IP (see below)
 #   - Applies NVIDIA device plugin DaemonSet (pinned v0.18.0, arm64)
 #   - Deploys nginx-ingress controller (matches existing NeMo/NIM ingress YAML)
 #
@@ -112,23 +112,18 @@ kubectl annotate storageclass local-path \
   storageclass.kubernetes.io/is-default-class=true --overwrite
 kubectl get storageclass
 
-# ---- CoreDNS patch: host.k3s.internal → node IP ----
-# k3s CoreDNS already uses a 'hosts' plugin for NodeHosts — adding a second hosts
-# block via ConfigMap extension crashes CoreDNS. Instead, append to NodeHosts directly.
-log "Patching CoreDNS to resolve host.k3s.internal..."
-NODE_IP=$(python3 -c "
-import subprocess, json
-out = subprocess.check_output(['kubectl','get','node','-o','json']).decode()
-addrs = json.loads(out)['items'][0]['status']['addresses']
-print(next(a['address'] for a in addrs if a['type']=='InternalIP' and '.' in a['address']))
-")
-CURRENT=$(kubectl get configmap coredns -n kube-system -o jsonpath='{.data.NodeHosts}')
-PATCHED=$(printf '%s\n' "$CURRENT" | grep -v 'host\.k3s\.internal'; printf '%s host.k3s.internal\n' "$NODE_IP")
-PATCHED_JSON=$(printf '%s' "$PATCHED" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
-kubectl patch configmap coredns -n kube-system --type merge \
-  -p "{\"data\":{\"NodeHosts\":${PATCHED_JSON}}}"
-kubectl rollout restart deployment/coredns -n kube-system
-kubectl rollout status deployment/coredns -n kube-system --timeout=60s
+# ---- Reaching host-native services from pods ----
+# There is deliberately no host.k3s.internal record. k3s CoreDNS keeps its hosts
+# entries in the `NodeHosts` key of the kube-system/coredns ConfigMap, which is
+# owned by the k3s addon controller (objectset.rio.cattle.io/owner-gvk:
+# k3s.cattle.io/v1, Kind=Addon). A `kubectl patch` there survives until the next
+# k3s server restart and is then reconciled away — the name resolves right after
+# install and silently stops resolving after a reboot, which is how Open WebUI
+# lost every DGX Ollama model without an error anyone saw.
+#
+# Host-native services (Ollama on :11434) are therefore addressed by node IP,
+# from the {MACHINE}_HOST_IP org variable, substituted at deploy time. That is
+# the same way the model router already reaches the AGX.
 
 # ---- Kubernetes Dashboard ----
 K8S_DASHBOARD_VERSION="v2.7.0"
@@ -176,5 +171,7 @@ log "Dashboard deployed at port 8001 (skip-login enabled)."
 log "URL: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/"
 
 log "k3s install complete."
-log "Node IP: ${NODE_IP} — host.k3s.internal resolves to this address inside pods"
+NODE_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' \
+  | tr ' ' '\n' | grep '\.' | head -1)
+log "Node IP: ${NODE_IP} — address host-native services (e.g. Ollama :11434) here from pods"
 kubectl get nodes -o wide

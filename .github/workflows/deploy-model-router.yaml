@@ -45,12 +45,28 @@ jobs:
       - name: Apply base manifests
         run: kubectl apply -f dgx/k3s/model-router/router.yaml
 
-      - name: Upsert litellm ConfigMap from repo
+      - name: Build effective litellm config (repo + generated AGX upstreams)
         run: |
           CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
           [[ "${{ inputs.runner }}" == "agx" ]] && CONFIG_PATH="agx/k3s/model-router/litellm-config.yaml"
+          EFFECTIVE="${RUNNER_TEMP}/litellm-config.yaml"
+          cp "${CONFIG_PATH}" "${EFFECTIVE}"
+
+          # The AGX Ollama catalog is dynamic, so its upstreams are generated from
+          # the live /api/tags rather than hand-maintained in the repo. Only the DGX
+          # router fans out to the AGX; the (legacy) agx config would be pointing at
+          # its own host. A powered-off AGX warns and emits nothing, it is not fatal.
+          if [[ "${{ inputs.runner }}" == "dgx" ]]; then
+            python3 scripts/gha/gen-agx-upstreams.py \
+              --host-ip "${{ vars.AGX_HOST_IP }}" >> "${EFFECTIVE}"
+          fi
+
+          echo "EFFECTIVE_CONFIG=${EFFECTIVE}" >> "${GITHUB_ENV}"
+
+      - name: Upsert litellm ConfigMap
+        run: |
           kubectl create configmap litellm-config \
-            --from-file=config.yaml="${CONFIG_PATH}" \
+            --from-file=config.yaml="${EFFECTIVE_CONFIG}" \
             -n model-router --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Restart deployment to pick up new config

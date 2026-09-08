@@ -1,7 +1,10 @@
 # Open WebUI — private chat interface for vLLM / Ollama model endpoints
 # Namespace: openwebui | Port: 8080 (in-cluster) → host port 8084 via openwebui-portfwd.service
 #
-# OPENAI_API_BASE_URL and ENABLE_OPENAI_API are substituted by deploy-openwebui.yaml at deploy time.
+# OPENAI_API_BASE_URL, ENABLE_OPENAI_API and OLLAMA_BASE_URL are substituted by
+# deploy-openwebui.yaml at deploy time. OLLAMA_BASE_URL is the node IP ({MACHINE}_HOST_IP),
+# not host.k3s.internal: that name lives in the k3s addon-owned CoreDNS NodeHosts key and is
+# reconciled away on every k3s server restart, silently emptying the Ollama model list.
 # When no serving project is active ENABLE_OPENAI_API=false and Ollama is the only backend.
 # ENABLE_DIRECT_CONNECTIONS=false mitigates CVE-2025-64496.
 ---
@@ -42,7 +45,7 @@ spec:
             - name: ENABLE_OLLAMA_API
               value: "true"
             - name: OLLAMA_BASE_URL
-              value: "http://host.k3s.internal:11434"
+              value: "OLLAMA_BASE_URL_PLACEHOLDER"
             - name: ENABLE_SIGNUP
               value: "false"
             - name: WEBUI_AUTH

@@ -61,9 +61,16 @@ State variables: `CURRENT_OLLAMA_MODEL_AGX`, `CURRENT_OLLAMA_VRAM_GB_AGX`,
 
 ### Reached from the DGX model router
 
-The DGX model router (LiteLLM, `model-router` namespace on DGX k3s) has the AGX
-Ollama models registered as `agx/<model>` upstreams in
-[`dgx/k3s/model-router/litellm-config.yaml`](../dgx/k3s/model-router/litellm-config.yaml).
+The DGX model router (LiteLLM, `model-router` namespace on DGX k3s) registers
+every AGX Ollama model as an `agx/<model>` upstream. The entries are **not**
+committed: **Model Router Deploy** (runner `dgx`) runs
+[`scripts/gha/gen-agx-upstreams.py`](../scripts/gha/gen-agx-upstreams.py)
+against the AGX's live `/api/tags` and appends the result to
+[`dgx/k3s/model-router/litellm-config.yaml`](../dgx/k3s/model-router/litellm-config.yaml)
+before building the ConfigMap. The catalog is dynamic — `ollama pull` and the
+model exists — so a hand-maintained block drifts silently; it was listing 6 of
+the 7 cached models when this was found. If the AGX is powered off the step
+warns and emits nothing rather than failing the router deploy.
 
 Because the AGX has no k3s, there is no in-cluster Service and no CoreDNS
 record for it — the router targets the **host IP** (`AGX_HOST_IP`,
@@ -75,8 +82,9 @@ curl -s http://localhost:8000/v1/models | jq -r '.data[].id'   # via router port
 ```
 
 To add or remove AGX models: pull them on the AGX (`Ollama Deploy`, runner
-`agx`), edit `litellm-config.yaml`, commit, and re-run **Model Router Deploy**
-(runner `dgx`).
+`agx`, or a plain `ollama pull` for cache-only models like the judge), then
+re-run **Model Router Deploy** (runner `dgx`) to re-read the catalog. No config
+edit and no commit — that is the point of generating the block.
 
 ## NIM
 

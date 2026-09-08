@@ -325,7 +325,7 @@ ssh -L 11435:localhost:11434 -L 8887:localhost:8888 aaron@orin.local
 
 **Workload stack** (deployment order):
 - DGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
-- AGX: Ollama Deploy only. Its models are registered as `agx/<model>` upstreams in the DGX model router (`dgx/k3s/model-router/litellm-config.yaml`), reached by host IP — the AGX has no k3s Service and no CoreDNS record.
+- AGX: Ollama Deploy only. Its models are registered as `agx/<model>` upstreams in the DGX model router, generated at deploy time from the AGX's live `/api/tags` by `scripts/gha/gen-agx-upstreams.py` (not committed to `litellm-config.yaml`), reached by host IP — the AGX has no k3s Service and no CoreDNS record.
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 

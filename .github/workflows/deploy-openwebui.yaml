@@ -48,6 +48,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
+          # Ollama is host-native systemd on the node, not a k3s workload, so the pod
+          # must reach it over a host address. Use the node IP: host.k3s.internal lives
+          # in the k3s addon-owned CoreDNS NodeHosts key and is reconciled away on every
+          # k3s server restart, which silently empties the Ollama model list.
+          echo "OLLAMA_BASE_URL=http://${{ vars.DGX_HOST_IP }}:11434" >> "$GITHUB_ENV"
           API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
             echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
@@ -64,6 +69,7 @@ jobs:
         run: |
           sed "s|OPENAI_API_BASE_URL_PLACEHOLDER|${OPENAI_API_BASE_URL}|g" dgx/k3s/openwebui/openwebui.yaml \
             | sed "s|ENABLE_OPENAI_API_PLACEHOLDER|${ENABLE_OPENAI_API}|g" \
+            | sed "s|OLLAMA_BASE_URL_PLACEHOLDER|${OLLAMA_BASE_URL}|g" \
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
@@ -127,7 +133,7 @@ jobs:
             echo "|---|---|"
             echo "| Namespace | \`openwebui\` |"
             echo "| OpenAI backend | \`${OPENAI_API_BASE_URL:-none (Ollama-only)}\` |"
-            echo "| Ollama backend | \`http://host.k3s.internal:11434\` |"
+            echo "| Ollama backend | \`${OLLAMA_BASE_URL}\` |"
             echo ""
             echo "Access: \`http://localhost:8084\`"
             echo ""
@@ -154,6 +160,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
+          # See the DGX job: Ollama is host-native, reach it by node IP not host.k3s.internal.
+          echo "OLLAMA_BASE_URL=http://${{ vars.AGX_HOST_IP }}:11434" >> "$GITHUB_ENV"
           API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
             echo "OPENAI_API_BASE_URL=${API_URL}" >> "$GITHUB_ENV"
@@ -170,6 +178,7 @@ jobs:
         run: |
           sed "s|OPENAI_API_BASE_URL_PLACEHOLDER|${OPENAI_API_BASE_URL}|g" dgx/k3s/openwebui/openwebui.yaml \
             | sed "s|ENABLE_OPENAI_API_PLACEHOLDER|${ENABLE_OPENAI_API}|g" \
+            | sed "s|OLLAMA_BASE_URL_PLACEHOLDER|${OLLAMA_BASE_URL}|g" \
             | kubectl apply --validate=false -f -
 
       - name: Wait for rollout
@@ -233,7 +242,7 @@ jobs:
             echo "|---|---|"
             echo "| Namespace | \`openwebui\` |"
             echo "| OpenAI backend | \`${OPENAI_API_BASE_URL:-none (Ollama-only)}\` |"
-            echo "| Ollama backend | \`http://host.k3s.internal:11434\` |"
+            echo "| Ollama backend | \`${OLLAMA_BASE_URL}\` |"
             echo ""
             echo "Access: \`http://localhost:8084\`"
             echo ""
