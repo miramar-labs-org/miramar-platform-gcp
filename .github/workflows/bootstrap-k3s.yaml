@@ -351,8 +351,14 @@ jobs:
             git add "${HOSTS_FILE}"
             git commit -m "docs: update NeMo hosts file for ${{ inputs.runner }} [skip ci]"
             git config --local --unset-all http.https://github.com/.extraheader || true
-            git remote set-url origin "https://x-access-token:${MIRAMAR_ORG_ADMIN_PAT}@github.com/miramar-labs-org/miramar-platform-gcp.git"
-            git push origin HEAD:main
+            # Push with a throwaway credential helper rather than a tokenised remote URL:
+            # set-url would write the PAT into .git/config, and a self-hosted runner keeps
+            # its _work tree between jobs, so it would outlive the run. The token reaches
+            # git through the environment only — never argv, never a config file.
+            git \
+              -c credential.helper= \
+              -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${MIRAMAR_ORG_ADMIN_PAT}"; fi; }; f' \
+              push https://github.com/miramar-labs-org/miramar-platform-gcp.git HEAD:main
           fi
 
       - name: Wait for NeMo pods

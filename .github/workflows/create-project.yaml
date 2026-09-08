@@ -364,27 +364,44 @@ jobs:
           [ -d .github ] && git add -f .github/  # force-add workflows if present (not in default template)
           git commit -m "Initial scaffold (type: ${PROJECT_TYPE}, host: ${HOST}) from Miramar template"
 
-          git remote add origin \
-            "https://x-access-token:${GITHUB_ORG_ADMIN_PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git"
-          git push -u origin main
+          # The remote URL is stored verbatim in .git/config, so the PAT must not be in
+          # it. Feed it to a throwaway credential helper instead: the token reaches git
+          # through the environment, never through argv (world-readable in /proc) and
+          # never through a config file. The empty helper first resets any helper the
+          # runner already has configured, so this one is the only one consulted.
+          git remote add origin "https://github.com/miramar-labs-org/${PROJECT_NAME}.git"
+          git \
+            -c credential.helper= \
+            -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${GITHUB_ORG_ADMIN_PAT}"; fi; }; f' \
+            push -u origin main
 
       - name: Clone to host projects folder
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
           SCRIPT: |
             set -euo pipefail
             mkdir -p "${HOME}/git-miramar-labs-org/projects"
             DEST="${HOME}/git-miramar-labs-org/projects/${PROJECT_NAME}"
+            REPO_URL="https://github.com/miramar-labs-org/${PROJECT_NAME}.git"
+
+            # No PAT is sent to the host. This clone lands in a PERMANENT directory, and
+            # git clone writes whatever URL it was given straight into .git/config — a
+            # tokenised URL here left MIRAMAR_ORG_ADMIN_PAT sitting in plaintext in five
+            # project repos on this box (found 2026-09-08). The host authenticates with
+            # its own credentials instead: `credential.helper = !/usr/bin/gh auth
+            # git-credential`, configured globally for ${HOST_USER}.
             if [ -d "${DEST}/.git" ]; then
+              git -C "${DEST}" remote set-url origin "${REPO_URL}"   # strips any legacy embedded token
               git -C "${DEST}" fetch origin
               git -C "${DEST}" reset --hard origin/main
               echo "Reset to origin/main: ${DEST}"
-            else
-              git clone \
-                "https://x-access-token:${PAT}@github.com/miramar-labs-org/${PROJECT_NAME}.git" \
-                "${DEST}"
+            elif git clone "${REPO_URL}" "${DEST}"; then
               echo "Cloned to: ${DEST}"
+            else
+              echo "WARNING: could not clone ${PROJECT_NAME} to the host." >&2
+              echo "         The repo exists and is pushed; only the host working copy is missing." >&2
+              echo "         If it is private, check 'gh auth status' as ${USER} on the host." >&2
+              exit 0
             fi
 
             # Create per-project venv and register as a named JupyterLab kernel.
@@ -413,8 +430,7 @@ jobs:
           printf '%s' "${SCRIPT}" \
             | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
                 "${HOST_USER}@localhost" \
-                env PROJECT_NAME="${PROJECT_NAME}" \
-                    PAT="${GITHUB_ORG_ADMIN_PAT}" bash
+                env PROJECT_NAME="${PROJECT_NAME}" bash
 
       - name: Draft blog post
         continue-on-error: true
