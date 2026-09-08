@@ -6,10 +6,14 @@ description: ""  # One sentence — shown in KFP Pipelines + KFP Experiments + M
 # are required for serving_mode "guided" (vLLM). List only the fields the modes
 # you enable actually need.
 models:
-  - id: example-model
-    ollama_tag: "qwen3:4b"          # `ollama pull` target for serving_mode: ollama
-    hf_id: "Qwen/Qwen3-4B"          # HF repo for serving_mode: guided (vLLM)
-    quant: "fp8"                    # vLLM --quantization (fp8 on GB10 — never nvfp4)
+  - id: dgx-default
+    ollama_tag: "{{DGX_DEFAULT_MODEL}}"   # from the DGX_DEFAULT_MODEL org variable
+  # A `guided` (vLLM) candidate needs hf_id + quant instead of ollama_tag. Both must
+  # describe the SAME model — an ollama_tag and an unrelated hf_id would silently
+  # benchmark two different models under one leaderboard key:
+  # - id: qwen3-4b
+  #   hf_id: "Qwen/Qwen3-4B"        # HF repo for serving_mode: guided (vLLM)
+  #   quant: "fp8"                  # vLLM --quantization (fp8 on GB10 — never nvfp4)
 
 # ── Serving modes ────────────────────────────────────────────────────────────
 # The matrix is models × serving_modes, run SERIALLY (one GPU, Ollama pins one
@@ -67,8 +71,8 @@ dataset:
 # not move a single score. If the AGX is offline, point base_url at
 # http://192.168.1.200:11434/v1 (DGX).
 judge:
-  model: "phi4"                                # platform judge — keep identical across projects
-  base_url: "http://192.168.1.202:11434/v1"    # AGX Orin (AGX_HOST_IP)
+  model: "{{AGX_DEFAULT_MODEL}}"            # platform judge — substituted from the AGX_DEFAULT_MODEL org variable
+  base_url: "http://192.168.1.202:11434/v1" # AGX Orin (AGX_HOST_IP) — the judge always runs here
 
 # ── Gate thresholds ──────────────────────────────────────────────────────────
 # Harness-specific keys, read by each harness's gates() block. Deterministic,

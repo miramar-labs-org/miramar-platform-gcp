@@ -73,7 +73,8 @@ Pipeline cell and add the task to `tasks:` / `gate_thresholds:` / `score_weights
 - **`serving_modes`** — `models × serving_modes` combos run **serially** (one GPU).
 - **`dataset.version`** — must point at an uploaded MinIO snapshot
   (`scripts/export_dataset.py`). `load_dataset` fails fast if the prefix is missing.
-- **`judge.model`** — the platform judge (`phi4` on the AGX Orin); shared by every
+- **`judge.model`** — the platform judge, substituted from the `AGX_DEFAULT_MODEL`
+  org variable at scaffold time (currently `phi4` on the AGX Orin). Shared by every
   project, so leave it alone unless you mean to break cross-project score
   comparability. Note self-grading bias if the judge is also a candidate.
 

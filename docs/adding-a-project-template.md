@@ -18,19 +18,44 @@ templates/new-project-<type>/
 ```
 
 `create-project.yaml` runs `cp -r templates/new-project-<type>/. .` into the new repo
-and then does `sed` substitutions for `{{PROJECT_NAME}}` and `{{PROJECT_HOST}}`.
-Files in `.github/workflows/` inside the template are included automatically.
+and then does `sed` substitutions for `{{PROJECT_NAME}}`, `{{PROJECT_HOST}}` and the
+model placeholders below. Files in `.github/workflows/` inside the template are
+included automatically.
+
+### Model placeholders
+
+Never hard-code a model name in a template's `config.yaml`. Use the two org
+variables, so that changing the platform default for every future project is a
+variable edit rather than a template commit:
+
+| Placeholder | Org variable | What it is | Runs on |
+| --- | --- | --- | --- |
+| `{{DGX_DEFAULT_MODEL}}` | `DGX_DEFAULT_MODEL` | the project's primary LLM | DGX |
+| `{{AGX_DEFAULT_MODEL}}` | `AGX_DEFAULT_MODEL` | the shared platform judge | AGX |
+
+Quote them — `model: "{{DGX_DEFAULT_MODEL}}"`. An unquoted `{{...}}` is a YAML flow
+mapping and makes the file unparseable before substitution, which breaks any check
+that validates the template's raw bytes.
+
+Both are **Ollama tags**, so they belong only in fields that name a *served* model.
+Do not substitute `{{DGX_DEFAULT_MODEL}}` into a HuggingFace `model.id` — that is the
+model a fine-tune template trains, and an Ollama tag cannot be LoRA-trained. Leave
+those as `org/model-id` or a `{{HF_MODEL_ID}}` input.
+
+`create-project.yaml` fails the scaffold if either variable is unset, rather than
+substituting an empty string.
 
 ### If the template needs an LLM-as-judge
 
 Use the **platform judge**. It is one shared model — `phi4`, hosted on the AGX Orin —
 and every project that judges anything uses it, so that scores stay comparable across
-runs, across projects, and over time. Do not pick a judge per template.
+runs, across projects, and over time. Do not pick a judge per template, and do not
+name it directly: reference `{{AGX_DEFAULT_MODEL}}`.
 
 ```yaml
 judge:
-  model: phi4                               # platform judge — keep identical across projects
-  base_url: http://192.168.1.202:11434/v1   # AGX Orin (AGX_HOST_IP)
+  model: "{{AGX_DEFAULT_MODEL}}"            # platform judge — substituted from the AGX_DEFAULT_MODEL org variable
+  base_url: "http://192.168.1.202:11434/v1" # AGX Orin (AGX_HOST_IP) — the judge always runs here
 ```
 
 Copy the `judge:` comment block from `templates/new-project-ft-eval/config.yaml` so the
