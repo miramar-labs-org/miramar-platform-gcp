@@ -327,6 +327,8 @@ ssh -L 11435:localhost:11434 -L 8887:localhost:8888 aaron@orin.local
 - DGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
 - AGX: Ollama Deploy only. Its models are registered as `agx/<model>` upstreams in the DGX model router (`dgx/k3s/model-router/litellm-config.yaml`), reached by host IP — the AGX has no k3s Service and no CoreDNS record.
 
+**The platform judge** — every project that needs an LLM-as-judge uses the *same* model at the *same* endpoint: `phi4` on the AGX Orin (`http://192.168.1.202:11434/v1`). It is not a per-project modelling choice; a fixed judge is what makes scores comparable across runs, projects, and time. Templates with a `judge:` block (`ft-eval`, `nemo-ft-eval`, `kfp-rag`, `kfp-eval`) all point there. `phi4` is kept in the AGX Ollama cache by a plain `ollama pull` — deliberately **not** `Ollama Deploy`, which would pin it and claim the machine's single deploy slot. It loads on demand and needs ~9.1 GB of the ~40 GB `AGX_VRAM_USEABLE` budget free. Candidate-under-test / serving endpoints are a different thing and stay on the DGX. Rationale + measurements: `docs/agx.md` → *The platform judge runs here*.
+
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
 **NIM** — DGX only. Default: `nvidia/nvidia-nemotron-nano-9b-v2-dgx-spark` (Blackwell-optimized). See `dgx/k3s/nim/NIM.md` for catalog. NIM is **not** available on AGX: NGC publishes no `linux/arm64` NIM LLM images, and the AGX no longer runs k3s. `CURRENT_NIM_MODEL_AGX` / `CURRENT_NIM_VRAM_GB_AGX` are obsolete and unread.

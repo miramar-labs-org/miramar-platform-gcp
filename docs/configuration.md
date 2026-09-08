@@ -14,7 +14,7 @@ host values are set manually.
 | `HF_TOKEN`           | Hugging Face API token                     | Injected into KFP pods via `mlabs-api-keys` K8s secret; also used directly in workflow steps       |
 | `NVIDIA_API_KEY`     | NVIDIA NGC API key                         | Required by NeMo Microservices and NIM workflows; also injected into KFP pods via `mlabs-api-keys` |
 | `NGC_API_KEY`        | NVIDIA NGC API key (pipeline use)          | Injected into KFP pods via `mlabs-api-keys` K8s secret                                             |
-| `OPENAI_API_KEY`     | OpenAI API key                             | Injected into KFP pods via `mlabs-api-keys` K8s secret (e.g. GPT-4o judge in clinical pipelines)   |
+| `OPENAI_API_KEY`     | OpenAI API key                             | Injected into KFP pods via `mlabs-api-keys` K8s secret. **Not** for LLM-as-judge — that is the local platform judge on the AGX (`docs/agx.md`); an external judge would breach the PHI boundary |
 | `ANTHROPIC_API_KEY`  | Anthropic API key                          | Injected into KFP pods via `mlabs-api-keys` K8s secret                                             |
 | `WANDB_API_KEY`      | Weights & Biases API key                   | Injected into KFP pods via `mlabs-api-keys` K8s secret                                             |
 | `LANGCHAIN_API_KEY`  | LangChain / LangSmith API key              | Injected into KFP pods via `mlabs-api-keys` K8s secret                                             |

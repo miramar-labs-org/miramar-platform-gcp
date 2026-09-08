@@ -72,7 +72,8 @@ download_model
 | `eval.safety_sample_size`              | int    | Number of val examples used for LLM-judge eval                |
 | `eval.accuracy_delta_threshold`        | float  | Max allowed accuracy regression (post-FT vs baseline)         |
 | `eval.safety_score_threshold`          | float  | Min average judge score to pass gate                          |
-| `judge.model`                          | string | OpenAI model ID for LLM-as-judge (e.g. `gpt-4o`)              |
+| `judge.model`                          | string | Platform judge — shared by every project; don't change per-project |
+| `judge.base_url`                       | string | Judge endpoint — the AGX Orin (`AGX_HOST_IP`)                 |
 | `judge.system_prompt`                  | string | System prompt for the judge — must elicit JSON output         |
 
 ---

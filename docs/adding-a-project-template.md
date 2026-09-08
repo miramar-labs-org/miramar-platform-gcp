@@ -21,6 +21,27 @@ templates/new-project-<type>/
 and then does `sed` substitutions for `{{PROJECT_NAME}}` and `{{PROJECT_HOST}}`.
 Files in `.github/workflows/` inside the template are included automatically.
 
+### If the template needs an LLM-as-judge
+
+Use the **platform judge**. It is one shared model — `phi4`, hosted on the AGX Orin —
+and every project that judges anything uses it, so that scores stay comparable across
+runs, across projects, and over time. Do not pick a judge per template.
+
+```yaml
+judge:
+  model: phi4                               # platform judge — keep identical across projects
+  base_url: http://192.168.1.202:11434/v1   # AGX Orin (AGX_HOST_IP)
+```
+
+Copy the `judge:` comment block from `templates/new-project-ft-eval/config.yaml` so the
+rule, the cost (DGX 2.5 s/call vs AGX 14.0 s/call), and the DGX fallback travel with the
+template. Always pass `timeout=` on the judge's `chat.completions.create` call — it is a
+LAN call and an unreachable judge otherwise hangs the component forever. Full rationale
+and measurements: [`docs/agx.md`](agx.md) → *The platform judge runs here*.
+
+A candidate-under-test or serving endpoint is **not** the judge and stays on the DGX —
+that is the hardware being benchmarked.
+
 ---
 
 ## 2. `create-project.yaml` — five touch points
@@ -146,6 +167,7 @@ If the new type introduces a new operator area (e.g. a new serving mechanism), a
 ## Checklist
 
 - [ ] `templates/new-project-<type>/` directory with all required files
+- [ ] If it judges: `judge:` points at the platform judge (`phi4` @ `192.168.1.202`), never a per-template model
 - [ ] `create-project.yaml` — input enum, badge, packages, blog body, summary
 - [ ] `generate-dashboard.sh` — topic detection, badge CSS, New Project modal option
 - [ ] `CLAUDE.md` — Create Project table row

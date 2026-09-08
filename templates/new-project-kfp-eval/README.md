@@ -68,8 +68,8 @@ because the box has one GPU and Ollama pins a single resident model.
 | `dataset.bucket` | string | Bucket holding `datasets/<version>/` |
 | `dataset.version` | string | Dated snapshot dir, e.g. `v20260828` |
 | `dataset.access_key` / `secret_key` | string | MinIO creds (platform dev defaults pre-filled) |
-| `judge.model` | string | Fixed judge model (keep local — Ollama) |
-| `judge.base_url` | string | Judge endpoint |
+| `judge.model` | string | Platform judge — shared by every project; don't change per-project |
+| `judge.base_url` | string | Judge endpoint — the AGX Orin (`AGX_HOST_IP`) |
 | `gate_thresholds.<task>` | map | Deterministic pass/fail knobs read by that harness's `gates()` |
 | `score_weights.<task>.gate_pass` | float | Weight on gate-pass rate (normalized per task) |
 | `score_weights.<task>.judge` | float | Weight on mean judge score |

@@ -98,7 +98,7 @@ resp = llm_client.chat.completions.create(
 
 Judge prompt should return JSON: `{"answer_correctness": 1-5, "fact_coverage": 0.0-1.0}`.
 
-**Always pass `timeout=60`** to every judge `chat.completions.create` call (generation_eval, faithfulness_eval, safety_eval). The judge is an Ollama call over the LAN to the AGX Orin — without a timeout, a slow or unreachable judge hangs the entire component indefinitely. (It used to run on the DGX, where it also contended with vLLM for unified memory; moving it to the AGX removed the contention but not the need for a timeout.)
+**Always pass `timeout=60`** to every judge `chat.completions.create` call (generation_eval, faithfulness_eval, safety_eval). The judge is the shared **platform judge** — one model, hosted on the AGX Orin, used by every project that needs one (see the comment above `judge:` in `config.yaml`). It is a LAN call: without a timeout, a slow or unreachable judge hangs the entire component indefinitely.
 
 ### 3. `faithfulness_eval` — Citation faithfulness judge
 

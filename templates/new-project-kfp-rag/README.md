@@ -62,8 +62,8 @@ serving project on the platform.
 | `eval.min_citation_coverage` | float | Gate threshold: fraction of answers with cited chunks |
 | `eval.max_unsupported_claim_rate` | float | Gate threshold: max fraction of unsupported claims |
 | `eval.min_safety_score` | float | Gate threshold: avg safety score (1–5) |
-| `judge.model` | string | LLM judge model ID (Ollama-compatible) |
-| `judge.base_url` | string | Judge LLM endpoint (usually Ollama at 11434) |
+| `judge.model` | string | Platform judge — shared by every project; don't change per-project |
+| `judge.base_url` | string | Judge endpoint — the AGX Orin (`AGX_HOST_IP`) |
 | `judge.system_prompt` | string | System prompt — must elicit JSON output |
 | `langsmith.enabled` | bool | Enable LangSmith tracing (requires `LANGCHAIN_API_KEY`) |
 | `langsmith.project` | string | LangSmith project name |

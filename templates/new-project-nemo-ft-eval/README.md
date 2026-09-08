@@ -80,8 +80,8 @@ download_model
 | `eval.sample_size`              | int    | Number of val examples for baseline/post-FT eval                      |
 | `eval.accuracy_delta_threshold` | float  | Max allowed accuracy regression                                       |
 | `eval.safety_score_threshold`   | float  | Min average judge score to pass gate                                  |
-| `judge.model`                   | string | Ollama model ID for LLM-as-judge                                      |
-| `judge.base_url`                | string | Ollama API base URL                                                   |
+| `judge.model`                   | string | Platform judge — shared by every project; don't change per-project     |
+| `judge.base_url`                | string | Judge endpoint — the AGX Orin (`AGX_HOST_IP`)                         |
 
 ---
 

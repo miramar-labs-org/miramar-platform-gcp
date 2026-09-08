@@ -40,18 +40,35 @@ dataset:
   secret_key: "mlflowadmin12345678"
 
 # ── LLM-as-judge ─────────────────────────────────────────────────────────────
-# A single fixed judge model scores every candidate's output. Keep it local
-# (Ollama) by default. Note self-grading bias if the judge is also a candidate.
+# PLATFORM RULE: the LLM-as-judge is one shared model, hosted on the AGX Orin.
 #
-# This judge stays on the DGX, unlike ft-eval / nemo-ft-eval / kfp-rag, which moved
-# theirs to the AGX Orin to keep judge calls off the busy GPU. gpt-oss:120b does not
-# fit the AGX's 40 GB model budget (AGX_VRAM_USEABLE), so the contention CLAUDE.md
-# warns about — always pass `timeout=`, the judge shares unified memory with vLLM —
-# still applies here. Moving it would mean picking a smaller judge, which changes
-# every score in the bakeoff: a scoring decision, not an infra one.
+# Every project on the platform that needs a judge uses this same model at this same
+# endpoint — the bakeoff is no exception. A fixed judge is what makes scores comparable
+# across runs, across projects, and over time. Note the self-grading bias if the judge
+# model is also entered as a candidate in `models:` below.
+#
+# Why the AGX: the judge is the one LLM that has to be available *during* an eval while
+# not being the thing under evaluation. Here every candidate takes its turn holding DGX
+# GPU memory, so a DGX-side judge would contend with whichever model is being scored.
+# The judge loads on demand and needs ~9.1 GB of the AGX's ~40 GB model budget
+# (AGX_VRAM_USEABLE) free — an `Ollama Deploy` against `agx` that pins a model larger
+# than ~30 GB will starve it.
+#
+# This was `gpt-oss:120b` on the DGX. That model is 65 GB — it exceeds not just the AGX
+# budget but the Orin's 64 GB of total memory, so it cannot be the platform judge. phi4
+# scored 5/5 parseable and correct on a five-case safety set where the larger candidates
+# returned empty completions (reasoning models that spend the token budget thinking).
+#
+# Cost: measured 2026-09-07, phi4, mean over five judge-shaped cases at temperature 0 —
+# DGX 2.5 s/call vs AGX 14.0 s/call. Multiply by cases × models × serving_modes to size
+# a bakeoff run; `case_timeout_s` still bounds each call.
+#
+# Verdicts are identical on both hosts (same model, temperature 0), so the fallback does
+# not move a single score. If the AGX is offline, point base_url at
+# http://192.168.1.200:11434/v1 (DGX).
 judge:
-  model: "gpt-oss:120b"
-  base_url: "http://192.168.1.200:11434/v1"   # DGX Spark (DGX_HOST_IP)
+  model: "phi4"                                # platform judge — keep identical across projects
+  base_url: "http://192.168.1.202:11434/v1"    # AGX Orin (AGX_HOST_IP)
 
 # ── Gate thresholds ──────────────────────────────────────────────────────────
 # Harness-specific keys, read by each harness's gates() block. Deterministic,
