@@ -210,6 +210,16 @@ GKE_MACHINE_TYPE=$(read_org_var "GKE_MACHINE_TYPE")
 [[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
 [[ -z "$GKE_NODE_COUNT" ]] && GKE_NODE_COUNT="1"
 
+# These are RESERVED totals, not live GPU load, and the labels say so. Every input is a
+# "what did the deploy workflow commit" variable, not a reading off the hardware:
+#   - This script runs on ubuntu-latest, which has no route to the DGX or the AGX, so it
+#     could not read live GPU state even if we wanted it to.
+#   - The page is a static snapshot regenerated hourly (or by the header's Refresh button),
+#     so anything on it is true as of the last build, never "now".
+#   - Ollama unloads an idle model after a few minutes, so a live reading would swing
+#     between the full model size and zero depending purely on refresh timing — noise, not
+#     signal. Reserved is the number that answers "can I deploy another model here?".
+# For actual live GPU state, use nvtop on the host.
 VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB + DGX_VLLM_TOTAL_GB + DGX_TRITON_TOTAL_GB ))
 VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
 (( VRAM_AVAIL_GB < 0 )) && VRAM_AVAIL_GB=0
@@ -451,11 +461,11 @@ cat > "$OUTPUT" <<HTMLEOF
       <code class="${OPENWEBUI_API_CLASS}">${OPENWEBUI_API_DISPLAY}</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label">VRAM Used</div>
+      <div class="ps-label" title="Budget committed to the deployed models. Not live GPU load — this page is a snapshot from the last refresh, and Ollama unloads an idle model after a few minutes.">VRAM Reserved</div>
       <code class="ps-value">${VRAM_USED_GB} GB</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label">VRAM Available</div>
+      <div class="ps-label" title="Budget left for another model deployment.">VRAM Free</div>
       <code class="${VRAM_AVAIL_CLASS}">${VRAM_AVAIL_GB} GB</code>
     </div>
   </div>
@@ -472,11 +482,11 @@ cat > "$OUTPUT" <<HTMLEOF
       <code class="${AGX_OPENWEBUI_API_CLASS}">${AGX_OPENWEBUI_API_DISPLAY}</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label">VRAM Used</div>
+      <div class="ps-label" title="Budget committed to the deployed models. Not live GPU load — this page is a snapshot from the last refresh, and Ollama unloads an idle model after a few minutes.">VRAM Reserved</div>
       <code class="ps-value">${AGX_VRAM_USED_GB} GB</code>
     </div>
     <div class="ps-item">
-      <div class="ps-label">VRAM Available</div>
+      <div class="ps-label" title="Budget left for another model deployment.">VRAM Free</div>
       <code class="${AGX_VRAM_AVAIL_CLASS}">${AGX_VRAM_AVAIL_GB} GB</code>
     </div>
   </div>
