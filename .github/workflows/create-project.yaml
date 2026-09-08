@@ -197,9 +197,21 @@ jobs:
           MODEL_NAME: ${{ inputs.model_name }}
           NIM_IMAGE_TAG: ${{ inputs.nim_image_tag }}
           DESCRIPTION: ${{ inputs.description }}
+          # Platform-wide model defaults. DGX_DEFAULT_MODEL is the primary LLM a
+          # scaffolded project talks to; AGX_DEFAULT_MODEL is the shared platform
+          # judge. Both are org variables so changing the default for every future
+          # project is a variable edit, not a template commit.
+          DGX_DEFAULT_MODEL: ${{ vars.DGX_DEFAULT_MODEL }}
+          AGX_DEFAULT_MODEL: ${{ vars.AGX_DEFAULT_MODEL }}
           GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
         run: |
           set -euo pipefail
+
+          # An unset org variable would substitute an empty string and produce a
+          # config.yaml with `model: ""` — a project that scaffolds clean and fails
+          # at first inference. Fail here instead.
+          : "${DGX_DEFAULT_MODEL:?DGX_DEFAULT_MODEL org variable is not set}"
+          : "${AGX_DEFAULT_MODEL:?AGX_DEFAULT_MODEL org variable is not set}"
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "${WORK_DIR}"' EXIT
@@ -276,6 +288,8 @@ jobs:
               -e "s|{{MODEL_NAME}}|${MODEL_NAME}|g" \
               -e "s|{{NIM_IMAGE_TAG}}|${NIM_IMAGE_TAG}|g" \
               -e "s|{{DESCRIPTION}}|${DESCRIPTION}|g" \
+              -e "s|{{DGX_DEFAULT_MODEL}}|${DGX_DEFAULT_MODEL}|g" \
+              -e "s|{{AGX_DEFAULT_MODEL}}|${AGX_DEFAULT_MODEL}|g" \
             {} +
 
           # Inject CI workflow badges after the title line for kfp-type projects.

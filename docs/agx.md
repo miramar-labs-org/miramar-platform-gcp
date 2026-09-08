@@ -99,6 +99,12 @@ the AGX Orin.** Every project on the platform that needs a judge points at
 modelling choice: a fixed judge is what makes scores comparable across runs, across
 projects, and over time.
 
+The name lives in the `AGX_DEFAULT_MODEL` org variable, and templates carry the
+placeholder `"{{AGX_DEFAULT_MODEL}}"` rather than the literal, so the judge can be
+changed platform-wide without a template commit. Everything measured below is for
+its current value, `phi4` — changing the variable invalidates those numbers and
+makes new scores incomparable with existing ones, so it is not a casual edit.
+
 Templates that ship with a judge, all four pointing here:
 
 | Template | Judged stages |

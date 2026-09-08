@@ -12,8 +12,11 @@ embedding:
   batch_size: 64
 
 llm:
-  base_url: "http://localhost:8000/v1"  # OpenAI-compatible endpoint — set to your active serving project
-  model: "my-model"                     # served model alias (must match what the endpoint serves)
+  # Defaults to the DGX Ollama endpoint so a freshly scaffolded project runs as-is.
+  # Repoint both fields at an active serving project when you have one — `model` must
+  # match whatever that endpoint actually serves.
+  base_url: "http://192.168.1.200:11434/v1"  # DGX Spark (DGX_HOST_IP)
+  model: "{{DGX_DEFAULT_MODEL}}"             # from the DGX_DEFAULT_MODEL org variable
   top_k: 5                              # number of retrieved chunks to include in RAG context
   max_new_tokens: 512
 
@@ -49,8 +52,8 @@ eval:
 # http://192.168.1.200:11434/v1 (DGX). Traffic stays on the LAN either way — the PHI
 # boundary is unaffected by this choice.
 judge:
-  model: phi4                               # platform judge — keep identical across projects
-  base_url: http://192.168.1.202:11434/v1   # AGX Orin (AGX_HOST_IP)
+  model: "{{AGX_DEFAULT_MODEL}}"            # platform judge — substituted from the AGX_DEFAULT_MODEL org variable
+  base_url: "http://192.168.1.202:11434/v1" # AGX Orin (AGX_HOST_IP) — the judge always runs here
   system_prompt: "You are evaluating a RAG system answer. Respond with JSON only: {\"faithfulness\": 1-5, \"relevancy\": 1-5, \"citation_coverage\": 0.0-1.0, \"unsupported_claims\": [], \"safety\": \"PASS\" or \"FAIL\", \"score\": 1-5, \"comment\": \"brief\"}."
 
 langsmith:

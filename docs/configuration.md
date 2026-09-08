@@ -59,6 +59,21 @@ Sync GCP variables from Terraform after changing `gcp/terraform/terraform.tfvars
 | `MLFLOW_TRACKING_URI` | `http://host.docker.internal:5000` | MLflow endpoint inside runner containers (resolves to local host on both DGX and AGX)      |
 | `QDRANT_URL`          | `http://host.docker.internal:6333` | Qdrant REST endpoint inside runner containers (resolves to local host on both DGX and AGX) |
 | `DGX_VRAM_USEABLE`    | `100`                              | GB available for AI models on DGX (128 GB total − ~28 GB platform)                         |
+| `DGX_DEFAULT_MODEL`   | `qwen3.6:35b-a3b`                  | default primary LLM for scaffolded projects; substituted into templates as `{{DGX_DEFAULT_MODEL}}` |
+| `AGX_DEFAULT_MODEL`   | `phi4`                             | the shared platform judge; substituted into templates as `{{AGX_DEFAULT_MODEL}}`           |
+
+`DGX_DEFAULT_MODEL` / `AGX_DEFAULT_MODEL` are set manually and are the platform's
+two model defaults. **Create Project** substitutes them into a new project's
+`config.yaml` at scaffold time, so changing the default for every future project
+is a variable edit rather than a template commit. They are frozen into the
+project at creation — an existing repo keeps whatever value it was scaffolded
+with until it is re-scaffolded.
+
+`DGX_DEFAULT_MODEL` must be an **Ollama tag cached on the DGX** (it is used as a
+served model name, not a HuggingFace repo). It never replaces a template's
+HuggingFace `model.id` — that is the model a fine-tune project trains, and an
+Ollama tag cannot be LoRA-trained. `AGX_DEFAULT_MODEL` must be cached on the AGX
+and fit the ~40 GB budget.
 
 ### Org-Level Active State Variables
 

@@ -235,6 +235,19 @@ The model router (`deploy-model-router.yaml`) sets this URL to `http://model-rou
 | `AGX_HOST_USER`    | `aaron`     | Parallel to `DGX_HOST_USER` |
 | `AGX_VRAM_USEABLE` | `40`        | 64 GB total - 24 GB system  |
 
+**Platform model defaults** (set manually; substituted into new projects by Create Project):
+
+| Variable            | Value             | What it is                                                    |
+| ------------------- | ----------------- | ------------------------------------------------------------- |
+| `DGX_DEFAULT_MODEL` | `qwen3.6:35b-a3b` | primary LLM for a scaffolded project — an Ollama tag on the DGX |
+| `AGX_DEFAULT_MODEL` | `phi4`            | the shared platform judge — an Ollama tag on the AGX            |
+
+Templates reference these as `"{{DGX_DEFAULT_MODEL}}"` / `"{{AGX_DEFAULT_MODEL}}"` in
+`config.yaml` rather than naming a model, so the platform default changes with a variable
+edit instead of a template commit. Values are frozen into a project at scaffold time.
+Both are *served* model names — never substitute them into a HuggingFace `model.id`, which
+is the model a fine-tune project trains. See `docs/adding-a-project-template.md`.
+
 **Org secret used for all SSH:** `HOST_SSH_KEY` — all machines share Spark's SSH identity; replaces the old per-machine `DGX_HOST_SSH_KEY` / `AGX_HOST_SSH_KEY` secrets.
 
 Variables must exist before the dashboard reads them. On a fresh install, create missing variables via the GitHub API (PATCH→POST upsert using `GITHUB_ORG_ADMIN_PAT`) or the GitHub UI (`Settings → Secrets and variables → Actions → Variables`).
@@ -327,7 +340,7 @@ ssh -L 11435:localhost:11434 -L 8887:localhost:8888 aaron@orin.local
 - DGX: K3s Install → NeMo Deploy → MLflow Deploy → Qdrant Deploy → Kubeflow Deploy → NIM Deploy (or Ollama Deploy)
 - AGX: Ollama Deploy only. Its models are registered as `agx/<model>` upstreams in the DGX model router (DGX models as `dgx/<model>`), generated at deploy time from each host's live `/api/tags` by `scripts/gha/gen-ollama-upstreams.py` (not committed to `litellm-config.yaml`), reached by host IP — Ollama is host-native on both machines, so neither has a k3s Service or CoreDNS record.
 
-**The platform judge** — every project that needs an LLM-as-judge uses the *same* model at the *same* endpoint: `phi4` on the AGX Orin (`http://192.168.1.202:11434/v1`). It is not a per-project modelling choice; a fixed judge is what makes scores comparable across runs, projects, and time. Templates with a `judge:` block (`ft-eval`, `nemo-ft-eval`, `kfp-rag`, `kfp-eval`) all point there. `phi4` is kept in the AGX Ollama cache by a plain `ollama pull` — deliberately **not** `Ollama Deploy`, which would pin it and claim the machine's single deploy slot. It loads on demand and needs ~9.1 GB of the ~40 GB `AGX_VRAM_USEABLE` budget free. Candidate-under-test / serving endpoints are a different thing and stay on the DGX. Rationale + measurements: `docs/agx.md` → *The platform judge runs here*.
+**The platform judge** — every project that needs an LLM-as-judge uses the *same* model at the *same* endpoint: `AGX_DEFAULT_MODEL` (currently `phi4`) on the AGX Orin (`http://192.168.1.202:11434/v1`). It is not a per-project modelling choice; a fixed judge is what makes scores comparable across runs, projects, and time. Templates with a `judge:` block (`ft-eval`, `nemo-ft-eval`, `kfp-rag`, `kfp-eval`) all point there. `phi4` is kept in the AGX Ollama cache by a plain `ollama pull` — deliberately **not** `Ollama Deploy`, which would pin it and claim the machine's single deploy slot. It loads on demand and needs ~9.1 GB of the ~40 GB `AGX_VRAM_USEABLE` budget free. Candidate-under-test / serving endpoints are a different thing and stay on the DGX. Rationale + measurements: `docs/agx.md` → *The platform judge runs here*.
 
 **NeMo Microservices** (`nemo-microservices` namespace) — exposes `nemo.test` and `nim.test` via ingress. Requires `NVIDIA_API_KEY` secret.
 
