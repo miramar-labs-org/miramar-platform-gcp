@@ -42,9 +42,16 @@ dataset:
 # ── LLM-as-judge ─────────────────────────────────────────────────────────────
 # A single fixed judge model scores every candidate's output. Keep it local
 # (Ollama) by default. Note self-grading bias if the judge is also a candidate.
+#
+# This judge stays on the DGX, unlike ft-eval / nemo-ft-eval / kfp-rag, which moved
+# theirs to the AGX Orin to keep judge calls off the busy GPU. gpt-oss:120b does not
+# fit the AGX's 40 GB model budget (AGX_VRAM_USEABLE), so the contention CLAUDE.md
+# warns about — always pass `timeout=`, the judge shares unified memory with vLLM —
+# still applies here. Moving it would mean picking a smaller judge, which changes
+# every score in the bakeoff: a scoring decision, not an infra one.
 judge:
   model: "gpt-oss:120b"
-  base_url: "http://192.168.1.200:11434/v1"
+  base_url: "http://192.168.1.200:11434/v1"   # DGX Spark (DGX_HOST_IP)
 
 # ── Gate thresholds ──────────────────────────────────────────────────────────
 # Harness-specific keys, read by each harness's gates() block. Deterministic,
@@ -65,7 +72,10 @@ score_weights:
 # ── Timeouts / serving knobs ─────────────────────────────────────────────────
 case_timeout_s: 180               # hard cap per run_case (bounds every agentic loop)
 serving:
-  ollama_base_url: "http://192.168.1.200:11434/v1"
+  # This is the CANDIDATE-UNDER-TEST endpoint, not the judge. It must stay on the DGX:
+  # the bakeoff measures each model on the GB10, so serving a candidate anywhere else
+  # would change what is being benchmarked. Do not repoint it at the AGX.
+  ollama_base_url: "http://192.168.1.200:11434/v1"   # DGX Spark (DGX_HOST_IP)
   ollama_pull_timeout_s: 1800     # max wait for `ollama pull` of a cold model
   guided_readiness_timeout_s: 900 # max wait for a vLLM pod /health to go green
   guided_namespace: "kubeflow"    # namespace the transient vLLM Deployment lands in

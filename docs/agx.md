@@ -78,6 +78,64 @@ To add or remove AGX models: pull them on the AGX (`Ollama Deploy`, runner
 `agx`), edit `litellm-config.yaml`, commit, and re-run **Model Router Deploy**
 (runner `dgx`).
 
+### The eval judge runs here
+
+The LLM-as-judge for three project templates points at this machine, not the DGX:
+
+| Template | Judge model | Judged stages |
+| --- | --- | --- |
+| `new-project-ft-eval` | `phi4` | `baseline_safety_eval`, `safety_eval` |
+| `new-project-nemo-ft-eval` | `phi4` | `baseline_safety_eval`, `safety_eval` |
+| `new-project-kfp-rag` | `phi4` | `generation_eval`, `faithfulness_eval`, `safety_eval` |
+
+Those stages run in KFP pods on the **DGX**, but their judge calls go over the LAN
+to `http://192.168.1.202:11434/v1`.
+
+The point is memory contention. A judged stage keeps its subject resident on the DGX
+GPU while it calls the judge — the fine-tuned model for `safety_eval`, or the vLLM
+serving project for the whole of a `kfp-rag` run. With the judge on the DGX too,
+`phi4` occupies 9.1 GB of the same unified memory, against a ~100 GiB usable budget.
+Judging from the AGX hands those 9.1 GB back. Traffic stays on the LAN, so the PHI
+boundary is unaffected.
+
+Note this is *not* contention with `fine_tune`: the ft-eval DAG is sequential
+(`download → prepare/baseline_eval → baseline_safety_eval → fine_tune → …`), so a
+judge call never overlaps training. The contention is with the eval subject inside
+the judged stage. `kfp-rag` is the stronger case, because its serving project holds
+memory across every stage rather than one.
+
+**It is a trade, not a free win.** Measured 2026-09-07, `phi4` warm, identical prompt:
+
+| Host | Warm latency | Cold (first call, model load) |
+| --- | --- | --- |
+| DGX Spark (GB10) | 2.6 s/call | 17.6 s |
+| AGX Orin | 12.1 s/call | 52.0 s |
+
+The Orin has far less memory bandwidth, so the judge is ~4.7× slower there. At
+`safety_sample_size: 100` over two safety stages that is roughly **+30 min of wall
+clock per ft-eval run**; ~+25 min for a `kfp-rag` run at `sample_size: 50` over three
+judge stages. Worth it when the eval subject is large enough that 9.1 GB matters —
+not worth it for a small model. To trade the memory back for the speed, point
+`judge.base_url` at `http://192.168.1.200:11434/v1`.
+
+This means **`phi4` must stay pulled on the AGX**. It is deliberately *not* deployed
+via the `Ollama Deploy` workflow: that pins a model resident with `keep_alive=-1` and
+claims the machine's single deploy slot, which would block `CURRENT_OLLAMA_MODEL_AGX`
+from being anything else. The judge only needs the model in the local cache — Ollama
+loads it on the first judge call and unloads it when idle. Pull it with:
+
+```sh
+ssh $USER@orin.local 'ollama pull phi4'
+```
+
+`new-project-kfp-eval` is the exception and keeps its judge on the DGX: `gpt-oss:120b`
+does not fit the 40 GB budget here, and swapping in a smaller judge would change every
+score in the bakeoff. Its `serving.ollama_base_url` is the candidate-under-test
+endpoint and must stay on the DGX regardless — that is the hardware being benchmarked.
+
+If the AGX is offline, the fallback is a one-line edit in the project's `config.yaml`:
+point `judge.base_url` back at `http://192.168.1.200:11434/v1`.
+
 ## NIM
 
 NIM is **not supported on AGX Orin**. All NIM LLM containers on NGC are
