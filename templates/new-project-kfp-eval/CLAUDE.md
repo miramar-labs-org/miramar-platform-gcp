@@ -73,8 +73,9 @@ Pipeline cell and add the task to `tasks:` / `gate_thresholds:` / `score_weights
 - **`serving_modes`** — `models × serving_modes` combos run **serially** (one GPU).
 - **`dataset.version`** — must point at an uploaded MinIO snapshot
   (`scripts/export_dataset.py`). `load_dataset` fails fast if the prefix is missing.
-- **`judge.model`** — keep local (Ollama). Note self-grading bias if the judge is
-  also a candidate.
+- **`judge.model`** — the platform judge (`phi4` on the AGX Orin); shared by every
+  project, so leave it alone unless you mean to break cross-project score
+  comparability. Note self-grading bias if the judge is also a candidate.
 
 After editing:
 1. Run the **Build → `pipeline.py`** cell (or `python3 scripts/build_pipeline.py`).
@@ -92,8 +93,9 @@ After editing:
 - PVC `hf-model-cache` is mounted at `/root/.cache/huggingface`; run rows +
   `RUNS.md` live under `/root/.cache/huggingface/bakeoff-runs/`.
 - `evallib/` is stdlib-only so it stays both `pytest`-importable and `# inline:`-spliceable.
-- Every judge / model `chat.completions.create` call MUST pass `timeout=` — the
-  judge shares unified memory with vLLM; an unbounded call hangs the component.
+- Every judge / model `chat.completions.create` call MUST pass `timeout=`. The judge is
+  a LAN call to the platform judge on the AGX Orin, and candidate calls share DGX unified
+  memory with vLLM; either way an unbounded call hangs the component indefinitely.
 
 ## Compile check
 

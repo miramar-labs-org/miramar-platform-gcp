@@ -40,11 +40,35 @@ dataset:
   secret_key: "mlflowadmin12345678"
 
 # ── LLM-as-judge ─────────────────────────────────────────────────────────────
-# A single fixed judge model scores every candidate's output. Keep it local
-# (Ollama) by default. Note self-grading bias if the judge is also a candidate.
+# PLATFORM RULE: the LLM-as-judge is one shared model, hosted on the AGX Orin.
+#
+# Every project on the platform that needs a judge uses this same model at this same
+# endpoint — the bakeoff is no exception. A fixed judge is what makes scores comparable
+# across runs, across projects, and over time. Note the self-grading bias if the judge
+# model is also entered as a candidate in `models:` below.
+#
+# Why the AGX: the judge is the one LLM that has to be available *during* an eval while
+# not being the thing under evaluation. Here every candidate takes its turn holding DGX
+# GPU memory, so a DGX-side judge would contend with whichever model is being scored.
+# The judge loads on demand and needs ~9.1 GB of the AGX's ~40 GB model budget
+# (AGX_VRAM_USEABLE) free — an `Ollama Deploy` against `agx` that pins a model larger
+# than ~30 GB will starve it.
+#
+# This was `gpt-oss:120b` on the DGX. That model is 65 GB — it exceeds not just the AGX
+# budget but the Orin's 64 GB of total memory, so it cannot be the platform judge. phi4
+# scored 5/5 parseable and correct on a five-case safety set where the larger candidates
+# returned empty completions (reasoning models that spend the token budget thinking).
+#
+# Cost: measured 2026-09-07, phi4, mean over five judge-shaped cases at temperature 0 —
+# DGX 2.5 s/call vs AGX 14.0 s/call. Multiply by cases × models × serving_modes to size
+# a bakeoff run; `case_timeout_s` still bounds each call.
+#
+# Verdicts are identical on both hosts (same model, temperature 0), so the fallback does
+# not move a single score. If the AGX is offline, point base_url at
+# http://192.168.1.200:11434/v1 (DGX).
 judge:
-  model: "gpt-oss:120b"
-  base_url: "http://192.168.1.200:11434/v1"
+  model: "phi4"                                # platform judge — keep identical across projects
+  base_url: "http://192.168.1.202:11434/v1"    # AGX Orin (AGX_HOST_IP)
 
 # ── Gate thresholds ──────────────────────────────────────────────────────────
 # Harness-specific keys, read by each harness's gates() block. Deterministic,
@@ -65,7 +89,10 @@ score_weights:
 # ── Timeouts / serving knobs ─────────────────────────────────────────────────
 case_timeout_s: 180               # hard cap per run_case (bounds every agentic loop)
 serving:
-  ollama_base_url: "http://192.168.1.200:11434/v1"
+  # This is the CANDIDATE-UNDER-TEST endpoint, not the judge. It must stay on the DGX:
+  # the bakeoff measures each model on the GB10, so serving a candidate anywhere else
+  # would change what is being benchmarked. Do not repoint it at the AGX.
+  ollama_base_url: "http://192.168.1.200:11434/v1"   # DGX Spark (DGX_HOST_IP)
   ollama_pull_timeout_s: 1800     # max wait for `ollama pull` of a cold model
   guided_readiness_timeout_s: 900 # max wait for a vLLM pod /health to go green
   guided_namespace: "kubeflow"    # namespace the transient vLLM Deployment lands in

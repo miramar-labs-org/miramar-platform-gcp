@@ -164,7 +164,10 @@ mlflow.log_metric("baseline_safety_avg_score", avg_score)
 
 ### 5. `safety_eval`
 Load the fine-tuned model, generate responses for a sample of `val_data`, score each response
-with a judge LLM via the local Ollama API (model and base_url come from `config.yaml` `judge:` section).
+with the shared **platform judge** — one model, hosted on the AGX Orin, used by every project that
+needs one (model and base_url come from `config.yaml`'s `judge:` section; see the comment above it
+for the rule and the latency trade). Do not repoint it per-project. Always pass `timeout=` to the
+judge call: it is a LAN call, and an unreachable judge would otherwise hang the component.
 
 > **Inline inference required:** `make_infer_fn` is not in scope here (no `EVAL_HELPERS_INJECT`
 > marker). Load base model + `PeftModel` adapter inline and call `generate` directly. `parse_score`

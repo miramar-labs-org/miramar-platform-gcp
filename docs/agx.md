@@ -91,6 +91,91 @@ To add or remove models on either host: pull them (`Ollama Deploy`, or a plain
 Deploy** (runner `dgx`) to re-read both catalogs. No config edit and no commit —
 that is the point of generating the block.
 
+### The platform judge runs here
+
+**Platform rule: the LLM-as-judge is one shared model — `phi4` — and it is hosted on
+the AGX Orin.** Every project on the platform that needs a judge points at
+`http://192.168.1.202:11434/v1` and names that same model. It is not a per-project
+modelling choice: a fixed judge is what makes scores comparable across runs, across
+projects, and over time.
+
+Templates that ship with a judge, all four pointing here:
+
+| Template | Judged stages |
+| --- | --- |
+| `new-project-ft-eval` | `baseline_safety_eval`, `safety_eval` |
+| `new-project-nemo-ft-eval` | `baseline_safety_eval`, `safety_eval` |
+| `new-project-kfp-rag` | `generation_eval`, `faithfulness_eval`, `safety_eval` |
+| `new-project-kfp-eval` | `judge_and_score` |
+
+Those stages run in KFP pods on the **DGX**; only the judge call crosses to the AGX.
+Traffic stays on the LAN, so the PHI boundary is unaffected.
+
+**Why off-box.** The judge is the one LLM that has to be available *during* an eval
+while not being the thing under evaluation. A judged stage keeps its subject resident
+on the DGX GPU while it calls the judge — the fine-tuned model for `safety_eval`, the
+current candidate in a bakeoff, or the vLLM serving project for the whole of a
+`kfp-rag` run. With the judge on the DGX too, `phi4` occupies 9.1 GB of the same
+unified memory. Judging from the AGX hands those 9.1 GB back.
+
+Note this is *not* contention with `fine_tune`: the ft-eval DAG is sequential
+(`download → prepare/baseline_eval → baseline_safety_eval → fine_tune → …`), so a
+judge call never overlaps training. The contention is with the eval subject inside
+the judged stage. `kfp-rag` is the stronger case, because its serving project holds
+memory across every stage rather than one.
+
+**Why `phi4`.** Measured 2026-09-07 on five judge-shaped safety cases at
+`temperature: 0` — a safe answer, two dangerous medical answers, a correct refusal,
+and a borderline case:
+
+| Candidate | Mean warm latency (AGX) | Parseable + correct |
+| --- | --- | --- |
+| `phi4` | 14.0 s | 5/5 |
+| `nemotron-3-nano:30b` | 15.4 s | 4/5 (one empty completion) |
+| `qwen3.6:35b-a3b` | — | 0/5 (empty completions) |
+
+The two larger candidates are reasoning models: they spend the token budget on
+thinking tokens and return empty content on harder cases. `gpt-oss:120b` — the old
+`kfp-eval` judge — is 65 GB and exceeds not just the AGX model budget but the Orin's
+64 GB of total memory, so it cannot be the platform judge at all.
+
+**Cost.** Same five cases, same model, `temperature: 0`:
+
+| Host | Mean warm latency |
+| --- | --- |
+| DGX Spark (GB10) | 2.5 s/call |
+| AGX Orin | 14.0 s/call |
+
+The Orin has far less memory bandwidth, so the judge is ~5.6× slower there. At
+`safety_sample_size: 100` over two safety stages that is roughly **+38 min of wall
+clock per ft-eval run**; ~+29 min for a `kfp-rag` run at `sample_size: 50` over three
+judge stages. **Verdicts are identical on both hosts** (same model, `temperature: 0`),
+so the fallback below does not move a single score.
+
+**Keep the judge's headroom.** `phi4` must stay pulled on the AGX. It is deliberately
+*not* deployed via the `Ollama Deploy` workflow: that pins a model resident with
+`keep_alive=-1` and claims the machine's single deploy slot, which would block
+`CURRENT_OLLAMA_MODEL_AGX` from being anything else. The judge only needs the model in
+the local cache — Ollama loads it on the first judge call and unloads it when idle.
+Pull it with:
+
+```sh
+ssh $USER@orin.local 'ollama pull phi4'
+```
+
+Because the judge loads on demand, it needs ~9.1 GB of the ~40 GB `AGX_VRAM_USEABLE`
+budget free when a judged stage runs. An `Ollama Deploy` against `agx` that pins a
+model larger than ~30 GB will starve it. Size AGX deployments with that headroom in
+mind.
+
+`new-project-kfp-eval`'s `serving.ollama_base_url` is a different thing and stays on
+the DGX: it is the candidate-under-test endpoint, and the DGX is the hardware being
+benchmarked. Only its `judge.base_url` points here.
+
+If the AGX is offline, the fallback is a one-line edit in the project's `config.yaml`:
+point `judge.base_url` back at `http://192.168.1.200:11434/v1`. All four candidate
+models exist on both hosts, so the judge model itself is preserved.
+
 ## NIM
 
 NIM is **not supported on AGX Orin**. All NIM LLM containers on NGC are

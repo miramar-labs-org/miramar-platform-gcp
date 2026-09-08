@@ -268,7 +268,9 @@ that cross to GCP are:
 - `manifest.json` (metadata: eval scores, safety flags, run ID)
 
 PHI never leaves DGX under any circumstances. When real clinical data is
-involved, any LLM judge must also run locally on DGX — not via external APIs.
+involved, the LLM judge must also stay on local hardware — never an external
+API. The platform judge (`phi4` on the AGX Orin) satisfies this: the judge call
+crosses the LAN between two owned machines and nothing else.
 
 ---
 
