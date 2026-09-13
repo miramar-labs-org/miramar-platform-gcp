@@ -9,7 +9,8 @@ The runner label is still `agx`, and the GHA workflows still accept
 `runner: agx`, but pointing them at the AGX will stand up a stack nothing
 consumes — don't, unless you are deliberately restoring it.
 
-Hardware: 64 GB **unified** memory (Ampere sm_87, JetPack 6.2 / L4T R36.5).
+Hardware: 64 GB **unified** memory (Ampere sm_87, JetPack 7.2.1 / L4T R39.2.1,
+reflashed 2026-09-12, was JetPack 6.2 / L4T R36.5).
 Memory budget: ~24 GB OS/platform, **~40 GB for models** (`AGX_VRAM_USEABLE=40`).
 Unified memory means every GB a service holds is a GB the model can't have —
 which is the whole reason the k3s stack was removed.
@@ -188,21 +189,44 @@ NIM is **not supported on AGX Orin**. All NIM LLM containers on NGC are
 `linux/amd64` only; there are no `linux/arm64` images. `CURRENT_NIM_MODEL_AGX`
 stays `none`. Use Ollama.
 
-## GPU containers do not work on the AGX
+## GPU containers now work on the AGX (reversed 2026-09-13)
 
-Verified 2026-09-07: `docker run --runtime nvidia` injects no `libcuda` into a
-glibc container on this host (the CSV mount does not land), k3s containerd had
+**Update 2026-09-13: this verdict is reversed.** The AGX was reflashed to
+JetPack 7.2.1 (L4T R39, OpenRM) on 2026-09-12. Re-tested `docker run --runtime
+nvidia` with a stock `nvidia/cuda:12.6.0-*-ubuntu22.04` image (not an L4T-specific
+image): `libcuda.so` is correctly injected
+(`/opt/nvidia/l4t-gpu-libs/nvgpu/libcuda.so`), `/dev/nvidia0`/`nvidiactl`/
+`nvidia-modeset` device nodes are mounted, `nvidia-smi` inside the container
+reports the Orin GPU, and a compiled-and-run CUDA kernel (vector add) produced
+correct results (`max error: 0.000000`). Docker's `default-runtime` is already
+`nvidia` (`/etc/docker/daemon.json`, set during the [NVMe storage
+migration](#) — see the memory system's `agx-nvme-home-migration` entry). This
+overturns the 2026-09-07 JP6.x finding below, which stands as the historical
+record of what changed.
+
+**Not yet re-verified as of 2026-09-13:** k3s containerd nvidia runtime
+registration and `nvidia.com/gpu` resource advertisement (k3s is not currently
+installed on the AGX — see [History](#history)) — the Docker-level test above
+does not by itself prove an in-cluster GPU pod would schedule and run
+correctly. Treat "GPU containers work on the AGX" as confirmed at the Docker
+level only until a k3s test pod is run.
+
+<details>
+<summary>Original 2026-09-07 finding (JetPack 6.x, now superseded)</summary>
+
+Verified 2026-09-07: `docker run --runtime nvidia` injected no `libcuda` into a
+glibc container on this host (the CSV mount did not land), k3s containerd had
 no nvidia runtime registered, and no `nvidia.com/gpu` resource was advertised.
-The Orin GPU is reachable **only** from host-native processes — i.e. Ollama.
-Do not plan containerised GPU work here.
+The Orin GPU was reachable **only** from host-native processes — i.e. Ollama.
 
-Related: on JetPack 6.x the Orin serves CUDA through the proprietary `nvgpu`
-driver, not `nvidia.ko`, so non-root profiling is blocked at the driver and
-`NVreg_RestrictProfilingToAdminUsers` has no effect. JetPack 7.x replaces
-`nvgpu` with OpenRM and would in principle lift that — but with no k3s, no KFP
-and no Nsight Operator on this machine, there is nothing on the AGX that would
-benefit. A JetPack 7.2 flash is **not** planned. See
+On JetPack 6.x the Orin served CUDA through the proprietary `nvgpu` driver, not
+`nvidia.ko`, so non-root profiling was blocked at the driver and
+`NVreg_RestrictProfilingToAdminUsers` had no effect. JetPack 7.x replaces
+`nvgpu` with OpenRM, which is exactly what lifted this — see the 2026-09-13
+update above. Re-check the Nsight non-root-profiling implication too; see
 [nsight.md](nsight.md) for the DGX profiling path.
+
+</details>
 
 ## History
 
@@ -229,3 +253,12 @@ To restore the full stack, the workflows are unchanged: **K3s Install** →
 **NeMo Deploy** → **MLflow Deploy** → **Qdrant Deploy** → **Kubeflow Deploy**,
 all with `runner: agx`. Re-enable the disabled user units and re-add the band
 items to `scripts/dashboard/generate-dashboard.sh` if you do.
+
+**2026-09-12/13:** reflashed to JetPack 7.2.1 (L4T R39, OpenRM). eMMC root is
+small (54 GB), so `/home/aaron`, Ollama's model cache, and Docker/containerd's
+data-root were all moved onto the 2TB NVMe (reusing the existing partition; old
+JetPack 6.x rootfs archived under `/mnt/nvme/jp6-root/`). Re-tested GPU
+container access under the new OpenRM stack — it now works at the Docker
+level (see the section above); k3s-level GPU scheduling is untested (k3s is
+not installed). Full detail in the memory system: `agx-nvme-home-migration`,
+`agx-display-dpms-bug`.
