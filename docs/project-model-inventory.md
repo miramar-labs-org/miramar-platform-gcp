@@ -6,6 +6,9 @@ is configured to use, and **which machine that model actually runs on**.
 Rebuilt 2026-09-08 by reading each template's and project's `config.yaml` /
 `serving-config.yaml` (and `notebook.ipynb` where there is no config), then
 cross-checking every Ollama tag against the live `/api/tags` on both hosts.
+Updated 2026-09-14: `ai-interviewer` merged into `ai-jobsearch/interviewer` (see
+footnote below its row) and broken out into its 3 per-role models; added the
+`ai-jobsearch` poller's eval-harness judge (`phi4`/AGX, already correct).
 
 Host key: **DGX** = DGX Spark, `192.168.1.200`, ~100 GB model budget ·
 **AGX** = AGX Orin, `192.168.1.202`, ~40 GB model budget.
@@ -43,8 +46,8 @@ fine-tune templates still require you to name the model you are training.
 | Project | Model(s) | How it is served | **Model runs on** | Judge | **Judge runs on** |
 |---|---|---|---|---|---|
 | agent-model-bakeoff | `qwen3.6:35b-a3b`, `gpt-oss:120b`, `nemotron-3-super:latest` | Ollama `192.168.1.200` | **DGX** | `gpt-oss:120b` | **DGX** ⚠ |
-| ai-interviewer | `agx/qwen2.5:32b` (interviewer + grader + coach)<br>embed `BAAI/bge-small-en-v1.5` | model router → `agx/` upstream | **AGX** (routed via DGX) | — | — |
-| ai-jobsearch | `qwen3.6:35b-a3b` | Ollama AGX `.202` → `localhost` fallback | **AGX**, falls back to **DGX** | — | — |
+| ai-jobsearch (poller) | `qwen3.6:35b-a3b` | Ollama AGX `.202` → `localhost` fallback | **AGX**, falls back to **DGX** | `phi4` | **AGX** |
+| ai-jobsearch/interviewer¹ | 3 independent roles — see detail section below | model router → `dgx/` | **DGX** | — (n/a, see below) | — |
 | alpaca-options-trading-agents | `qwen2.5:32b-instruct-q4_K_M` | Ollama `192.168.1.200` | **DGX** | — | — |
 | dnabert2-clinvar-kfp-sequence-classify | `zhihan1996/DNABERT-2-117M` | HF weights, in-pipeline | **DGX** | — | — |
 | kfp-nemo-curator-verify | *none* — rule-based filters + Presidio PII | — | **DGX** (CPU) | — | — |
@@ -61,6 +64,37 @@ fine-tune templates still require you to name the model you are training.
 
 ⚠ = deviates from the platform-judge rule **on that repo's `main`**. Every one of them
 has an open PR fixing it; the marks clear as those merge. See below.
+
+¹ Was a standalone `ai-interviewer` repo as of this doc's last rebuild (2026-09-08);
+now merged into `ai-jobsearch` (repo root = poller, `interviewer/` = this app) with
+git history intact. See `ai-jobsearch/CLAUDE.md` for the merge rationale — the two
+share no code and deploy independently (poller: systemd timer; interviewer: k3s).
+
+### ai-jobsearch/interviewer — per-role detail
+
+Three independent LLM roles (`interview/llm.py`), each its own `base_url`/`model`
+pair, all reached through the DGX model router — not one project-wide model.
+
+| Role | Production (`k8s/configmap.yaml`) | Local dev (`interviewer/config.yaml`) | Intent |
+|---|---|---|---|
+| `interviewer` | `dgx/qwen2.5-coder:32b-instruct-fp16` | same | coder-specialized — asks/probes on coding & system-design problems |
+| `grader` | `dgx/qwen2.5-coder:32b-instruct-fp16` | same | coder-specialized — hand-traces candidate code, scores rubric dimensions |
+| `coach` | `dgx/qwen3.6:35b-a3b` | `dgx/qwen2.5-coder:32b-instruct-fp16` ⚠ | **general-chat, not coder-specialized by design** — coaching/explaining prose isn't code-heavy (see configmap.yaml comment, 2026-09-13) |
+
+⚠ **Local-only drift, not yet fixed.** Local `coach` was patched to a DGX coder
+model on 2026-09-14 to route around the AGX Orin no longer serving general models
+(torn down 2026-09-07, AGX now hosts only `phi4`). That patch used the wrong
+replacement — it should have gone to `dgx/qwen3.6:35b-a3b` (matches production
+intent, and is a fast MoE, ~3B active params, vs. the dense 32B fp16 model it's on
+now) but was pointed at the same fp16 coder model as `interviewer`/`grader` instead.
+This is very likely why the local Explain-button feature measured ~2-2.5 min per
+call. Fix: change `interviewer/config.yaml`'s `coach.model` to `dgx/qwen3.6:35b-a3b`.
+
+**`grader` not being `phi4` is intentional, not a platform-judge deviation.** The
+platform-judge rule (below) is about eval-harness scoring for cross-project/time
+comparability. This `grader` role scores a *live interview transcript* on 7 rubric
+dimensions (`scoring/judge.py`) — a product feature, not a regression-eval judge —
+so it was never in scope for that rule and correctly isn't pinned to `phi4`.
 
 ## Cache verification
 
