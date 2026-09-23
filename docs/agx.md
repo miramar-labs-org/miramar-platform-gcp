@@ -228,6 +228,23 @@ update above. Re-check the Nsight non-root-profiling implication too; see
 
 </details>
 
+## Host facts for multi-node / GPU jobs (verified 2026-09-23, slurm-lab)
+
+Found while building a 2-node Slurm cluster with the DGX
+([slurm-lab](https://github.com/miramar-labs-org/slurm-lab), see its `docs/learning-slurm.md`):
+
+- **`aaron` is uid/gid 1000** on the AGX, the same as on the DGX. It was renumbered from 2002 on 2026-09-23, because anything
+  that ships jobs by numeric uid (Slurm, NFS) needs them to match. linger is enabled, and the CIFS `~/shared` mount uses `uid=1000,gid=1000`.
+- `~/shared` is a CIFS mount of the DGX's `~/shared` at the same path (files are mode 0600, so there's no exec bit).
+- pyenv is installed. The `pySlurm` env (Py 3.12.2, torch 2.14.0+cu130) sits at the same path as on the DGX.
+- **NCCL cannot initialize on the Orin** (any version through 2.32.3). The Jetson NVML (`nvidia-l4t-nvml`
+  39.2.1) returns `NVML_ERROR_NOT_SUPPORTED` for `nvmlDeviceGetP2PStatus`, even for a device with itself.
+  NCCL's NVML init checks every device pair and treats any failure as fatal before choosing transports, so
+  `NCCL_P2P_DISABLE` and similar settings don't help. **Use `gloo` for any `torch.distributed` job that includes the AGX.**
+- The CUDA device node on JP7.2.1 is still `/dev/nvgpu/igpu0/ctrl` (NVML reports `Orin (nvgpu)`), not
+  `/dev/nvidia0`. It also needs `/dev/nvmap` (`root:video 0440`), so a process must hold the `video` group.
+- DGX↔AGX link is WiFi: gloo all-reduce measured ~6–8 MiB/s.
+
 ## History
 
 Until 2026-09-07 this document claimed the AGX ran "the same local AI stack as

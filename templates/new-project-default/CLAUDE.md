@@ -35,24 +35,16 @@ ssh -L 8001:localhost:8001 -L 8888:localhost:8888 -L 5000:localhost:5000 \
 
 ### AGX Orin
 
+Only Ollama and JupyterLab run on the AGX (no k3s stack; see the platform repo's `docs/agx.md`). Reach it by IP:
+
 ```sh
-ssh -L 8002:localhost:8001 -L 8887:localhost:8888 -L 5001:localhost:5000 \
-    -L 8081:localhost:8080 -L 8083:localhost:8082 -L 8891:localhost:8890 \
-    -L 11435:localhost:11434 -L 6335:localhost:6333 \
-    -L 8892:localhost:8889 -L 8085:localhost:8084 aaron@orin.local
+ssh -L 11435:localhost:11434 -L 8887:localhost:8888 aaron@192.168.1.202
 ```
 
 | Service    | URL                                        |
 | ---------- | ------------------------------------------ |
 | JupyterLab | http://localhost:8887                      |
-| KFP UI     | http://localhost:8081                      |
-| KFP API    | http://localhost:8891/apis/v2beta1/healthz |
-| MLflow     | http://localhost:5001                      |
-| NeMo / NIM | http://nemo.test:8083                      |
 | Ollama     | http://localhost:11435                     |
-| Qdrant     | http://localhost:6335/dashboard            |
-| Nsight UI  | http://localhost:8892                      |
-| Open WebUI | http://localhost:8085                      |
 
 Add to laptop `/etc/hosts`: `127.0.0.1 nemo.test nim.test data-store.test`
 
