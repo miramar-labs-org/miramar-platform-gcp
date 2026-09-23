@@ -109,21 +109,36 @@ if (( CONFLICT )); then
   exit 1
 fi
 
-# --- Pin OLLAMA_CONTEXT_LENGTH via systemd drop-in ---
-# Ollama's default context window is derived from available VRAM and on the GB10
-# (128 GB unified) resolves to 262144 (256K). A single agentic call that lets its
-# prompt grow unchecked can then ask Ollama to hold a >250K-token prompt, and the
-# resulting sustained prompt reprocessing hard-hung the box on 2026-08-27. Pin a
-# sane ceiling so one bad caller can't do that again. Only restart if it changed.
+# --- Pin Ollama service env via systemd drop-ins ---
+# 10-context.conf: Ollama's default context window is derived from available VRAM
+# and on the GB10 (128 GB unified) resolves to 262144 (256K). A single agentic call
+# that lets its prompt grow unchecked can then ask Ollama to hold a >250K-token
+# prompt, and the resulting sustained prompt reprocessing hard-hung the box on
+# 2026-08-27. Pin a sane ceiling so one bad caller can't do that again.
+# 30-no-flash-attn.conf: llama.cpp's flash-attention kernel faults on GB10 (Xid 31,
+# "CUDA illegal memory access") under schema-constrained `format` decoding
+# (2026-09-16). See docs/dgx.md → "Known issue: Xid 31".
+# Only restart if a drop-in changed.
 DROPIN_DIR=/etc/systemd/system/ollama.service.d
-DROPIN_FILE="${DROPIN_DIR}/10-context.conf"
-DROPIN_CONTENT="[Service]
-Environment=\"OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH_PIN}\""
+DROPINS_CHANGED=0
 
-if [[ "$(cat "$DROPIN_FILE" 2>/dev/null || true)" != "$DROPIN_CONTENT" ]]; then
-  log "Pinning OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH_PIN} (systemd drop-in)..."
-  sudo mkdir -p "$DROPIN_DIR"
-  printf '%s\n' "$DROPIN_CONTENT" | sudo tee "$DROPIN_FILE" >/dev/null
+ensure_dropin() {
+  local file="${DROPIN_DIR}/$1" content="[Service]
+Environment=\"$2\""
+  if [[ "$(cat "$file" 2>/dev/null || true)" != "$content" ]]; then
+    log "Pinning $2 (systemd drop-in $1)..."
+    sudo mkdir -p "$DROPIN_DIR"
+    printf '%s\n' "$content" | sudo tee "$file" >/dev/null
+    DROPINS_CHANGED=1
+  else
+    log "$2 already pinned."
+  fi
+}
+
+ensure_dropin 10-context.conf "OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH_PIN}"
+ensure_dropin 30-no-flash-attn.conf "OLLAMA_FLASH_ATTENTION=false"
+
+if (( DROPINS_CHANGED )); then
   sudo systemctl daemon-reload
   sudo systemctl restart ollama
   log "Waiting for Ollama to come back..."
@@ -136,11 +151,11 @@ if [[ "$(cat "$DROPIN_FILE" 2>/dev/null || true)" != "$DROPIN_CONTENT" ]]; then
   done
   if ! curl -sf --connect-timeout 5 --max-time 10 \
     http://localhost:11434/api/tags >/dev/null 2>&1; then
-    err "Ollama did not come back after the context-length restart."
+    err "Ollama did not come back after the drop-in restart."
     exit 1
   fi
 else
-  log "OLLAMA_CONTEXT_LENGTH already pinned to ${OLLAMA_CONTEXT_LENGTH_PIN} — no restart needed."
+  log "Ollama drop-ins unchanged — no restart needed."
 fi
 
 # --- Pull model ---
