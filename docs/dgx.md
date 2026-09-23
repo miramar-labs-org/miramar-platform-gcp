@@ -316,6 +316,41 @@ clears `CURRENT_OLLAMA_MODEL`. Fails if a NIM is still loaded.
 See [../dgx/ollama/README.md](../dgx/ollama/README.md) for the local model
 catalog. Browse available models: [ollama.com/library](https://ollama.com/library).
 
+### Known issue: Xid 31 / "CUDA illegal memory access" on schema-constrained calls
+
+Found 2026-09-16 via the `ai-jobsearch` poller. Any Ollama chat call using the
+schema-constrained `format` option (grammar-constrained JSON decoding) against
+a DGX-hosted model can fail with `CUDA error: an illegal memory access was
+encountered (status code: 500)`. `dmesg` shows a matching `NVRM: Xid 31`
+(`ENGINE GRAPHICS GPC*, FAULT_PDE ACCESS_TYPE_VIRT_READ`) at the *same fixed
+virtual address* every time, from the `llama-server` process — deterministic,
+not flaky hardware. Plain (non-`format`) generate calls are unaffected; a full
+`systemctl restart ollama` alone did not fix it.
+
+Root cause: a llama.cpp/CUDA flash-attention kernel bug specific to this
+platform's GB10 (Blackwell, SBSA/aarch64) chip, triggered by grammar-constrained
+decoding. Immature stack — driver 580.173.02 / Ollama 0.33.1 at time of writing.
+
+**Fix:** disable flash attention for the Ollama service:
+
+```
+# /etc/systemd/system/ollama.service.d/30-no-flash-attn.conf
+[Service]
+Environment="OLLAMA_FLASH_ATTENTION=false"
+```
+
+`sudo systemctl daemon-reload && sudo systemctl restart ollama.service`.
+`dgx/ollama/deploy_ollama.sh` (Ollama Deploy) now writes this drop-in
+idempotently alongside `10-context.conf`, so a rebuilt host picks it up.
+Verified fix by round-tripping a `format`-constrained `/api/chat` call and by
+a full `ai-jobsearch` poll cycle reprocessing previously-failed messages
+cleanly, no faults in `dmesg` after.
+
+This only affects DGX's Ollama (GB10). AGX Orin's Ollama is a different
+architecture (Ampere sm_87) and has not shown this fault — don't assume the
+two hosts need matching Ollama config; see the asymmetric-hosts note at the
+top of this file.
+
 ## NeMo Microservices
 
 NeMo runs in namespace `nemo-microservices` and provides the deployment API used
