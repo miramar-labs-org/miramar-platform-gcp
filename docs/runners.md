@@ -72,18 +72,17 @@ If jobs queue while a runner is idle, check org runner group access:
 | `scripts/gha/sync-github-tf-vars.sh` | Sync Terraform variables to GitHub org variables |
 | `scripts/gha/get-github-secrets.sh`  | Print WIF/GCP secret values after bootstrap      |
 
-## Environment variables injected into the runner container
+## Credentials: none inside the runner container
 
-`launch-runner.sh` passes these env vars to every runner container:
+Any job on a self-hosted runner can read the container's environment, so `launch-runner.sh`
+passes **no long-lived credential** into it — only the runner's name/labels and a single-use
+registration token (1 h). Before the Nov 2026 incident the container carried the org-admin PAT,
+the GHCR PAT and `HF_TOKEN`; that was removed.
 
-| Variable               | Source                  | Purpose                                                   |
-| ---------------------- | ----------------------- | --------------------------------------------------------- |
-| `GITHUB_PAT`           | `$GITHUB_ORG_GHCR_PAT`  | GHCR login in the entrypoint (`read:packages`)            |
-| `GITHUB_ORG_GHCR_PAT`  | `$GITHUB_ORG_GHCR_PAT`  | Available to workflow scripts (e.g. `deploy-kubeflow.sh`) |
-| `GITHUB_ORG_ADMIN_PAT` | `$GITHUB_ORG_ADMIN_PAT` | Org variable/secret writes in workflow steps              |
-| `HF_TOKEN`             | `$HF_TOKEN`             | Hugging Face model downloads (optional)                   |
-
-These are host shell env vars, **not** GitHub Actions secrets — use `${VAR}` in `run:` blocks, not `${{ secrets.VAR }}`.
+The host mints the registration token with the `miramar-runner-registrar` GitHub App
+(`scripts/gha/runner-app-token.sh`; permission: Organization → Self-hosted runners RW only).
+Workflows get everything else per job from secrets: `HF_TOKEN`, `MIRAMAR_ORG_GHCR_PAT`, and a
+1-hour App token for GitHub API writes (`docs/configuration.md`).
 
 ## DGX volume mounts
 
@@ -128,17 +127,17 @@ systemctl --user status mlabs-runner
 # Live logs (runner registration, job pickup, deregistration)
 journalctl --user -u mlabs-runner -f
 
-# Manual restart (e.g. after rotating PATs)
+# Manual restart (e.g. after rotating the registrar key)
 systemctl --user restart mlabs-runner
 ```
 
-PATs are loaded from `~/.config/systemd/user/mlabs-runner.env` (chmod 600), created automatically by `install.sh` with values seeded from the current session. Edit and restart if you rotate tokens:
+Host-side settings are loaded from `~/.config/systemd/user/mlabs-runner.env` (chmod 600), created by `install.sh`. None of them reach the container. Edit and restart if you rotate the key:
 
 ```sh
 vi ~/.config/systemd/user/mlabs-runner.env
-# GITHUB_ORG_ADMIN_PAT=ghp_...
-# GITHUB_ORG_GHCR_PAT=ghp_...
-# HF_TOKEN=hf_...
+# RUNNER_APP_CLIENT_ID=Iv23...
+# RUNNER_APP_KEY_FILE=/home/aaron/.config/mlabs-runner/registrar.pem   # chmod 600
+# GITHUB_ORG_GHCR_PAT=ghp_...    # read:packages; host docker login only
 systemctl --user restart mlabs-runner
 ```
 

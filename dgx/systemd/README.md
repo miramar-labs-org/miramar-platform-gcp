@@ -61,8 +61,9 @@ safe to use as an update mechanism. k3s must be running before port-forward serv
 verify with `sudo systemctl status k3s` if any port-forward fails to connect.
 
 `install.sh` creates `~/.config/systemd/user/mlabs-runner.env` on first run, seeding
-`GITHUB_ORG_ADMIN_PAT`, `GITHUB_ORG_GHCR_PAT`, and `HF_TOKEN` from the current shell
-environment. If those vars are not set, edit the file manually before starting the service:
+`RUNNER_APP_CLIENT_ID`, `RUNNER_APP_KEY_FILE` and `GITHUB_ORG_GHCR_PAT` from the current shell
+environment (host-side only; nothing reaches the runner container — see `docs/runners.md`).
+If those vars are not set, edit the file manually before starting the service:
 
 ```sh
 vi ~/.config/systemd/user/mlabs-runner.env

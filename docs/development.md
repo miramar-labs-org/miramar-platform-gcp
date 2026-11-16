@@ -109,7 +109,6 @@ For workflows whose core logic lives in a shell script (e.g. `scripts/dashboard/
 
 ```sh
 GH_TOKEN="$(gh auth token)" \
-GH_ADMIN_TOKEN="${GITHUB_ORG_ADMIN_PAT}" \
 bash scripts/dashboard/generate-dashboard.sh \
   --org miramar-labs-org --output /tmp/preview/index.html
 ```
@@ -184,12 +183,11 @@ All machines share Spark's SSH identity — use `HOST_SSH_KEY` for all SSH opera
 gh secret set HOST_SSH_KEY < ~/.ssh/id_ed25519
 ```
 
-API keys and PATs:
+API keys (never a GitHub PAT — workflows use GitHub App tokens, see `docs/configuration.md`):
 
 ```sh
 gh secret set HF_TOKEN --body "hf_..."
 gh secret set OPENAI_API_KEY --body "sk-..."
-gh secret set GITHUB_ORG_ADMIN_PAT --body "ghp_..."
 ```
 
 Or via **Settings → Secrets and variables → Actions → New repository secret**.

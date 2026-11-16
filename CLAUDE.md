@@ -250,7 +250,7 @@ is the model a fine-tune project trains. See `docs/adding-a-project-template.md`
 
 **Org secret used for all SSH:** `HOST_SSH_KEY` — all machines share Spark's SSH identity; replaces the old per-machine `DGX_HOST_SSH_KEY` / `AGX_HOST_SSH_KEY` secrets.
 
-Variables must exist before the dashboard reads them. On a fresh install, create missing variables via the GitHub API (PATCH→POST upsert using `GITHUB_ORG_ADMIN_PAT`) or the GitHub UI (`Settings → Secrets and variables → Actions → Variables`).
+Variables must exist before the dashboard reads them. On a fresh install, create missing variables via the GitHub API (PATCH→POST upsert using your interactive `gh` login) or the GitHub UI (`Settings → Secrets and variables → Actions → Variables`).
 
 Typical node-count sequence: **GKE Expand** → deploy workload → **GKE Restore**. Restore reads saved state automatically — no manual count needed.
 
@@ -270,11 +270,11 @@ The cluster is intentionally minimized. These constraints must be preserved:
 
 **Build:** triggered on push to `main`. Uses QEMU + buildx for a multi-arch manifest (`linux/amd64`, `linux/arm64`). Image: `ghcr.io/miramar-labs-org/mlabs-runner`.
 
-**Launch:** `./scripts/gha/launch-runner.sh` — fetches token via `GITHUB_ORG_ADMIN_PAT`. Idempotent.
+**Launch:** `./scripts/gha/launch-runner.sh` — mints a single-use registration token via the `miramar-runner-registrar` GitHub App (`scripts/gha/runner-app-token.sh`). No long-lived credential enters the container. Idempotent.
 
 **Network:** containers run with `--network=host` so `.local` mDNS names (`spark-79b7.local`, `orin.local`, `msi.local`) resolve correctly.
 
-Local env vars required: `GITHUB_ORG_GHCR_PAT` (`read:packages`), `GITHUB_ORG_ADMIN_PAT` (`admin:org`, `repo`). Both are also registered as org-level GitHub Actions secrets (`MIRAMAR_ORG_GHCR_PAT`, `MIRAMAR_ORG_ADMIN_PAT`) for use by hosted runners.
+Host-side settings (`~/.config/systemd/user/mlabs-runner.env`, never passed into the container): `RUNNER_APP_CLIENT_ID` + `RUNNER_APP_KEY_FILE` (registrar App) and `GITHUB_ORG_GHCR_PAT` (`read:packages`, host `docker login`). There is no org-admin PAT anywhere: workflows mint 1-hour tokens from the `miramar-automation` / `miramar-provisioner` Apps (`docs/configuration.md`).
 
 To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`.
 
