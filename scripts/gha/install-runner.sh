@@ -3,8 +3,8 @@
 # Useful for machines where Docker is unavailable or unwanted (e.g. Jetson AGX Orin).
 #
 # Requirements:
-#   GITHUB_ORG_ADMIN_PAT  — admin:org PAT (used to fetch registration token)
-#   GITHUB_ORG_GHCR_PAT   — optional, not needed for host install
+#   RUNNER_APP_CLIENT_ID, RUNNER_APP_KEY_FILE — miramar-runner-registrar GitHub App
+#   (Self-hosted runners RW only; see scripts/gha/runner-app-token.sh)
 #
 # Usage:
 #   ./install-runner.sh [options]
@@ -51,10 +51,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
-    echo "ERROR: GITHUB_ORG_ADMIN_PAT is not set" >&2
-    exit 1
-fi
+# shellcheck source=runner-app-token.sh
+source "$(dirname "${BASH_SOURCE[0]}")/runner-app-token.sh"
+APP_TOKEN=$(runner_app_token "${GITHUB_OWNER}")
 
 # Detect arch
 ARCH="$(uname -m)"
@@ -95,13 +94,12 @@ echo "Fetching runner registration token..."
 RUNNER_TOKEN=$(curl -fsSL \
     -X POST \
     -H "Accept: application/vnd.github+json" \
-    -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+    -H "Authorization: Bearer ${APP_TOKEN}" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "${REG_URL}" | jq -r '.token')
 
 # Resolve runner version and download URL via GitHub API
 RELEASE_JSON="$(curl -fsSL \
-    -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
     -H "Accept: application/vnd.github+json" \
     https://api.github.com/repos/actions/runner/releases/latest)"
 
@@ -139,14 +137,14 @@ else
 fi
 EXISTING_ID=$(curl -fsSL \
     -H "Accept: application/vnd.github+json" \
-    -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+    -H "Authorization: Bearer ${APP_TOKEN}" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "${RUNNERS_URL}" | jq -r ".runners[] | select(.name == \"${RUNNER_NAME}\") | .id")
 if [[ -n "${EXISTING_ID}" ]]; then
     echo "Unregistering existing runner '${RUNNER_NAME}' (ID ${EXISTING_ID})..."
     curl -fsSL -X DELETE \
         -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+        -H "Authorization: Bearer ${APP_TOKEN}" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
         "${RUNNERS_URL}/${EXISTING_ID}"
 fi

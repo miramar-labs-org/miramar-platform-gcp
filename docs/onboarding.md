@@ -60,8 +60,9 @@ Pull and start the mlabs-runner container with the new machine's label:
 ```sh
 RUNNER_LABEL=dgx2 \
 RUNNER_NAME=dgx2-runner-01 \
-GITHUB_ORG_ADMIN_PAT=<pat> \
-GITHUB_ORG_GHCR_PAT=<pat> \
+RUNNER_APP_CLIENT_ID=<registrar client id> \
+RUNNER_APP_KEY_FILE=~/.config/mlabs-runner/registrar.pem \
+GITHUB_ORG_GHCR_PAT=<read:packages pat> \
 ./scripts/gha/launch-runner.sh
 ```
 

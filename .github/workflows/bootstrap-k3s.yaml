@@ -97,12 +97,13 @@ jobs:
           scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
             scripts/ubuntu/preflight-host.sh \
             "${HOST_USER}@${HOST_IP}:/tmp/preflight-host.sh"
-          # Run with secrets sourced; non-interactive so auto-fix prompt is suppressed
+          # Non-interactive so the auto-fix prompt is suppressed. Never source a global
+          # secrets file here: preflight needs no secrets (it checks that none leak into the env)
           # We continue even on failure — bootstrap steps are idempotent and preflight
           # failures are reported in the step summary for visibility
           PREFLIGHT=$(ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
-            "source ~/.config/zsh/secrets.zsh 2>/dev/null || true; bash /tmp/preflight-host.sh" 2>&1) || true
+            "bash /tmp/preflight-host.sh" 2>&1) || true
           echo "$PREFLIGHT"
           {
             echo "## Preflight — ${{ inputs.runner }}"

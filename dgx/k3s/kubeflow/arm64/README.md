@@ -282,7 +282,7 @@ update `mlmd_server_version` and `mlmd_wheel_version` workflow inputs accordingl
 - Removes the amd64-only `controller-manager`
 - Patches all 13 deployments with native arm64 images
 - Creates a `ghcr-pull-secret` docker-registry secret in the `kubeflow` namespace
-  (from `GITHUB_ORG_GHCR_PAT`, the long-lived runner env var with `read:packages`)
+  (from the `MIRAMAR_ORG_GHCR_PAT` org secret, `read:packages`, passed to the job)
   so pods can pull from GHCR after the workflow run ends
 - Adds `imagePullSecrets` to all patched deployments
 

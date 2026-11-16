@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Gracefully stop the mlabs-runner container.
 # Sends SIGTERM, which triggers the entrypoint cleanup trap:
-#   - fetches a fresh removal token via the GitHub API
-#   - runs config.sh remove to deregister from GitHub Actions
+#   - runs config.sh remove with the registration token (succeeds within its 1 h life;
+#     otherwise the stale entry is replaced by the next launch-runner.sh)
 # The container was launched with --rm so it removes itself on exit.
 
 ARCH=$(uname -m)

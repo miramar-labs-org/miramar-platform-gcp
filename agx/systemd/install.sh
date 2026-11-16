@@ -16,15 +16,19 @@ mkdir -p "$DEST"
 # Enable linger so user services start on boot without requiring an interactive login
 loginctl enable-linger "$(id -un)"
 
-# Create runner PAT env file if it doesn't exist; seed from current session if vars are set
+# Create the runner env file if it doesn't exist. Host-side only — none of these reach
+# the runner container (scripts/gha/launch-runner.sh):
+#   RUNNER_APP_CLIENT_ID / RUNNER_APP_KEY_FILE — miramar-runner-registrar App (mints the
+#     single-use registration token)
+#   GITHUB_ORG_GHCR_PAT — read:packages, host `docker login` to pull mlabs-runner
 RUNNER_ENV="${DEST}/mlabs-runner.env"
 if [[ ! -f "${RUNNER_ENV}" ]]; then
-    printf 'GITHUB_ORG_ADMIN_PAT=\nGITHUB_ORG_GHCR_PAT=\nHF_TOKEN=\n' > "${RUNNER_ENV}"
-    [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]] && sed -i "s|^GITHUB_ORG_ADMIN_PAT=|GITHUB_ORG_ADMIN_PAT=${GITHUB_ORG_ADMIN_PAT}|" "${RUNNER_ENV}"
-    [[ -n "${GITHUB_ORG_GHCR_PAT:-}" ]] && sed -i "s|^GITHUB_ORG_GHCR_PAT=|GITHUB_ORG_GHCR_PAT=${GITHUB_ORG_GHCR_PAT}|" "${RUNNER_ENV}"
-    [[ -n "${HF_TOKEN:-}" ]] && sed -i "s|^HF_TOKEN=|HF_TOKEN=${HF_TOKEN}|" "${RUNNER_ENV}"
+    printf 'RUNNER_APP_CLIENT_ID=%s\nRUNNER_APP_KEY_FILE=%s\nGITHUB_ORG_GHCR_PAT=%s\n' \
+        "${RUNNER_APP_CLIENT_ID:-}" \
+        "${RUNNER_APP_KEY_FILE:-$HOME/.config/mlabs-runner/registrar.pem}" \
+        "${GITHUB_ORG_GHCR_PAT:-}" > "${RUNNER_ENV}"
     chmod 600 "${RUNNER_ENV}"
-    echo "Created ${RUNNER_ENV} (fill in PATs if not seeded from current environment)"
+    echo "Created ${RUNNER_ENV} (fill in RUNNER_APP_CLIENT_ID if not seeded from current environment)"
 else
     echo "${RUNNER_ENV} already exists — skipping"
 fi

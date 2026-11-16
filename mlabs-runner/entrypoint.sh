@@ -9,24 +9,11 @@ RUNNER_GROUP="${RUNNER_GROUP:-Default}"
 RUNNER_WORKDIR="${RUNNER_WORKDIR:-_work}"
 EPHEMERAL="${EPHEMERAL:-false}"
 
+# The host (scripts/gha/launch-runner.sh) mints a single-use registration token; no
+# GitHub credential that outlives registration is ever passed into this container.
 if [[ -z "${RUNNER_TOKEN:-}" ]]; then
-    if [[ -z "${GITHUB_PAT:-}" ]]; then
-        echo "ERROR: Either RUNNER_TOKEN or GITHUB_PAT must be set" >&2
-        exit 1
-    fi
-
-    if [[ -n "${GITHUB_REPO}" ]]; then
-        REGISTRATION_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/registration-token"
-    else
-        REGISTRATION_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/registration-token"
-    fi
-
-    RUNNER_TOKEN=$(curl -fsSL \
-        -X POST \
-        -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${GITHUB_PAT}" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "${REGISTRATION_URL}" | jq -r '.token')
+    echo "ERROR: RUNNER_TOKEN must be set" >&2
+    exit 1
 fi
 
 if [[ -n "${GITHUB_REPO}" ]]; then
@@ -40,27 +27,9 @@ EXTRA_FLAGS=""
 
 cleanup() {
     echo "Deregistering runner..."
-    REMOVE_TOKEN="${RUNNER_TOKEN}"
-    if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
-        GITHUB_PAT="${GITHUB_ORG_ADMIN_PAT}"
-    fi
-    if [[ -n "${GITHUB_PAT:-}" ]]; then
-        # Registration tokens expire after 1 hour; try to fetch a fresh removal
-        # token. Requires admin:org scope — fall back to RUNNER_TOKEN if denied.
-        if [[ -n "${GITHUB_REPO}" ]]; then
-            REMOVE_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/remove-token"
-        else
-            REMOVE_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/remove-token"
-        fi
-        FRESH_TOKEN=$(curl -sS \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GITHUB_PAT}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "${REMOVE_URL}" 2>/dev/null | jq -r '.token // empty')
-        [[ -n "${FRESH_TOKEN}" ]] && REMOVE_TOKEN="${FRESH_TOKEN}"
-    fi
-    ./config.sh remove --token "${REMOVE_TOKEN}" || true
+    # Works while the registration token is fresh (1 h). After that this fails and the
+    # stale entry is replaced by the next launch (launch-runner.sh deletes it + --replace).
+    ./config.sh remove --token "${RUNNER_TOKEN}" || true
 }
 trap cleanup SIGTERM SIGINT SIGQUIT
 

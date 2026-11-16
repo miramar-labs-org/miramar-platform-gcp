@@ -5,7 +5,7 @@ usage() {
     echo "Usage: $0 [--token <RUNNER_TOKEN>] [options]"
     echo ""
     echo "Options:"
-    echo "  --token       Runner registration token (auto-fetched via GITHUB_ORG_ADMIN_PAT if not set)"
+    echo "  --token       Runner registration token (auto-fetched via the miramar-runner-registrar App if not set)"
     echo "  --pat         GitHub PAT with read:packages scope (for GHCR login)"
     echo "  --name        Runner name (default: hostname)"
     echo "  --labels      Comma-separated labels (default: self-hosted,linux,<arch>)"
@@ -41,10 +41,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${RUNNER_TOKEN}" ]]; then
-    if [[ -z "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
-        echo "ERROR: --token not provided and GITHUB_ORG_ADMIN_PAT is not set" >&2
-        usage
-    fi
+    # shellcheck source=runner-app-token.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/runner-app-token.sh"
+    APP_TOKEN=$(runner_app_token "${GITHUB_OWNER}")
     echo "Fetching runner registration token..."
     if [[ -n "${GITHUB_REPO}" ]]; then
         REG_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/registration-token"
@@ -54,7 +53,7 @@ if [[ -z "${RUNNER_TOKEN}" ]]; then
     RUNNER_TOKEN=$(curl -fsSL \
         -X POST \
         -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+        -H "Authorization: Bearer ${APP_TOKEN}" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
         "${REG_URL}" | jq -r '.token')
 fi
@@ -137,22 +136,14 @@ if [[ -n "${GITHUB_REPO}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_REPO=${GITHUB_REPO}")
 fi
 
-if [[ -n "${GITHUB_ORG_GHCR_PAT:-}" ]]; then
-    DOCKER_ENV+=(-e "GITHUB_PAT=${GITHUB_ORG_GHCR_PAT}")
-    DOCKER_ENV+=(-e "GITHUB_ORG_GHCR_PAT=${GITHUB_ORG_GHCR_PAT}")
-fi
-
-if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
-    DOCKER_ENV+=(-e "GITHUB_ORG_ADMIN_PAT=${GITHUB_ORG_ADMIN_PAT}")
-fi
-
-if [[ -n "${HF_TOKEN:-}" ]]; then
-    DOCKER_ENV+=(-e "HF_TOKEN=${HF_TOKEN}")
-fi
+# No PATs or API keys go into the container env: any job on this runner can read it.
+# Workflows get HF_TOKEN, GHCR and GitHub tokens from secrets per job. This is NOT a
+# host boundary: the docker.sock, ~/.kube and host SSH-key mounts below give any job
+# host-level access (incl. the registrar key). Only trusted jobs may run here.
 
 
 # Unregister any existing runner with the same name to avoid session conflicts
-if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
+if [[ -n "${APP_TOKEN:-}" ]]; then
     if [[ -n "${GITHUB_REPO}" ]]; then
         RUNNERS_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners"
     else
@@ -160,7 +151,7 @@ if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
     fi
     EXISTING_ID=$(curl -fsSL \
         -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+        -H "Authorization: Bearer ${APP_TOKEN}" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
         "${RUNNERS_URL}" | jq -r ".runners[] | select(.name == \"${RUNNER_NAME}\") | .id")
     if [[ -n "${EXISTING_ID}" ]]; then
@@ -169,7 +160,7 @@ if [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
         # A fresh registration token always lets us re-register regardless.
         curl -sL -X DELETE \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
+            -H "Authorization: Bearer ${APP_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "${RUNNERS_URL}/${EXISTING_ID}" > /dev/null || true
     fi

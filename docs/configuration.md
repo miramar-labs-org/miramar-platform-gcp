@@ -76,7 +76,7 @@ and fit the ~40 GB budget.
 
 ### Org-Level Active State Variables
 
-Drive the green/red dashboard badges. Set by deploy workflows, cleared by undeploy workflows. Seed on fresh install with `gh api` PATCH→POST upserts using `GITHUB_ORG_ADMIN_PAT`.
+Drive the green/red dashboard badges. Set by deploy workflows, cleared by undeploy workflows. Seed on fresh install with `gh api` PATCH→POST upserts using your interactive `gh` login.
 
 | Variable            | Set to `true` by      | Set to `false` by               |
 | ------------------- | --------------------- | ------------------------------- |
@@ -135,12 +135,18 @@ k3s/GKE for private GHCR images; an App token would expire after an hour.
 
 ## Host Environment Variables
 
-Each self-hosted runner machine also needs the same PATs as local shell env vars so `launch-runner.sh` can pull the runner image and inject them into the container:
+Each self-hosted runner host keeps these in `~/.config/systemd/user/mlabs-runner.env`
+(chmod 600). They are used by `launch-runner.sh` on the host and are not passed into the
+runner container env:
 
-| Variable               | Scope required                  | Purpose                                                                                                                                                                                                                                                                                                       |
-| ---------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GITHUB_ORG_GHCR_PAT`  | `read:packages`                 | Pull `mlabs-runner` from GHCR                                                                                                                                                                                                                                                                                 |
-| `GITHUB_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Manage self-hosted runners, update `WSL2_DISTROS`, push `.github/workflows/` files to new repos. The `workflow` scope is required by GitHub whenever a push includes files under `.github/workflows/` — e.g. the **Create Project** workflow. Also used by **Delete Project** (`delete_repo` scope required). |
+| Variable               | What                                                       | Purpose                                                     |
+| ---------------------- | ---------------------------------------------------------- | ----------------------------------------------------------- |
+| `RUNNER_APP_CLIENT_ID` | Client ID of GitHub App `miramar-runner-registrar`         | Mint the single-use runner registration token               |
+| `RUNNER_APP_KEY_FILE`  | Path to that App's private key (`.pem`, chmod 600)         | Same; App permission is Organization → Self-hosted runners RW only |
+| `GITHUB_ORG_GHCR_PAT`  | PAT, `read:packages`                                       | Host `docker login` to pull `mlabs-runner` from GHCR        |
+
+There is no org-admin PAT on any host. Admin scripts (`scripts/gha/runners.sh`,
+`unregister-runner.sh`) use your interactive `gh` login (`gh auth refresh -s admin:org`).
 
 The following optional host env var is used by the `/kfp-monitor` slash command (add to `~/.zshrc`):
 
@@ -153,8 +159,10 @@ The following optional host env var is used by the `/kfp-monitor` slash command 
 Example:
 
 ```sh
-export GITHUB_ORG_GHCR_PAT=ghp_...
-export GITHUB_ORG_ADMIN_PAT=ghp_...
+# ~/.config/systemd/user/mlabs-runner.env
+RUNNER_APP_CLIENT_ID=Iv23...
+RUNNER_APP_KEY_FILE=/home/aaron/.config/mlabs-runner/registrar.pem
+GITHUB_ORG_GHCR_PAT=ghp_...
 ```
 
 `HF_TOKEN` and all other API keys are GitHub org secrets and do not need to be

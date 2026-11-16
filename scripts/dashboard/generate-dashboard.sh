@@ -3,7 +3,7 @@
 # Usage: GH_TOKEN=<token> [GH_ADMIN_TOKEN=<token>] bash generate-dashboard.sh --org <org> --output <path>
 #
 # GH_TOKEN          — GITHUB_TOKEN; used for org repo listing (read:public_repo)
-# GH_ADMIN_TOKEN    — GITHUB_ORG_ADMIN_PAT; used for per-project workflow run queries
+# GH_ADMIN_TOKEN    — optional; defaults to GH_TOKEN (the workflow's 1-hour App token)
 #                     (falls back to GH_TOKEN if not set, but won't work for private runner data)
 set -euo pipefail
 

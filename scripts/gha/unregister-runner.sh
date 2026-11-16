@@ -4,21 +4,11 @@ set -euo pipefail
 GITHUB_OWNER="miramar-labs-org"
 NAME_FILTER="${1:-}"
 
-if [[ -z "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
-    echo "ERROR: GITHUB_ORG_ADMIN_PAT is not set (needs admin:org scope)" >&2
-    exit 1
-fi
-
-gh_api() {
-    curl -fsSL \
-        -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${GITHUB_ORG_ADMIN_PAT}" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "$@"
-}
+# Uses your interactive gh login (needs admin:org: gh auth refresh -s admin:org).
+gh_api() { gh api "$@"; }
 
 echo "Fetching registered runners..."
-RUNNERS_JSON=$(gh_api "https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners")
+RUNNERS_JSON=$(gh_api "orgs/${GITHUB_OWNER}/actions/runners")
 
 RUNNERS=$(echo "${RUNNERS_JSON}" | jq -r '.runners[] | "\(.id)  \(.name)  (\(.status))"')
 
@@ -42,5 +32,5 @@ else
 fi
 
 echo "Removing runner ID ${RUNNER_ID}..."
-gh_api -X DELETE "https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/${RUNNER_ID}"
+gh_api -X DELETE "orgs/${GITHUB_OWNER}/actions/runners/${RUNNER_ID}"
 echo "Done."

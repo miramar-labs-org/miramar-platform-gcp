@@ -283,7 +283,7 @@ if [[ -n "$RUNNER_CONTAINER" ]]; then
     _pass "mlabs-runner container: $RUNNER_CONTAINER"
 else
     _fail "mlabs-runner container not running" \
-        "run scripts/gha/launch-runner.sh (needs GITHUB_ORG_GHCR_PAT + GITHUB_ORG_ADMIN_PAT)"
+        "run scripts/gha/launch-runner.sh (needs RUNNER_APP_CLIENT_ID + RUNNER_APP_KEY_FILE)"
 fi
 
 if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
@@ -312,17 +312,24 @@ fi
 # ── 9. Credentials ───────────────────────────────────────────────────────────
 section "9. Credentials & Environment"
 
-for var in GITHUB_ORG_GHCR_PAT GITHUB_ORG_ADMIN_PAT; do
-    [[ -n "${!var:-}" ]] \
-        && _pass "$var: set" \
-        || _fail "$var: not set in environment" "add to ~/.zshrc: export $var=<token>"
-done
+RUNNER_ENV="${HOME}/.config/systemd/user/mlabs-runner.env"
+_rkey=$(sed -n 's/^RUNNER_APP_KEY_FILE=//p' "$RUNNER_ENV" 2>/dev/null)
+if grep -qs '^RUNNER_APP_CLIENT_ID=.' "$RUNNER_ENV" && [[ -r "${_rkey/#\~/$HOME}" ]]; then
+    _pass "Runner registrar App configured in $RUNNER_ENV"
+else
+    _fail "Runner registrar App not configured" \
+        "set RUNNER_APP_CLIENT_ID and RUNNER_APP_KEY_FILE (chmod 600 .pem) in $RUNNER_ENV"
+fi
+if grep -qsE '^(GITHUB_ORG_ADMIN_PAT|HF_TOKEN)=.' "$RUNNER_ENV" || [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
+    _fail "Long-lived admin PAT / HF_TOKEN still present on host" \
+        "remove them from $RUNNER_ENV (and GITHUB_ORG_ADMIN_PAT from ~/.zshrc); revoke the PAT"
+fi
 
 [[ -n "${HF_TOKEN:-}" ]] \
     && _pass "HF_TOKEN: set" \
     || _warn "HF_TOKEN: not set" "required for gated HuggingFace models — add to ~/.zshrc: export HF_TOKEN=hf_..."
 
-_info "Org secrets (HOST_SSH_KEY, NVIDIA_API_KEY, MIRAMAR_ORG_ADMIN_PAT, MIRAMAR_ORG_GHCR_PAT) cannot be verified from the host — confirm in GitHub org settings"
+_info "Org secrets (HOST_SSH_KEY, NVIDIA_API_KEY, MIRAMAR_ORG_GHCR_PAT) and App secrets (AUTOMATION_/PROVISIONER_APP_*) cannot be verified from the host — confirm in GitHub org settings"
 
 # ── 10. SSH ───────────────────────────────────────────────────────────────────
 section "10. SSH"

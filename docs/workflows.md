@@ -125,7 +125,7 @@ NIM is DGX-only — all NIM LLM containers are `linux/amd64`; no `linux/arm64` i
 | `GKE_GPU_POOL_ACTIVE` | GKE Expand GPU                                              | GKE Restore GPU, GCP Platform Destroy           | `false` |
 | `GKE_GPU_TYPE`        | GKE Expand GPU (value: accelerator type, e.g. `nvidia-l4`) | GKE Restore GPU, GCP Platform Destroy           | `none`  |
 
-On a fresh install, seed the active state with `gh api` PATCH→POST upserts using `GITHUB_ORG_ADMIN_PAT` to reflect actual current state.
+On a fresh install, seed the active state with `gh api` PATCH→POST upserts using your interactive `gh` login to reflect actual current state.
 
 See [dgx.md](dgx.md), [../dgx/k3s/](../dgx/k3s/),
 [../dgx/k3s/qdrant/README.md](../dgx/k3s/qdrant/README.md), and
