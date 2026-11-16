@@ -17,11 +17,24 @@ on:
 jobs:
   delete:
     runs-on: [self-hosted, dgx]
+    environment: provision
     timeout-minutes: 5
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.PROVISIONER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROVISIONER_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - name: Delete post and clean up draft branch
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"
@@ -33,14 +46,14 @@ jobs:
           BRANCH="draft-${SLUG}"
 
           # Get file SHA (required by GitHub contents API for deletion)
-          FILE_SHA=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          FILE_SHA=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
             "repos/${BLOG_REPO}/contents/${POST_PATH}" \
             --jq '.sha' 2>/dev/null || true)
 
           if [ -z "${FILE_SHA}" ]; then
             echo "==> '${POST_PATH}' not found in ${BLOG_REPO} — nothing to delete."
           else
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api -X DELETE \
               "repos/${BLOG_REPO}/contents/${POST_PATH}" \
               -f message="Remove post: ${FILENAME}" \
               -f sha="${FILE_SHA}"
@@ -48,24 +61,24 @@ jobs:
           fi
 
           # Close any open PR from the draft branch
-          PR_NUMBER=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          PR_NUMBER=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
             "repos/${BLOG_REPO}/pulls?head=miramar-labs:${BRANCH}&state=open" \
             --jq '.[0].number // empty' 2>/dev/null || true)
 
           if [ -n "${PR_NUMBER}" ]; then
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X PATCH \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api -X PATCH \
               "repos/${BLOG_REPO}/pulls/${PR_NUMBER}" \
               -f state="closed"
             echo "==> Closed PR #${PR_NUMBER} (${BRANCH})"
           fi
 
           # Delete draft branch if it exists
-          BRANCH_EXISTS=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          BRANCH_EXISTS=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
             "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}" \
             --jq '.ref' 2>/dev/null || true)
 
           if [ -n "${BRANCH_EXISTS}" ]; then
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api -X DELETE \
               "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}"
             echo "==> Deleted branch ${BRANCH}"
           fi

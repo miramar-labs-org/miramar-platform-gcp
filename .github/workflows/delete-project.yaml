@@ -4,8 +4,10 @@ name: Delete Project
 # Also cleans up: blog draft PR/branch, local clone on host, JupyterLab kernel,
 # shared HF adapter cache, K3s adapter host path, K3s containerd images, GHCR package.
 #
-# Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) — requires
-# delete_repo scope which GITHUB_TOKEN does not have.
+# Uses a 1-hour token from the miramar-provisioner GitHub App (Administration write),
+# which GITHUB_TOKEN does not have. The App key lives only in the `provision`
+# environment, so every run waits for owner approval. Apps cannot delete GHCR
+# packages: delete any leftover package in the GitHub UI.
 
 on:
   workflow_dispatch:
@@ -23,9 +25,22 @@ permissions:
 jobs:
   delete:
     runs-on: [self-hosted, dgx]
+    environment: provision
     timeout-minutes: 10
 
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.PROVISIONER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROVISIONER_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - name: Validate confirmation
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
@@ -41,9 +56,9 @@ jobs:
       - name: Verify repository exists
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          if ! GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          if ! GH_TOKEN="${GH_APP_TOKEN}" gh api \
               "repos/miramar-labs-org/${PROJECT_NAME}" >/dev/null 2>&1; then
             echo "ERROR: Repository miramar-labs-org/${PROJECT_NAME} does not exist." >&2
             exit 1
@@ -53,9 +68,9 @@ jobs:
       - name: Resolve host
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          if _val=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          if _val=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
               "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
               --jq '.value' 2>/dev/null); then
             PROJECT_HOST="${_val:-dgx}"
@@ -74,9 +89,9 @@ jobs:
       - name: Delete repository
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo delete \
+          GH_TOKEN="${GH_APP_TOKEN}" gh repo delete \
             "miramar-labs-org/${PROJECT_NAME}" \
             --yes
           echo "Deleted miramar-labs-org/${PROJECT_NAME}"
@@ -85,28 +100,28 @@ jobs:
         continue-on-error: true
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"
           BRANCH="draft-${PROJECT_NAME}"
 
-          PR_NUMBER=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          PR_NUMBER=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
             "repos/${BLOG_REPO}/pulls?state=open" \
             --jq "[.[] | select(.head.ref == \"${BRANCH}\")] | .[0].number // empty" \
             2>/dev/null || true)
           if [ -n "${PR_NUMBER}" ]; then
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X PATCH \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api -X PATCH \
               "repos/${BLOG_REPO}/pulls/${PR_NUMBER}" \
               -f state="closed"
             echo "Closed blog PR #${PR_NUMBER}"
           fi
 
-          BRANCH_EXISTS=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          BRANCH_EXISTS=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
             "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}" \
             --jq '.ref' 2>/dev/null || true)
           if [ -n "${BRANCH_EXISTS}" ]; then
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api -X DELETE \
               "repos/${BLOG_REPO}/git/refs/heads/${BRANCH}"
             echo "Deleted blog draft branch ${BRANCH}"
           fi
@@ -164,20 +179,21 @@ jobs:
         continue-on-error: true
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          VERSIONS=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          VERSIONS=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
             "orgs/miramar-labs-org/packages/container/${PROJECT_NAME}/versions" \
             --jq '.[].id' 2>/dev/null || true)
           if [ -n "${VERSIONS}" ]; then
             while IFS= read -r version_id; do
-              GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X DELETE \
+              GH_TOKEN="${GH_APP_TOKEN}" gh api -X DELETE \
                 "orgs/miramar-labs-org/packages/container/${PROJECT_NAME}/versions/${version_id}" \
                 2>/dev/null || true
             done <<< "${VERSIONS}"
             echo "Deleted GHCR package: ghcr.io/miramar-labs-org/${PROJECT_NAME}"
           else
-            echo "No GHCR package found for ${PROJECT_NAME} (skip)"
+            # GitHub Apps cannot read the packages API, so an empty list is expected.
+            echo "::warning::Delete any GHCR package by hand: https://github.com/orgs/miramar-labs-org/packages/container/package/${PROJECT_NAME}"
           fi
 
       - name: Summary

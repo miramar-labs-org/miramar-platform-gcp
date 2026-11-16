@@ -30,6 +30,18 @@ jobs:
     timeout-minutes: 360
 
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       - name: Resolve SSH target and state vars
@@ -99,7 +111,7 @@ jobs:
         if: failure()
         shell: bash
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           echo "Ollama deploy failed — unloading any partially loaded model..."
           ssh -i /tmp/host_key \
@@ -112,31 +124,31 @@ jobs:
             < "$UNDEPLOY_SCRIPT" || true
           for var_val in "${STATE_MODEL_VAR}=none" "${STATE_VRAM_VAR}=0"; do
             var="${var_val%%=*}"; val="${var_val#*=}"
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api \
               -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
               -f value="${val}" 2>/dev/null || \
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api \
               -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
               -f name="${var}" -f value="${val}" || true
           done
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           var="${machine}_OLLAMA_ACTIVE"
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
             -f name="${var}" -f value="false" -f visibility="all" \
-          || GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+          || GH_TOKEN="${GH_APP_TOKEN}" gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="false" -f visibility="all" || true
 
       - name: Update platform state
         if: success()
         shell: bash
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_MODEL_VAR}" \
             -f value="${{ inputs.model }}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
             -f name="${STATE_MODEL_VAR}" -f value="${{ inputs.model }}"
 
@@ -144,7 +156,7 @@ jobs:
         if: success()
         shell: bash
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           vram_gb=$(ssh -i /tmp/host_key \
             -o BatchMode=yes -o IdentitiesOnly=yes \
@@ -154,17 +166,17 @@ jobs:
             'curl -s http://localhost:11434/api/ps | jq "[.models[].size_vram // 0] | add // 0 | . / 1073741824 | round"' \
             2>/dev/null || echo "0")
           vram_gb="${vram_gb:-0}"
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_VRAM_VAR}" \
             -f value="${vram_gb}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
             -f name="${STATE_VRAM_VAR}" -f value="${vram_gb}"
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           var="${machine}_OLLAMA_ACTIVE"
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
             -f name="${var}" -f value="true" -f visibility="all" \
-          || GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
+          || GH_TOKEN="${GH_APP_TOKEN}" gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="true" -f visibility="all"
 
       - name: Summary
