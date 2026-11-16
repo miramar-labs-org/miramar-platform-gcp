@@ -3,8 +3,9 @@
 # for the miramar-runner-registrar GitHub App (Organization: Self-hosted runners RW only).
 #
 # Replaces GITHUB_ORG_ADMIN_PAT for runner registration (Nov 2026 incident). Runs on the
-# host only; the key and this token are never passed into the runner container, which
-# receives just the single-use registration token.
+# host only; the key and this token are not put in the runner container env, which
+# receives just the registration token. (Jobs can still reach host files via the
+# docker.sock mount; see docs/runners.md.)
 #
 # Requires (from ~/.config/systemd/user/mlabs-runner.env or the shell):
 #   RUNNER_APP_CLIENT_ID  — the App's Client ID (Iv23...)

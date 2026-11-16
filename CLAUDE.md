@@ -270,11 +270,11 @@ The cluster is intentionally minimized. These constraints must be preserved:
 
 **Build:** triggered on push to `main`. Uses QEMU + buildx for a multi-arch manifest (`linux/amd64`, `linux/arm64`). Image: `ghcr.io/miramar-labs-org/mlabs-runner`.
 
-**Launch:** `./scripts/gha/launch-runner.sh` — mints a single-use registration token via the `miramar-runner-registrar` GitHub App (`scripts/gha/runner-app-token.sh`). No long-lived credential enters the container. Idempotent.
+**Launch:** `./scripts/gha/launch-runner.sh` — mints a single-use registration token via the `miramar-runner-registrar` GitHub App (`scripts/gha/runner-app-token.sh`). No PAT/API key enters the container env — but docker.sock, `~/.kube` and the host SSH key are mounted, so jobs are host-trusted. Idempotent.
 
 **Network:** containers run with `--network=host` so `.local` mDNS names (`spark-79b7.local`, `orin.local`, `msi.local`) resolve correctly.
 
-Host-side settings (`~/.config/systemd/user/mlabs-runner.env`, never passed into the container): `RUNNER_APP_CLIENT_ID` + `RUNNER_APP_KEY_FILE` (registrar App) and `GITHUB_ORG_GHCR_PAT` (`read:packages`, host `docker login`). There is no org-admin PAT anywhere: workflows mint 1-hour tokens from the `miramar-automation` / `miramar-provisioner` Apps (`docs/configuration.md`).
+Host-side settings (`~/.config/systemd/user/mlabs-runner.env`, not passed into the container env): `RUNNER_APP_CLIENT_ID` + `RUNNER_APP_KEY_FILE` (registrar App) and `GITHUB_ORG_GHCR_PAT` (`read:packages`, host `docker login`). There is no org-admin PAT anywhere: workflows mint 1-hour tokens from the `miramar-automation` / `miramar-provisioner` Apps (`docs/configuration.md`).
 
 To bump the runner version, update `RUNNER_VERSION` in `mlabs-runner/Dockerfile`.
 

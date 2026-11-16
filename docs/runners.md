@@ -72,12 +72,17 @@ If jobs queue while a runner is idle, check org runner group access:
 | `scripts/gha/sync-github-tf-vars.sh` | Sync Terraform variables to GitHub org variables |
 | `scripts/gha/get-github-secrets.sh`  | Print WIF/GCP secret values after bootstrap      |
 
-## Credentials: none inside the runner container
+## Credentials and the runner container
 
 Any job on a self-hosted runner can read the container's environment, so `launch-runner.sh`
-passes **no long-lived credential** into it — only the runner's name/labels and a single-use
-registration token (1 h). Before the Nov 2026 incident the container carried the org-admin PAT,
-the GHCR PAT and `HF_TOKEN`; that was removed.
+passes **no PAT or API key** into it — only the runner's name/labels and a registration token
+(valid 1 h). Before the Nov 2026 incident the container env carried the org-admin PAT, the GHCR
+PAT and `HF_TOKEN`; that was removed.
+
+**This is not a host boundary.** The container mounts `/var/run/docker.sock`, `~/.kube` and the
+host SSH identity, so any job can act as the host user and read host files, including the
+registrar App key. Treat every job on these runners as fully trusted: never run
+fork/`pull_request` jobs from public repos on them.
 
 The host mints the registration token with the `miramar-runner-registrar` GitHub App
 (`scripts/gha/runner-app-token.sh`; permission: Organization → Self-hosted runners RW only).

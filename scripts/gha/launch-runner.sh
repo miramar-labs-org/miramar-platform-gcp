@@ -136,8 +136,10 @@ if [[ -n "${GITHUB_REPO}" ]]; then
     DOCKER_ENV+=(-e "GITHUB_REPO=${GITHUB_REPO}")
 fi
 
-# No long-lived credentials go into the container: any job on this runner can read its
-# environment. Workflows get HF_TOKEN, GHCR and GitHub tokens from secrets per job.
+# No PATs or API keys go into the container env: any job on this runner can read it.
+# Workflows get HF_TOKEN, GHCR and GitHub tokens from secrets per job. This is NOT a
+# host boundary: the docker.sock, ~/.kube and host SSH-key mounts below give any job
+# host-level access (incl. the registrar key). Only trusted jobs may run here.
 
 
 # Unregister any existing runner with the same name to avoid session conflicts

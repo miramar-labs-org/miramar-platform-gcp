@@ -62,7 +62,7 @@ verify with `sudo systemctl status k3s` if any port-forward fails to connect.
 
 `install.sh` creates `~/.config/systemd/user/mlabs-runner.env` on first run, seeding
 `RUNNER_APP_CLIENT_ID`, `RUNNER_APP_KEY_FILE` and `GITHUB_ORG_GHCR_PAT` from the current shell
-environment (host-side only; nothing reaches the runner container — see `docs/runners.md`).
+environment (host-side only; not passed into the runner container env — see `docs/runners.md`).
 If those vars are not set, edit the file manually before starting the service:
 
 ```sh

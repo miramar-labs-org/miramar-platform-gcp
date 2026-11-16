@@ -136,8 +136,8 @@ k3s/GKE for private GHCR images; an App token would expire after an hour.
 ## Host Environment Variables
 
 Each self-hosted runner host keeps these in `~/.config/systemd/user/mlabs-runner.env`
-(chmod 600). They are used by `launch-runner.sh` on the host and are **never** passed into the
-runner container:
+(chmod 600). They are used by `launch-runner.sh` on the host and are not passed into the
+runner container env:
 
 | Variable               | What                                                       | Purpose                                                     |
 | ---------------------- | ---------------------------------------------------------- | ----------------------------------------------------------- |
