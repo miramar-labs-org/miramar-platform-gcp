@@ -5,13 +5,10 @@ name: K3s Install
 # services (Ollama :11434) by node IP, not by a patched-in host.k3s.internal record.
 # Safe to re-run — idempotent; skips the install step if k3s binary already present.
 #
-# After installing, updates the <RUNNER>_K3S_KUBECONFIG org secret so all
-# deploy workflows can authenticate.
-#
 # Prerequisites:
 #   - mlabs-runner container launched via scripts/gha/launch-runner.sh
 #   - NVIDIA container toolkit installed on the host (nvidia-ctk available)
-#   - GITHUB_ORG_ADMIN_PAT env var set on the runner (injected by launch-runner.sh)
+#   - AUTOMATION_APP_CLIENT_ID / AUTOMATION_APP_KEY repo secrets (miramar-automation App)
 
 on:
   workflow_dispatch:
@@ -30,12 +27,23 @@ jobs:
     runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 30
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       - name: Resolve host and secret names
         run: |
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
-          echo "KUBECONFIG_SECRET=${machine}_K3S_KUBECONFIG" >> "$GITHUB_ENV"
           echo "ACTIVE_VAR=${machine}_K3S_ACTIVE"            >> "$GITHUB_ENV"
           if [[ "${{ inputs.runner }}" == "agx" ]]; then
             echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
@@ -91,23 +99,12 @@ jobs:
 
       - name: Set k3s active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${ACTIVE_VAR}" \
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all"
-
-      - name: Update k3s kubeconfig org secret
-        env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
-        run: |
-          set -o pipefail
-          KUBECONFIG_B64=$(base64 -w0 < "${HOME}/.kube/config")
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set "${KUBECONFIG_SECRET}" \
-            --org miramar-labs-org \
-            --body "${KUBECONFIG_B64}"
-          echo "==> ${KUBECONFIG_SECRET} updated"
 
       - name: Cleanup SSH key
         if: always()

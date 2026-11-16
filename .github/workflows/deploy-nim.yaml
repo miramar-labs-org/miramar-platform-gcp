@@ -36,6 +36,18 @@ jobs:
     runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 360
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       - name: Resolve SSH target and state vars
@@ -143,17 +155,17 @@ jobs:
         env:
           NIM_ORG: ${{ inputs.nim_org }}
           NIM_NAME: ${{ inputs.nim_name }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           echo "NIM deploy failed — submitting undeploy for ${NIM_ORG}/${NIM_NAME}..."
           ( source dgx/k3s/nim/undeploy_nim.sh
             undeploy_nim "$NIM_ORG" "$NIM_NAME" ) || echo "Undeploy attempt finished (404 = already gone)"
           for var in "${STATE_NIM_MODEL_VAR}" "${STATE_NIM_VRAM_VAR}"; do
             val="none"; [[ "$var" == *"VRAM"* ]] && val="0"
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api \
               -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${var}" \
               -f value="${val}" 2>/dev/null || \
-            GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+            GH_TOKEN="${GH_APP_TOKEN}" gh api \
               -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
               -f name="${var}" -f value="${val}" || true
           done
@@ -161,21 +173,21 @@ jobs:
       - name: Update platform state
         if: success()
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           NIM_MODEL="${{ inputs.nim_org }}/${{ inputs.nim_name }}"
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_NIM_MODEL_VAR}" \
             -f value="${NIM_MODEL}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
             -f name="${STATE_NIM_MODEL_VAR}" -f value="${NIM_MODEL}"
 
       - name: Record NIM VRAM usage
         if: success()
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           vram_gb=$(ssh -i /tmp/host_key \
             -o BatchMode=yes -o IdentitiesOnly=yes \
@@ -185,10 +197,10 @@ jobs:
             'nvidia-smi --query-compute-apps=used_memory --format=csv,noheader,nounits 2>/dev/null | jq -Rn "[inputs | tonumber] | add // 0 | . / 1024 | round"' \
             2>/dev/null || echo "0")
           vram_gb="${vram_gb:-0}"
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X PATCH "repos/${GITHUB_REPOSITORY}/actions/variables/${STATE_NIM_VRAM_VAR}" \
             -f value="${vram_gb}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X POST "repos/${GITHUB_REPOSITORY}/actions/variables" \
             -f name="${STATE_NIM_VRAM_VAR}" -f value="${vram_gb}"
 

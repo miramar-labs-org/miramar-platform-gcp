@@ -32,6 +32,18 @@ jobs:
     runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 60
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -254,7 +266,7 @@ jobs:
         env:
           NEMO_VERSION: ${{ inputs.nemo_version }}
           RUNNER: ${{ inputs.runner }}
-          MIRAMAR_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           CLUSTER_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
@@ -306,7 +318,7 @@ jobs:
             # git through the environment only — never argv, never a config file.
             git \
               -c credential.helper= \
-              -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${MIRAMAR_ORG_ADMIN_PAT}"; fi; }; f' \
+              -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${GH_APP_TOKEN}"; fi; }; f' \
               push https://github.com/miramar-labs-org/miramar-platform-gcp.git HEAD:main
             echo "Changes committed and pushed to main."
           fi
@@ -349,7 +361,7 @@ jobs:
 
       - name: Set NeMo active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           machine=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           var="${machine}_NEMO_ACTIVE"

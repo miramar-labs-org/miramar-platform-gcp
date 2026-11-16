@@ -46,6 +46,18 @@ jobs:
   destroy:
     runs-on: ubuntu-latest
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - name: Validate confirmation
         run: |
           if [ "${{ inputs.confirm_project }}" != "$PROJECT_ID" ]; then
@@ -152,7 +164,7 @@ jobs:
 
       - name: Mark cluster inactive
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           for var_name in GKE_CLUSTER_ACTIVE GKE_GPU_POOL_ACTIVE GKE_NSIGHT_OPERATOR_ACTIVE GKE_GATEWAY_ACTIVE GKE_MODEL_ROUTER_ACTIVE; do
             gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var_name}" \

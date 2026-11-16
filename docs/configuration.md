@@ -115,14 +115,23 @@ the result.
 `linux/arm64` images and the AGX no longer runs k3s. The dashboard no longer
 reads them.
 
-## GitHub Actions Org Secrets (PATs)
+## GitHub App credentials (no PATs)
 
-The two platform PATs are registered as org-level GitHub Actions secrets (visible to all repos). Used by workflows running on hosted runners (e.g. `deploy-dashboard.yaml`):
+Workflows never hold a long-lived GitHub token. Each job that writes GitHub state mints a
+1-hour installation token with `actions/create-github-app-token` (revoked when the job ends).
+Introduced after the Nov 2026 compromise, whose entry point was a leaked org-admin PAT.
 
-| Secret                  | Scope                           | Purpose                                                |
-| ----------------------- | ------------------------------- | ------------------------------------------------------ |
-| `MIRAMAR_ORG_GHCR_PAT`  | `read:packages`                 | Pull `mlabs-runner` from GHCR on hosted runners        |
-| `MIRAMAR_ORG_ADMIN_PAT` | `admin:org`, `repo`, `workflow` | Read org variables, manage repos, write workflow files |
+| App                   | Permissions                                                                                         | Secrets (repo `miramar-platform-gcp`)                                 | Used by                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `miramar-automation`  | Repo: Actions RW, Variables RW, Administration R, Contents R, Metadata R. Org: Variables RW          | `AUTOMATION_APP_CLIENT_ID`, `AUTOMATION_APP_KEY`                      | deploy/undeploy/install/gke/dashboard/traffic-report workflows |
+| `miramar-provisioner` | Repo: Administration RW, Contents RW, Workflows RW, Pull requests RW, Secrets RW, Variables RW, Metadata R | `PROVISIONER_APP_CLIENT_ID`, `PROVISIONER_APP_KEY` — **environment `provision` only** (required reviewer: owner) | `create-project`, `delete-project`, `delete-blog-post`       |
+
+The `provision` environment gate means a repo-admin-capable token is only ever minted after
+the owner approves that specific run. Apps cannot use the packages API: delete GHCR
+packages by hand.
+
+`MIRAMAR_ORG_GHCR_PAT` (`read:packages`) remains only as the image-pull secret written into
+k3s/GKE for private GHCR images; an App token would expire after an hour.
 
 ## Host Environment Variables
 

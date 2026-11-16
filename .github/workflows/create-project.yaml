@@ -16,8 +16,9 @@ name: Create Project
 #   - controls which runner clones the repo on creation
 #   - stored as PROJECT_HOST repo variable, read by the dashboard
 #
-# Uses GITHUB_ORG_ADMIN_PAT (runner env var from launch-runner.sh) for repo
-# creation and initial push. No GitHub secrets required.
+# Uses a 1-hour token from the miramar-provisioner GitHub App for repo creation
+# and initial push. The App key lives only in the `provision` environment, so
+# every run waits for owner approval.
 
 on:
   workflow_dispatch:
@@ -100,9 +101,22 @@ permissions:
 jobs:
   create:
     runs-on: [self-hosted, "${{ inputs.host }}"]
+    environment: provision
     timeout-minutes: 90
 
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.PROVISIONER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROVISIONER_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       - name: Resolve host vars
@@ -132,7 +146,7 @@ jobs:
           DESCRIPTION: ${{ inputs.description }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           if [[ -z "$DESCRIPTION" ]]; then
             case "$PROJECT_TYPE" in
@@ -152,7 +166,7 @@ jobs:
               *)                  DESCRIPTION="${PROJECT_TYPE} project" ;;
             esac
           fi
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh repo create \
+          GH_TOKEN="${GH_APP_TOKEN}" gh repo create \
             "miramar-labs-org/${PROJECT_NAME}" \
             --${REPO_VISIBILITY} \
             --description "${DESCRIPTION}"
@@ -162,9 +176,9 @@ jobs:
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
           PROJECT_TYPE: ${{ inputs.project_type }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X PUT \
             "repos/miramar-labs-org/${PROJECT_NAME}/topics" \
             -f "names[]=miramar-project" \
@@ -175,12 +189,12 @@ jobs:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
           PROJECT_TYPE: ${{ inputs.project_type }}
           HOST: ${{ inputs.host }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X PATCH "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables/PROJECT_HOST" \
             -f value="${HOST}" 2>/dev/null || \
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api \
             -X POST "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables" \
             -f name="PROJECT_HOST" -f value="${HOST}"
 
@@ -203,7 +217,7 @@ jobs:
           # project is a variable edit, not a template commit.
           DGX_DEFAULT_MODEL: ${{ vars.DGX_DEFAULT_MODEL }}
           AGX_DEFAULT_MODEL: ${{ vars.AGX_DEFAULT_MODEL }}
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
@@ -372,7 +386,7 @@ jobs:
           git remote add origin "https://github.com/miramar-labs-org/${PROJECT_NAME}.git"
           git \
             -c credential.helper= \
-            -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${GITHUB_ORG_ADMIN_PAT}"; fi; }; f' \
+            -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${GH_APP_TOKEN}"; fi; }; f' \
             push -u origin main
 
       - name: Clone to host projects folder
@@ -435,7 +449,7 @@ jobs:
       - name: Draft blog post
         continue-on-error: true
         env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           BLOG_REPO="miramar-labs-org/miramar-labs-org.github.io"
@@ -452,9 +466,9 @@ jobs:
           DASHBOARD_URL="https://miramar-labs-org.github.io/miramar-platform-gcp/"
           if [ "${HOST}" = "agx" ]; then HW="AGX Orin"; else HW="DGX Spark"; fi
 
-          MAIN_SHA=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api \
+          MAIN_SHA=$(GH_TOKEN="${GH_APP_TOKEN}" gh api \
             "repos/${BLOG_REPO}/git/refs/heads/main" --jq '.object.sha')
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X POST \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api -X POST \
             "repos/${BLOG_REPO}/git/refs" \
             -f ref="refs/heads/${BRANCH}" -f sha="${MAIN_SHA}" 2>/dev/null \
           || echo "Branch already exists, continuing."
@@ -798,14 +812,14 @@ jobs:
             "date: ${POST_DATE}" "categories: ${CATS}" "---" "" \
             "${BODY}" | base64 -w0)
 
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X PUT \
+          GH_TOKEN="${GH_APP_TOKEN}" gh api -X PUT \
             "repos/${BLOG_REPO}/contents/${POST_PATH}" \
             -f message="Draft: ${PROJECT_NAME} (${PROJECT_TYPE})" \
             -f content="${CONTENT_B64}" -f branch="${BRANCH}"
 
           PR_BODY=$(printf 'Auto-generated draft for **%s**. Edit the TODOs in `%s` then merge to publish.\n\n- Type: `%s`\n- Host: `%s` (%s)\n- Repo: %s\n- Dashboard: %s' \
             "${PROJECT_NAME}" "${POST_PATH}" "${PROJECT_TYPE}" "${HOST}" "${HW}" "${REPO_URL}" "${DASHBOARD_URL}")
-          PR_URL=$(GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh api -X POST \
+          PR_URL=$(GH_TOKEN="${GH_APP_TOKEN}" gh api -X POST \
             "repos/${BLOG_REPO}/pulls" \
             -f title="Draft: ${POST_TITLE} — ${PROJECT_TYPE}" \
             -f head="${BRANCH}" -f base="main" \

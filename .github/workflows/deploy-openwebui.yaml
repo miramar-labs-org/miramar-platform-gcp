@@ -33,6 +33,18 @@ jobs:
     if: inputs.host == 'dgx'
     runs-on: [self-hosted, dgx]
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       - name: Set up kubeconfig
@@ -46,7 +58,7 @@ jobs:
 
       - name: Read OpenWebUI API URL
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
@@ -107,7 +119,7 @@ jobs:
 
       - name: Set Open WebUI active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_ACTIVE" \
             -f name="DGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all" \
@@ -139,6 +151,18 @@ jobs:
     if: inputs.host == 'agx'
     runs-on: [self-hosted, agx]
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       - name: Set up kubeconfig
@@ -152,7 +176,7 @@ jobs:
 
       - name: Read OpenWebUI API URL
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
@@ -213,7 +237,7 @@ jobs:
 
       - name: Set Open WebUI active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/AGX_OPENWEBUI_ACTIVE" \
             -f name="AGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all" \
@@ -245,6 +269,18 @@ jobs:
     if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       - name: Authenticate to GCP (WIF)
@@ -265,7 +301,7 @@ jobs:
 
       - name: Read OpenWebUI API URL
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           API_URL=$(gh api "orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" 2>/dev/null | jq -r '.value // empty')
           if [[ -n "$API_URL" ]]; then
@@ -299,7 +335,7 @@ jobs:
 
       - name: Set Open WebUI active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_ACTIVE" \
             -f name="GKE_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all" \

@@ -15,7 +15,7 @@ name: K3s Bootstrap
 # Prerequisites:
 #   - mlabs-runner container running on the target machine
 #   - NVIDIA container toolkit installed on the host
-#   - NVIDIA_API_KEY, HF_TOKEN, HOST_SSH_KEY, MIRAMAR_ORG_ADMIN_PAT secrets set
+#   - NVIDIA_API_KEY, HF_TOKEN, HOST_SSH_KEY secrets set; AUTOMATION_APP_CLIENT_ID/_KEY
 #   - DGX_HOST_IP / AGX_HOST_IP, DGX_HOST_USER / AGX_HOST_USER org vars set
 
 on:
@@ -55,6 +55,18 @@ jobs:
     runs-on: [self-hosted, "${{ inputs.runner }}"]
     timeout-minutes: 90
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
+      - name: Export App token
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GH_APP_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
 
       # ── Resolve machine-specific names ───────────────────────────────────────
@@ -63,7 +75,6 @@ jobs:
           MACHINE=$(echo "${{ inputs.runner }}" | tr '[:lower:]' '[:upper:]')
           echo "MACHINE=${MACHINE}"                          >> "$GITHUB_ENV"
           echo "ACTIVE_VAR=${MACHINE}_K3S_ACTIVE"           >> "$GITHUB_ENV"
-          echo "KUBECONFIG_SECRET=${MACHINE}_K3S_KUBECONFIG" >> "$GITHUB_ENV"
           if [[ "${{ inputs.runner }}" == "agx" ]]; then
             echo "HOST_IP=${{ vars.AGX_HOST_IP }}"   >> "$GITHUB_ENV"
             echo "HOST_USER=${{ vars.AGX_HOST_USER }}" >> "$GITHUB_ENV"
@@ -336,7 +347,7 @@ jobs:
       - name: Update hosts file
         if: ${{ inputs.deploy_nemo == true }}
         env:
-          MIRAMAR_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           CLUSTER_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
           if [[ "${{ inputs.runner }}" == "agx" ]]; then
@@ -357,7 +368,7 @@ jobs:
             # git through the environment only — never argv, never a config file.
             git \
               -c credential.helper= \
-              -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${MIRAMAR_ORG_ADMIN_PAT}"; fi; }; f' \
+              -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${GH_APP_TOKEN}"; fi; }; f' \
               push https://github.com/miramar-labs-org/miramar-platform-gcp.git HEAD:main
           fi
 
@@ -370,7 +381,7 @@ jobs:
 
       - name: Set NeMo active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           var="${MACHINE}_NEMO_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
@@ -387,7 +398,7 @@ jobs:
 
       - name: Set MLflow active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           var="${MACHINE}_MLFLOW_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
@@ -404,7 +415,7 @@ jobs:
 
       - name: Set Qdrant active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           var="${MACHINE}_QDRANT_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
@@ -465,7 +476,7 @@ jobs:
 
       - name: Set KFP active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           var="${MACHINE}_KFP_ACTIVE"
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${var}" \
@@ -476,21 +487,12 @@ jobs:
       # ── Finalise ─────────────────────────────────────────────────────────────
       - name: Set k3s active state
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/${ACTIVE_VAR}" \
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all" \
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all"
-
-      - name: Update k3s kubeconfig org secret
-        env:
-          GITHUB_ORG_ADMIN_PAT: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
-        run: |
-          KUBECONFIG_B64=$(base64 -w0 < "${HOME}/.kube/config")
-          GH_TOKEN="${GITHUB_ORG_ADMIN_PAT}" gh secret set "${KUBECONFIG_SECRET}" \
-            --org miramar-labs-org \
-            --body "${KUBECONFIG_B64}"
 
       - name: Summary
         run: |

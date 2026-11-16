@@ -93,14 +93,15 @@ Two safe patterns:
    `credential.helper = !/usr/bin/gh auth git-credential` configured globally, so a plain
    `https://github.com/...` URL just works. Prefer this whenever the checkout is persistent.
 
-2. **Throwaway credential helper**, where a workflow must supply its own PAT. The token
+2. **Throwaway credential helper**, where a workflow must supply its own token (a
+   GitHub App installation token — see `docs/configuration.md`). The token
    travels in the environment only — never argv (world-readable in `/proc`), never a
    config file:
 
    ```sh
    git \
      -c credential.helper= \
-     -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${MIRAMAR_ORG_ADMIN_PAT}"; fi; }; f' \
+     -c credential.helper='!f(){ if test "$1" = get; then printf "username=x-access-token\npassword=%s\n" "${GH_APP_TOKEN}"; fi; }; f' \
      push https://github.com/miramar-labs-org/<repo>.git HEAD:main
    ```
 
