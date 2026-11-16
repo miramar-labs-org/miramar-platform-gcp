@@ -59,10 +59,18 @@ jobs:
           mkdir -p /tmp/pages
           GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
           GH_ADMIN_TOKEN="${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}" \
-          GH_DISPATCH_TOKEN="${{ secrets.DASHBOARD_DISPATCH_TOKEN }}" \
           bash scripts/dashboard/generate-dashboard.sh \
             --org miramar-labs-org \
             --output /tmp/pages/index.html
+
+      # The page is world-readable. A token baked into it (DASHBOARD_DISPATCH_TOKEN)
+      # was the entry point of the Nov 2026 account compromise — fail closed.
+      - name: Refuse to publish credentials
+        run: |
+          if grep -nE '(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}' /tmp/pages/index.html; then
+            echo "::error::GitHub token found in dashboard HTML — refusing to publish"
+            exit 1
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

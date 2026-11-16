@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Generate a self-contained dashboard.html listing all public Miramar platform repos.
-# Usage: GH_TOKEN=<token> [GH_ADMIN_TOKEN=<token>] [GH_DISPATCH_TOKEN=<token>] bash generate-dashboard.sh --org <org> --output <path>
+# Usage: GH_TOKEN=<token> [GH_ADMIN_TOKEN=<token>] bash generate-dashboard.sh --org <org> --output <path>
 #
 # GH_TOKEN          — GITHUB_TOKEN; used for org repo listing (read:public_repo)
 # GH_ADMIN_TOKEN    — GITHUB_ORG_ADMIN_PAT; used for per-project workflow run queries
 #                     (falls back to GH_TOKEN if not set, but won't work for private runner data)
-# GH_DISPATCH_TOKEN — DASHBOARD_DISPATCH_TOKEN; embedded in HTML for browser → workflow dispatch
-#                     Fine-grained PAT: Actions write on miramar-platform-gcp only
 set -euo pipefail
 
 ORG=""
@@ -25,7 +23,6 @@ done
 [[ -z "${GH_TOKEN:-}" ]] && { echo "ERROR: GH_TOKEN not set" >&2; exit 1; }
 
 ADMIN_TOKEN="${GH_ADMIN_TOKEN:-$GH_TOKEN}"
-DISPATCH_TOKEN="${GH_DISPATCH_TOKEN:-}"
 
 mkdir -p "$(dirname "$OUTPUT")"
 
@@ -126,7 +123,7 @@ while IFS= read -r repo_json; do
   <td>${serving_html}</td>
   <td>${jl_html}</td>
   <td>${results_html}</td>
-  <td><button class=\"del-btn\" data-repo=\"${name}\" title=\"Delete ${name}\">&#x1F5D1;</button></td>
+  <td><a class=\"del-btn\" href=\"https://github.com/${ORG}/miramar-platform-gcp/actions/workflows/delete-project.yaml\" target=\"_blank\" rel=\"noopener\" title=\"Delete ${name}: run Delete Project in Actions\">&#x1F5D1;</a></td>
 </tr>
 "
 done < <(echo "$REPOS_JSON" | jq -c '
@@ -416,7 +413,7 @@ cat > "$OUTPUT" <<HTMLEOF
 </head>
 <body>
 <h1>Miramar AI Platform Projects <span class="count">(${REPO_COUNT})</span></h1>
-<p class="subtitle"><span>Platform Status and Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. (Refreshed hourly)</span><span style="display:flex;gap:0.5rem;align-items:center"><button class="btn-refresh" id="refresh-btn">&#x21BB; Refresh</button><button class="btn-new-project" id="new-proj-btn">+ New Project</button><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></span></p>
+<p class="subtitle"><span>Platform Status and Public repos in <a href="https://github.com/${ORG}">${ORG}</a> tagged <code>miramar-project</code>. (Refreshed hourly)</span><span style="display:flex;gap:0.5rem;align-items:center"><a class="btn-refresh" href="https://github.com/${ORG}/miramar-platform-gcp/actions/workflows/deploy-dashboard.yaml" target="_blank" rel="noopener">&#x21BB; Refresh</a><a class="btn-new-project" href="https://github.com/${ORG}/miramar-platform-gcp/actions/workflows/create-project.yaml" target="_blank" rel="noopener">+ New Project</a><a href="https://github.com/${ORG}/miramar-platform-gcp" class="machine-label">PLATFORM REPO</a></span></p>
 <div class="machine-section">
   <div class="machine-label">DGX Spark</div>
   <div class="platform-status">
@@ -551,240 +548,6 @@ ${ROWS}
 </table>
 <p class="footer">Generated ${GENERATED_AT} &mdash; Service links require active SSH tunnels. DGX: JupyterLab 8888, MLflow 5000, KFP 8080, k3s Dashboard 8001, Qdrant 6333, OpenUI 8084. AGX Orin runs Ollama only (11435) &mdash; JupyterLab 8887.</p>
 
-<div class="modal-overlay" id="new-proj-modal">
-  <div class="modal">
-    <h2>+ New Project</h2>
-    <p>Create a new Miramar project repository on GitHub and clone it to the target machine.</p>
-    <label class="modal-label" for="np-name">Project name *</label>
-    <input id="np-name" type="text" autocomplete="off" spellcheck="false" placeholder="my-llm-experiment">
-    <label class="modal-label" for="np-type">Project type *</label>
-    <select id="np-type">
-      <option value="default">default &mdash; generic notebook</option>
-      <option value="kfp">kfp &mdash; Kubeflow pipeline stub</option>
-      <option value="kfp-rag">kfp-rag &mdash; KFP RAG pipeline (Qdrant + LLM-as-judge)</option>
-      <option value="kfp-eval">kfp-eval &mdash; Model bakeoff (rank LLMs, gates + LLM-as-judge)</option>
-      <option value="kfp-nemo-curator">kfp-nemo-curator &mdash; NeMo Curator data-curation pipeline (CPU + GPU)</option>
-      <option value="ft-eval">ft-eval &mdash; KFP eval-first fine-tuning pipeline</option>
-      <option value="sequence-classify">sequence-classify &mdash; Sequence-encoder classification (DNA/protein)</option>
-      <option value="nemo-ft-eval">nemo-ft-eval &mdash; NeMo Customizer fine-tuning + eval</option>
-      <option value="serving-vllm">serving-vllm &mdash; vLLM LoRA adapter serving</option>
-      <option value="serving-nim">serving-nim &mdash; NIM model serving (DGX + GKE)</option>
-      <option value="serving-llm-nim">serving-llm-nim &mdash; Local model via Multi-LLM NIM runtime (DGX)</option>
-      <option value="serving-trt-fp8">serving-trt-fp8 &mdash; vLLM + FP8 quantized model</option>
-      <option value="serving-trt-engine">serving-trt-engine &mdash; TRT-LLM engine serving</option>
-    </select>
-    <label class="modal-label" for="np-host">Host *</label>
-    <select id="np-host">
-      <option value="dgx">DGX Spark</option>
-      <option value="agx">AGX Orin</option>
-    </select>
-    <label class="modal-label" for="np-desc">Description</label>
-    <input id="np-desc" type="text" placeholder="Optional short description">
-    <label class="modal-label" for="np-vis">Visibility</label>
-    <select id="np-vis">
-      <option value="public">public</option>
-      <option value="private">private</option>
-    </select>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="np-cancel">Cancel</button>
-      <button class="btn-create" id="np-submit" disabled>Create</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="del-modal">
-  <div class="modal">
-    <h2>&#x26A0; Delete project</h2>
-    <p>This will permanently delete <strong id="del-name"></strong> and clean up its blog draft, local clone, and JupyterLab kernel.</p>
-    <p>Type the project name to confirm:</p>
-    <input id="del-confirm" type="text" autocomplete="off" spellcheck="false" placeholder="">
-    <div class="modal-actions">
-      <button class="btn-cancel" id="del-cancel">Cancel</button>
-      <button class="btn-delete" id="del-submit" disabled>Delete</button>
-    </div>
-  </div>
-</div>
-
-<script>
-(function() {
-  var ORG = '${ORG}';
-  var PAT = '${DISPATCH_TOKEN}';
-  var PLATFORM_REPO = 'miramar-platform-gcp';
-  var WORKFLOW = 'delete-project.yaml';
-  var pending = null;
-
-  var overlay = document.getElementById('del-modal');
-  var nameEl  = document.getElementById('del-name');
-  var inp     = document.getElementById('del-confirm');
-  var submit  = document.getElementById('del-submit');
-
-  function openModal(repo) {
-    pending = repo;
-    nameEl.textContent = repo;
-    inp.value = '';
-    inp.placeholder = repo;
-    submit.disabled = true;
-    submit.textContent = 'Delete';
-    overlay.classList.add('open');
-    setTimeout(function() { inp.focus(); }, 50);
-  }
-
-  function closeModal() {
-    overlay.classList.remove('open');
-    pending = null;
-    inp.value = '';
-  }
-
-  inp.addEventListener('input', function() {
-    submit.disabled = inp.value !== pending;
-  });
-
-  document.getElementById('del-cancel').addEventListener('click', closeModal);
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
-  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
-
-  submit.addEventListener('click', function() {
-    var repo = pending;
-    submit.disabled = true;
-    submit.textContent = 'Deleting…';
-    var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/' + WORKFLOW + '/dispatches';
-    fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'token ' + PAT,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ ref: 'main', inputs: { project_name: repo, confirm: repo } })
-    }).then(function(resp) {
-      if (resp.status === 204) {
-        closeModal();
-        alert('Delete workflow triggered for "' + repo + '".\nDashboard will refresh when it completes.');
-      } else if (resp.status === 401) {
-        alert('PAT rejected (401) — check that GITHUB_ORG_ADMIN_PAT has delete_repo + workflow scope and re-deploy the dashboard.');
-        submit.disabled = false;
-        submit.textContent = 'Delete';
-      } else {
-        resp.text().then(function(body) {
-          alert('Error ' + resp.status + ': ' + body);
-          submit.disabled = false;
-          submit.textContent = 'Delete';
-        });
-      }
-    }).catch(function(err) {
-      alert('Network error: ' + err.message);
-      submit.disabled = false;
-      submit.textContent = 'Delete';
-    });
-  });
-
-  document.querySelectorAll('.del-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() { openModal(btn.getAttribute('data-repo')); });
-  });
-
-  (function() {
-    var npOverlay = document.getElementById('new-proj-modal');
-    var npName    = document.getElementById('np-name');
-    var npSubmit  = document.getElementById('np-submit');
-    var SLUG_RE   = /^[a-z0-9][a-z0-9-]*\$/i;
-
-    function npOpen() {
-      npName.value = '';
-      document.getElementById('np-type').value = 'default';
-      document.getElementById('np-host').value = 'dgx';
-      document.getElementById('np-desc').value = '';
-      document.getElementById('np-vis').value  = 'public';
-      npSubmit.disabled = true;
-      npSubmit.textContent = 'Create';
-      npOverlay.classList.add('open');
-      setTimeout(function() { npName.focus(); }, 50);
-    }
-
-    function npClose() { npOverlay.classList.remove('open'); }
-
-    npName.addEventListener('input', function() {
-      npSubmit.disabled = !SLUG_RE.test(npName.value.trim());
-    });
-
-    document.getElementById('np-cancel').addEventListener('click', npClose);
-    npOverlay.addEventListener('click', function(e) { if (e.target === npOverlay) npClose(); });
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') npClose(); });
-    document.getElementById('new-proj-btn').addEventListener('click', npOpen);
-
-    npSubmit.addEventListener('click', function() {
-      var name = npName.value.trim();
-      npSubmit.disabled = true;
-      npSubmit.textContent = 'Creating…';
-      var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/create-project.yaml/dispatches';
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'token ' + PAT,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ref: 'main', inputs: {
-          project_name:    name,
-          project_type:    document.getElementById('np-type').value,
-          host:            document.getElementById('np-host').value,
-          description:     document.getElementById('np-desc').value.trim(),
-          repo_visibility: document.getElementById('np-vis').value
-        }})
-      }).then(function(resp) {
-        if (resp.status === 204) {
-          npClose();
-          alert('Create Project workflow triggered for "' + name + '".\nDashboard will refresh when it completes.');
-        } else if (resp.status === 401) {
-          alert('PAT rejected (401) — check DASHBOARD_DISPATCH_TOKEN has Actions write on miramar-platform-gcp and re-deploy the dashboard.');
-          npSubmit.disabled = false;
-          npSubmit.textContent = 'Create';
-        } else {
-          resp.text().then(function(body) {
-            alert('Error ' + resp.status + ': ' + body);
-            npSubmit.disabled = false;
-            npSubmit.textContent = 'Create';
-          });
-        }
-      }).catch(function(err) {
-        alert('Network error: ' + err.message);
-        npSubmit.disabled = false;
-        npSubmit.textContent = 'Create';
-      });
-    });
-  })();
-
-  (function() {
-    var refreshBtn = document.getElementById('refresh-btn');
-    refreshBtn.addEventListener('click', function() {
-      refreshBtn.disabled = true;
-      refreshBtn.textContent = 'Triggering…';
-      var url = 'https://api.github.com/repos/' + ORG + '/' + PLATFORM_REPO + '/actions/workflows/deploy-dashboard.yaml/dispatches';
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'token ' + PAT,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ref: 'main' })
-      }).then(function(resp) {
-        if (resp.status === 204) {
-          refreshBtn.textContent = 'Queued ✓';
-          setTimeout(function() { refreshBtn.disabled = false; refreshBtn.textContent = '↻ Refresh'; }, 5000);
-        } else {
-          resp.text().then(function(body) { alert('Error ' + resp.status + ': ' + body); });
-          refreshBtn.disabled = false;
-          refreshBtn.textContent = '↻ Refresh';
-        }
-      }).catch(function(err) {
-        alert('Network error: ' + err.message);
-        refreshBtn.disabled = false;
-        refreshBtn.textContent = '↻ Refresh';
-      });
-    });
-  })();
-})();
-</script>
 
 </body>
 </html>
