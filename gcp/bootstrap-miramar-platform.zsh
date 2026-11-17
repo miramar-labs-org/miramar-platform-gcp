@@ -389,17 +389,26 @@ GHA_CLUSTER_SA="${CLUSTER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 ensure_service_account "$CLUSTER_SA_NAME" "GKE cluster operations"
 add_service_account_iam_binding "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
-# Revoke the legacy org-wide principal if present (pre-Nov-2026 bootstrap granted it; any
-# org repo could then impersonate this SA). Re-runs must never leave it behind.
-LEGACY_ORG_PRINCIPAL="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/attribute.repository_owner/${GITHUB_OWNER}"
-for SA in "$GHA_CLUSTER_SA" "${APP_TO_SA[@]}"; do
-  if gcloud --quiet iam service-accounts get-iam-policy "$SA" --project "$PROJECT_ID" \
-      --format=json | grep -qF "$LEGACY_ORG_PRINCIPAL"; then
-    log "Removing legacy org-wide WIF principal from ${SA}"
-    gcloud --quiet iam service-accounts remove-iam-policy-binding "$SA" --project "$PROJECT_ID" \
-      --role=roles/iam.workloadIdentityUser --member="$LEGACY_ORG_PRINCIPAL" >/dev/null
-  fi
-done
+# Reconcile: each SA's workloadIdentityUser members must be EXACTLY its declared repo
+# principal. Anything else (the pre-Nov-2026 org-wide attribute.repository_owner principal,
+# other repos, hand-added grants) is revoked so re-runs never leave stale trust behind.
+reconcile_wif_members() {  # sa_email expected_member
+  local sa="$1" want="$2" m
+  for m in $(gcloud --quiet iam service-accounts get-iam-policy "$sa" --project "$PROJECT_ID" \
+      --flatten="bindings[].members" --filter="bindings.role=roles/iam.workloadIdentityUser" \
+      --format="value(bindings.members)"); do
+    [[ "$m" == "$want" ]] && continue
+    log "Revoking stale WIF member on ${sa}: ${m}"
+    gcloud --quiet iam service-accounts remove-iam-policy-binding "$sa" --project "$PROJECT_ID" \
+      --role=roles/iam.workloadIdentityUser --member="$m" >/dev/null
+  done
+}
+reconcile_wif_members "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET"
+if [[ "$PER_NAMESPACE_SERVICE_ACCOUNTS" == "true" ]]; then
+  for APP in "${PROJECT_NAMES[@]}"; do
+    reconcile_wif_members "${APP_TO_SA[$APP]}" "$(wif_principal_for_repo "$APP")"
+  done
+fi
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/container.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/artifactregistry.admin"
