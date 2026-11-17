@@ -131,7 +131,16 @@ the owner approves that specific run. Apps cannot use the packages API: delete G
 packages by hand.
 
 `MIRAMAR_ORG_GHCR_PAT` (`read:packages`) remains only as the image-pull secret written into
-k3s/GKE for private GHCR images; an App token would expire after an hour.
+k3s/GKE for private GHCR images; an App token would expire after an hour. Its org-secret
+visibility must include `miramar-platform-gcp` (a public repo), or platform workflows and
+Create Project read it as empty.
+
+**Serving repos** are public, so org secrets scoped to private repos don't reach them.
+Create Project copies `AUTOMATION_APP_CLIENT_ID`, `AUTOMATION_APP_KEY` and
+`MIRAMAR_ORG_GHCR_PAT` into each new `serving-*` repo as repo secrets. Serving
+deploy/undeploy mint `miramar-automation` tokens from them; image pushes use
+`GITHUB_TOKEN` (`packages: write`). After rotating any of the three, re-set them in every
+serving repo (`gh secret set NAME --repo miramar-labs-org/<repo>`).
 
 ## Host Environment Variables
 

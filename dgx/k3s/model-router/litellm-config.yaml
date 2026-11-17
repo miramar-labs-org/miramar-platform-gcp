@@ -1,6 +1,6 @@
-# Routing table for the DGX model router. Serving projects add and remove their own
-# entries here automatically on deploy/undeploy (GitHub Contents API, yaml.dump — which
-# is why this file carries no comments it cannot afford to lose).
+# Routing table for the DGX model router. Serving projects are NOT listed here: a serving
+# deploy labels its Service miramar.ai/router=true and deploy-model-router.yaml appends
+# one entry per labelled Service (scripts/gha/gen-serving-upstreams.py) at deploy time.
 #
 # The meta/llama-3.1-8b-instruct-dgx-spark entry that used to sit here was stale: the
 # NeMo modeldeployment Service it pointed at no longer exists and the route returned 500.

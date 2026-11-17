@@ -260,7 +260,7 @@ the ConfigMap therefore holds far more entries than the committed file. Open Web
 has its direct Ollama connector disabled and sees Ollama only through these, so the
 router is the whole picker.
 
-**Serving projects register automatically.** When a serving project (`serving-vllm`, `serving-trt-engine`, etc.) deploys and the model-router namespace exists, the deploy workflow adds its entry to `litellm-config.yaml` via the GitHub Contents API and triggers a router redeploy. Undeploy removes the entry. No manual edits are needed for serving project models.
+**Serving projects register automatically.** When a serving project (`serving-vllm`, `serving-trt-engine`, etc.) deploys and the model-router namespace exists, the deploy workflow labels its Service `miramar.ai/router=true`, annotates it (`miramar.ai/router-model`, `miramar.ai/router-litellm-model`, `miramar.ai/router-api-base`) and triggers a router redeploy; `scripts/gha/gen-serving-upstreams.py` turns every labelled Service into an upstream. Undeploy deletes the Service and redeploys the router. Nothing is committed to this repo (until Nov 2026 deploys committed `litellm-config.yaml` via the Contents API, which needed a repo-write token in every serving repo).
 
 To manually add or remove a non-serving-project upstream:
 

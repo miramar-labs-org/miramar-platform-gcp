@@ -49,4 +49,4 @@ The NIM runtime requires full model weights. Merge the adapter first if needed.
 
 - `secrets.NGC_API_KEY` — NGC API key for pulling `nvcr.io/nim/nvidia/llm-nim`
 - `secrets.HF_TOKEN` — HuggingFace token (hf mode only; optional for public models)
-- `secrets.MIRAMAR_ORG_ADMIN_PAT` — for setting `DGX_SERVING_ACTIVE` and triggering Open WebUI redeploy
+- `secrets.AUTOMATION_APP_CLIENT_ID` / `secrets.AUTOMATION_APP_KEY` — mint a 1-hour `miramar-automation` App token (repo variables, platform workflow dispatch); copied into this repo by Create Project

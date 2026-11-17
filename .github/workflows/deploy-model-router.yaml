@@ -4,8 +4,10 @@ name: Model Router Deploy
 # The router exposes a single OpenAI-compatible /v1 endpoint that dispatches to multiple
 # serving backends by model name.
 #
-# Before running: edit dgx/k3s/model-router/litellm-config.yaml to add upstream backends,
-# then commit and push. This workflow reads that file to build the routing table.
+# The routing table is built at deploy time: {machine}/k3s/model-router/litellm-config.yaml
+# (gke/model-router/ for gke) plus generated upstreams — Ollama models from each host's
+# /api/tags (dgx) and every serving Service labelled miramar.ai/router=true
+# (scripts/gha/gen-serving-upstreams.py). Serving deploy/undeploy re-run this workflow.
 #
 # Sets {MACHINE}_OPENWEBUI_API_URL to the router's in-cluster URL. If Open WebUI is active,
 # it is redeployed to pick up the new backend.
@@ -57,7 +59,7 @@ jobs:
       - name: Apply base manifests
         run: kubectl apply -f dgx/k3s/model-router/router.yaml
 
-      - name: Build effective litellm config (repo + generated Ollama upstreams)
+      - name: Build effective litellm config (repo + generated Ollama/serving upstreams)
         run: |
           CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
           [[ "${{ inputs.runner }}" == "agx" ]] && CONFIG_PATH="agx/k3s/model-router/litellm-config.yaml"
@@ -75,6 +77,7 @@ jobs:
             python3 scripts/gha/gen-ollama-upstreams.py \
               --host-ip "${{ vars.AGX_HOST_IP }}" --prefix "agx/" >> "${EFFECTIVE}"
           fi
+          python3 scripts/gha/gen-serving-upstreams.py >> "${EFFECTIVE}"
 
           # Nothing static is left in the committed file, so an effective config with no
           # model_list means both hosts were unreachable. Fail rather than hand LiteLLM
@@ -169,7 +172,7 @@ jobs:
             echo ""
             CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
             [[ "${{ inputs.runner }}" == "agx" ]] && CONFIG_PATH="agx/k3s/model-router/litellm-config.yaml"
-            echo "To add/remove upstreams: edit \`${CONFIG_PATH}\`, commit, push, re-run this workflow."
+            echo "Serving projects register by labelling their Service (deploy/undeploy re-run this workflow). Other upstreams: edit \`${CONFIG_PATH}\`, commit, re-run."
             echo ""
             echo "Local access: \`kubectl port-forward svc/model-router 8000:8000 -n model-router\`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -219,10 +222,15 @@ jobs:
       - name: Apply base manifests
         run: kubectl apply -f dgx/k3s/model-router/router.yaml
 
-      - name: Upsert litellm ConfigMap from repo
+      - name: Upsert litellm ConfigMap (repo + generated serving upstreams)
         run: |
+          EFFECTIVE="${RUNNER_TEMP}/litellm-config.yaml"
+          cp gke/model-router/litellm-config.yaml "${EFFECTIVE}"
+          python3 scripts/gha/gen-serving-upstreams.py >> "${EFFECTIVE}"
+          # No serving project running: keep an explicit empty list, as before.
+          grep -q '^- litellm_params:' "${EFFECTIVE}" || sed -i 's/^model_list:$/model_list: []/' "${EFFECTIVE}"
           kubectl create configmap litellm-config \
-            --from-file=config.yaml=gke/model-router/litellm-config.yaml \
+            --from-file=config.yaml="${EFFECTIVE}" \
             -n model-router --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Restart deployment to pick up new config
@@ -258,7 +266,7 @@ jobs:
           import json, sys
           d = json.load(sys.stdin)
           models = [m['id'] for m in d.get('data', [])]
-          print('Router is up. Models registered:', models if models else '(none yet — add upstreams to gke/model-router/litellm-config.yaml)')
+          print('Router is up. Models registered:', models if models else '(none yet — deploy a serving project)')
           "
 
       - name: Set GKE model router active
@@ -278,7 +286,7 @@ jobs:
             echo "| Namespace | \`model-router\` |"
             echo "| In-cluster URL | \`http://model-router.model-router.svc.cluster.local:8000/v1\` |"
             echo ""
-            echo "To add/remove upstreams: edit \`gke/model-router/litellm-config.yaml\`, commit, push, re-run this workflow."
+            echo "Serving projects register by labelling their Service (deploy/undeploy re-run this workflow). Other upstreams: edit \`gke/model-router/litellm-config.yaml\`, commit, re-run."
             echo ""
             echo "Next: run **GKE Gateway Deploy** to expose \`https://api.miramar-labs.com/v1\` externally."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -32,6 +32,14 @@ jobs:
     if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
       - uses: actions/checkout@v4
 
       - name: Authenticate to GCP (WIF)
@@ -52,49 +60,29 @@ jobs:
 
       - name: Deregister from GKE model router
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
-          DEREGISTER_SCRIPT: |
-            import yaml, sys
-            with open('/tmp/router-config.yaml') as f:
-                config = yaml.safe_load(f) or {}
-            model_list = config.get('model_list') or []
-            with open('serving-config.yaml') as f:
-                serving = yaml.safe_load(f)
-            name = serving['model']['served_model_name']
-            config['model_list'] = [m for m in model_list if m.get('model_name') != name]
-            with open('/tmp/router-config-new.yaml', 'w') as f:
-                yaml.dump(config, f, default_flow_style=False)
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          CONFIG_PATH="gke/model-router/litellm-config.yaml"
           SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
-          FILE_JSON=$(gh api "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" 2>/dev/null || true)
-          if [[ -n "$FILE_JSON" ]]; then
-            FILE_SHA=$(echo "$FILE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
-            echo "$FILE_JSON" | python3 -c "import json,sys,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())" > /tmp/router-config.yaml
-            printf '%s' "$DEREGISTER_SCRIPT" | python3
-            NEW_B64=$(base64 -w 0 /tmp/router-config-new.yaml)
-            gh api --method PUT \
-              "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" \
-              -f message="chore(model-router/gke): remove ${SERVED_MODEL_NAME} [${PROJECT_NAME}]" \
-              -f content="${NEW_B64}" -f sha="${FILE_SHA}" > /dev/null
-            gh workflow run deploy-model-router.yaml \
-              --repo miramar-labs-org/miramar-platform-gcp \
-              --field runner=gke
-          fi
+          # Removing the labelled Service removes the backend from router discovery.
+          kubectl delete service -n "$PROJECT_NAME" -l miramar.ai/router=true --ignore-not-found
+          echo "Deregistered ${SERVED_MODEL_NAME} — triggering gke router redeploy"
+          gh workflow run deploy-model-router.yaml \
+            --repo miramar-labs-org/miramar-platform-gcp \
+            --field runner=gke
 
       - name: Delete namespace
         run: kubectl delete namespace "$PROJECT_NAME" --ignore-not-found --wait=false
 
       - name: Restore GPU pool
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh workflow run gke-restore-gpu.yaml \
             --repo miramar-labs-org/miramar-platform-gcp
 
       - name: Clear state variables
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/GKE_SERVING_ACTIVE" \
@@ -102,7 +90,7 @@ jobs:
 
       - name: Clear Open WebUI backend URL
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/GKE_OPENWEBUI_API_URL" \
             -f name="GKE_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true
@@ -128,6 +116,14 @@ jobs:
     if: inputs.host == 'dgx'
     runs-on: [self-hosted, dgx]
     steps:
+      # 1-hour GitHub App token (replaces the org-admin PAT; Nov 2026 incident)
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: miramar-labs-org
       - uses: actions/checkout@v4
 
       - name: Set up kubeconfig
@@ -135,36 +131,16 @@ jobs:
 
       - name: Deregister from DGX model router
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
-          DEREGISTER_SCRIPT: |
-            import yaml
-            with open('/tmp/router-config.yaml') as f:
-                config = yaml.safe_load(f) or {}
-            model_list = config.get('model_list') or []
-            with open('serving-config.yaml') as f:
-                serving = yaml.safe_load(f)
-            name = serving['model']['served_model_name']
-            config['model_list'] = [m for m in model_list if m.get('model_name') != name]
-            with open('/tmp/router-config-new.yaml', 'w') as f:
-                yaml.dump(config, f, default_flow_style=False)
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          CONFIG_PATH="dgx/k3s/model-router/litellm-config.yaml"
           SERVED_MODEL_NAME=$(python3 -c "import yaml; c=yaml.safe_load(open('serving-config.yaml')); print(c['model']['served_model_name'])")
           if kubectl get namespace model-router --ignore-not-found 2>/dev/null | grep -q model-router; then
-            FILE_JSON=$(gh api "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" 2>/dev/null || true)
-            if [[ -n "$FILE_JSON" ]]; then
-              FILE_SHA=$(echo "$FILE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
-              echo "$FILE_JSON" | python3 -c "import json,sys,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())" > /tmp/router-config.yaml
-              printf '%s' "$DEREGISTER_SCRIPT" | python3
-              NEW_B64=$(base64 -w 0 /tmp/router-config-new.yaml)
-              gh api --method PUT \
-                "repos/miramar-labs-org/miramar-platform-gcp/contents/${CONFIG_PATH}" \
-                -f message="chore(model-router): remove ${SERVED_MODEL_NAME} [${PROJECT_NAME}]" \
-                -f content="${NEW_B64}" -f sha="${FILE_SHA}" > /dev/null
-              gh workflow run deploy-model-router.yaml \
-                --repo miramar-labs-org/miramar-platform-gcp \
-                --field runner=dgx
-            fi
+            # Removing the labelled Service removes the backend from router discovery.
+            kubectl delete service -n "$PROJECT_NAME" -l miramar.ai/router=true --ignore-not-found
+            echo "Deregistered ${SERVED_MODEL_NAME} — triggering dgx router redeploy"
+            gh workflow run deploy-model-router.yaml \
+              --repo miramar-labs-org/miramar-platform-gcp \
+              --field runner=dgx
           fi
 
       - name: Delete namespace
@@ -172,7 +148,7 @@ jobs:
 
       - name: Clear state variables
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH \
             "repos/miramar-labs-org/${{ env.PROJECT_NAME }}/actions/variables/DGX_SERVING_ACTIVE" \
@@ -183,7 +159,7 @@ jobs:
 
       - name: Clear DGX Open WebUI backend URL
         env:
-          GH_TOKEN: ${{ secrets.MIRAMAR_ORG_ADMIN_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method PATCH "/orgs/miramar-labs-org/actions/variables/DGX_OPENWEBUI_API_URL" \
             -f name="DGX_OPENWEBUI_API_URL" -f value="" -f visibility="all" 2>/dev/null || true

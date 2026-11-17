@@ -1,1 +1,5 @@
-model_list: []
+# LiteLLM routing table for the GKE model router.
+# Serving projects are NOT listed here. deploy-model-router.yaml appends one entry per
+# Service labelled miramar.ai/router=true (scripts/gha/gen-serving-upstreams.py) to a
+# copy of this file at deploy time; serving deploy/undeploy label/delete that Service.
+model_list:
