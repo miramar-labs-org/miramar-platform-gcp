@@ -51,15 +51,20 @@ jobs:
           fi
 
       - name: Set up SSH key
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
-          chmod 600 /tmp/k_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Copy kubeconfig from host
         run: |
           mkdir -p ~/.kube
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
           echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
@@ -68,7 +73,7 @@ jobs:
 
       - name: Prepare MLflow data directories on host
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+          ssh -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             mkdir -p /home/${HOST_USER}/shared/mlflow/minio
             chmod 777 /home/${HOST_USER}/shared/mlflow/minio || true
           "
@@ -108,6 +113,6 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="true" -f visibility="all"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/k_key
+        run: ssh-agent -k >/dev/null 2>&1 || true

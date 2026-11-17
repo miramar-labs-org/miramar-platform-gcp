@@ -57,34 +57,39 @@ jobs:
           fi
 
       - name: Set up SSH key
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
-          chmod 600 /tmp/k_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Copy repo to host
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" "mkdir -p /tmp/k3s-install"
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             scripts/ubuntu/install-k3s.sh \
             "${HOST_USER}@${HOST_IP}:/tmp/k3s-install/install-k3s.sh"
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" "mkdir -p /tmp/k3s-install/dgx/k3s"
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             dgx/k3s/nvidia-device-plugin.yaml \
             "${HOST_USER}@${HOST_IP}:/tmp/k3s-install/dgx/k3s/nvidia-device-plugin.yaml"
 
       - name: Install k3s on host
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             "REPO_ROOT=/tmp/k3s-install bash /tmp/k3s-install/install-k3s.sh"
 
       - name: Copy kubeconfig from host
         run: |
           mkdir -p ~/.kube
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
           echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
@@ -95,7 +100,7 @@ jobs:
         if: failure()
         run: |
           echo "==> Install failed — uninstalling k3s for a clean retry..."
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             "/usr/local/bin/k3s-uninstall.sh 2>/dev/null || true"
           echo "==> Cleanup done. Re-trigger this workflow to start fresh."
@@ -109,6 +114,6 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${ACTIVE_VAR}" -f value="true" -f visibility="all"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/k_key
+        run: ssh-agent -k >/dev/null 2>&1 || true

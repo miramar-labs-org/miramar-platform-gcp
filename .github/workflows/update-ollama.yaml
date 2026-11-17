@@ -49,20 +49,24 @@ jobs:
 
       - name: Prepare SSH key
         shell: bash
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.HOST_SSH_KEY }}" > /tmp/host_key
-          chmod 600 /tmp/host_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "$HOST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Install / upgrade Ollama on host
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i /tmp/host_key \
+          ssh \
             -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             "$HOST_USER@$HOST_IP" \
@@ -75,9 +79,8 @@ jobs:
           GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          OLLAMA_VERSION=$(ssh -i /tmp/host_key \
+          OLLAMA_VERSION=$(ssh \
             -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
             -o PasswordAuthentication=no \
             "$HOST_USER@$HOST_IP" \

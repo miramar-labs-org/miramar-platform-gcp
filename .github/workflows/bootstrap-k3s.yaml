@@ -88,23 +88,28 @@ jobs:
 
       # ── Set up SSH key for host commands ─────────────────────────────────────
       - name: Set up SSH key
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/bootstrap_key
-          chmod 600 /tmp/bootstrap_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       # ── Preflight + host state probe ─────────────────────────────────────────
       - name: Preflight check
         run: |
           # Copy preflight script to host and run it (non-interactive — reports only, no fixes)
-          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             scripts/ubuntu/preflight-host.sh \
             "${HOST_USER}@${HOST_IP}:/tmp/preflight-host.sh"
           # Non-interactive so the auto-fix prompt is suppressed. Never source a global
           # secrets file here: preflight needs no secrets (it checks that none leak into the env)
           # We continue even on failure — bootstrap steps are idempotent and preflight
           # failures are reported in the step summary for visibility
-          PREFLIGHT=$(ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          PREFLIGHT=$(ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             "bash /tmp/preflight-host.sh" 2>&1) || true
           echo "$PREFLIGHT"
@@ -117,7 +122,7 @@ jobs:
 
       - name: Probe host state
         run: |
-          PROBE=$(ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          PROBE=$(ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" bash <<'PROBE'
           echo "k3s=$(command -v k3s &>/dev/null && k3s --version 2>/dev/null | head -1 || echo 'not installed')"
           echo "k3s_active=$(systemctl is-active k3s 2>/dev/null || echo inactive)"
@@ -148,22 +153,22 @@ jobs:
         run: |
           # install-k3s.sh references dgx/k3s/nvidia-device-plugin.yaml via REPO_ROOT.
           # SCP both files into a temp dir on the host and point REPO_ROOT there.
-          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" "mkdir -p /tmp/k3s-bootstrap/dgx/k3s"
-          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             scripts/ubuntu/install-k3s.sh \
             "${HOST_USER}@${HOST_IP}:/tmp/k3s-bootstrap/install-k3s.sh"
-          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             dgx/k3s/nvidia-device-plugin.yaml \
             "${HOST_USER}@${HOST_IP}:/tmp/k3s-bootstrap/dgx/k3s/nvidia-device-plugin.yaml"
-          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             "REPO_ROOT=/tmp/k3s-bootstrap bash /tmp/k3s-bootstrap/install-k3s.sh"
 
       - name: Copy kubeconfig from host
         run: |
           mkdir -p "${HOME}/.kube"
-          scp -i /tmp/bootstrap_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" \
             "${HOME}/.kube/config"
           echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
@@ -174,7 +179,7 @@ jobs:
       # ── Step 2: Deploy NeMo ───────────────────────────────────────────────────
       - name: Prepare host data directories
         run: |
-          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+          ssh -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             mkdir -p /home/${HOST_USER}/shared/mlflow/minio
             chmod 777 /home/${HOST_USER}/shared/mlflow/minio
             mkdir -p /home/${HOST_USER}/shared/qdrant-data
@@ -189,7 +194,7 @@ jobs:
       - name: Prepare NeMo data directories
         if: ${{ inputs.deploy_nemo == true }}
         run: |
-          ssh -i /tmp/bootstrap_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+          ssh -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             NEMO_DATA=/home/${HOST_USER}/shared/nemo
             mkdir -p \${NEMO_DATA}/{customizerdb,entity-storedb,evaluatordb,jobsdb,postgresql,datastore,models,job-storage}
             chmod -R 777 \${NEMO_DATA}
@@ -520,6 +525,6 @@ jobs:
             echo "Next: deploy NIM (DGX) or Ollama (AGX) via their own workflows."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/bootstrap_key
+        run: ssh-agent -k >/dev/null 2>&1 || true
