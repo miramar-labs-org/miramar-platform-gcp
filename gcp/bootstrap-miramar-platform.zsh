@@ -41,12 +41,13 @@ GHA_CLUSTER_SA_NAME="gke-cluster-ops"
 
 GITHUB_OWNER="miramar-labs-org"
 
-# Per-project deploy SAs. Each is WIF-bound to ITS OWN repo only (need-to-know).
+# Per-project deploy SAs (e.g. a serving repo that deploys to GKE). Each is WIF-bound to
+# ITS OWN repo only (need-to-know) and set as that repo's GCP_SERVICE_ACCOUNT secret.
 # (mlops-torch-triton-gke-pipeline removed 2026-11-17: repo deleted, SA deleted.)
 PROJECT_NAMES=()
 
-# The platform repo — the only repo the cluster-ops SA trusts. Serving project repos are
-# granted individually at Create Project time (see the notice in create-project.yaml).
+# The platform repo — the ONLY repo the cluster-ops SA (container.admin/storage.admin) trusts.
+# Project repos never bind to it: add them to PROJECT_NAMES for their own deploy SA.
 PLATFORM_REPO="miramar-platform-gcp"
 
 PER_NAMESPACE_SERVICE_ACCOUNTS="true"
@@ -388,6 +389,17 @@ GHA_CLUSTER_SA="${CLUSTER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 ensure_service_account "$CLUSTER_SA_NAME" "GKE cluster operations"
 add_service_account_iam_binding "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
+# Revoke the legacy org-wide principal if present (pre-Nov-2026 bootstrap granted it; any
+# org repo could then impersonate this SA). Re-runs must never leave it behind.
+LEGACY_ORG_PRINCIPAL="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/attribute.repository_owner/${GITHUB_OWNER}"
+for SA in "$GHA_CLUSTER_SA" "${APP_TO_SA[@]}"; do
+  if gcloud --quiet iam service-accounts get-iam-policy "$SA" --project "$PROJECT_ID" \
+      --format=json | grep -qF "$LEGACY_ORG_PRINCIPAL"; then
+    log "Removing legacy org-wide WIF principal from ${SA}"
+    gcloud --quiet iam service-accounts remove-iam-policy-binding "$SA" --project "$PROJECT_ID" \
+      --role=roles/iam.workloadIdentityUser --member="$LEGACY_ORG_PRINCIPAL" >/dev/null
+  fi
+done
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/container.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/artifactregistry.admin"

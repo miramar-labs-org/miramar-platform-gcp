@@ -217,7 +217,6 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
           WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
-          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
           TDIR="${GITHUB_WORKSPACE}/templates/new-project-${PROJECT_TYPE}/.github"
@@ -229,6 +228,7 @@ jobs:
           fi
           missing=()
           for name in ${needed}; do
+            [[ "${name}" == GCP_SERVICE_ACCOUNT ]] && continue   # per-project SA, notice below
             if [[ -z "${!name:-}" ]]; then
               missing+=("${name}")
               continue
@@ -243,8 +243,10 @@ jobs:
           if [[ "${PROJECT_TYPE}" == serving-* ]]; then
             echo "::notice::Add ${PROJECT_NAME} to the miramar-serving-app App installation before deploying: gh api -X PUT /user/installations/\$(gh api orgs/miramar-labs-org/installations -q '.installations[]|select(.app_slug==\"miramar-serving-app\").id')/repositories/\$(gh api repos/miramar-labs-org/${PROJECT_NAME} -q .id)"
           fi
-          if grep -q 'WIF_PROVIDER' <<<"${needed}"; then
-            echo "::notice::Grant ${PROJECT_NAME} GCP access (WIF is per-repo): gcloud iam service-accounts add-iam-policy-binding gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com --role=roles/iam.workloadIdentityUser --member=principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository/miramar-labs-org/${PROJECT_NAME}"
+          # GCP_SERVICE_ACCOUNT is deliberately NOT copied: this repo's value is the platform's
+          # cluster-ops SA (container.admin + storage.admin), which project repos must never use.
+          if grep -qx 'GCP_SERVICE_ACCOUNT' <<<"${needed}"; then
+            echo "::notice::${PROJECT_NAME} deploys to GCP with its OWN least-privilege SA: add '${PROJECT_NAME}' to PROJECT_NAMES in gcp/bootstrap-miramar-platform.zsh, re-run it (creates a github-deploy-* SA WIF-bound to this repo only; name truncated to 30 chars), then: gh secret set GCP_SERVICE_ACCOUNT -R miramar-labs-org/${PROJECT_NAME} --body <that SA email>"
           fi
 
       - name: Initialise repository with template

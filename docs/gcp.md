@@ -55,9 +55,13 @@ the service account binding is what decides which repos can act as it:
 principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository/miramar-labs-org/miramar-platform-gcp
 ```
 
-Each serving project repo that deploys to GCP gets its own binding, added by the owner after
-Create Project (the run prints the exact `gcloud iam service-accounts add-iam-policy-binding`
-command as a notice). Remove the binding when the project is deleted.
+Project repos **never** bind to `gh-gke-cluster-ops` (it holds `container.admin` +
+`storage.admin`). A serving repo that deploys to GCP gets its own `github-deploy-*` SA: add
+the repo to `PROJECT_NAMES` in `gcp/bootstrap-miramar-platform.zsh` and re-run it — the SA is
+WIF-bound to that one repo — then set it as the repo's `GCP_SERVICE_ACCOUNT` secret (Create
+Project prints the steps as a notice). Remove the repo from `PROJECT_NAMES` and delete the SA
+when the project is deleted. Bootstrap also revokes the legacy org-wide
+`attribute.repository_owner` principal if it finds one.
 
 If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, check that the calling
 repo has its own `attribute.repository/...` binding on the service account.

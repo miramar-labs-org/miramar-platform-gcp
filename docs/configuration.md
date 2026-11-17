@@ -140,8 +140,8 @@ Create Project read it as empty.
 to only the repos whose workflows reference it — no org-wide secrets (need-to-know). Create
 Project copies into each new repo, as repo secrets, exactly the secrets its template's
 workflows reference (`secrets.X` under `templates/new-project-<type>/.github`) — e.g. a
-`serving-vllm` repo gets `SERVING_APP_*`, `MIRAMAR_ORG_GHCR_PAT`, `HF_TOKEN`, `WIF_PROVIDER`,
-`GCP_SERVICE_ACCOUNT`; a `serving-trt-fp8` repo gets no GHCR PAT or HF token. A referenced
+`serving-vllm` repo gets `SERVING_APP_*`, `MIRAMAR_ORG_GHCR_PAT`, `HF_TOKEN`, `WIF_PROVIDER`
+(`GCP_SERVICE_ACCOUNT` is never copied — each repo gets its own deploy SA, see `docs/gcp.md`); a `serving-trt-fp8` repo gets no GHCR PAT or HF token. A referenced
 secret that isn't available (e.g. a deleted org secret) produces a warning with the
 `gh secret set` command to run. Rotating a credential means re-setting it in every project
 repo holding a copy. Serving deploy/undeploy mint `miramar-serving-app` tokens
