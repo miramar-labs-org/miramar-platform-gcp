@@ -43,7 +43,7 @@ jobs:
     if: inputs.host == 'dgx'
     runs-on: [self-hosted, dgx]
     steps:
-      # 1-hour miramar-serving App token (replaces the org-admin PAT; Nov 2026 incident)
+      # 1-hour miramar-serving-app App token (replaces the org-admin PAT; Nov 2026 incident)
       # Not narrowed: auto-undeploy scans every public repo for DGX_SERVING_ACTIVE and
       # dispatches undeploy in the active one.
       - name: Mint GitHub App token
@@ -299,7 +299,7 @@ jobs:
     if: inputs.host == 'agx'
     runs-on: [self-hosted, agx]
     steps:
-      # 1-hour miramar-serving App token (replaces the org-admin PAT; Nov 2026 incident)
+      # 1-hour miramar-serving-app App token (replaces the org-admin PAT; Nov 2026 incident)
       - name: Mint GitHub App token
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -528,7 +528,7 @@ jobs:
     if: inputs.host == 'gke'
     runs-on: ubuntu-latest
     steps:
-      # 1-hour miramar-serving App token (replaces the org-admin PAT; Nov 2026 incident)
+      # 1-hour miramar-serving-app App token (replaces the org-admin PAT; Nov 2026 incident)
       - name: Mint GitHub App token
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0

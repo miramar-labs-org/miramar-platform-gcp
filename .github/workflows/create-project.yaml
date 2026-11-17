@@ -198,7 +198,7 @@ jobs:
             -X POST "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables" \
             -f name="PROJECT_HOST" -f value="${HOST}"
 
-      # Serving deploys mint miramar-serving App tokens (platform workflow dispatch, repo +
+      # Serving deploys mint miramar-serving-app App tokens (platform workflow dispatch, repo +
       # org variables) and create the k3s GHCR pull secret. Serving repos are public and org
       # secrets don't reach them, so each serving repo gets its own copies. SERVING_APP_* are
       # `provision` environment secrets. Rotating any credential means re-setting it in every
@@ -223,7 +223,7 @@ jobs:
               --repo "miramar-labs-org/${PROJECT_NAME}"
             echo "Set ${name}"
           done
-          echo "::notice::Add ${PROJECT_NAME} to the miramar-serving App installation before deploying: gh api -X PUT /user/installations/\$(gh api orgs/miramar-labs-org/installations -q '.installations[]|select(.app_slug==\"miramar-serving\").id')/repositories/\$(gh api repos/miramar-labs-org/${PROJECT_NAME} -q .id)"
+          echo "::notice::Add ${PROJECT_NAME} to the miramar-serving-app App installation before deploying: gh api -X PUT /user/installations/\$(gh api orgs/miramar-labs-org/installations -q '.installations[]|select(.app_slug==\"miramar-serving-app\").id')/repositories/\$(gh api repos/miramar-labs-org/${PROJECT_NAME} -q .id)"
 
       - name: Initialise repository with template
         env:

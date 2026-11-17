@@ -19,7 +19,7 @@ jobs:
   deploy-llm-nim-dgx:
     runs-on: [self-hosted, dgx]
     steps:
-      # 1-hour miramar-serving App token (replaces the org-admin PAT; Nov 2026 incident)
+      # 1-hour miramar-serving-app App token (replaces the org-admin PAT; Nov 2026 incident)
       # Not narrowed: auto-undeploy scans every public repo for DGX_SERVING_ACTIVE and
       # dispatches undeploy in the active one.
       - name: Mint GitHub App token
