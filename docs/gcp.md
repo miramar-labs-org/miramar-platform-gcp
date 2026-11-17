@@ -151,8 +151,9 @@ GKE Expand GPU
   → GKE Restore GPU
 ```
 
-**GKE model router config:** `gke/model-router/litellm-config.yaml` — updated automatically
-by GKE serving deploy/undeploy workflows (same auto-registration pattern as DGX/AGX).
+**GKE model router config:** `gke/model-router/litellm-config.yaml` plus one generated entry
+per Service labelled `miramar.ai/router=true` (same Service-label discovery as DGX; see
+[dgx.md](dgx.md)). GKE serving deploy/undeploy label/delete the Service and redeploy the router.
 
 ## GCP Scripts
 

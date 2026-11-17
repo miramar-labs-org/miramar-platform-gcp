@@ -54,7 +54,7 @@ copies that adapter into `/adapter/` in the image.
 Unlike `serving-vllm` (which uses `openai/<name>`), this template uses LiteLLM's **triton provider**:
 
 ```yaml
-# LiteLLM litellm-config.yaml entry (written by deploy.yaml)
+# Router entry generated from this project's Service annotations (set by deploy.yaml)
 - model_name: {{SERVED_MODEL_NAME}}    # client-facing alias
   litellm_params:
     model: triton/model                # Triton model directory name (always "model")
