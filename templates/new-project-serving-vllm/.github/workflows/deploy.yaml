@@ -98,11 +98,13 @@ jobs:
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure HF_TOKEN secret
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           if ! kubectl get secret hf-token -n "$PROJECT_NAME" > /dev/null 2>&1; then
             echo "Creating hf-token secret in namespace $PROJECT_NAME"
             kubectl create secret generic hf-token \
-              --from-literal=token="${{ secrets.HF_TOKEN }}" \
+              --from-literal=token="${HF_TOKEN}" \
               -n "$PROJECT_NAME"
           else
             echo "hf-token secret already exists"
@@ -232,18 +234,22 @@ jobs:
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure HF_TOKEN secret
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           kubectl create secret generic hf-token \
-            --from-literal=token="${{ secrets.HF_TOKEN }}" \
+            --from-literal=token="${HF_TOKEN}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure GHCR pull secret
+        env:
+          MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
         run: |
           kubectl create secret docker-registry ghcr-pull \
             --docker-server=ghcr.io \
             --docker-username=miramar-labs-org \
-            --docker-password="${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
+            --docker-password="${MIRAMAR_ORG_GHCR_PAT}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
@@ -453,18 +459,22 @@ jobs:
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure HF_TOKEN secret
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           kubectl create secret generic hf-token \
-            --from-literal=token="${{ secrets.HF_TOKEN }}" \
+            --from-literal=token="${HF_TOKEN}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure GHCR pull secret
+        env:
+          MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
         run: |
           kubectl create secret docker-registry ghcr-pull \
             --docker-server=ghcr.io \
             --docker-username=miramar-labs-org \
-            --docker-password="${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
+            --docker-password="${MIRAMAR_ORG_GHCR_PAT}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 

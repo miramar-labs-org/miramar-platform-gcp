@@ -434,8 +434,10 @@ jobs:
 
       # ── Step 5: Deploy KFP ───────────────────────────────────────────────────
       - name: Log in to GHCR
+        env:
+          MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
         run: |
-          echo "${{ secrets.MIRAMAR_ORG_GHCR_PAT }}" \
+          echo "${MIRAMAR_ORG_GHCR_PAT}" \
             | docker login ghcr.io -u miramar-labs-org --password-stdin
 
       - name: Deploy Kubeflow Pipelines

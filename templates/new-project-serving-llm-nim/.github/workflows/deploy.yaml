@@ -89,26 +89,32 @@ jobs:
         run: kubectl create namespace "$PROJECT_NAME" --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure nvcr-pull secret
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
         run: |
           kubectl create secret docker-registry nvcr-pull \
             --docker-server=nvcr.io \
             --docker-username='$oauthtoken' \
-            --docker-password="${{ secrets.NGC_API_KEY }}" \
+            --docker-password="${NGC_API_KEY}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure ngc-api-key secret
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
         run: |
           kubectl create secret generic ngc-api-key \
-            --from-literal=NGC_API_KEY="${{ secrets.NGC_API_KEY }}" \
+            --from-literal=NGC_API_KEY="${NGC_API_KEY}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Ensure hf-token secret
         if: env.MODEL_MODE == 'hf'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           kubectl create secret generic hf-token \
-            --from-literal=HF_TOKEN="${{ secrets.HF_TOKEN }}" \
+            --from-literal=HF_TOKEN="${HF_TOKEN}" \
             -n "$PROJECT_NAME" \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
