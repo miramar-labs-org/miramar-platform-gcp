@@ -23,6 +23,9 @@ name: Setup Shared SSH Store
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   # -----------------------------------------------------------------------
   # Phase 1: DGX host — init ~/shared/ssh/ + symlinks
@@ -31,7 +34,7 @@ jobs:
   setup-dgx:
     runs-on: [self-hosted, agx]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up SSH key for DGX host
         run: |
@@ -173,7 +176,7 @@ jobs:
     needs: setup-dgx
     runs-on: [self-hosted, agx]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up SSH key for Orin host
         run: |
