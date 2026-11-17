@@ -39,6 +39,7 @@ jobs:
           client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_KEY }}
           owner: miramar-labs-org
+          repositories: miramar-platform-gcp,${{ github.event.repository.name }}
       - uses: actions/checkout@v4
 
       - name: Authenticate to GCP (WIF)
@@ -114,6 +115,7 @@ jobs:
           client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_KEY }}
           owner: miramar-labs-org
+          repositories: miramar-platform-gcp,${{ github.event.repository.name }}
       - uses: actions/checkout@v4
 
       - name: Delete deployment
@@ -182,6 +184,7 @@ jobs:
           client-id: ${{ secrets.AUTOMATION_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_KEY }}
           owner: miramar-labs-org
+          repositories: miramar-platform-gcp,${{ github.event.repository.name }}
       - uses: actions/checkout@v4
 
       - name: Delete deployment
