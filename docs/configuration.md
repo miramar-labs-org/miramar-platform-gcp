@@ -17,7 +17,6 @@ host values are set manually.
 | `WANDB_API_KEY`      | Weights & Biases API key                   | **Optional.** Only if a project enables `wandb`; synced into `mlabs-api-keys`                      |
 | `LANGCHAIN_API_KEY`  | LangChain / LangSmith API key              | **Optional.** Only if a project enables `langsmith`; synced into `mlabs-api-keys`                  |
 | `HOST_SSH_KEY`       | Private SSH key                            | SSH into DGX, AGX, or WSL2 hosts from runners (all machines share Spark's identity)                |
-| `DGX_SMB_PASSWORD`   | Samba password for DGX `aaron`             | Used by **Setup Shared SSH Store**; not needed by WSL2 Provision                                   |
 | `DGX_K3S_KUBECONFIG` | base64 kubeconfig                          | Written by **K3s Install** (runner=dgx); used by k3s workflows                                     |
 | `AGX_K3S_KUBECONFIG` | base64 kubeconfig                          | Written by **K3s Install** (runner=agx) on first run                                               |
 
@@ -26,8 +25,6 @@ host values are set manually.
 | Secret                     | Value                                                         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | -------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GCP_SERVICE_ACCOUNT`      | `gh-gke-cluster-ops@miramar-platform.iam.gserviceaccount.com` | Cluster-ops service account used by platform lifecycle workflows                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `WSL2_HOST_USER`           | Windows SSH user                                              | SSH login for WSL2 workflows                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `WSL2_HOST_SSH_KEY`        | Private SSH key                                               | SSH into Windows; public key must be authorized in Windows OpenSSH                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## GitHub Variables
 
@@ -52,7 +49,6 @@ Sync GCP variables from Terraform after changing `gcp/terraform/terraform.tfvars
 | `AGX_HOST_IP`         | `192.168.1.202`                    | static IP of AGX Orin                                                                      |
 | `AGX_HOST_USER`       | `aaron`                            | SSH user on AGX                                                                            |
 | `AGX_VRAM_USEABLE`    | `40`                               | GB available for AI models on AGX (64 GB total − 24 GB system)                             |
-| `WSL2_HOST`           | `192.168.1.201`                    | static IP of Windows (MSI) machine — shared by all WSL2 distros                            |
 | `MLFLOW_TRACKING_URI` | `http://host.docker.internal:5000` | MLflow endpoint inside runner containers (resolves to local host on both DGX and AGX)      |
 | `QDRANT_URL`          | `http://host.docker.internal:6333` | Qdrant REST endpoint inside runner containers (resolves to local host on both DGX and AGX) |
 | `DGX_VRAM_USEABLE`    | `100`                              | GB available for AI models on DGX (128 GB total − ~28 GB platform)                         |
@@ -100,7 +96,6 @@ the result.
 
 | Variable                     | Initial value | Purpose                                                         |
 | ---------------------------- | ------------- | --------------------------------------------------------------- |
-| `WSL2_DISTROS`               | `NONE`        | Active WSL2 distro names; updated by WSL2 Provision/Unprovision |
 | `OLLAMA_VERSION`             | `—`           | Ollama binary version; written by Ollama Update                 |
 | `CURRENT_NIM_MODEL`          | `none`        | NIM currently loaded on DGX                                     |
 | `CURRENT_OLLAMA_MODEL`       | `none`        | Ollama model currently loaded on DGX                            |

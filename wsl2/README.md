@@ -1,5 +1,7 @@
 # WSL2 Dev Environments
 
+> **Removed workflows.** The WSL2 and shared-SSH workflows (Setup Shared SSH Store, WSL2 Provision, WSL2 Verify SSH Topology, WSL2 Unprovision) were removed on 2026-11-17. They had not run since May 2026 and wrote SSH keys to disk. Recover them from git history (before the removal commit) if WSL2 distros are needed again. The scripts in `wsl2/` remain for manual use.
+
 [Windows Subsystem for Linux 2](https://github.com/microsoft/WSL) ([docs](https://learn.microsoft.com/en-us/windows/wsl/)) — provision and remove Windows-hosted WSL2 distros from [GitHub Actions](https://github.com/features/actions). Each
 distro is imported from a configured template tarball on the Windows host, wired
 into the shared lab SSH store, and reached through the `wsl2-<name>` SSH alias.

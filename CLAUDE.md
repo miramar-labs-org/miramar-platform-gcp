@@ -159,10 +159,6 @@ Org-level variables synced from `terraform.tfvars`: `GCP_PROJECT_ID`, `GKE_CLUST
 | Ollama Deploy                | `deploy-ollama.yaml`                | Pull + load Ollama model; rollback on failure; sets `{MACHINE}_OLLAMA_ACTIVE` |
 | Ollama Undeploy              | `undeploy-ollama.yaml`              | Unload Ollama from GPU; clears `{MACHINE}_OLLAMA_ACTIVE`             |
 | Ollama Update                | `update-ollama.yaml`                | Install/upgrade Ollama on target host; writes `OLLAMA_VERSION`       |
-| Setup Shared SSH Store       | `setup-shared-ssh.yaml`             | One-time: wire DGX + Orin shared SSH store                           |
-| WSL2 Provision               | `provision-wsl2.yaml`               | Import distro, run firstboot, add to WSL2_DISTROS                    |
-| WSL2 Verify SSH Topology     | `verify-ssh-topology.yaml`          | Test all SSH paths for active distros in WSL2_DISTROS                |
-| WSL2 Unprovision             | `unprovision-wsl2.yaml`             | Unregister distro, remove from WSL2_DISTROS                          |
 | Build MLABS Runner           | `build-mlabs-runner.yml`            | Build + push multi-arch mlabs-runner image to GHCR                   |
 | Build Nsight APE Webhook Image | `build-nsight-ape-webhook.yml`    | Build + push multi-arch `nsight-ape-webhook` image to GHCR (mutating webhook that reconciles Nsight injection with PSS-hardened KFP pods) |
 | Repo Code Quality            | `repo-quality-manual.yaml`          | Run formatters/linters in check mode (or `fix_mode=true`)            |

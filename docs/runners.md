@@ -97,7 +97,7 @@ Workflows get everything else per job from secrets: `HF_TOKEN`, `MIRAMAR_ORG_GHC
 | -------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `~/.kube`                  | `/home/runner/.kube`       | kubeconfig for k3s cluster access                                                                                         |
 | `/usr/local/bin`           | `/host-bin`                | Workflows can install binaries to the host (e.g. kubectl, helm)                                                           |
-| `~/shared/ssh`             | `/home/runner/.ssh`        | Shared SSH identity (if set up via **Setup Shared SSH Store**); enables workflows to SSH to the DGX host as the host user |
+| `~/shared/ssh`             | `/home/runner/.ssh`        | Shared SSH identity (if `~/shared/ssh` exists); enables workflows to SSH to the DGX host as the host user |
 | `/run/avahi-daemon/socket` | `/run/avahi-daemon/socket` | `.local` mDNS resolution via host avahi daemon                                                                            |
 
 ## AGX volume mounts

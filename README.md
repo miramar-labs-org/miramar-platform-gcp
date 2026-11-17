@@ -84,9 +84,6 @@ flowchart LR
 [![Create Project](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/create-project.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/create-project.yaml)
 [![Delete Project](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/delete-project.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/delete-project.yaml)
 [![Deploy Platform Dashboard](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-dashboard.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/deploy-dashboard.yaml)
-[![WSL2 Provision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/provision-wsl2.yaml)
-[![WSL2 Verify SSH Topology](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/verify-ssh-topology.yaml)
-[![WSL2 Unprovision](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml/badge.svg)](https://github.com/miramar-labs-org/miramar-platform-gcp/actions/workflows/unprovision-wsl2.yaml)
 
 ## Platform Overview
 
