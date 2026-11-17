@@ -125,6 +125,7 @@ Introduced after the Nov 2026 compromise, whose entry point was a leaked org-adm
 | --------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `miramar-automation`  | Repo: Actions RW, Variables RW, Administration R, Contents R, Metadata R. Org: Variables RW          | `AUTOMATION_APP_CLIENT_ID`, `AUTOMATION_APP_KEY`                      | deploy/undeploy/install/gke/dashboard/traffic-report workflows |
 | `miramar-provisioner` | Repo: Administration RW, Contents RW, Workflows RW, Pull requests RW, Secrets RW, Variables RW, Metadata R | `PROVISIONER_APP_CLIENT_ID`, `PROVISIONER_APP_KEY` — **environment `provision` only** (required reviewer: owner) | `create-project`, `delete-project`, `delete-blog-post`       |
+| `miramar-serving-app`     | Repo: Actions RW, Variables RW, Metadata R. Org: Variables RW. **Installed on selected repos only** (`miramar-platform-gcp` + each serving repo) | `SERVING_APP_CLIENT_ID`, `SERVING_APP_KEY` — environment `provision` (copied into each serving repo by Create Project) | serving-* project deploy/undeploy |
 
 The `provision` environment gate means a repo-admin-capable token is only ever minted after
 the owner approves that specific run. Apps cannot use the packages API: delete GHCR
@@ -135,12 +136,24 @@ k3s/GKE for private GHCR images; an App token would expire after an hour. Its or
 visibility must include `miramar-platform-gcp` (a public repo), or platform workflows and
 Create Project read it as empty.
 
-**Serving repos** are public, so org secrets scoped to private repos don't reach them.
-Create Project copies `AUTOMATION_APP_CLIENT_ID`, `AUTOMATION_APP_KEY` and
-`MIRAMAR_ORG_GHCR_PAT` into each new `serving-*` repo as repo secrets. Serving
-deploy/undeploy mint `miramar-automation` tokens from them; image pushes use
-`GITHUB_TOKEN` (`packages: write`). After rotating any of the three, re-set them in every
-serving repo (`gh secret set NAME --repo miramar-labs-org/<repo>`).
+**Serving repos** are public, so org secrets don't reach them. Create Project copies
+`SERVING_APP_CLIENT_ID`, `SERVING_APP_KEY` and `MIRAMAR_ORG_GHCR_PAT` into each new
+`serving-*` repo as repo secrets. Serving deploy/undeploy mint `miramar-serving-app` tokens
+from them; image pushes use `GITHUB_TOKEN` (`packages: write`). The `miramar-serving-app` key
+lives in every (public) serving repo, so the App is deliberately narrow — no contents or
+administration access, and installed only on the platform repo and serving repos. A leaked
+key can dispatch workflows and write variables there, nothing else.
+
+After Create Project, add the new repo to the installation (an App token can't; the run
+prints this as a notice):
+
+```sh
+gh api -X PUT /user/installations/$(gh api orgs/miramar-labs-org/installations \
+  -q '.installations[]|select(.app_slug=="miramar-serving-app").id')/repositories/$(gh api repos/miramar-labs-org/<repo> -q .id)
+```
+
+After rotating any of the three secrets, re-set them in every serving repo
+(`gh secret set NAME --repo miramar-labs-org/<repo>`).
 
 ## Host Environment Variables
 

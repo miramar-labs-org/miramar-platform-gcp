@@ -79,4 +79,4 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 - `secrets.NGC_API_KEY` — for pulling nvcr.io/nvidia/tensorrt-llm (K3s targets)
 - `secrets.WIF_PROVIDER` / `secrets.GCP_SERVICE_ACCOUNT` — GCP auth
-- `secrets.AUTOMATION_APP_CLIENT_ID` / `secrets.AUTOMATION_APP_KEY` — mint a 1-hour `miramar-automation` App token (repo variables, platform workflow dispatch); copied into this repo by Create Project
+- `secrets.SERVING_APP_CLIENT_ID` / `secrets.SERVING_APP_KEY` — mint a 1-hour `miramar-serving-app` App token (repo variables, platform workflow dispatch); copied into this repo by Create Project
