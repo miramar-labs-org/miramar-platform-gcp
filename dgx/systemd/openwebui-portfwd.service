@@ -22,7 +22,7 @@ echo "Timed out waiting for ready endpoints for svc/openwebui"; \
 /usr/local/bin/kubectl -n openwebui get endpoints openwebui -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl -n openwebui port-forward svc/openwebui 8084:8080 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n openwebui port-forward svc/openwebui 8084:8080 --address 127.0.0.1
 Restart=on-failure
 RestartSec=3
 

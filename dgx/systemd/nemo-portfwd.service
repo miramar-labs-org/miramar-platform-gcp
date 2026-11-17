@@ -21,7 +21,7 @@ echo "Timed out waiting for ready endpoints for svc/ingress-nginx-controller"; \
 /usr/local/bin/kubectl -n ingress-nginx get endpoints ingress-nginx-controller -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 8082:80 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 8082:80 --address 127.0.0.1
 Restart=on-failure
 RestartSec=3
 
