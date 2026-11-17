@@ -77,12 +77,26 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
 # helm
 RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-# Node 20 LTS + prettier (repo-quality workflow)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    rm -rf /var/lib/apt/lists/* && \
-    npm install -g prettier && \
-    node --version && prettier --version
+# Node 20 + prettier (repo-quality workflow). Official tarball, checksum-pinned:
+# the NodeSource setup script runs its own apt update, which fails under QEMU
+# arm64 emulation (getline ENOMEM) and silently falls back to Debian nodejs (no npm).
+ARG NODE_VERSION=20.20.2
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) NODE_ARCH="x64";   NODE_SHA256="19e56f0825510207dd904f087fe52faa0a4eb6b2aab5f0ea7a33830d04888b8b" ;; \
+        arm64) NODE_ARCH="arm64"; NODE_SHA256="47ef73d543ecf6eb19435f6c03a0ac4809b3bf0dd6b26c7c571efc2a6572a74d" ;; \
+        *) echo "Unsupported arch for node: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    f="node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz"; \
+    curl -fsSL -o "/tmp/${f}" "https://nodejs.org/dist/v${NODE_VERSION}/${f}"; \
+    printf '%s  %s\n' "${NODE_SHA256}" "/tmp/${f}" > /tmp/node.sha256; \
+    sha256sum -c /tmp/node.sha256; \
+    tar -xzf "/tmp/${f}" -C /usr/local --strip-components=1 --no-same-owner \
+        --exclude='*/CHANGELOG.md' --exclude='*/README.md' --exclude='*/LICENSE'; \
+    rm -f "/tmp/${f}" /tmp/node.sha256; \
+    npm install -g prettier; \
+    npm cache clean --force; \
+    node --version; npm --version; prettier --version
 
 # shfmt
 RUN set -eux; \
