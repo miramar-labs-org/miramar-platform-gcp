@@ -37,12 +37,12 @@ quota_metric() {
   local prefix=""
   [[ "$spot" == "true" ]] && prefix="PREEMPTIBLE_"
   case "$gpu" in
-    nvidia-tesla-t4)   echo "${prefix}NVIDIA_T4_GPUS" ;;
-    nvidia-l4)         echo "${prefix}NVIDIA_L4_GPUS" ;;
-    nvidia-tesla-p4)   echo "${prefix}NVIDIA_P4_GPUS" ;;
+    nvidia-tesla-t4) echo "${prefix}NVIDIA_T4_GPUS" ;;
+    nvidia-l4) echo "${prefix}NVIDIA_L4_GPUS" ;;
+    nvidia-tesla-p4) echo "${prefix}NVIDIA_P4_GPUS" ;;
     nvidia-tesla-p100) echo "${prefix}NVIDIA_P100_GPUS" ;;
     nvidia-tesla-v100) echo "${prefix}NVIDIA_V100_GPUS" ;;
-    *)                 echo "${prefix}NVIDIA_GPUS" ;;
+    *) echo "${prefix}NVIDIA_GPUS" ;;
   esac
 }
 export -f quota_metric
@@ -91,7 +91,8 @@ probe_combo() {
   local status
   status=$(probe_instance "$zone" "$gpu" "$machine" "$spot" "$project")
 
-  local spotlabel; [[ "$spot" == "true" ]] && spotlabel="spot" || spotlabel="on-demand"
+  local spotlabel
+  [[ "$spot" == "true" ]] && spotlabel="spot" || spotlabel="on-demand"
 
   case "$status" in
     available)
@@ -123,7 +124,7 @@ echo ""
 
 JOBS=()
 for entry in "${GPU_TYPES[@]}"; do
-  read -r gpu machine od_cost spot_cost <<< "$entry"
+  read -r gpu machine od_cost spot_cost <<<"$entry"
   FILTER="name:${gpu}"
   [[ -n "$REGION_FILTER" ]] && FILTER="${FILTER} AND zone~${REGION_FILTER}"
 
@@ -137,7 +138,7 @@ for entry in "${GPU_TYPES[@]}"; do
   while IFS= read -r zone; do
     JOBS+=("$zone $gpu $machine false $od_cost $PROJECT $TMPDIR_RESULTS")
     JOBS+=("$zone $gpu $machine true  $spot_cost $PROJECT $TMPDIR_RESULTS")
-  done <<< "$ZONES"
+  done <<<"$ZONES"
 done
 
 printf '%s\n' "${JOBS[@]}" | xargs -P 30 -I{} bash -c 'probe_combo $@' _ {}
@@ -149,10 +150,12 @@ echo ""
 
 # Merge available (prefixed 0_) and quota results, sort by cost, take top 5
 ALL_RESULTS=$(
-  { ls "$TMPDIR_RESULTS/available/" 2>/dev/null | sed 's|^|available/|';
-    ls "$TMPDIR_RESULTS/quota/"     2>/dev/null | sed 's|^|quota/|'; } \
-  | sort -t_ -k2 -n \
-  | head -5
+  {
+    ls "$TMPDIR_RESULTS/available/" 2>/dev/null | sed 's|^|available/|'
+    ls "$TMPDIR_RESULTS/quota/" 2>/dev/null | sed 's|^|quota/|'
+  } \
+    | sort -t_ -k2 -n \
+    | head -5
 )
 
 if [[ -z "$ALL_RESULTS" ]]; then
@@ -163,25 +166,26 @@ fi
 
 N=1
 while IFS= read -r entry; do
-  tier="${entry%%/*}"        # available or quota
-  filename="${entry##*/}"    # 0_cost_zone_gpu_spot  or  cost_zone_gpu_spot
+  tier="${entry%%/*}"     # available or quota
+  filename="${entry##*/}" # 0_cost_zone_gpu_spot  or  cost_zone_gpu_spot
 
   # Strip leading 0_ prefix from available files
   filename="${filename#0_}"
   # Filename format: {cost}_{zone}_{gpu}_{spot}
   # zone has no underscores; gpu starts with "nvidia-"; spot is true/false
   cost="${filename%%_*}"
-  rest="${filename#${cost}_}"        # zone_gpu_spot
-  zone="${rest%%_nvidia-*}"          # everything before _nvidia-
-  gpu_spot="${rest#${zone}_}"        # nvidia-xxx_true/false
-  gpu="${gpu_spot%_*}"               # strip trailing _true or _false
-  spot="${gpu_spot##*_}"             # true or false
+  rest="${filename#${cost}_}" # zone_gpu_spot
+  zone="${rest%%_nvidia-*}"   # everything before _nvidia-
+  gpu_spot="${rest#${zone}_}" # nvidia-xxx_true/false
+  gpu="${gpu_spot%_*}"        # strip trailing _true or _false
+  spot="${gpu_spot##*_}"      # true or false
 
   machine="n1-standard-4"
   [[ "$gpu" == "nvidia-l4" ]] && machine="g2-standard-4"
   [[ "$gpu" == "nvidia-tesla-p100" || "$gpu" == "nvidia-tesla-v100" ]] && machine="n1-standard-8"
 
-  spotlabel="on-demand"; [[ "$spot" == "true" ]] && spotlabel="spot"
+  spotlabel="on-demand"
+  [[ "$spot" == "true" ]] && spotlabel="spot"
   region="${zone%-*}"
 
   if [[ "$tier" == "available" ]]; then
@@ -207,8 +211,8 @@ while IFS= read -r entry; do
     echo "       https://console.cloud.google.com/iam-admin/quotas?project=$PROJECT"
   fi
   echo ""
-  (( N++ ))
-done <<< "$ALL_RESULTS"
+  ((N++))
+done <<<"$ALL_RESULTS"
 
 # ── Situation summary ────────────────────────────────────────────────────────
 echo "============================================================"
@@ -216,19 +220,23 @@ echo "Summary"
 echo ""
 
 AVAIL_COUNT=$(ls "$TMPDIR_RESULTS/available/" 2>/dev/null | wc -l | tr -d ' ')
-QUOTA_COUNT=$(ls "$TMPDIR_RESULTS/quota/"     2>/dev/null | wc -l | tr -d ' ')
+QUOTA_COUNT=$(ls "$TMPDIR_RESULTS/quota/" 2>/dev/null | wc -l | tr -d ' ')
 
 if [[ "$AVAIL_COUNT" -gt 0 ]]; then
   # Parse the cheapest available option
   BEST=$(ls "$TMPDIR_RESULTS/available/" | sort -t_ -k2 -n | head -1)
   BEST="${BEST#0_}"
-  best_cost="${BEST%%_*}"; rest="${BEST#${best_cost}_}"
-  best_zone="${rest%%_nvidia-*}"; gpu_spot="${rest#${best_zone}_}"
-  best_gpu="${gpu_spot%_*}"; best_spot="${gpu_spot##*_}"
+  best_cost="${BEST%%_*}"
+  rest="${BEST#${best_cost}_}"
+  best_zone="${rest%%_nvidia-*}"
+  gpu_spot="${rest#${best_zone}_}"
+  best_gpu="${gpu_spot%_*}"
+  best_spot="${gpu_spot##*_}"
   best_machine="n1-standard-4"
   [[ "$best_gpu" == "nvidia-l4" ]] && best_machine="g2-standard-4"
   [[ "$best_gpu" == "nvidia-tesla-p100" || "$best_gpu" == "nvidia-tesla-v100" ]] && best_machine="n1-standard-8"
-  best_spotlabel="on-demand"; [[ "$best_spot" == "true" ]] && best_spotlabel="spot"
+  best_spotlabel="on-demand"
+  [[ "$best_spot" == "true" ]] && best_spotlabel="spot"
 
   echo "  $AVAIL_COUNT option(s) available immediately. Cheapest: \$$best_cost/hr ($best_spotlabel) in $best_zone."
   echo ""
@@ -251,16 +259,25 @@ if [[ "$AVAIL_COUNT" -gt 0 ]]; then
 elif [[ "$QUOTA_COUNT" -gt 0 ]]; then
   # Parse cheapest quota option
   BEST=$(ls "$TMPDIR_RESULTS/quota/" | sort -t_ -k1 -n | head -1)
-  best_cost="${BEST%%_*}"; rest="${BEST#${best_cost}_}"
-  best_zone="${rest%%_nvidia-*}"; gpu_spot="${rest#${best_zone}_}"
-  best_gpu="${gpu_spot%_*}"; best_spot="${gpu_spot##*_}"
+  best_cost="${BEST%%_*}"
+  rest="${BEST#${best_cost}_}"
+  best_zone="${rest%%_nvidia-*}"
+  gpu_spot="${rest#${best_zone}_}"
+  best_gpu="${gpu_spot%_*}"
+  best_spot="${gpu_spot##*_}"
   best_region="${best_zone%-*}"
   best_metric=$(quota_metric "$best_gpu" "$best_spot")
-  best_spotlabel="on-demand"; [[ "$best_spot" == "true" ]] && best_spotlabel="spot"
+  best_spotlabel="on-demand"
+  [[ "$best_spot" == "true" ]] && best_spotlabel="spot"
 
   # Collect unique quota metrics needed across top results
   QUOTA_METRICS=$(ls "$TMPDIR_RESULTS/quota/" | sort -t_ -k1 -n | head -5 | while read -r f; do
-    c="${f%%_*}"; r="${f#${c}_}"; z="${r%%_nvidia-*}"; gs="${r#${z}_}"; g="${gs%_*}"; s="${gs##*_}"
+    c="${f%%_*}"
+    r="${f#${c}_}"
+    z="${r%%_nvidia-*}"
+    gs="${r#${z}_}"
+    g="${gs%_*}"
+    s="${gs##*_}"
     reg="${z%-*}"
     quota_metric "$g" "$s" | sed "s/$/ in $reg/"
   done | sort -u)

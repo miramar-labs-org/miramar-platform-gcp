@@ -128,9 +128,9 @@ assert_eq "build_stats_upsert_sql with no rows prints nothing" \
   "" "$(build_stats_upsert_sql "")"
 
 # --- format_delta -----------------------------------------------------------
-assert_eq "format_delta shows a positive gain"  "Stars: *41* (+2)" "$(format_delta Stars 41 39)"
-assert_eq "format_delta shows a loss"           "Stars: *41* (-1)" "$(format_delta Stars 41 42)"
-assert_eq "format_delta shows no change as dash" "Stars: *5* (—)"   "$(format_delta Stars 5 5)"
+assert_eq "format_delta shows a positive gain" "Stars: *41* (+2)" "$(format_delta Stars 41 39)"
+assert_eq "format_delta shows a loss" "Stars: *41* (-1)" "$(format_delta Stars 41 42)"
+assert_eq "format_delta shows no change as dash" "Stars: *5* (—)" "$(format_delta Stars 5 5)"
 assert_eq "format_delta omits parens with no prior value" "Stars: *5*" "$(format_delta Stars 5 '')"
 
 # --- fetch_referrers / aggregate_referrers ---------------------------------
@@ -145,7 +145,10 @@ payload_out="$(build_slack_payload "100,40,10,5" "$(printf 'repo-a,25\nrepo-b,15
   "$(printf 'Stars: *41* (+2)   Forks: *8* (+1)   Watchers: *5* (—)\n:star: New stars: *repo-a* +2')" \
   "$(printf 'google.com,30,18\nnews.ycombinator.com,8,7')")"
 assert_eq "build_slack_payload is valid JSON" \
-  "0" "$(echo "$payload_out" | jq empty >/dev/null 2>&1; echo $?)"
+  "0" "$(
+    echo "$payload_out" | jq empty >/dev/null 2>&1
+    echo $?
+  )"
 assert_eq "build_slack_payload includes views total" \
   "1" "$(echo "$payload_out" | jq -r .text | grep -c 'Views: \*100\*')"
 assert_eq "build_slack_payload ranks the top repo first" \

@@ -26,9 +26,12 @@ else
 fi
 
 case "$(uname -m)" in
-  x86_64)        ARCH=amd64 ;;
-  aarch64|arm64) ARCH=arm64 ;;
-  *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
+  x86_64) ARCH=amd64 ;;
+  aarch64 | arm64) ARCH=arm64 ;;
+  *)
+    echo "Unsupported arch: $(uname -m)" >&2
+    exit 1
+    ;;
 esac
 
 LATEST=$(curl -fsSL -o /dev/null -w '%{url_effective}' \

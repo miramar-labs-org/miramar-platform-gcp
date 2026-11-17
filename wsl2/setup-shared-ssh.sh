@@ -15,7 +15,7 @@ DGX_HOST_IP="${1:-}"
 MOUNT_USER="${2:-${SUDO_USER:-$USER}}"
 DISTRO_NAME="${3:-$(cat /etc/wsl2-distro-name 2>/dev/null || true)}"
 SSH_PORT="${4:-2222}"
-WIN_HOSTNAME="${5:-}"  # Windows host for SSH config HostName (e.g. msi.local or IP)
+WIN_HOSTNAME="${5:-}" # Windows host for SSH config HostName (e.g. msi.local or IP)
 
 USER_HOME=$(getent passwd "$MOUNT_USER" | cut -d: -f6)
 CREDS="$USER_HOME/.smbcredentials"
@@ -24,7 +24,7 @@ SHARED_DIR="$USER_HOME/shared"
 MOUNT_CONF=/etc/mount-dgx-shared.conf
 MOUNT_HELPER=/usr/local/sbin/mount-dgx-shared.sh
 
-log()  { echo "==> $*"; }
+log() { echo "==> $*"; }
 warn() { echo "WARN: $*"; }
 
 resolve_cifs_host() {
@@ -92,11 +92,11 @@ chown "$MOUNT_USER:$MOUNT_USER" "$SHARED_DIR"
 # Do not write CIFS mounts to /etc/fstab on WSL2. WSL pre-systemd fstab
 # handling and mDNS/CIFS can delay boot or disrupt p9io/Plan9, causing
 # AcceptAsync canceled followed by distro powerdown.
-grep -v " $SHARED_DIR " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
+grep -v " $SHARED_DIR " /etc/fstab >/tmp/fstab.new 2>/dev/null || true
 cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 log "Removed legacy CIFS fstab entry for $SHARED_DIR"
 
-cat > "$MOUNT_CONF" <<EOF
+cat >"$MOUNT_CONF" <<EOF
 DGX_MOUNT_USER=$MOUNT_USER
 DGX_CIFS_HOST=$DGX_CIFS_HOST
 EOF
@@ -164,8 +164,8 @@ if [[ -n "$DISTRO_NAME" ]]; then
           $1 == "Host" && $2 == alias { skip = 1; next }
           $1 == "Host" { skip = 0 }
           !skip { print }
-        ' "$CONFIG" > /tmp/ssh-config.new
-        cat /tmp/ssh-config.new > "$CONFIG"
+        ' "$CONFIG" >/tmp/ssh-config.new
+        cat /tmp/ssh-config.new >"$CONFIG"
         rm -f /tmp/ssh-config.new
         log "$ALIAS existing config block removed"
       fi
@@ -177,15 +177,15 @@ if [[ -n "$DISTRO_NAME" ]]; then
             print lines[i]
           }
         }
-      ' "$CONFIG" > /tmp/ssh-config.new
-      cat /tmp/ssh-config.new > "$CONFIG"
+      ' "$CONFIG" >/tmp/ssh-config.new
+      cat /tmp/ssh-config.new >"$CONFIG"
       rm -f /tmp/ssh-config.new
 
       if [[ -s "$CONFIG" ]]; then
-        printf '\n' >> "$CONFIG"
+        printf '\n' >>"$CONFIG"
       fi
       printf 'Host %s\n    HostName %s\n    User %s\n    IdentityFile %s/.ssh/id_ed25519\n    IdentitiesOnly yes\n    ProxyCommand ssh -q -i %s/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new %s@%s "wsl -d %s --user root --exec /bin/bash -lc \\"/usr/local/sbin/mount-dgx-shared.sh >/dev/null 2>&1 || true; exec /usr/sbin/sshd -i -e\\""\n' \
-        "$ALIAS" "$ALIAS" "$MOUNT_USER" "$USER_HOME" "$USER_HOME" "$MOUNT_USER" "$WIN_HOSTNAME" "$DISTRO_NAME" >> "$CONFIG"
+        "$ALIAS" "$ALIAS" "$MOUNT_USER" "$USER_HOME" "$USER_HOME" "$MOUNT_USER" "$WIN_HOSTNAME" "$DISTRO_NAME" >>"$CONFIG"
       log "$ALIAS added to config (on-demand via $WIN_HOSTNAME wsl.exe) — written directly to shared store via CIFS"
     fi
   fi

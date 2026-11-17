@@ -5,11 +5,14 @@
 # Read-only; reports findings, changes nothing.
 
 WF_DIR=".github/workflows"
-[[ -d "$WF_DIR" ]] || { echo "No $WF_DIR here — run from the repo root."; exit 1; }
+[[ -d "$WF_DIR" ]] || {
+  echo "No $WF_DIR here — run from the repo root."
+  exit 1
+}
 
-red(){   printf '\033[31m%s\033[0m\n' "$1"; }
-yel(){   printf '\033[33m%s\033[0m\n' "$1"; }
-grn(){   printf '\033[32m%s\033[0m\n' "$1"; }
+red() { printf '\033[31m%s\033[0m\n' "$1"; }
+yel() { printf '\033[33m%s\033[0m\n' "$1"; }
+grn() { printf '\033[32m%s\033[0m\n' "$1"; }
 hits=0
 
 echo "Scanning $WF_DIR ..."

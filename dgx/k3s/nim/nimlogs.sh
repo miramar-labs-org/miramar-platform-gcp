@@ -18,7 +18,7 @@ wait_container_running() {
 
   while :; do
     now="$(date +%s)"
-    if (( now - start > timeout_sec )); then
+    if ((now - start > timeout_sec)); then
       echo "Timed out waiting for $APP ($CTR) to start" >&2
       pod="$(latest_pod 2>/dev/null || true)"
       [[ -n "$pod" ]] && kubectl -n "$NS" describe pod "$pod" | tail -n 120 >&2 || true
@@ -55,12 +55,12 @@ wait_container_running() {
     fi
 
     case "${waiting_reason:-}" in
-      ContainerCreating|"")
+      ContainerCreating | "")
         # "" happens when containerStatuses exists but the container isn't in waiting (rare), or not populated yet
         echo "Waiting... pod=$pod reason=${waiting_reason:-<none yet>}" >&2
         sleep 2
         ;;
-      ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError|RunContainerError|CrashLoopBackOff)
+      ImagePullBackOff | ErrImagePull | CreateContainerConfigError | CreateContainerError | RunContainerError | CrashLoopBackOff)
         echo "Container error in pod=$pod: $waiting_reason" >&2
         kubectl -n "$NS" describe pod "$pod" | tail -n 160 >&2 || true
         return 1
@@ -74,6 +74,6 @@ wait_container_running() {
 }
 
 echo "Waiting for $APP ($CTR) to start..."
-POD="$(wait_container_running 3600)"   # up to 60 minutes for big model pulls/loads
+POD="$(wait_container_running 3600)" # up to 60 minutes for big model pulls/loads
 echo "Tailing logs from pod=$POD container=$CTR"
 kubectl -n "$NS" logs -f "pod/$POD" -c "$CTR" --tail=200

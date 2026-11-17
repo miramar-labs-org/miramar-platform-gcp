@@ -36,11 +36,11 @@ set_var() {
 echo "Syncing from: $TFVARS"
 echo ""
 
-set_var GCP_PROJECT_ID   "$(tfvar project_id)"
-set_var GCP_REGION       "$(tfvar region)"
-set_var GKE_ZONE         "$(tfvar zone)"
+set_var GCP_PROJECT_ID "$(tfvar project_id)"
+set_var GCP_REGION "$(tfvar region)"
+set_var GKE_ZONE "$(tfvar zone)"
 set_var GKE_CLUSTER_NAME "$(tfvar cluster_name)"
-set_var GAR_REPO         "$(tfvar ar_repo)"
+set_var GAR_REPO "$(tfvar ar_repo)"
 set_var GKE_MACHINE_TYPE "$(tfvar machine_type)"
 
 echo ""

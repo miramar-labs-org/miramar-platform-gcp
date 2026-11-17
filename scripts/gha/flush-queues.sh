@@ -22,4 +22,4 @@ fi
 echo "Cancelling:"
 while IFS= read -r id; do
   gh run cancel "$id" --repo "$REPO" && echo "  cancelled $id"
-done <<< "$IDS"
+done <<<"$IDS"

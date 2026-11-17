@@ -2,18 +2,18 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 [--token <RUNNER_TOKEN>] [options]"
-    echo ""
-    echo "Options:"
-    echo "  --token       Runner registration token (auto-fetched via the miramar-runner-registrar App if not set)"
-    echo "  --pat         GitHub PAT with read:packages scope (for GHCR login)"
-    echo "  --name        Runner name (default: hostname)"
-    echo "  --labels      Comma-separated labels (default: self-hosted,linux,<arch>)"
-    echo "  --repo        Repo-level runner: owner/repo (default: org-level)"
-    echo "  --group       Runner group (default: Default)"
-    echo "  --ephemeral   Register as ephemeral (single-job) runner"
-    echo "  --detach      Run container in background"
-    exit 1
+  echo "Usage: $0 [--token <RUNNER_TOKEN>] [options]"
+  echo ""
+  echo "Options:"
+  echo "  --token       Runner registration token (auto-fetched via the miramar-runner-registrar App if not set)"
+  echo "  --pat         GitHub PAT with read:packages scope (for GHCR login)"
+  echo "  --name        Runner name (default: hostname)"
+  echo "  --labels      Comma-separated labels (default: self-hosted,linux,<arch>)"
+  echo "  --repo        Repo-level runner: owner/repo (default: org-level)"
+  echo "  --group       Runner group (default: Default)"
+  echo "  --ephemeral   Register as ephemeral (single-job) runner"
+  echo "  --detach      Run container in background"
+  exit 1
 }
 
 RUNNER_TOKEN=""
@@ -26,90 +26,117 @@ EPHEMERAL="false"
 DETACH_FLAG=""
 
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --token)   RUNNER_TOKEN="$2"; shift 2 ;;
-        --pat)     GITHUB_ORG_GHCR_PAT="$2"; shift 2 ;;
-        --name)    RUNNER_NAME="$2"; shift 2 ;;
-        --labels)  RUNNER_LABELS="$2"; shift 2 ;;
-        --repo)    GITHUB_REPO="$2"; shift 2 ;;
-        --group)   RUNNER_GROUP="$2"; shift 2 ;;
-        --ephemeral) EPHEMERAL="true"; shift ;;
-        --detach)  DETACH_FLAG="-d"; shift ;;
-        -h|--help) usage ;;
-        *) echo "Unknown option: $1"; usage ;;
-    esac
+  case "$1" in
+    --token)
+      RUNNER_TOKEN="$2"
+      shift 2
+      ;;
+    --pat)
+      GITHUB_ORG_GHCR_PAT="$2"
+      shift 2
+      ;;
+    --name)
+      RUNNER_NAME="$2"
+      shift 2
+      ;;
+    --labels)
+      RUNNER_LABELS="$2"
+      shift 2
+      ;;
+    --repo)
+      GITHUB_REPO="$2"
+      shift 2
+      ;;
+    --group)
+      RUNNER_GROUP="$2"
+      shift 2
+      ;;
+    --ephemeral)
+      EPHEMERAL="true"
+      shift
+      ;;
+    --detach)
+      DETACH_FLAG="-d"
+      shift
+      ;;
+    -h | --help) usage ;;
+    *)
+      echo "Unknown option: $1"
+      usage
+      ;;
+  esac
 done
 
 if [[ -z "${RUNNER_TOKEN}" ]]; then
-    # shellcheck source=runner-app-token.sh
-    source "$(dirname "${BASH_SOURCE[0]}")/runner-app-token.sh"
-    APP_TOKEN=$(runner_app_token "${GITHUB_OWNER}")
-    echo "Fetching runner registration token..."
-    if [[ -n "${GITHUB_REPO}" ]]; then
-        REG_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/registration-token"
-    else
-        REG_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/registration-token"
-    fi
-    RUNNER_TOKEN=$(curl -fsSL \
-        -X POST \
-        -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${APP_TOKEN}" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "${REG_URL}" | jq -r '.token')
+  # shellcheck source=runner-app-token.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/runner-app-token.sh"
+  APP_TOKEN=$(runner_app_token "${GITHUB_OWNER}")
+  echo "Fetching runner registration token..."
+  if [[ -n "${GITHUB_REPO}" ]]; then
+    REG_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/registration-token"
+  else
+    REG_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners/registration-token"
+  fi
+  RUNNER_TOKEN=$(curl -fsSL \
+    -X POST \
+    -H "Accept: application/vnd.github+json" \
+    -H "Authorization: Bearer ${APP_TOKEN}" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "${REG_URL}" | jq -r '.token')
 fi
 
 ARCH=$(uname -m)
 case "${ARCH}" in
-    x86_64)
-        ARCH_LABEL="amd64"
-        DEFAULT_LABELS="self-hosted,linux,amd64,wsl2"
-        ;;
-    aarch64|arm64)
-        ARCH_LABEL="arm64"
-        # Detect Jetson (Tegra) vs DGX (server) via device-tree model string.
-        # /proc/device-tree/model is present on all ARM device-tree platforms;
-        # Jetson boards always include "Orin" or "Jetson" in that string.
-        if [[ -f /proc/device-tree/model ]] && \
-           tr -d '\0' < /proc/device-tree/model | grep -qi "orin\|jetson"; then
-            DEFAULT_LABELS="self-hosted,linux,arm64,agx"
-        else
-            DEFAULT_LABELS="self-hosted,linux,arm64,dgx"
-        fi
-        ;;
-    *)
-        echo "ERROR: Unsupported architecture: ${ARCH}" >&2
-        exit 1
-        ;;
+  x86_64)
+    ARCH_LABEL="amd64"
+    DEFAULT_LABELS="self-hosted,linux,amd64,wsl2"
+    ;;
+  aarch64 | arm64)
+    ARCH_LABEL="arm64"
+    # Detect Jetson (Tegra) vs DGX (server) via device-tree model string.
+    # /proc/device-tree/model is present on all ARM device-tree platforms;
+    # Jetson boards always include "Orin" or "Jetson" in that string.
+    if [[ -f /proc/device-tree/model ]] \
+      && tr -d '\0' </proc/device-tree/model | grep -qi "orin\|jetson"; then
+      DEFAULT_LABELS="self-hosted,linux,arm64,agx"
+    else
+      DEFAULT_LABELS="self-hosted,linux,arm64,dgx"
+    fi
+    ;;
+  *)
+    echo "ERROR: Unsupported architecture: ${ARCH}" >&2
+    exit 1
+    ;;
 esac
 
 CONTAINER_NAME="mlabs-runner-${ARCH_LABEL}"
 
 if docker inspect "${CONTAINER_NAME}" &>/dev/null; then
-    CONTAINER_STATUS=$(docker inspect --format '{{.State.Status}}' "${CONTAINER_NAME}")
-    if [[ "${CONTAINER_STATUS}" == "running" ]]; then
-        echo "Runner container '${CONTAINER_NAME}' is already running."
-        docker ps --filter "name=^${CONTAINER_NAME}$" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.RunningFor}}"
-        exit 0
-    else
-        echo "Removing stopped container '${CONTAINER_NAME}' (status: ${CONTAINER_STATUS})..."
-        docker rm "${CONTAINER_NAME}"
-    fi
+  CONTAINER_STATUS=$(docker inspect --format '{{.State.Status}}' "${CONTAINER_NAME}")
+  if [[ "${CONTAINER_STATUS}" == "running" ]]; then
+    echo "Runner container '${CONTAINER_NAME}' is already running."
+    docker ps --filter "name=^${CONTAINER_NAME}$" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.RunningFor}}"
+    exit 0
+  else
+    echo "Removing stopped container '${CONTAINER_NAME}' (status: ${CONTAINER_STATUS})..."
+    docker rm "${CONTAINER_NAME}"
+  fi
 fi
 
 IMAGE="ghcr.io/${GITHUB_OWNER}/mlabs-runner:latest"
 
 if [[ -z "${RUNNER_LABELS}" ]]; then
-    RUNNER_LABELS="${DEFAULT_LABELS}"
+  RUNNER_LABELS="${DEFAULT_LABELS}"
 fi
 
 # Log in to GHCR using GITHUB_ORG_GHCR_PAT (must have read:packages scope).
 GHCR_HOST="ghcr.io"
 if ! grep -qs "${GHCR_HOST}" "${HOME}/.docker/config.json" 2>/dev/null; then
-    if [[ -z "${GITHUB_ORG_GHCR_PAT:-}" ]]; then
-        echo "ERROR: GITHUB_ORG_GHCR_PAT is not set — export it or pass --pat <token>" >&2
-        exit 1
-    fi
-    echo "${GITHUB_ORG_GHCR_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
+  if [[ -z "${GITHUB_ORG_GHCR_PAT:-}" ]]; then
+    echo "ERROR: GITHUB_ORG_GHCR_PAT is not set — export it or pass --pat <token>" >&2
+    exit 1
+  fi
+  echo "${GITHUB_ORG_GHCR_PAT}" | docker login "${GHCR_HOST}" -u "${GITHUB_OWNER}" --password-stdin
 fi
 
 echo "Architecture : ${ARCH} → ${ARCH_LABEL}"
@@ -117,23 +144,23 @@ echo "Image        : ${IMAGE}"
 echo "Runner name  : ${RUNNER_NAME}"
 echo "Labels       : ${RUNNER_LABELS}"
 if [[ -n "${GITHUB_REPO}" ]]; then
-    echo "Scope        : repo (${GITHUB_OWNER}/${GITHUB_REPO})"
+  echo "Scope        : repo (${GITHUB_OWNER}/${GITHUB_REPO})"
 else
-    echo "Scope        : org (${GITHUB_OWNER})"
+  echo "Scope        : org (${GITHUB_OWNER})"
 fi
 echo ""
 
 DOCKER_ENV=(
-    -e "RUNNER_TOKEN=${RUNNER_TOKEN}"
-    -e "RUNNER_NAME=${RUNNER_NAME}"
-    -e "RUNNER_LABELS=${RUNNER_LABELS}"
-    -e "GITHUB_OWNER=${GITHUB_OWNER}"
-    -e "RUNNER_GROUP=${RUNNER_GROUP}"
-    -e "EPHEMERAL=${EPHEMERAL}"
+  -e "RUNNER_TOKEN=${RUNNER_TOKEN}"
+  -e "RUNNER_NAME=${RUNNER_NAME}"
+  -e "RUNNER_LABELS=${RUNNER_LABELS}"
+  -e "GITHUB_OWNER=${GITHUB_OWNER}"
+  -e "RUNNER_GROUP=${RUNNER_GROUP}"
+  -e "EPHEMERAL=${EPHEMERAL}"
 )
 
 if [[ -n "${GITHUB_REPO}" ]]; then
-    DOCKER_ENV+=(-e "GITHUB_REPO=${GITHUB_REPO}")
+  DOCKER_ENV+=(-e "GITHUB_REPO=${GITHUB_REPO}")
 fi
 
 # No PATs or API keys go into the container env: any job on this runner can read it.
@@ -141,29 +168,28 @@ fi
 # host boundary: the docker.sock, ~/.kube and host SSH-key mounts below give any job
 # host-level access (incl. the registrar key). Only trusted jobs may run here.
 
-
 # Unregister any existing runner with the same name to avoid session conflicts
 if [[ -n "${APP_TOKEN:-}" ]]; then
-    if [[ -n "${GITHUB_REPO}" ]]; then
-        RUNNERS_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners"
-    else
-        RUNNERS_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners"
-    fi
-    EXISTING_ID=$(curl -fsSL \
-        -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${APP_TOKEN}" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "${RUNNERS_URL}" | jq -r ".runners[] | select(.name == \"${RUNNER_NAME}\") | .id")
-    if [[ -n "${EXISTING_ID}" ]]; then
-        echo "Unregistering existing runner '${RUNNER_NAME}' (ID ${EXISTING_ID})..."
-        # Ignore errors: 422 means runner is busy (mid-job), 404 means already gone.
-        # A fresh registration token always lets us re-register regardless.
-        curl -sL -X DELETE \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${APP_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "${RUNNERS_URL}/${EXISTING_ID}" > /dev/null || true
-    fi
+  if [[ -n "${GITHUB_REPO}" ]]; then
+    RUNNERS_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners"
+  else
+    RUNNERS_URL="https://api.github.com/orgs/${GITHUB_OWNER}/actions/runners"
+  fi
+  EXISTING_ID=$(curl -fsSL \
+    -H "Accept: application/vnd.github+json" \
+    -H "Authorization: Bearer ${APP_TOKEN}" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "${RUNNERS_URL}" | jq -r ".runners[] | select(.name == \"${RUNNER_NAME}\") | .id")
+  if [[ -n "${EXISTING_ID}" ]]; then
+    echo "Unregistering existing runner '${RUNNER_NAME}' (ID ${EXISTING_ID})..."
+    # Ignore errors: 422 means runner is busy (mid-job), 404 means already gone.
+    # A fresh registration token always lets us re-register regardless.
+    curl -sL -X DELETE \
+      -H "Accept: application/vnd.github+json" \
+      -H "Authorization: Bearer ${APP_TOKEN}" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "${RUNNERS_URL}/${EXISTING_ID}" >/dev/null || true
+  fi
 fi
 
 echo "Pulling latest image..."
@@ -178,20 +204,20 @@ WORK_DIR="${HOME}/runner/_work"
 mkdir -p "${WORK_DIR}"
 
 DOCKER_VOLS=(
-    -v /var/run/docker.sock:/var/run/docker.sock
-    -v "${WORK_DIR}:/home/runner/_work"
+  -v /var/run/docker.sock:/var/run/docker.sock
+  -v "${WORK_DIR}:/home/runner/_work"
 )
 
 # DGX and AGX: k3s kubeconfig and shared storage must persist across runner containers.
 # WSL2 has no k3s; its ~/.kube/config holds GKE contexts we don't want exposed.
 # /host-bin exposes the host's /usr/local/bin so workflows can install binaries there.
 if [[ "${DEFAULT_LABELS}" == *"dgx"* || "${DEFAULT_LABELS}" == *"agx"* ]]; then
-    # Ensure host kubeconfig dir exists (k3s writes here after install).
-    mkdir -p "${HOME}/.kube"
-    DOCKER_VOLS+=(
-        -v "${HOME}/.kube:/home/runner/.kube"
-        -v /usr/local/bin:/host-bin
-    )
+  # Ensure host kubeconfig dir exists (k3s writes here after install).
+  mkdir -p "${HOME}/.kube"
+  DOCKER_VOLS+=(
+    -v "${HOME}/.kube:/home/runner/.kube"
+    -v /usr/local/bin:/host-bin
+  )
 fi
 
 # Mount the host avahi socket so the container's libnss-mdns (nss-mdns ≥0.15)
@@ -199,16 +225,16 @@ fi
 # runners (DGX, AGX, WSL2-Ubuntu) identical .local name resolution — the host
 # avahi has full LAN visibility regardless of which machine the container is on.
 # Skipped silently if avahi is not running (falls back to in-container multicast).
-[[ -S /run/avahi-daemon/socket ]] && \
-    DOCKER_VOLS+=(-v /run/avahi-daemon/socket:/run/avahi-daemon/socket)
+[[ -S /run/avahi-daemon/socket ]] \
+  && DOCKER_VOLS+=(-v /run/avahi-daemon/socket:/run/avahi-daemon/socket)
 
 # Mount the HuggingFace KFP shared storage so serving workflows can access
 # gate results and adapters produced by ft-eval pipelines.
 # Skipped if the directory doesn't exist yet on this host.
 if [[ -d "${HOME}/shared/huggingface-kfp" ]]; then
-    DOCKER_VOLS+=(
-        -v "${HOME}/shared/huggingface-kfp:/home/runner/shared/huggingface-kfp"
-    )
+  DOCKER_VOLS+=(
+    -v "${HOME}/shared/huggingface-kfp:/home/runner/shared/huggingface-kfp"
+  )
 fi
 
 # Mount the shared SSH store as the runner's ~/.ssh so any workflow can SSH
@@ -218,18 +244,18 @@ fi
 # it as a child so it overlays the shared dir mount at that path.
 # Skipped if setup-shared-ssh has not been run yet on this host.
 if [[ -d "${HOME}/shared/ssh" && -f "${HOME}/.ssh/id_ed25519" ]]; then
-    DOCKER_VOLS+=(
-        -v "${HOME}/shared/ssh:/home/runner/.ssh"
-        -v "${HOME}/.ssh/id_ed25519:/home/runner/.ssh/id_ed25519:ro"
-        -v "${HOME}/.ssh/id_ed25519.pub:/home/runner/.ssh/id_ed25519.pub:ro"
-    )
+  DOCKER_VOLS+=(
+    -v "${HOME}/shared/ssh:/home/runner/.ssh"
+    -v "${HOME}/.ssh/id_ed25519:/home/runner/.ssh/id_ed25519:ro"
+    -v "${HOME}/.ssh/id_ed25519.pub:/home/runner/.ssh/id_ed25519.pub:ro"
+  )
 fi
 
 docker run --rm ${DETACH_FLAG} \
-    "${DOCKER_ENV[@]}" \
-    "${DOCKER_VOLS[@]}" \
-    --group-add "$(stat -c '%g' /var/run/docker.sock)" \
-    --gpus all \
-    --network host \
-    --name "${CONTAINER_NAME}" \
-    "${IMAGE}"
+  "${DOCKER_ENV[@]}" \
+  "${DOCKER_VOLS[@]}" \
+  --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+  --gpus all \
+  --network host \
+  --name "${CONTAINER_NAME}" \
+  "${IMAGE}"

@@ -14,7 +14,7 @@ die() {
 }
 
 # === Phase X: Undeploy NIM ===
-# USAGE: 
+# USAGE:
 # source ./undeploy_nim.sh && undeploy_nim meta llama-3.1-8b-instruct-dgx-spark
 
 undeploy_nim() {
@@ -46,7 +46,7 @@ undeploy_nim() {
     return 0
   fi
 
-  if [[ ! "$http" =~ ^[0-9]+$ ]] || (( http < 200 || http >= 300 )); then
+  if [[ ! "$http" =~ ^[0-9]+$ ]] || ((http < 200 || http >= 300)); then
     err "NIM undeploy request failed (HTTP ${http:-unknown}). Response:"
     printf '%s\n' "${body:-<empty>}" >&2
     die "Failed to submit NIM undeploy request for $nim_name."

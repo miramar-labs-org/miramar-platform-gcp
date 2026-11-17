@@ -7,10 +7,10 @@ DEST="$HOME/.config/systemd/user"
 SERVICES=(mlabs-runner openwebui-portfwd nsight-portfwd postgres-portfwd qdrant-portfwd nemo-portfwd kfp-api-portfwd kubeflow-portfwd mlflow-portfwd jupyterlab dashboard)
 
 for svc in "${SERVICES[@]}"; do
-    echo "Removing ${svc}..."
-    systemctl --user stop    "${svc}" 2>/dev/null || true
-    systemctl --user disable "${svc}" 2>/dev/null || true
-    rm -f "${DEST}/${svc}.service"
+  echo "Removing ${svc}..."
+  systemctl --user stop "${svc}" 2>/dev/null || true
+  systemctl --user disable "${svc}" 2>/dev/null || true
+  rm -f "${DEST}/${svc}.service"
 done
 
 systemctl --user daemon-reload

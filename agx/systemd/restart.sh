@@ -5,7 +5,7 @@ set -euo pipefail
 SERVICES=(dashboard jupyterlab)
 
 for svc in "${SERVICES[@]}"; do
-    echo "Restarting ${svc}..."
-    systemctl --user restart "${svc}"
-    printf '  %-22s %s\n' "${svc}" "$(systemctl --user is-active ${svc})"
+  echo "Restarting ${svc}..."
+  systemctl --user restart "${svc}"
+  printf '  %-22s %s\n' "${svc}" "$(systemctl --user is-active ${svc})"
 done

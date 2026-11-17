@@ -80,9 +80,12 @@ NSYS_VERSION_DEFAULT=2026.3.1
 # helpers
 # ---------------------------------------------------------------------------
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
-info()     { echo "$PROG: $*" >&2; }
-warn()     { echo "$PROG: WARNING: $*" >&2; }
-die()      { echo "$PROG: ERROR: $*" >&2; exit 1; }
+info() { echo "$PROG: $*" >&2; }
+warn() { echo "$PROG: WARNING: $*" >&2; }
+die() {
+  echo "$PROG: ERROR: $*" >&2
+  exit 1
+}
 
 # guard_durable_dest <dest> — refuse to mint a <project>/<run-id>/<stage>/ tree
 # inside the durable archive (~/shared/nsight) unless this is a real project run.
@@ -98,7 +101,7 @@ guard_durable_dest() {
   local dest="$1"
   case "$dest/" in
     "$HOME/shared/nsight/"*) : ;;
-    *) return 0 ;;                       # redirected off the durable archive — caller's call
+    *) return 0 ;; # redirected off the durable archive — caller's call
   esac
   [ -f "./runs/$RUN_ID.md" ] && return 0
   die "refusing to write the durable archive path
@@ -192,13 +195,16 @@ for a in sys.argv[1:]:
     if v:
         d[k] = v
 print(json.dumps(d))
-' "$@") || { warn "MLflow tag linkage: could not build tag set"; return 0; }
+' "$@") || {
+    warn "MLflow tag linkage: could not build tag set"
+    return 0
+  }
 
   NSE_MLFLOW_URL="$MLFLOW_URL" \
-  NSE_MLFLOW_RUN="$MLFLOW_RUN" \
-  NSE_EXPERIMENT="$PROJECT" \
-  NSE_TAGS_JSON="$tags_json" \
-  python3 - <<'PY' || warn "MLflow tag linkage failed (non-fatal)"
+    NSE_MLFLOW_RUN="$MLFLOW_RUN" \
+    NSE_EXPERIMENT="$PROJECT" \
+    NSE_TAGS_JSON="$tags_json" \
+    python3 - <<'PY' || warn "MLflow tag linkage failed (non-fatal)"
 import json, os, sys, urllib.request
 
 base = os.environ["NSE_MLFLOW_URL"].rstrip("/")
@@ -247,10 +253,16 @@ PY
 resolve_ncu() {
   local cand
   for cand in /opt/nvidia/nsight-compute/2026.2.1/ncu /usr/local/cuda/bin/ncu; do
-    [ -x "$cand" ] && { echo "$cand"; return 0; }
+    [ -x "$cand" ] && {
+      echo "$cand"
+      return 0
+    }
   done
   cand=$(command -v ncu 2>/dev/null || true)
-  [ -n "$cand" ] && { echo "$cand"; return 0; }
+  [ -n "$cand" ] && {
+    echo "$cand"
+    return 0
+  }
   return 1
 }
 
@@ -260,12 +272,19 @@ resolve_ncu() {
 # the bench's own guard prints the clear "pass a workload" message.
 pick_bench_python() {
   local p
-  if [ -n "${GPU_BENCH_PYTHON:-}" ]; then echo "$GPU_BENCH_PYTHON"; return 0; fi
-  if [ -n "${NCU_BENCH_PYTHON:-}" ]; then echo "$NCU_BENCH_PYTHON"; return 0; fi
+  if [ -n "${GPU_BENCH_PYTHON:-}" ]; then
+    echo "$GPU_BENCH_PYTHON"
+    return 0
+  fi
+  if [ -n "${NCU_BENCH_PYTHON:-}" ]; then
+    echo "$NCU_BENCH_PYTHON"
+    return 0
+  fi
   for p in python3 /usr/bin/python3; do
     have_cmd "$p" || continue
     if "$p" -c 'import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)' >/dev/null 2>&1; then
-      command -v "$p"; return 0
+      command -v "$p"
+      return 0
     fi
   done
   echo python3
@@ -294,7 +313,7 @@ run_ncu() {
   [ -s "$dest/profile.ncu-rep" ] || die "ncu produced no report at $dest/profile.ncu-rep"
 
   if ! "$ncu" -i "$dest/profile.ncu-rep" --csv --page raw \
-         >"$dest/summaries.csv" 2>"$dest/.verify.txt"; then
+    >"$dest/summaries.csv" 2>"$dest/.verify.txt"; then
     cat "$dest/.verify.txt" >&2
     rm -f "$dest/.verify.txt"
     die "ncu could not read back $dest/profile.ncu-rep"
@@ -309,16 +328,16 @@ run_ncu() {
 
 compute_export() {
   [ "$NO_COLLECT" = 0 ] || die "--no-collect is systems-only (compute never touches operator storage)"
-  [ -z "$REPORT_ID" ]   || die "--report-id is systems-only (compute never touches operator storage)"
+  [ -z "$REPORT_ID" ] || die "--report-id is systems-only (compute never touches operator storage)"
 
   # Mirrors `ncu --list-sets` on the DGX (Nsight Compute 2026.2.1). Validated here
   # rather than left to ncu so a typo fails before the workload runs, not after.
   case "$NCU_SET" in
-    basic|detailed|full|roofline|pmsampling|nvlink) : ;;
+    basic | detailed | full | roofline | pmsampling | nvlink) : ;;
     *) die "--ncu-set must be one of: basic detailed full roofline pmsampling nvlink (got: $NCU_SET)" ;;
   esac
   case "$NCU_LAUNCH_COUNT" in
-    ''|*[!0-9]*) die "--launch-count must be a positive integer (got: $NCU_LAUNCH_COUNT)" ;;
+    '' | *[!0-9]*) die "--launch-count must be a positive integer (got: $NCU_LAUNCH_COUNT)" ;;
   esac
 
   have_cmd python3 || die "missing required command: python3"
@@ -363,21 +382,21 @@ compute_export() {
   fi
 
   NSE_PROJECT="$PROJECT" \
-  NSE_RUN_ID="$RUN_ID" \
-  NSE_STAGE="$STAGE" \
-  NSE_HOSTNAME="$(hostname -s)" \
-  NSE_NAMESPACE="$NAMESPACE" \
-  NSE_POD="$POD" \
-  NSE_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  NSE_NCU_VERSION="$ncu_version" \
-  NSE_NCU_SET="$NCU_SET" \
-  NSE_LAUNCH_COUNT="$NCU_LAUNCH_COUNT" \
-  NSE_KERNEL_NAME="$KERNEL_NAME" \
-  NSE_COMMAND="$(printf '%s\n' "${TARGET_CMD[@]}")" \
-  NSE_SHA="$sha" \
-  NSE_KFP_RUN_ID="$KFP_RUN_ID" \
-  NSE_MLFLOW_RUN="$MLFLOW_RUN" \
-  python3 - "$STAGING/profile.json" <<'PY'
+    NSE_RUN_ID="$RUN_ID" \
+    NSE_STAGE="$STAGE" \
+    NSE_HOSTNAME="$(hostname -s)" \
+    NSE_NAMESPACE="$NAMESPACE" \
+    NSE_POD="$POD" \
+    NSE_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    NSE_NCU_VERSION="$ncu_version" \
+    NSE_NCU_SET="$NCU_SET" \
+    NSE_LAUNCH_COUNT="$NCU_LAUNCH_COUNT" \
+    NSE_KERNEL_NAME="$KERNEL_NAME" \
+    NSE_COMMAND="$(printf '%s\n' "${TARGET_CMD[@]}")" \
+    NSE_SHA="$sha" \
+    NSE_KFP_RUN_ID="$KFP_RUN_ID" \
+    NSE_MLFLOW_RUN="$MLFLOW_RUN" \
+    python3 - "$STAGING/profile.json" <<'PY'
 import json, os, sys
 
 def s(k):
@@ -441,45 +460,125 @@ PY
 # ---------------------------------------------------------------------------
 while [ $# -gt 0 ]; do
   case "$1" in
-    --project)         PROJECT="${2:-}"; shift 2 ;;
-    --run-id)          RUN_ID="${2:-}"; shift 2 ;;
-    --stage)           STAGE="${2:-}"; shift 2 ;;
-    --duration)        DURATION="${2:-}"; shift 2 ;;
-    --delay)           DELAY="${2:-}"; shift 2 ;;
-    --tool)            TOOL="${2:-}"; shift 2 ;;
-    --adhoc)           ADHOC=1; shift ;;
-    --dest-root)       DEST_ROOT="${2:-}"; shift 2 ;;
-    --ncu-set)         NCU_SET="${2:-}"; shift 2 ;;
-    --launch-count)    NCU_LAUNCH_COUNT="${2:-}"; shift 2 ;;
-    --kernel-name)     KERNEL_NAME="${2:-}"; shift 2 ;;
+    --project)
+      PROJECT="${2:-}"
+      shift 2
+      ;;
+    --run-id)
+      RUN_ID="${2:-}"
+      shift 2
+      ;;
+    --stage)
+      STAGE="${2:-}"
+      shift 2
+      ;;
+    --duration)
+      DURATION="${2:-}"
+      shift 2
+      ;;
+    --delay)
+      DELAY="${2:-}"
+      shift 2
+      ;;
+    --tool)
+      TOOL="${2:-}"
+      shift 2
+      ;;
+    --adhoc)
+      ADHOC=1
+      shift
+      ;;
+    --dest-root)
+      DEST_ROOT="${2:-}"
+      shift 2
+      ;;
+    --ncu-set)
+      NCU_SET="${2:-}"
+      shift 2
+      ;;
+    --launch-count)
+      NCU_LAUNCH_COUNT="${2:-}"
+      shift 2
+      ;;
+    --kernel-name)
+      KERNEL_NAME="${2:-}"
+      shift 2
+      ;;
     --kernel-regex)
       warn "--kernel-regex is deprecated; use --kernel-name <name|regex:re>"
       case "${2:-}" in
         regex:*) KERNEL_NAME="${2:-}" ;;
-        *)       KERNEL_NAME="regex:${2:-}" ;;
+        *) KERNEL_NAME="regex:${2:-}" ;;
       esac
-      shift 2 ;;
-    --kfp-run-id)      KFP_RUN_ID="${2:-}"; shift 2 ;;
-    --mlflow-run)      MLFLOW_RUN="${2:-}"; shift 2 ;;
-    --namespace)       NAMESPACE="${2:-}"; shift 2 ;;
-    --pod)             POD="${2:-}"; shift 2 ;;
-    --coordinator-url) COORD_URL="${2:-}"; shift 2 ;;
-    --report-id)       REPORT_ID="${2:-}"; shift 2 ;;
-    --no-collect)      NO_COLLECT=1; shift ;;
-    --sha256)          DO_SHA=1; shift ;;
-    --no-sha256)       DO_SHA=0; shift ;;
-    --)                shift; TARGET_CMD=("$@"); break ;;
-    -h|--help)         usage; exit 0 ;;
-    *)                 usage; die "unknown argument: $1" ;;
+      shift 2
+      ;;
+    --kfp-run-id)
+      KFP_RUN_ID="${2:-}"
+      shift 2
+      ;;
+    --mlflow-run)
+      MLFLOW_RUN="${2:-}"
+      shift 2
+      ;;
+    --namespace)
+      NAMESPACE="${2:-}"
+      shift 2
+      ;;
+    --pod)
+      POD="${2:-}"
+      shift 2
+      ;;
+    --coordinator-url)
+      COORD_URL="${2:-}"
+      shift 2
+      ;;
+    --report-id)
+      REPORT_ID="${2:-}"
+      shift 2
+      ;;
+    --no-collect)
+      NO_COLLECT=1
+      shift
+      ;;
+    --sha256)
+      DO_SHA=1
+      shift
+      ;;
+    --no-sha256)
+      DO_SHA=0
+      shift
+      ;;
+    --)
+      shift
+      TARGET_CMD=("$@")
+      break
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      die "unknown argument: $1"
+      ;;
   esac
 done
 
 # ---------------------------------------------------------------------------
 # validate
 # ---------------------------------------------------------------------------
-[ -n "$PROJECT" ] || { usage; die "--project is required"; }
-[ -n "$RUN_ID" ]  || { usage; die "--run-id is required"; }
-[ -n "$STAGE" ]   || { usage; die "--stage is required"; }
+[ -n "$PROJECT" ] || {
+  usage
+  die "--project is required"
+}
+[ -n "$RUN_ID" ] || {
+  usage
+  die "--run-id is required"
+}
+[ -n "$STAGE" ] || {
+  usage
+  die "--stage is required"
+}
 [ -n "$DEST_ROOT" ] || die "--dest-root / \$NSIGHT_DEST_ROOT cannot be empty"
 
 case "$TOOL" in
@@ -495,7 +594,7 @@ esac
 
 # compute is a self-contained host path — dispatch before any operator dependency
 if [ "$TOOL" = compute ]; then
-  compute_export   # exits
+  compute_export # exits
 fi
 
 # ---------------------------------------------------------------------------
@@ -542,10 +641,10 @@ MINIO_USER="" MINIO_PASS="" MINIO_PORT="" MINIO_PF_PID=""
 
 minio_up() {
   MINIO_USER=$(kubectl -n "$MINIO_NS" get secret "$MINIO_SECRET" \
-                 -o jsonpath='{.data.rootUser}' 2>/dev/null | base64 -d) \
+    -o jsonpath='{.data.rootUser}' 2>/dev/null | base64 -d) \
     || die "cannot read MinIO credentials secret ($MINIO_NS/$MINIO_SECRET)"
   MINIO_PASS=$(kubectl -n "$MINIO_NS" get secret "$MINIO_SECRET" \
-                 -o jsonpath='{.data.rootPassword}' 2>/dev/null | base64 -d) \
+    -o jsonpath='{.data.rootPassword}' 2>/dev/null | base64 -d) \
     || die "cannot read MinIO credentials secret ($MINIO_NS/$MINIO_SECRET)"
   [ -n "$MINIO_USER" ] && [ -n "$MINIO_PASS" ] || die "MinIO credentials are empty"
 
@@ -609,12 +708,12 @@ if [ "$NO_COLLECT" = 0 ]; then
   # --- create session ---
   title="$PROJECT/$RUN_ID/$STAGE"
   resp=$(curl -fsS -X POST "$COORD_URL/api/v1/sessions/" \
-           -H 'content-type: application/json' \
-           -d "{\"tag\":\"default\",\"title\":\"$title\"}") || {
+    -H 'content-type: application/json' \
+    -d "{\"tag\":\"default\",\"title\":\"$title\"}") || {
     # surface a 409 clearly
     detail=$(curl -sS -X POST "$COORD_URL/api/v1/sessions/" \
-               -H 'content-type: application/json' \
-               -d "{\"tag\":\"default\",\"title\":\"$title\"}" 2>/dev/null)
+      -H 'content-type: application/json' \
+      -d "{\"tag\":\"default\",\"title\":\"$title\"}" 2>/dev/null)
     die "POST /sessions failed: ${detail:-<no body>}
      the 'default' service tag is held by an ACTIVE session.
      list:    curl -fsS $COORD_URL/api/v1/sessions/ | jq '.sessions[] | select(.status!=\"ENDED\")'
@@ -633,10 +732,10 @@ if [ "$NO_COLLECT" = 0 ]; then
 
   # --- wait for the collection to finish ---
   sleep "$((DELAY + DURATION))"
-  deadline=$(( $(date +%s) + 180 ))
+  deadline=$(($(date +%s) + 180))
   while :; do
     s=$(curl -fsS "$COORD_URL/api/v1/sessions/$SID" 2>/dev/null) || s=""
-    active=$(echo "$s"  | jq -r '.activeCollectionID // "null"' 2>/dev/null || echo null)
+    active=$(echo "$s" | jq -r '.activeCollectionID // "null"' 2>/dev/null || echo null)
     stopped=$(echo "$s" | jq -r '.collections[-1].stopped_at // "null"' 2>/dev/null || echo null)
     [ "$active" = "null" ] && [ "$stopped" != "null" ] && break
     [ "$(date +%s)" -gt "$deadline" ] && die "collection did not finish before deadline (session $SID, status: $(echo "$s" | jq -r .status 2>/dev/null))"
@@ -648,10 +747,10 @@ if [ "$NO_COLLECT" = 0 ]; then
   # The coordinator marks the collection stopped (and the session IDLE) a beat
   # before the finalized .nsys-rep is registered and listed under /files, so poll
   # the file list rather than reading it once.
-  fdeadline=$(( $(date +%s) + 120 ))
+  fdeadline=$(($(date +%s) + 120))
   while :; do
     files=$(curl -fsS "$COORD_URL/api/v1/sessions/$SID/files" 2>/dev/null) || files=""
-    REPORT_ID=$(echo "$files"   | jq -r '.files[0].uuid // empty' 2>/dev/null || echo "")
+    REPORT_ID=$(echo "$files" | jq -r '.files[0].uuid // empty' 2>/dev/null || echo "")
     REPORT_NAME=$(echo "$files" | jq -r '.files[0].filename // empty' 2>/dev/null || echo "")
     [ -n "$REPORT_ID" ] && break
     [ "$(date +%s)" -gt "$fdeadline" ] && die "no report file listed for session $SID after 120s — collection produced nothing (stage too short / not on GPU?)"
@@ -688,7 +787,7 @@ minio_get "$REPORT_ID/$REPORT_NAME" "$REPORT_PATH" \
 # nsys's "sqlite older than input" staleness check on repeat runs.
 STATS_INPUT="$REPORT_PATH"
 if ! nsys export --type sqlite --force-overwrite=true \
-       --output "$STAGING/profile.sqlite" "$REPORT_PATH" >"$STAGING/.verify.txt" 2>&1; then
+  --output "$STAGING/profile.sqlite" "$REPORT_PATH" >"$STAGING/.verify.txt" 2>&1; then
   cat "$STAGING/.verify.txt" >&2
   rm -f "$STAGING/.verify.txt"
   die "nsys export could not parse $REPORT_PATH"
@@ -723,16 +822,16 @@ rm -f "$STAGING/.verify.txt"
 SHA=""
 if [ "$DO_SHA" = 1 ]; then
   SHA=$(sha256sum "$REPORT_PATH" | awk '{print $1}')
-  echo "$SHA  profile.$EXT" > "$REPORT_PATH.sha256"
+  echo "$SHA  profile.$EXT" >"$REPORT_PATH.sha256"
 fi
 
 # ---------------------------------------------------------------------------
 # summaries — exactly the shape /nsight-interpret expects, so it skips regen
 # ---------------------------------------------------------------------------
 { for _r in cuda_gpu_kern_sum cuda_api_sum cuda_gpu_mem_time_sum cuda_gpu_mem_size_sum nvtx_sum; do
-    echo "=== ${_r} ==="
-    nsys stats --report "${_r}" "$STATS_INPUT" 2>/dev/null || echo "(skipped)"
-  done; } | tee "$STAGING/summaries.csv" > "$STAGING/nsys_stats.txt"
+  echo "=== ${_r} ==="
+  nsys stats --report "${_r}" "$STATS_INPUT" 2>/dev/null || echo "(skipped)"
+done; } | tee "$STAGING/summaries.csv" >"$STAGING/nsys_stats.txt"
 
 # ---------------------------------------------------------------------------
 # profile.json sidecar
@@ -744,25 +843,25 @@ if have_cmd nsys; then
 fi
 
 NSE_PROJECT="$PROJECT" \
-NSE_RUN_ID="$RUN_ID" \
-NSE_STAGE="$STAGE" \
-NSE_HOSTNAME="$(hostname -s)" \
-NSE_NAMESPACE="$NAMESPACE" \
-NSE_POD="$POD" \
-NSE_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-NSE_TOOL="nsight-systems" \
-NSE_NSYS_VERSION="$NSYS_VERSION" \
-NSE_SID="$SID" \
-NSE_REPORT_ID="$REPORT_ID" \
-NSE_SOURCE="minio://$MINIO_BUCKET/$REPORT_ID/$REPORT_NAME" \
-NSE_REPORT="profile.$EXT" \
-NSE_SHA="$SHA" \
-NSE_KFP_RUN_ID="$KFP_RUN_ID" \
-NSE_MLFLOW_RUN="$MLFLOW_RUN" \
-NSE_MLFLOW_EXPERIMENT="$PROJECT" \
-NSE_DURATION="$DURATION" \
-NSE_DELAY="$DELAY" \
-python3 - "$STAGING/profile.json" <<'PY'
+  NSE_RUN_ID="$RUN_ID" \
+  NSE_STAGE="$STAGE" \
+  NSE_HOSTNAME="$(hostname -s)" \
+  NSE_NAMESPACE="$NAMESPACE" \
+  NSE_POD="$POD" \
+  NSE_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  NSE_TOOL="nsight-systems" \
+  NSE_NSYS_VERSION="$NSYS_VERSION" \
+  NSE_SID="$SID" \
+  NSE_REPORT_ID="$REPORT_ID" \
+  NSE_SOURCE="minio://$MINIO_BUCKET/$REPORT_ID/$REPORT_NAME" \
+  NSE_REPORT="profile.$EXT" \
+  NSE_SHA="$SHA" \
+  NSE_KFP_RUN_ID="$KFP_RUN_ID" \
+  NSE_MLFLOW_RUN="$MLFLOW_RUN" \
+  NSE_MLFLOW_EXPERIMENT="$PROJECT" \
+  NSE_DURATION="$DURATION" \
+  NSE_DELAY="$DELAY" \
+  python3 - "$STAGING/profile.json" <<'PY'
 import json, os, sys
 
 def s(k):

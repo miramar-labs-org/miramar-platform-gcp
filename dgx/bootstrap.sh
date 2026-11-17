@@ -4,7 +4,10 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 log() { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
-die() { printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2; exit 1; }
+die() {
+  printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2
+  exit 1
+}
 
 log "Baseline apt update"
 sudo apt-get update
@@ -60,7 +63,7 @@ log "Installing local dev tools"
 sudo apt-get update
 sudo apt-get install -y \
   shellcheck \
-  yamllint 
+  yamllint
 
 curl -sSLo /tmp/hadolint \
   https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
@@ -77,11 +80,11 @@ sudo mv /tmp/shfmt /usr/local/bin/shfmt
 log "Install K8s utils"
 sudo snap install k9s
 sudo apt install -y kubectx
-echo "alias k=kubectl" >> ~/.zshrc
-echo "alias kctx=kubectx" >> ~/.zshrc
-echo "alias kns=kubens" >> ~/.zshrc
-echo 'source <(kubectl completion zsh)' >> ~/.zshrc
-echo 'compdef k=kubectl' >> ~/.zshrc
+echo "alias k=kubectl" >>~/.zshrc
+echo "alias kctx=kubectx" >>~/.zshrc
+echo "alias kns=kubens" >>~/.zshrc
+echo 'source <(kubectl completion zsh)' >>~/.zshrc
+echo 'compdef k=kubectl' >>~/.zshrc
 
 log "Install tmux plugins"
 if [[ ! -d "$HOME/.tmux/plugins/tpm" ]]; then
@@ -105,9 +108,9 @@ if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
 fi
 # Idempotent: only append if not already present
 grep -q 'export ZSH=' "$HOME/.zshrc" 2>/dev/null \
-  || echo 'export ZSH="$HOME/.oh-my-zsh"' >> "$HOME/.zshrc"
+  || echo 'export ZSH="$HOME/.oh-my-zsh"' >>"$HOME/.zshrc"
 grep -q '^plugins=' "$HOME/.zshrc" 2>/dev/null \
-  || echo 'plugins=(git)' >> "$HOME/.zshrc"
+  || echo 'plugins=(git)' >>"$HOME/.zshrc"
 
 log "Install Powerlevel10k (Oh My Zsh theme)"
 P10K_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
@@ -119,10 +122,10 @@ log "Enable Powerlevel10k theme in ~/.zshrc (idempotent)"
 if grep -q '^ZSH_THEME=' "$HOME/.zshrc" 2>/dev/null; then
   sed -i 's|^ZSH_THEME=.*|ZSH_THEME="powerlevel10k/powerlevel10k"|' "$HOME/.zshrc"
 else
-  echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >> "$HOME/.zshrc"
+  echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >>"$HOME/.zshrc"
 fi
 grep -q 'source \$ZSH/oh-my-zsh.sh' "$HOME/.zshrc" 2>/dev/null \
-  || echo 'source $ZSH/oh-my-zsh.sh' >> "$HOME/.zshrc"
+  || echo 'source $ZSH/oh-my-zsh.sh' >>"$HOME/.zshrc"
 
 log "Install pyenv build dependencies"
 sudo apt-get install -y --no-install-recommends \
@@ -158,7 +161,7 @@ EOF
 
 mkdir -p "$HOME/.pyenv"
 
-grep -q "profile.d/pyenv.sh" ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'
+grep -q "profile.d/pyenv.sh" ~/.zshrc 2>/dev/null || cat >>~/.zshrc <<'EOF'
 
 # system-wide pyenv
 if [ -f /etc/profile.d/pyenv.sh ]; then
@@ -170,8 +173,8 @@ log "Install Miniforge3 to /opt/miniforge3"
 if [[ ! -d /opt/miniforge3 ]]; then
   ARCHM="$(uname -m)"
   case "$ARCHM" in
-    x86_64)        MF_ARCH="x86_64" ;;
-    aarch64|arm64) MF_ARCH="aarch64" ;;
+    x86_64) MF_ARCH="x86_64" ;;
+    aarch64 | arm64) MF_ARCH="aarch64" ;;
     *) die "Unsupported arch for Miniforge: $ARCHM" ;;
   esac
 
@@ -190,7 +193,7 @@ sudo tee /etc/profile.d/miniforge.sh >/dev/null <<'EOF'
 export PATH="/opt/miniforge3/bin:$PATH"
 EOF
 
-grep -q "profile.d/miniforge.sh" ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'
+grep -q "profile.d/miniforge.sh" ~/.zshrc 2>/dev/null || cat >>~/.zshrc <<'EOF'
 
 # system-wide miniforge
 if [ -f /etc/profile.d/miniforge.sh ]; then
@@ -230,8 +233,8 @@ sudo rm -f \
   /etc/apt/sources.list.d/docker-ce.list \
   /etc/apt/sources.list.d/docker.sources
 sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -name '*.list' -o -name '*.sources' \) \
-  -exec grep -l 'download.docker.com/linux/ubuntu' {} + 2>/dev/null | \
-  xargs -r sudo rm -f
+  -exec grep -l 'download.docker.com/linux/ubuntu' {} + 2>/dev/null \
+  | xargs -r sudo rm -f
 sudo sed -i '/download\.docker\.com\/linux\/ubuntu/d' /etc/apt/sources.list 2>/dev/null || true
 
 sudo rm -f /etc/apt/keyrings/docker.asc /etc/apt/keyrings/docker.gpg

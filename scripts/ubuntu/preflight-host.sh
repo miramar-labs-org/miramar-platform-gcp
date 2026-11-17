@@ -11,63 +11,88 @@
 
 RUNNER_LABEL=""
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --label) RUNNER_LABEL="$2"; shift 2 ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
-    esac
+  case "$1" in
+    --label)
+      RUNNER_LABEL="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
 done
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'
-BOLD='\033[1m'; NC='\033[0m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
 
-PASS=0; FAIL=0; WARN=0
+PASS=0
+FAIL=0
+WARN=0
 
-_pass() { printf "  ${GREEN}✓${NC} %s\n" "$1";                                             PASS=$((PASS + 1)); }
-_fail() { printf "  ${RED}✗${NC} %s  ${RED}← %s${NC}\n" "$1" "${2:-fix required}";        FAIL=$((FAIL + 1)); }
-_warn() { printf "  ${YELLOW}⚠${NC} %s  ${YELLOW}← %s${NC}\n" "$1" "${2:-advisory}";      WARN=$((WARN + 1)); }
+_pass() {
+  printf "  ${GREEN}✓${NC} %s\n" "$1"
+  PASS=$((PASS + 1))
+}
+_fail() {
+  printf "  ${RED}✗${NC} %s  ${RED}← %s${NC}\n" "$1" "${2:-fix required}"
+  FAIL=$((FAIL + 1))
+}
+_warn() {
+  printf "  ${YELLOW}⚠${NC} %s  ${YELLOW}← %s${NC}\n" "$1" "${2:-advisory}"
+  WARN=$((WARN + 1))
+}
 _info() { printf "  ${CYAN}→${NC} %s\n" "$1"; }
 section() { printf "\n${BOLD}%s${NC}\n" "$1"; }
 
 # ── Fix registry ──────────────────────────────────────────────────────────────
 # Parallel arrays, deduplicated by ID so multiple checks can share one fix.
-FIX_IDS=(); FIX_DESCS=(); FIX_CMDS=()
+FIX_IDS=()
+FIX_DESCS=()
+FIX_CMDS=()
 
 _add_fix() {
-    local id="$1" desc="$2" cmd="$3"
-    local existing
-    for existing in "${FIX_IDS[@]:-}"; do [[ "$existing" == "$id" ]] && return; done
-    FIX_IDS+=("$id"); FIX_DESCS+=("$desc"); FIX_CMDS+=("$cmd")
+  local id="$1" desc="$2" cmd="$3"
+  local existing
+  for existing in "${FIX_IDS[@]:-}"; do [[ "$existing" == "$id" ]] && return; done
+  FIX_IDS+=("$id")
+  FIX_DESCS+=("$desc")
+  FIX_CMDS+=("$cmd")
 }
 
 # ── Fix functions for multi-step operations ───────────────────────────────────
 
 fix_inotify() {
-    printf "  Writing /etc/sysctl.d/99-k3s.conf\n"
-    printf 'fs.inotify.max_user_instances=1024\nfs.inotify.max_user_watches=1048576\n' \
-        | sudo tee /etc/sysctl.d/99-k3s.conf > /dev/null
-    # Patch any files that sort after 99-k3s.conf and would override it
-    for f in /etc/sysctl.conf /etc/sysctl.d/99-sysctl.conf; do
-        [[ -f "$f" ]] && sudo sed -i \
-            's/^fs\.inotify\.max_user_watches=.*/fs.inotify.max_user_watches=1048576/' "$f"
-    done
-    printf "  Applying sysctl settings\n"
-    sudo sysctl fs.inotify.max_user_instances=1024 fs.inotify.max_user_watches=1048576 > /dev/null
+  printf "  Writing /etc/sysctl.d/99-k3s.conf\n"
+  printf 'fs.inotify.max_user_instances=1024\nfs.inotify.max_user_watches=1048576\n' \
+    | sudo tee /etc/sysctl.d/99-k3s.conf >/dev/null
+  # Patch any files that sort after 99-k3s.conf and would override it
+  for f in /etc/sysctl.conf /etc/sysctl.d/99-sysctl.conf; do
+    [[ -f "$f" ]] && sudo sed -i \
+      's/^fs\.inotify\.max_user_watches=.*/fs.inotify.max_user_watches=1048576/' "$f"
+  done
+  printf "  Applying sysctl settings\n"
+  sudo sysctl fs.inotify.max_user_instances=1024 fs.inotify.max_user_watches=1048576 >/dev/null
 }
 
 fix_gpu_runtime() {
-    sudo nvidia-ctk runtime configure --runtime=docker
-    sudo systemctl restart docker
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
 }
 
 fix_nvidia_profiling() {
-    printf "  Writing /etc/modprobe.d/nvidia.conf\n"
-    printf '%s\n' \
-        '# Allow non-root CUPTI/Nsight profiling (required for KFP pod UID 65532)' \
-        'options nvidia NVreg_RestrictProfilingToAdminUsers=0' \
-        | sudo tee /etc/modprobe.d/nvidia.conf > /dev/null
-    printf "  ${YELLOW}REBOOT REQUIRED${NC} — the parameter is read when nvidia.ko loads and\n"
-    printf "  cannot be hot-applied while the GPU is in use. Verify after reboot:\n"
-    printf "    grep RmProfilingAdminOnly /proc/driver/nvidia/params   # expect 0\n"
+  printf "  Writing /etc/modprobe.d/nvidia.conf\n"
+  printf '%s\n' \
+    '# Allow non-root CUPTI/Nsight profiling (required for KFP pod UID 65532)' \
+    'options nvidia NVreg_RestrictProfilingToAdminUsers=0' \
+    | sudo tee /etc/modprobe.d/nvidia.conf >/dev/null
+  printf "  ${YELLOW}REBOOT REQUIRED${NC} — the parameter is read when nvidia.ko loads and\n"
+  printf "  cannot be hot-applied while the GPU is in use. Verify after reboot:\n"
+  printf "    grep RmProfilingAdminOnly /proc/driver/nvidia/params   # expect 0\n"
 }
 
 # ── 1. OS & Hardware ──────────────────────────────────────────────────────────
@@ -76,22 +101,22 @@ section "1. OS & Hardware"
 ARCH=$(uname -m)
 _info "Architecture: $ARCH"
 
-MODEL=$([[ -f /proc/device-tree/model ]] && tr -d '\0' < /proc/device-tree/model 2>/dev/null || true)
+MODEL=$([[ -f /proc/device-tree/model ]] && tr -d '\0' </proc/device-tree/model 2>/dev/null || true)
 [[ -n "$MODEL" ]] && _info "Device: $MODEL"
 [[ -f /etc/nv_tegra_release ]] && _info "JetPack: $(head -1 /etc/nv_tegra_release)"
 
 OS=$(lsb_release -d 2>/dev/null | cut -f2-)
 if echo "$OS" | grep -q "Ubuntu"; then
-    _pass "OS: $OS"
+  _pass "OS: $OS"
 else
-    _warn "OS is '$OS' (expected Ubuntu)" "workflows are tested on Ubuntu 22.04+"
+  _warn "OS is '$OS' (expected Ubuntu)" "workflows are tested on Ubuntu 22.04+"
 fi
 
 MEM_GB=$(awk '/MemTotal/ { printf "%.0f", $2/1024/1024 }' /proc/meminfo)
 if [[ $MEM_GB -ge 60 ]]; then
-    _pass "RAM: ${MEM_GB} GB"
+  _pass "RAM: ${MEM_GB} GB"
 else
-    _warn "RAM: ${MEM_GB} GB" "large model workloads need 64+ GB"
+  _warn "RAM: ${MEM_GB} GB" "large model workloads need 64+ GB"
 fi
 
 # ── 2. Disk Space ─────────────────────────────────────────────────────────────
@@ -99,20 +124,20 @@ section "2. Disk Space"
 
 FREE_GB=$(df -BG "$HOME" | awk 'NR==2 { gsub(/G/,"",$4); print $4 }')
 if [[ $FREE_GB -ge 500 ]]; then
-    _pass "Free disk in ~: ${FREE_GB} GB (≥500 GB)"
+  _pass "Free disk in ~: ${FREE_GB} GB (≥500 GB)"
 elif [[ $FREE_GB -ge 100 ]]; then
-    _warn "Free disk in ~: ${FREE_GB} GB — installable, but full model workloads need ~500 GB" \
-        "consider freeing space before running pipelines"
+  _warn "Free disk in ~: ${FREE_GB} GB — installable, but full model workloads need ~500 GB" \
+    "consider freeing space before running pipelines"
 else
-    _fail "Free disk in ~: ${FREE_GB} GB" \
-        "need ≥100 GB to install — NeMo + model cache alone exceeds 500 GB"
+  _fail "Free disk in ~: ${FREE_GB} GB" \
+    "need ≥100 GB to install — NeMo + model cache alone exceeds 500 GB"
 fi
 
 INODE_PCT=$(df -i "$HOME" | awk 'NR==2 { gsub(/%/,"",$5); print $5 }')
 if [[ $INODE_PCT -lt 80 ]]; then
-    _pass "Inode usage: ${INODE_PCT}%"
+  _pass "Inode usage: ${INODE_PCT}%"
 else
-    _fail "Inode usage: ${INODE_PCT}% (k3s is inode-heavy)" "clean up small files in $HOME"
+  _fail "Inode usage: ${INODE_PCT}% (k3s is inode-heavy)" "clean up small files in $HOME"
 fi
 
 # ── 3. Network ────────────────────────────────────────────────────────────────
@@ -125,23 +150,23 @@ IP=$(hostname -I | awk '{print $1}')
 [[ -n "$IP" ]] && _pass "IP address: $IP" || _fail "No IP address assigned" "check network configuration"
 
 if systemctl is-active --quiet ssh 2>/dev/null || systemctl is-active --quiet sshd 2>/dev/null; then
-    _pass "SSH daemon: active"
+  _pass "SSH daemon: active"
 else
-    _fail "SSH daemon not running" "sudo systemctl enable --now ssh"
-    _add_fix "ssh-daemon" "Enable and start SSH daemon" "sudo systemctl enable --now ssh"
+  _fail "SSH daemon not running" "sudo systemctl enable --now ssh"
+  _add_fix "ssh-daemon" "Enable and start SSH daemon" "sudo systemctl enable --now ssh"
 fi
 
 if systemctl is-active --quiet avahi-daemon 2>/dev/null; then
-    _pass "Avahi (mDNS): active"
+  _pass "Avahi (mDNS): active"
 else
-    _warn "Avahi (mDNS) not running" "sudo systemctl enable --now avahi-daemon"
-    _add_fix "avahi" "Enable and start Avahi (mDNS)" "sudo systemctl enable --now avahi-daemon"
+  _warn "Avahi (mDNS) not running" "sudo systemctl enable --now avahi-daemon"
+  _add_fix "avahi" "Enable and start Avahi (mDNS)" "sudo systemctl enable --now avahi-daemon"
 fi
 
 if curl -fsSL --max-time 5 https://example.com -o /dev/null 2>/dev/null; then
-    _pass "Internet connectivity: OK"
+  _pass "Internet connectivity: OK"
 else
-    _fail "No internet access" "workflows need internet to pull helm charts, k3s, and container images"
+  _fail "No internet access" "workflows need internet to pull helm charts, k3s, and container images"
 fi
 
 # ── 4. System Software ────────────────────────────────────────────────────────
@@ -149,54 +174,54 @@ section "4. System Software"
 
 MISSING_PKGS=()
 for cmd in curl git jq python3; do
-    if command -v "$cmd" &>/dev/null; then
-        _pass "$cmd: $(command -v "$cmd")"
-    else
-        _fail "$cmd not installed" "sudo apt-get install -y $cmd"
-        MISSING_PKGS+=("$cmd")
-    fi
+  if command -v "$cmd" &>/dev/null; then
+    _pass "$cmd: $(command -v "$cmd")"
+  else
+    _fail "$cmd not installed" "sudo apt-get install -y $cmd"
+    MISSING_PKGS+=("$cmd")
+  fi
 done
 if [[ ${#MISSING_PKGS[@]} -gt 0 ]]; then
-    _add_fix "apt-pkgs" "Install missing packages: ${MISSING_PKGS[*]}" \
-        "sudo apt-get update -qq && sudo apt-get install -y ${MISSING_PKGS[*]}"
+  _add_fix "apt-pkgs" "Install missing packages: ${MISSING_PKGS[*]}" \
+    "sudo apt-get update -qq && sudo apt-get install -y ${MISSING_PKGS[*]}"
 fi
 
 command -v docker &>/dev/null \
-    && _pass "docker: $(command -v docker)" \
-    || _fail "docker not installed" "https://docs.docker.com/engine/install/ubuntu/"
+  && _pass "docker: $(command -v docker)" \
+  || _fail "docker not installed" "https://docs.docker.com/engine/install/ubuntu/"
 
 if docker ps &>/dev/null 2>&1; then
-    _pass "Docker daemon: accessible without sudo"
+  _pass "Docker daemon: accessible without sudo"
 else
-    _fail "Docker daemon not accessible" \
-        "sudo systemctl start docker  OR  sudo usermod -aG docker \$USER (then re-login)"
-    _add_fix "docker-daemon" "Start Docker daemon" "sudo systemctl start docker"
+  _fail "Docker daemon not accessible" \
+    "sudo systemctl start docker  OR  sudo usermod -aG docker \$USER (then re-login)"
+  _add_fix "docker-daemon" "Start Docker daemon" "sudo systemctl start docker"
 fi
 
 # ── 5. NVIDIA / GPU ───────────────────────────────────────────────────────────
 section "5. NVIDIA / GPU"
 
 if command -v nvidia-smi &>/dev/null; then
-    GPU=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
-    _pass "nvidia-smi: GPU = ${GPU:-present}"
+  GPU=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+  _pass "nvidia-smi: GPU = ${GPU:-present}"
 else
-    _fail "nvidia-smi not found" "check NVIDIA driver / JetPack installation"
+  _fail "nvidia-smi not found" "check NVIDIA driver / JetPack installation"
 fi
 
 if command -v nvidia-ctk &>/dev/null; then
-    _pass "nvidia-ctk: $(nvidia-ctk --version 2>&1 | head -1)"
+  _pass "nvidia-ctk: $(nvidia-ctk --version 2>&1 | head -1)"
 else
-    _fail "NVIDIA Container Toolkit not installed" \
-        "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+  _fail "NVIDIA Container Toolkit not installed" \
+    "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
 fi
 
 if docker run --rm --gpus all ubuntu:22.04 nvidia-smi &>/dev/null 2>&1; then
-    _pass "GPU accessible from containers (--gpus all)"
+  _pass "GPU accessible from containers (--gpus all)"
 else
-    _fail "GPU not accessible from Docker containers" \
-        "nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"
-    command -v nvidia-ctk &>/dev/null && \
-        _add_fix "gpu-runtime" "Configure NVIDIA container runtime for Docker" "fix_gpu_runtime"
+  _fail "GPU not accessible from Docker containers" \
+    "nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"
+  command -v nvidia-ctk &>/dev/null \
+    && _add_fix "gpu-runtime" "Configure NVIDIA container runtime for Docker" "fix_gpu_runtime"
 fi
 
 # Non-root GPU profiling. The knob belongs to the NVIDIA RM (nvidia.ko / OpenRM) and only
@@ -206,21 +231,21 @@ fi
 # JetPack 7.x replaces nvgpu with OpenRM, at which point this check applies to Orin too and
 # starts running on its own. See docs/nsight.md § Privileged mode is decided by the host driver.
 if [[ -e /dev/nvgpu ]] || lsmod 2>/dev/null | grep -q '^nvgpu'; then
-    _info "Non-root GPU profiling: n/a — iGPU served by nvgpu (no RM knob; profiling is root-only)"
-    _info "  JetPack 7.x swaps nvgpu for OpenRM; this check applies automatically after that"
+  _info "Non-root GPU profiling: n/a — iGPU served by nvgpu (no RM knob; profiling is root-only)"
+  _info "  JetPack 7.x swaps nvgpu for OpenRM; this check applies automatically after that"
 elif [[ -r /proc/driver/nvidia/params ]]; then
-    PROF_ADMIN_ONLY=$(awk -F': *' '/RmProfilingAdminOnly/ { print $2 }' /proc/driver/nvidia/params)
-    if [[ "$PROF_ADMIN_ONLY" == "0" ]]; then
-        _pass "Non-root GPU profiling enabled (RmProfilingAdminOnly: 0)"
-    else
-        _fail "Non-root GPU profiling disabled (RmProfilingAdminOnly: ${PROF_ADMIN_ONLY:-unknown})" \
-            "Nsight/CUPTI in KFP pods (UID 65532) will capture zero kernels — silently"
-        _add_fix "nvidia-profiling" \
-            "Allow non-root CUPTI/Nsight profiling (writes /etc/modprobe.d/nvidia.conf; REBOOT required)" \
-            "fix_nvidia_profiling"
-    fi
+  PROF_ADMIN_ONLY=$(awk -F': *' '/RmProfilingAdminOnly/ { print $2 }' /proc/driver/nvidia/params)
+  if [[ "$PROF_ADMIN_ONLY" == "0" ]]; then
+    _pass "Non-root GPU profiling enabled (RmProfilingAdminOnly: 0)"
+  else
+    _fail "Non-root GPU profiling disabled (RmProfilingAdminOnly: ${PROF_ADMIN_ONLY:-unknown})" \
+      "Nsight/CUPTI in KFP pods (UID 65532) will capture zero kernels — silently"
+    _add_fix "nvidia-profiling" \
+      "Allow non-root CUPTI/Nsight profiling (writes /etc/modprobe.d/nvidia.conf; REBOOT required)" \
+      "fix_nvidia_profiling"
+  fi
 else
-    _warn "Cannot read /proc/driver/nvidia/params" "unable to verify non-root GPU profiling"
+  _warn "Cannot read /proc/driver/nvidia/params" "unable to verify non-root GPU profiling"
 fi
 
 # ── 6. Kernel Limits ─────────────────────────────────────────────────────────
@@ -230,49 +255,49 @@ INOTIFY_INST=$(cat /proc/sys/fs/inotify/max_user_instances)
 INOTIFY_WATCH=$(cat /proc/sys/fs/inotify/max_user_watches)
 
 if [[ $INOTIFY_INST -ge 1024 ]]; then
-    _pass "inotify max_user_instances: $INOTIFY_INST"
+  _pass "inotify max_user_instances: $INOTIFY_INST"
 else
-    _fail "inotify max_user_instances: $INOTIFY_INST (need ≥1024)" \
-        "see inotify fix"
-    _add_fix "inotify" "Set inotify kernel limits (instances=1024, watches=1048576)" "fix_inotify"
+  _fail "inotify max_user_instances: $INOTIFY_INST (need ≥1024)" \
+    "see inotify fix"
+  _add_fix "inotify" "Set inotify kernel limits (instances=1024, watches=1048576)" "fix_inotify"
 fi
 
 if [[ $INOTIFY_WATCH -ge 1048576 ]]; then
-    _pass "inotify max_user_watches: $INOTIFY_WATCH"
+  _pass "inotify max_user_watches: $INOTIFY_WATCH"
 else
-    _fail "inotify max_user_watches: $INOTIFY_WATCH (need ≥1048576)" \
-        "see inotify fix"
-    _add_fix "inotify" "Set inotify kernel limits (instances=1024, watches=1048576)" "fix_inotify"
+  _fail "inotify max_user_watches: $INOTIFY_WATCH (need ≥1048576)" \
+    "see inotify fix"
+  _add_fix "inotify" "Set inotify kernel limits (instances=1024, watches=1048576)" "fix_inotify"
 fi
 
 # ── 7. k3s State ─────────────────────────────────────────────────────────────
 section "7. k3s State"
 
 command -v systemctl &>/dev/null && systemctl --version &>/dev/null \
-    && _pass "systemd: available" \
-    || _fail "systemd not available" "k3s requires systemd"
+  && _pass "systemd: available" \
+  || _fail "systemd not available" "k3s requires systemd"
 
 if sudo -n true &>/dev/null 2>&1; then
-    _pass "sudo: passwordless access"
+  _pass "sudo: passwordless access"
 elif sudo -v &>/dev/null 2>&1; then
-    _warn "sudo: requires password" \
-        "bootstrap workflow SSHes in and runs sudo — passwordless sudo is required"
+  _warn "sudo: requires password" \
+    "bootstrap workflow SSHes in and runs sudo — passwordless sudo is required"
 else
-    _fail "sudo: not available" "add $USER to sudoers"
+  _fail "sudo: not available" "add $USER to sudoers"
 fi
 
 if command -v k3s &>/dev/null; then
-    K3S_VER=$(k3s --version | head -1)
-    if systemctl is-active --quiet k3s 2>/dev/null; then
-        _info "k3s already installed and running ($K3S_VER) — this is an UPGRADE, not a fresh install"
-        _pass "k3s: running ($K3S_VER)"
-    else
-        _warn "k3s binary found but service not active ($K3S_VER)" \
-            "sudo systemctl start k3s  OR  run bootstrap workflow for fresh install"
-        _add_fix "k3s-start" "Start k3s service" "sudo systemctl start k3s"
-    fi
+  K3S_VER=$(k3s --version | head -1)
+  if systemctl is-active --quiet k3s 2>/dev/null; then
+    _info "k3s already installed and running ($K3S_VER) — this is an UPGRADE, not a fresh install"
+    _pass "k3s: running ($K3S_VER)"
+  else
+    _warn "k3s binary found but service not active ($K3S_VER)" \
+      "sudo systemctl start k3s  OR  run bootstrap workflow for fresh install"
+    _add_fix "k3s-start" "Start k3s service" "sudo systemctl start k3s"
+  fi
 else
-    _pass "k3s: not installed (clean state — ready for fresh install)"
+  _pass "k3s: not installed (clean state — ready for fresh install)"
 fi
 
 # ── 8. GitHub Actions Runner ─────────────────────────────────────────────────
@@ -280,33 +305,33 @@ section "8. GitHub Actions Runner"
 
 RUNNER_CONTAINER=$(docker ps --filter "name=mlabs-runner" --format "{{.Names}}" 2>/dev/null | head -1)
 if [[ -n "$RUNNER_CONTAINER" ]]; then
-    _pass "mlabs-runner container: $RUNNER_CONTAINER"
+  _pass "mlabs-runner container: $RUNNER_CONTAINER"
 else
-    _fail "mlabs-runner container not running" \
-        "run scripts/gha/launch-runner.sh (needs RUNNER_APP_CLIENT_ID + RUNNER_APP_KEY_FILE)"
+  _fail "mlabs-runner container not running" \
+    "run scripts/gha/launch-runner.sh (needs RUNNER_APP_CLIENT_ID + RUNNER_APP_KEY_FILE)"
 fi
 
 if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-    if [[ -n "$RUNNER_LABEL" ]]; then
-        MATCHED=$(gh api orgs/miramar-labs-org/actions/runners 2>/dev/null \
-            | python3 -c "
+  if [[ -n "$RUNNER_LABEL" ]]; then
+    MATCHED=$(gh api orgs/miramar-labs-org/actions/runners 2>/dev/null \
+      | python3 -c "
 import sys, json
 runners = json.load(sys.stdin)['runners']
 matched = [r for r in runners if any(l['name']=='${RUNNER_LABEL}' for l in r['labels'])]
 print(matched[0]['name']+'  status='+matched[0]['status'] if matched else '')
 " 2>/dev/null || true)
-        if [[ -n "$MATCHED" ]]; then
-            _pass "Runner with label '${RUNNER_LABEL}': $MATCHED"
-        else
-            _fail "No runner with label '${RUNNER_LABEL}' found in GitHub org" \
-                "start mlabs-runner with --labels ${RUNNER_LABEL}"
-        fi
+    if [[ -n "$MATCHED" ]]; then
+      _pass "Runner with label '${RUNNER_LABEL}': $MATCHED"
     else
-        _info "Pass --label <label> to verify a specific runner label (e.g. agx, dgx)"
+      _fail "No runner with label '${RUNNER_LABEL}' found in GitHub org" \
+        "start mlabs-runner with --labels ${RUNNER_LABEL}"
     fi
+  else
+    _info "Pass --label <label> to verify a specific runner label (e.g. agx, dgx)"
+  fi
 else
-    _warn "gh CLI not authenticated — cannot verify runner registration" \
-        "gh auth login  OR  check GitHub org runners manually"
+  _warn "gh CLI not authenticated — cannot verify runner registration" \
+    "gh auth login  OR  check GitHub org runners manually"
 fi
 
 # ── 9. Credentials ───────────────────────────────────────────────────────────
@@ -315,19 +340,19 @@ section "9. Credentials & Environment"
 RUNNER_ENV="${HOME}/.config/systemd/user/mlabs-runner.env"
 _rkey=$(sed -n 's/^RUNNER_APP_KEY_FILE=//p' "$RUNNER_ENV" 2>/dev/null)
 if grep -qs '^RUNNER_APP_CLIENT_ID=.' "$RUNNER_ENV" && [[ -r "${_rkey/#\~/$HOME}" ]]; then
-    _pass "Runner registrar App configured in $RUNNER_ENV"
+  _pass "Runner registrar App configured in $RUNNER_ENV"
 else
-    _fail "Runner registrar App not configured" \
-        "set RUNNER_APP_CLIENT_ID and RUNNER_APP_KEY_FILE (chmod 600 .pem) in $RUNNER_ENV"
+  _fail "Runner registrar App not configured" \
+    "set RUNNER_APP_CLIENT_ID and RUNNER_APP_KEY_FILE (chmod 600 .pem) in $RUNNER_ENV"
 fi
 if grep -qsE '^(GITHUB_ORG_ADMIN_PAT|HF_TOKEN)=.' "$RUNNER_ENV" || [[ -n "${GITHUB_ORG_ADMIN_PAT:-}" ]]; then
-    _fail "Long-lived admin PAT / HF_TOKEN still present on host" \
-        "remove them from $RUNNER_ENV (and GITHUB_ORG_ADMIN_PAT from ~/.zshrc); revoke the PAT"
+  _fail "Long-lived admin PAT / HF_TOKEN still present on host" \
+    "remove them from $RUNNER_ENV (and GITHUB_ORG_ADMIN_PAT from ~/.zshrc); revoke the PAT"
 fi
 
 [[ -n "${HF_TOKEN:-}" ]] \
-    && _pass "HF_TOKEN: set" \
-    || _warn "HF_TOKEN: not set" "required for gated HuggingFace models — add to ~/.zshrc: export HF_TOKEN=hf_..."
+  && _pass "HF_TOKEN: set" \
+  || _warn "HF_TOKEN: not set" "required for gated HuggingFace models — add to ~/.zshrc: export HF_TOKEN=hf_..."
 
 _info "Org secrets (HOST_SSH_KEY, NVIDIA_API_KEY, MIRAMAR_ORG_GHCR_PAT) and App secrets (AUTOMATION_/PROVISIONER_APP_*) cannot be verified from the host — confirm in GitHub org settings"
 
@@ -336,40 +361,41 @@ section "10. SSH"
 
 AUTH_KEYS="$HOME/.ssh/authorized_keys"
 if [[ -s "$AUTH_KEYS" ]]; then
-    _pass "~/.ssh/authorized_keys: $(wc -l < "$AUTH_KEYS") key(s) present"
+  _pass "~/.ssh/authorized_keys: $(wc -l <"$AUTH_KEYS") key(s) present"
 else
-    _fail "~/.ssh/authorized_keys missing or empty" \
-        "add the HOST_SSH_KEY public key so workflows can SSH in"
+  _fail "~/.ssh/authorized_keys missing or empty" \
+    "add the HOST_SSH_KEY public key so workflows can SSH in"
 fi
 
 if [[ "$(stat -c %a "$HOME/.ssh" 2>/dev/null)" == "700" ]]; then
-    _pass "~/.ssh permissions: 700"
+  _pass "~/.ssh permissions: 700"
 else
-    _warn "~/.ssh permissions are not 700" "chmod 700 ~/.ssh"
-    _add_fix "ssh-perms" "Fix ~/.ssh directory permissions" "chmod 700 $HOME/.ssh"
+  _warn "~/.ssh permissions are not 700" "chmod 700 ~/.ssh"
+  _add_fix "ssh-perms" "Fix ~/.ssh directory permissions" "chmod 700 $HOME/.ssh"
 fi
 
 # ── Auto-fix prompt ───────────────────────────────────────────────────────────
 if [[ ${#FIX_IDS[@]} -gt 0 ]] && [[ -t 0 ]]; then
-    printf "\n${BOLD}%d auto-fixable issue(s):${NC}\n" "${#FIX_IDS[@]}"
-    for i in "${!FIX_DESCS[@]}"; do
-        printf "  [%d] %s\n" "$((i+1))" "${FIX_DESCS[$i]}"
+  printf "\n${BOLD}%d auto-fixable issue(s):${NC}\n" "${#FIX_IDS[@]}"
+  for i in "${!FIX_DESCS[@]}"; do
+    printf "  [%d] %s\n" "$((i + 1))" "${FIX_DESCS[$i]}"
+  done
+  printf "\nApply all fixes? [y/N] "
+  read -r -n 1 REPLY
+  printf "\n"
+  if [[ "${REPLY:-}" =~ ^[Yy]$ ]]; then
+    FIXED=0
+    for i in "${!FIX_IDS[@]}"; do
+      printf "\n${CYAN}Fixing: %s${NC}\n" "${FIX_DESCS[$i]}"
+      if eval "${FIX_CMDS[$i]}"; then
+        printf "${GREEN}✓ Done${NC}\n"
+        FIXED=$((FIXED + 1))
+      else
+        printf "${RED}✗ Failed — apply manually${NC}\n"
+      fi
     done
-    printf "\nApply all fixes? [y/N] "
-    read -r -n 1 REPLY; printf "\n"
-    if [[ "${REPLY:-}" =~ ^[Yy]$ ]]; then
-        FIXED=0
-        for i in "${!FIX_IDS[@]}"; do
-            printf "\n${CYAN}Fixing: %s${NC}\n" "${FIX_DESCS[$i]}"
-            if eval "${FIX_CMDS[$i]}"; then
-                printf "${GREEN}✓ Done${NC}\n"
-                FIXED=$((FIXED + 1))
-            else
-                printf "${RED}✗ Failed — apply manually${NC}\n"
-            fi
-        done
-        printf "\n${CYAN}Applied %d fix(es). Re-run this script to confirm.${NC}\n" "$FIXED"
-    fi
+    printf "\n${CYAN}Applied %d fix(es). Re-run this script to confirm.${NC}\n" "$FIXED"
+  fi
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -381,12 +407,12 @@ printf "  ${RED}✗${NC} Failed : %d\n" "$FAIL"
 printf "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n\n"
 
 if [[ $FAIL -eq 0 && $WARN -eq 0 ]]; then
-    printf "${GREEN}${BOLD}Host is ready for the platform bootstrap workflow.${NC}\n\n"
-    exit 0
+  printf "${GREEN}${BOLD}Host is ready for the platform bootstrap workflow.${NC}\n\n"
+  exit 0
 elif [[ $FAIL -eq 0 ]]; then
-    printf "${YELLOW}${BOLD}Host passes all required checks. Review warnings before proceeding.${NC}\n\n"
-    exit 0
+  printf "${YELLOW}${BOLD}Host passes all required checks. Review warnings before proceeding.${NC}\n\n"
+  exit 0
 else
-    printf "${RED}${BOLD}Resolve the %d failed check(s) above before running the bootstrap workflow.${NC}\n\n" "$FAIL"
-    exit 1
+  printf "${RED}${BOLD}Resolve the %d failed check(s) above before running the bootstrap workflow.${NC}\n\n" "$FAIL"
+  exit 1
 fi

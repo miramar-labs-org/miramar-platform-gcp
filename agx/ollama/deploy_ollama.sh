@@ -5,11 +5,11 @@
 set -euo pipefail
 
 MODEL="${1:?model name required (e.g. phi4)}"
-VRAM_BUDGET_GB="${2:-40}"   # total GB available for AI models (AGX_VRAM_USEABLE org var)
+VRAM_BUDGET_GB="${2:-40}" # total GB available for AI models (AGX_VRAM_USEABLE org var)
 
-log()  { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
+log() { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
 warn() { printf "\033[1;33m[WARN]\033[0m %b\n" "$*"; }
-err()  { printf "\033[1;31m[ERROR]\033[0m %b\n" "$*" >&2; }
+err() { printf "\033[1;31m[ERROR]\033[0m %b\n" "$*" >&2; }
 
 # --- Check Ollama is reachable ---
 log "Checking Ollama service..."
@@ -27,7 +27,7 @@ loaded=$(curl -s --connect-timeout 5 --max-time 10 \
   | jq -r '.models[]?.name' 2>/dev/null || true)
 if [[ -n "$loaded" ]]; then
   err "An Ollama model is already loaded in GPU memory:"
-  while IFS= read -r m; do err "  → $m"; done <<< "$loaded"
+  while IFS= read -r m; do err "  → $m"; done <<<"$loaded"
   warn "Run the Ollama Undeploy workflow first, then retry."
   exit 1
 fi
@@ -45,7 +45,7 @@ for attempt in $(seq 1 $MAX_PULL_ATTEMPTS); do
   if ollama pull "$MODEL"; then
     break
   fi
-  if (( attempt == MAX_PULL_ATTEMPTS )); then
+  if ((attempt == MAX_PULL_ATTEMPTS)); then
     err "ollama pull failed after $MAX_PULL_ATTEMPTS attempts."
     err "Last error is above. Common cause: transient DNS failure for Cloudflare R2."
     warn "Diagnostics:"
@@ -76,7 +76,7 @@ curl -sf --connect-timeout 10 --max-time 600 \
 log "Verifying..."
 result=$(curl -s http://localhost:11434/api/ps \
   | jq -r '.models[] | "\(.name)  (\((.size_vram // 0) / 1073741824 | . * 10 | round / 10) GB VRAM)"' \
-  2>/dev/null || true)
+    2>/dev/null || true)
 if [[ -z "$result" ]]; then
   warn "Model not showing in ollama ps — it may still be loading. Check with: ollama ps"
 else

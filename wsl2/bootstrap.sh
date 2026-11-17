@@ -4,7 +4,10 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 log() { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
-die() { printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2; exit 1; }
+die() {
+  printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2
+  exit 1
+}
 
 TMP_PATHS=()
 cleanup_tmp_paths() {
@@ -32,7 +35,8 @@ log "Wait for apt lock (unattended-upgrades may be running)"
 sudo systemctl stop unattended-upgrades 2>/dev/null || true
 sudo systemctl disable unattended-upgrades 2>/dev/null || true
 while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-  echo "waiting for apt lock..."; sleep 5
+  echo "waiting for apt lock..."
+  sleep 5
 done
 
 log "Baseline apt update"
@@ -120,12 +124,12 @@ if [[ -z "${DGX_SMB_PASSWORD:-}" ]]; then
   read -rsp "DGX Samba password (username=${USER}): " DGX_SMB_PASSWORD
   echo
 fi
-printf 'username=%s\npassword=%s\n' "$USER" "$DGX_SMB_PASSWORD" > "$HOME/.smbcredentials"
+printf 'username=%s\npassword=%s\n' "$USER" "$DGX_SMB_PASSWORD" >"$HOME/.smbcredentials"
 chmod 600 "$HOME/.smbcredentials"
 
 log "Prepare DGX shared mount point and remove legacy CIFS fstab entry"
 mkdir -p "$HOME/shared"
-grep -v " $HOME/shared " /etc/fstab > /tmp/fstab.new 2>/dev/null || true
+grep -v " $HOME/shared " /etc/fstab >/tmp/fstab.new 2>/dev/null || true
 sudo cp /tmp/fstab.new /etc/fstab && rm -f /tmp/fstab.new
 
 chown -R "${USER}:${USER}" "$HOME/.ssh"
@@ -153,7 +157,7 @@ sudo install -m 755 "$SCRIPT_DIR/setup-shared-ssh.sh" /usr/local/bin/setup-share
 log "Write ~/.ssh/config (lab hosts, skipped if file already exists)"
 SSH_CFG="$HOME/.ssh/config"
 if [[ ! -s "$SSH_CFG" ]]; then
-  cat > "$SSH_CFG" <<EOF
+  cat >"$SSH_CFG" <<EOF
 Host msi
     HostName msi.local
     User ${USER}
@@ -201,10 +205,10 @@ fi
 # Idempotent: only append if not already present
 if ! grep -q 'export ZSH=' "$HOME/.zshrc" 2>/dev/null; then
   # shellcheck disable=SC2016
-  printf '%s\n' 'export ZSH="$HOME/.oh-my-zsh"' >> "$HOME/.zshrc"
+  printf '%s\n' 'export ZSH="$HOME/.oh-my-zsh"' >>"$HOME/.zshrc"
 fi
 grep -q '^plugins=' "$HOME/.zshrc" 2>/dev/null \
-  || echo 'plugins=(git)' >> "$HOME/.zshrc"
+  || echo 'plugins=(git)' >>"$HOME/.zshrc"
 
 log "Install Powerlevel10k (Oh My Zsh theme)"
 P10K_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
@@ -216,15 +220,15 @@ log "Enable Powerlevel10k theme in ~/.zshrc (idempotent)"
 if grep -q '^ZSH_THEME=' "$HOME/.zshrc" 2>/dev/null; then
   sed -i 's|^ZSH_THEME=.*|ZSH_THEME="powerlevel10k/powerlevel10k"|' "$HOME/.zshrc"
 else
-  echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >> "$HOME/.zshrc"
+  echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >>"$HOME/.zshrc"
 fi
 if ! grep -q 'source [$]ZSH/oh-my-zsh[.]sh' "$HOME/.zshrc" 2>/dev/null; then
   # shellcheck disable=SC2016
-  printf '%s\n' 'source $ZSH/oh-my-zsh.sh' >> "$HOME/.zshrc"
+  printf '%s\n' 'source $ZSH/oh-my-zsh.sh' >>"$HOME/.zshrc"
 fi
 
 # auto-run neofetch on zsh startup (optional)
-grep -q "command -v neofetch" ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'
+grep -q "command -v neofetch" ~/.zshrc 2>/dev/null || cat >>~/.zshrc <<'EOF'
 
 # show system info
 command -v neofetch >/dev/null 2>&1 && neofetch
@@ -264,7 +268,7 @@ EOF
 
 mkdir -p "$HOME/.pyenv"
 
-grep -q "profile.d/pyenv.sh" ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'
+grep -q "profile.d/pyenv.sh" ~/.zshrc 2>/dev/null || cat >>~/.zshrc <<'EOF'
 
 # system-wide pyenv
 if [ -f /etc/profile.d/pyenv.sh ]; then
@@ -276,8 +280,8 @@ log "Install Miniforge3 to /opt/miniforge3"
 if [[ ! -d /opt/miniforge3 ]]; then
   ARCHM="$(uname -m)"
   case "$ARCHM" in
-    x86_64)       MF_ARCH="x86_64" ;;
-    aarch64|arm64) MF_ARCH="aarch64" ;;
+    x86_64) MF_ARCH="x86_64" ;;
+    aarch64 | arm64) MF_ARCH="aarch64" ;;
     *) die "Unsupported arch for Miniforge: $ARCHM" ;;
   esac
 
@@ -309,7 +313,7 @@ sudo tee /etc/profile.d/miniforge.sh >/dev/null <<'EOF'
 export PATH="/opt/miniforge3/bin:$PATH"
 EOF
 
-grep -q "profile.d/miniforge.sh" ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'
+grep -q "profile.d/miniforge.sh" ~/.zshrc 2>/dev/null || cat >>~/.zshrc <<'EOF'
 
 # system-wide miniforge
 if [ -f /etc/profile.d/miniforge.sh ]; then
