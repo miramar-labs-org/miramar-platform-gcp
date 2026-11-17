@@ -41,7 +41,7 @@ See `WORKBOOK.md` for implementation order.
 - `curator_report` — final doc count, word count, mean doc length; writes `curation_report.json`
 - `purge_kfp_mlflow.py`
 - PVC mount: `hf-model-cache` at `/root/.cache/huggingface`
-- Secret injection: `mlabs-api-keys` (OPENAI_API_KEY, HF_TOKEN)
+- Secret injection: `mlabs-api-keys` (HF_TOKEN)
 - GPU acceleration configured: `quality_filter` and `deduplication` request `nvidia.com/gpu`
 
 ### Project-specific

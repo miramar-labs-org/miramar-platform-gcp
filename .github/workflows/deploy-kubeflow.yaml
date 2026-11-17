@@ -223,23 +223,21 @@ jobs:
         run: bash dgx/k3s/kubeflow/verify-kfp-endpoints.sh
 
       - name: Sync API keys to cluster
+        # Need-to-know: only keys some pipeline template actually reads. HF_TOKEN = gated
+        # model downloads; WANDB_API_KEY (ft-eval wandb.enabled) and LANGCHAIN_API_KEY
+        # (kfp-rag/kfp-eval langsmith.enabled) are opt-in. Templates mount them optional,
+        # so unset keys are simply omitted. No OpenAI/Anthropic: judges are local (PHI rule).
         env:
-          OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
           HF_TOKEN:          ${{ secrets.HF_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WANDB_API_KEY:     ${{ secrets.WANDB_API_KEY }}
           LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
-          NGC_API_KEY:       ${{ secrets.NGC_API_KEY }}
-          NVIDIA_API_KEY:    ${{ secrets.NVIDIA_API_KEY }}
         run: |
-          kubectl create secret generic mlabs-api-keys \
-            --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
-            --from-literal=HF_TOKEN="$HF_TOKEN" \
-            --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-            --from-literal=WANDB_API_KEY="$WANDB_API_KEY" \
-            --from-literal=LANGCHAIN_API_KEY="$LANGCHAIN_API_KEY" \
-            --from-literal=NGC_API_KEY="$NGC_API_KEY" \
-            --from-literal=NVIDIA_API_KEY="$NVIDIA_API_KEY" \
+          args=()
+          for k in HF_TOKEN WANDB_API_KEY LANGCHAIN_API_KEY; do
+            if [[ -n "${!k:-}" ]]; then args+=(--from-literal="${k}=${!k}"); else echo "skip ${k} (not set)"; fi
+          done
+          # Replace (not merge) so keys dropped from the list disappear from the cluster.
+          kubectl create secret generic mlabs-api-keys "${args[@]}" \
             -n kubeflow --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Set KFP active state

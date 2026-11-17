@@ -89,7 +89,7 @@ After editing:
 - `packages_to_install` on `@dsl.component` is the only way to add deps.
 - Only `serve_model` uses the GPU (via the vLLM Deployment it creates); the KFP
   components themselves are CPU-only — do NOT `.set_accelerator_type(...)`.
-- Secret env vars (`OPENAI_API_KEY`, `HF_TOKEN`, `LANGCHAIN_API_KEY`) come from
+- Secret env vars (`HF_TOKEN`, optional `LANGCHAIN_API_KEY`) come from
   the `mlabs-api-keys` K8s secret via `k8s_ext.use_secret_as_env` in the pipeline cell.
 - PVC `hf-model-cache` is mounted at `/root/.cache/huggingface`; run rows +
   `RUNS.md` live under `/root/.cache/huggingface/bakeoff-runs/`.

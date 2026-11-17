@@ -43,7 +43,7 @@ curator-output/{{PROJECT_NAME}}/{run_id}/curation_report.json ← written by cur
 - **CPU components** (`preflight_check`, `extract_text`, `pii_redaction`, `curator_report`): use `ghcr.io/miramar-labs-org/kfp-base-cpu:latest`
 - **GPU components** (`quality_filter`, `deduplication`): use `ghcr.io/miramar-labs-org/kfp-base-gpu:latest`
 - GPU components MUST have `.set_accelerator_type("nvidia.com/gpu").set_accelerator_limit(1).set_memory_limit("48G")` in the pipeline cell
-- Secret env vars (`OPENAI_API_KEY`, `HF_TOKEN`) injected from `mlabs-api-keys` K8s secret via `k8s_ext.use_secret_as_env`
+- Secret env vars (`HF_TOKEN`) injected from `mlabs-api-keys` K8s secret via `k8s_ext.use_secret_as_env`
 - PVC `hf-model-cache` is mounted at `/root/.cache/huggingface`
 - To add packages to the base images, update `kfp-images/cpu/Dockerfile` or `kfp-images/gpu/Dockerfile` in the platform repo and trigger **Build KFP Base Images**
 

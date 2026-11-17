@@ -10,7 +10,7 @@ check.
 
 - [ ] KFP + MLflow/MinIO running on the DGX (platform **Kubeflow Deploy** /
       **MLflow Deploy** workflows).
-- [ ] `LANGCHAIN_API_KEY` in the `mlabs-api-keys` K8s secret (platform-provisioned)
+- [ ] (only if `langsmith.enabled`) `LANGCHAIN_API_KEY` org secret set, scoped to miramar-platform-gcp, then Kubeflow Deploy re-run to sync it into `mlabs-api-keys`
       and in your shell for `scripts/export_dataset.py`.
 - [ ] `pytest -q` green out of the box (`evallib/` unit tests).
 

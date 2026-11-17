@@ -277,7 +277,7 @@ Require KFP running on DGX (`kubeflow` namespace). Trigger **Kubeflow Deploy** i
 - **All imports must be inside the function body** — each component runs in its own container
 - `packages_to_install` on `@dsl.component` is the only way to add dependencies to a component
 - GPU steps: `.set_gpu_limit(1).set_memory_limit("64G")` in the pipeline cell
-- Secret env vars (HF_TOKEN, OPENAI_API_KEY, etc.) are injected from the `mlabs-api-keys` K8s secret
+- Secret env vars (HF_TOKEN; optional WANDB_API_KEY) are injected from the `mlabs-api-keys` K8s secret
   via `k8s_ext.use_secret_as_env` — no manual setup needed, the platform provisions the secret
 
 ## Compile check
