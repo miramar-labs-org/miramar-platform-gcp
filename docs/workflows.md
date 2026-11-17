@@ -238,12 +238,11 @@ openai anthropic mlflow qdrant-client pyyaml requests python-dotenv nvidia-ml-py
 
 ## WSL2 and SSH
 
-| Workflow                 | File                       | Purpose                                         |
-| ------------------------ | -------------------------- | ----------------------------------------------- |
-| Setup Shared SSH Store   | `setup-shared-ssh.yaml`    | Initialize Spark shared SSH store and wire Orin |
-| WSL2 Provision           | `provision-wsl2.yaml`      | Import a WSL2 distro from template and wire SSH |
-| WSL2 Verify SSH Topology | `verify-ssh-topology.yaml` | Test supported Spark/Orin/WSL2 paths            |
-| WSL2 Unprovision         | `unprovision-wsl2.yaml`    | Unregister a distro and update `WSL2_DISTROS`   |
+The WSL2 and shared-SSH workflows (Setup Shared SSH Store, WSL2 Provision,
+WSL2 Verify SSH Topology, WSL2 Unprovision) were removed on 2026-11-17. They had
+not run since May 2026 and wrote SSH keys to disk. Recover them from git history
+(before the removal commit) if WSL2 distros are needed again. The scripts in
+`wsl2/` remain for manual use.
 
 ## Maintenance
 

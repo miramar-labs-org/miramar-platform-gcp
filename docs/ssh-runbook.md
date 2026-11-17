@@ -56,32 +56,15 @@ not a resident WSL2 peer mesh.
 
 ## Workflows
 
-| Workflow                     | Purpose                                                                                                                                                                       |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Setup Shared SSH Store**   | Initializes Spark's shared SSH store, symlinks Spark's local `.ssh`, and wires Orin to the same store.                                                                        |
-| **WSL2 Provision**           | Imports a WSL2 distro from the configured template, runs `firstboot.sh`, mounts the shared store, writes the `wsl2-<name>` alias, and registers the distro in `WSL2_DISTROS`. |
-| **WSL2 Verify SSH Topology** | Tests supported Spark, Orin, and WSL2 SSH paths.                                                                                                                              |
-| **WSL2 Unprovision**         | Unregisters a WSL2 distro and removes it from `WSL2_DISTROS`.                                                                                                                 |
-
-Normal WSL2 provisioning sequence:
-
-```text
-Actions -> WSL2 Provision -> distro_name: dev  ssh_port: 2222
-Actions -> WSL2 Verify SSH Topology
-```
-
-For multiple distros:
-
-```text
-Actions -> WSL2 Provision -> distro_name: dev   ssh_port: 2222
-Actions -> WSL2 Provision -> distro_name: test  ssh_port: 2223
-Actions -> WSL2 Verify SSH Topology
-```
+The WSL2 and shared-SSH workflows (Setup Shared SSH Store, WSL2 Provision,
+WSL2 Verify SSH Topology, WSL2 Unprovision) were removed on 2026-11-17. They had
+not run since May 2026 and wrote SSH keys to disk. Recover them from git history
+(before the removal commit) if WSL2 distros are needed again. The scripts in
+`wsl2/` remain for manual use.
 
 ## Orin One-Time Prerequisites
 
-Run these on the Orin host as the default user before the first **Setup Shared SSH Store**
-run.
+Run these on the Orin host as the default user before wiring Orin into the shared SSH store.
 
 Restore SSH files if only `.bak` files exist from an older CIFS setup:
 
