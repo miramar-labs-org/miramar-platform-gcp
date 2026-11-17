@@ -2,10 +2,16 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-log()  { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
-die()  { printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2; exit 1; }
+log() { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
+die() {
+  printf "\n\033[1;31mERROR:\033[0m %s\n" "$*" >&2
+  exit 1
+}
 need() { command -v "$1" >/dev/null 2>&1 || die "Missing: $1"; }
-rand_alnum() { (set +o pipefail; tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-24}"); }
+rand_alnum() { (
+  set +o pipefail
+  tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-24}"
+); }
 
 need kubectl
 need helm
@@ -19,12 +25,12 @@ NEMO_RELEASE="nemo"
 NEMO_NS="nemo-microservices"
 
 MLFLOW_NS="mlflow-system"
-MLFLOW_RELEASE="mlflow-tracking"     # results in svc/mlflow-tracking
+MLFLOW_RELEASE="mlflow-tracking" # results in svc/mlflow-tracking
 # Pin the chart — community-charts/mlflow >= 1.9 ships a stricter values.schema.json
 # that breaks --reuse-values upgrades of older releases (see redeploy-mlflow.sh).
 # Keep this in lock-step with redeploy-mlflow.sh.
 MLFLOW_CHART_VERSION="${MLFLOW_CHART_VERSION:-1.8.5}"
-MINIO_RELEASE="minio"                # used only for cleanup now; we deploy MinIO via YAML
+MINIO_RELEASE="minio" # used only for cleanup now; we deploy MinIO via YAML
 
 # In-cluster URLs (stable DNS)
 PG_HOST="nemo-postgresql.${NEMO_NS}.svc.cluster.local"
@@ -301,7 +307,7 @@ kubectl -n "${NEMO_NS}" set env deploy/nemo-customizer \
   >/dev/null || true
 
 log "Waiting for NeMo customizer/evaluator rollout"
-kubectl -n "${NEMO_NS}" rollout status deploy/nemo-evaluator  --timeout=5m || true
+kubectl -n "${NEMO_NS}" rollout status deploy/nemo-evaluator --timeout=5m || true
 kubectl -n "${NEMO_NS}" rollout status deploy/nemo-customizer --timeout=5m || true
 
 log "✅ Complete"

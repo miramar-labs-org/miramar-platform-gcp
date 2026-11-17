@@ -66,16 +66,16 @@ fi
 
 # 2. Hostname
 log "Setting hostname → $DISTRO_NAME"
-printf '%s\n' "$DISTRO_NAME" > /etc/hostname
+printf '%s\n' "$DISTRO_NAME" >/etc/hostname
 hostname "$DISTRO_NAME"
 if ! grep -q '^\[network\]' /etc/wsl.conf 2>/dev/null; then
-  printf '\n[network]\nhostname = %s\n' "$DISTRO_NAME" >> /etc/wsl.conf
+  printf '\n[network]\nhostname = %s\n' "$DISTRO_NAME" >>/etc/wsl.conf
 fi
 
 # 3. sshd port
 log "Setting sshd port → $SSH_PORT"
 mkdir -p /etc/ssh/sshd_config.d
-printf 'Port %s\n' "$SSH_PORT" > /etc/ssh/sshd_config.d/wsl2-port.conf
+printf 'Port %s\n' "$SSH_PORT" >/etc/ssh/sshd_config.d/wsl2-port.conf
 # Skip the restart when sshd is already listening on the target port.
 # Avoiding unnecessary restarts reduces the risk of disrupting WSL2's internal
 # P9 connection in mirrored-networking mode (same mechanism as daemon-reload).

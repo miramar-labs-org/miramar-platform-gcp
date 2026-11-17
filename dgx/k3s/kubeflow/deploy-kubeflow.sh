@@ -227,10 +227,10 @@ if [ "${USE_NATIVE_KFP_IMAGES}" = "true" ]; then
     ml-pipeline-viewer-crd \
     ml-pipeline-visualizationserver; do
     case "${deploy}" in
-      ml-pipeline-ui)           comp="kfp-frontend" ;;
+      ml-pipeline-ui) comp="kfp-frontend" ;;
       ml-pipeline-persistenceagent) comp="kfp-persistence-agent" ;;
       ml-pipeline-scheduledworkflow) comp="kfp-scheduled-workflow-controller" ;;
-      ml-pipeline-viewer-crd)   comp="kfp-viewer-crd-controller" ;;
+      ml-pipeline-viewer-crd) comp="kfp-viewer-crd-controller" ;;
       ml-pipeline-visualizationserver) comp="kfp-visualization-server" ;;
     esac
     img="${ORG}/${comp}:${PIPELINE_VERSION}-arm64"

@@ -5,15 +5,15 @@
 set -euo pipefail
 
 MODEL="${1:?model name required (e.g. llama3.3:70b-instruct-q4_K_M)}"
-VRAM_BUDGET_GB="${2:-100}"   # total GB available for AI models (DGX_VRAM_USEABLE org var)
-OLLAMA_CONTEXT_LENGTH_PIN="${3:-32768}"   # pinned OLLAMA_CONTEXT_LENGTH (systemd drop-in below).
-                                          # Unset, Ollama defaults to a VRAM-based 256K window,
-                                          # which let a runaway agent prompt (376K tokens) thrash
-                                          # the GB10 into a silent hard-hang (2026-08-27).
+VRAM_BUDGET_GB="${2:-100}"              # total GB available for AI models (DGX_VRAM_USEABLE org var)
+OLLAMA_CONTEXT_LENGTH_PIN="${3:-32768}" # pinned OLLAMA_CONTEXT_LENGTH (systemd drop-in below).
+# Unset, Ollama defaults to a VRAM-based 256K window,
+# which let a runaway agent prompt (376K tokens) thrash
+# the GB10 into a silent hard-hang (2026-08-27).
 
-log()  { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
+log() { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
 warn() { printf "\033[1;33m[WARN]\033[0m %b\n" "$*"; }
-err()  { printf "\033[1;31m[ERROR]\033[0m %b\n" "$*" >&2; }
+err() { printf "\033[1;31m[ERROR]\033[0m %b\n" "$*" >&2; }
 
 CONFLICT=0
 
@@ -50,7 +50,7 @@ if kubectl get ns nemo-microservices &>/dev/null 2>&1; then
 
   # NeMo API returns { "data": [...] } — any entry means a NIM is registered
   nim_count=$(printf '%s' "$nim_response" | jq '.data | length' 2>/dev/null || echo 0)
-  if (( nim_count > 0 )); then
+  if ((nim_count > 0)); then
     active_nims=$(printf '%s' "$nim_response" \
       | jq -r '.data[] | "\(.namespace)/\(.name)"' 2>/dev/null || true)
   else
@@ -66,19 +66,19 @@ else
   log "nemo-microservices namespace not found — no NIM deployed."
 fi
 
-MIN_FREE_VRAM_GB=15   # minimum GB free required to co-deploy alongside a NIM
+MIN_FREE_VRAM_GB=15 # minimum GB free required to co-deploy alongside a NIM
 
 if [[ -n "$active_nims" ]]; then
   warn "A NIM is deployed and using GPU memory on the shared 128 GB pool:"
-  while IFS= read -r nim; do warn "  → $nim"; done <<< "$active_nims"
+  while IFS= read -r nim; do warn "  → $nim"; done <<<"$active_nims"
 
   # DGX Spark has unified CPU+GPU memory — nvidia-smi memory.free returns "Not Supported".
   # Use OS-level available memory instead; GPU allocations reduce it just like CPU allocations.
   free_mib=$(free -m | awk '/^Mem:/ {print $7}')
-  free_gb=$(( free_mib / 1024 ))
+  free_gb=$((free_mib / 1024))
   log "Available unified memory: ${free_gb} GB"
 
-  if (( free_gb < MIN_FREE_VRAM_GB )); then
+  if ((free_gb < MIN_FREE_VRAM_GB)); then
     err "Insufficient free memory (${free_gb} GB available, ${MIN_FREE_VRAM_GB} GB required)."
     warn "Run the NIM Undeploy workflow first to free memory, then retry."
     CONFLICT=1
@@ -96,14 +96,14 @@ loaded=$(curl -s --connect-timeout 5 --max-time 10 \
   | jq -r '.models[]?.name' 2>/dev/null || true)
 if [[ -n "$loaded" ]]; then
   err "An Ollama model is already loaded in GPU memory:"
-  while IFS= read -r m; do err "  → $m"; done <<< "$loaded"
+  while IFS= read -r m; do err "  → $m"; done <<<"$loaded"
   warn "Run the Ollama Undeploy workflow first, then retry."
   CONFLICT=1
 else
   log "No Ollama models currently loaded."
 fi
 
-if (( CONFLICT )); then
+if ((CONFLICT)); then
   echo ""
   err "Cannot deploy $MODEL — resolve the conflict(s) above first."
   exit 1
@@ -138,7 +138,7 @@ Environment=\"$2\""
 ensure_dropin 10-context.conf "OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH_PIN}"
 ensure_dropin 30-no-flash-attn.conf "OLLAMA_FLASH_ATTENTION=false"
 
-if (( DROPINS_CHANGED )); then
+if ((DROPINS_CHANGED)); then
   sudo systemctl daemon-reload
   sudo systemctl restart ollama
   log "Waiting for Ollama to come back..."
@@ -170,7 +170,7 @@ for attempt in $(seq 1 $MAX_PULL_ATTEMPTS); do
   if ollama pull "$MODEL"; then
     break
   fi
-  if (( attempt == MAX_PULL_ATTEMPTS )); then
+  if ((attempt == MAX_PULL_ATTEMPTS)); then
     err "ollama pull failed after $MAX_PULL_ATTEMPTS attempts."
     err "Last error is above. Common cause: transient DNS failure for Cloudflare R2."
     warn "Diagnostics:"
@@ -201,7 +201,7 @@ curl -sf --connect-timeout 10 --max-time 600 \
 log "Verifying..."
 result=$(curl -s http://localhost:11434/api/ps \
   | jq -r '.models[] | "\(.name)  (\((.size_vram // 0) / 1073741824 | . * 10 | round / 10) GB VRAM)"' \
-  2>/dev/null || true)
+    2>/dev/null || true)
 if [[ -z "$result" ]]; then
   warn "Model not showing in ollama ps — it may still be loading. Check with: ollama ps"
 else

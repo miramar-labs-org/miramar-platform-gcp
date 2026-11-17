@@ -6,9 +6,9 @@ log() { printf "\n\033[1;32m==> %s\033[0m\n" "$*"; }
 
 # Defaults (override via env if you used different names)
 MLFLOW_NS="${MLFLOW_NS:-mlflow-system}"
-MLFLOW_RELEASE="${MLFLOW_RELEASE:-mlflow-tracking}"   # community-charts/mlflow
-MINIO_RELEASE="${MINIO_RELEASE:-minio}"               # if you ever installed via Helm
-DELETE_NS="${DELETE_NS:-false}"                       # set true to delete namespace too
+MLFLOW_RELEASE="${MLFLOW_RELEASE:-mlflow-tracking}" # community-charts/mlflow
+MINIO_RELEASE="${MINIO_RELEASE:-minio}"             # if you ever installed via Helm
+DELETE_NS="${DELETE_NS:-false}"                     # set true to delete namespace too
 
 log "Destroying MLflow + MinIO in namespace '${MLFLOW_NS}'"
 

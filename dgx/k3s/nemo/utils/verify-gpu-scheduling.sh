@@ -3,7 +3,7 @@ set -euo pipefail
 
 NS="${NS:-default}"
 POD="${POD:-gpu-schedule-test}"
-TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"   # total time to wait for completion
+TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}" # total time to wait for completion
 IMAGE="${IMAGE:-nvidia/cuda:12.3.2-base-ubuntu22.04}"
 
 cleanup() {
@@ -44,7 +44,7 @@ YAML
 
 echo "==> Waiting for pod to be scheduled..."
 end_sched=$((SECONDS + 60))
-while (( SECONDS < end_sched )); do
+while ((SECONDS < end_sched)); do
   node="$(kubectl get pod -n "$NS" "$POD" -o jsonpath='{.spec.nodeName}' 2>/dev/null || true)"
   phase="$(kubectl get pod -n "$NS" "$POD" -o jsonpath='{.status.phase}' 2>/dev/null || true)"
   echo "  phase=${phase:-?} node=${node:-<none>}"
@@ -64,7 +64,7 @@ fi
 echo "==> Waiting for pod to complete (Succeeded or Failed)..."
 end=$((SECONDS + TIMEOUT_SECONDS))
 phase=""
-while (( SECONDS < end )); do
+while ((SECONDS < end)); do
   phase="$(kubectl get pod -n "$NS" "$POD" -o jsonpath='{.status.phase}' 2>/dev/null || true)"
   if [[ "$phase" == "Succeeded" || "$phase" == "Failed" ]]; then
     break

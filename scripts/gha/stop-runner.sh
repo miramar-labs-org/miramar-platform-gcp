@@ -9,12 +9,12 @@ set -euo pipefail
 
 ARCH=$(uname -m)
 case "${ARCH}" in
-    x86_64)         ARCH_LABEL="amd64" ;;
-    aarch64|arm64)  ARCH_LABEL="arm64" ;;
-    *)
-        echo "ERROR: Unsupported architecture: ${ARCH}" >&2
-        exit 1
-        ;;
+  x86_64) ARCH_LABEL="amd64" ;;
+  aarch64 | arm64) ARCH_LABEL="arm64" ;;
+  *)
+    echo "ERROR: Unsupported architecture: ${ARCH}" >&2
+    exit 1
+    ;;
 esac
 
 CONTAINER_NAME="mlabs-runner-${ARCH_LABEL}"
@@ -23,8 +23,8 @@ CONTAINER_NAME="mlabs-runner-${ARCH_LABEL}"
 STOP_TIMEOUT="${STOP_TIMEOUT:-30}"
 
 if ! docker inspect "${CONTAINER_NAME}" >/dev/null 2>&1; then
-    echo "No running container named '${CONTAINER_NAME}'"
-    exit 0
+  echo "No running container named '${CONTAINER_NAME}'"
+  exit 0
 fi
 
 echo "Stopping ${CONTAINER_NAME} (timeout ${STOP_TIMEOUT}s)..."

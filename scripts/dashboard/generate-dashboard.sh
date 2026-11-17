@@ -12,15 +12,33 @@ OUTPUT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --org)    ORG="$2";    shift 2 ;;
-    --output) OUTPUT="$2"; shift 2 ;;
-    *) echo "Unknown arg: $1" >&2; exit 1 ;;
+    --org)
+      ORG="$2"
+      shift 2
+      ;;
+    --output)
+      OUTPUT="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown arg: $1" >&2
+      exit 1
+      ;;
   esac
 done
 
-[[ -z "$ORG" ]]    && { echo "ERROR: --org required" >&2; exit 1; }
-[[ -z "$OUTPUT" ]] && { echo "ERROR: --output required" >&2; exit 1; }
-[[ -z "${GH_TOKEN:-}" ]] && { echo "ERROR: GH_TOKEN not set" >&2; exit 1; }
+[[ -z "$ORG" ]] && {
+  echo "ERROR: --org required" >&2
+  exit 1
+}
+[[ -z "$OUTPUT" ]] && {
+  echo "ERROR: --output required" >&2
+  exit 1
+}
+[[ -z "${GH_TOKEN:-}" ]] && {
+  echo "ERROR: GH_TOKEN not set" >&2
+  exit 1
+}
 
 ADMIN_TOKEN="${GH_ADMIN_TOKEN:-$GH_TOKEN}"
 
@@ -39,10 +57,10 @@ ROWS=""
 DGX_VLLM_TOTAL_GB=0
 DGX_TRITON_TOTAL_GB=0
 while IFS= read -r repo_json; do
-  name=$(echo    "$repo_json" | jq -r '.name')
-  url=$(echo     "$repo_json" | jq -r '.html_url')
-  type=$(echo    "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-sequence-classify") then "sequence-classify" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-eval") then "kfp-eval" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-triton-vllm") then "serving-triton-vllm" elif index("miramar-serving-triton-trtllm") then "serving-triton-trtllm" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-llm-nim") then "serving-llm-nim" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
-  desc=$(echo    "$repo_json" | jq -r '.description // ""')
+  name=$(echo "$repo_json" | jq -r '.name')
+  url=$(echo "$repo_json" | jq -r '.html_url')
+  type=$(echo "$repo_json" | jq -r '.topics | if index("miramar-ft-eval") then "ft-eval" elif index("miramar-kfp-ft-eval") then "ft-eval" elif index("miramar-sequence-classify") then "sequence-classify" elif index("miramar-kfp-rag") then "kfp-rag" elif index("miramar-kfp-eval") then "kfp-eval" elif index("miramar-kfp-nemo-curator") then "kfp-nemo-curator" elif index("miramar-kfp") then "kfp" elif index("miramar-nemo-ft-eval") then "nemo-ft-eval" elif index("miramar-nemo") then "nemo" elif index("miramar-serving-triton-vllm") then "serving-triton-vllm" elif index("miramar-serving-triton-trtllm") then "serving-triton-trtllm" elif index("miramar-serving-vllm") then "serving-vllm" elif index("miramar-llm-serving-vllm") then "serving-vllm" elif index("miramar-serving-llm-nim") then "serving-llm-nim" elif index("miramar-serving-nim") then "serving-nim" elif index("miramar-serving-trt-fp8") then "serving-trt-fp8" elif index("miramar-serving-trt-engine") then "serving-trt-engine" elif index("miramar-default") then "default" else "other" end')
+  desc=$(echo "$repo_json" | jq -r '.description // ""')
   # --- Host affinity (PROJECT_HOST repo variable, set by Create Project workflow) ---
   # gh api outputs the 404 JSON body to stdout on error, so capture raw JSON and
   # extract with jq separately to avoid concatenating error body with the fallback.
@@ -78,15 +96,15 @@ while IFS= read -r repo_json; do
             "repos/${ORG}/${name}/actions/variables/DGX_VLLM_VRAM_GB" 2>/dev/null \
             | jq -r '.value // "0"' 2>/dev/null) || _vllm_gb=0
           [[ "$_vllm_gb" =~ ^[0-9]+$ ]] || _vllm_gb=0
-          DGX_VLLM_TOTAL_GB=$(( DGX_VLLM_TOTAL_GB + _vllm_gb ))
+          DGX_VLLM_TOTAL_GB=$((DGX_VLLM_TOTAL_GB + _vllm_gb))
           _triton_gb=$(GH_TOKEN="$ADMIN_TOKEN" gh api \
             "repos/${ORG}/${name}/actions/variables/DGX_TRITON_VRAM_GB" 2>/dev/null \
             | jq -r '.value // "0"' 2>/dev/null) || _triton_gb=0
           [[ "$_triton_gb" =~ ^[0-9]+$ ]] || _triton_gb=0
-          DGX_TRITON_TOTAL_GB=$(( DGX_TRITON_TOTAL_GB + _triton_gb ))
+          DGX_TRITON_TOTAL_GB=$((DGX_TRITON_TOTAL_GB + _triton_gb))
           ;;
-        # No agx case: the AGX runs Ollama only — no k3s, so no serving projects
-        # land there and its VRAM accounting is the Ollama model alone.
+          # No agx case: the AGX runs Ollama only — no k3s, so no serving projects
+          # land there and its VRAM accounting is the Ollama model alone.
       esac
       host_html="<span class=\"badge badge-${active_host}\">${active_host}</span>"
       serving_html="<span class=\"serving-dot serving-on\" title=\"Serving on ${active_host}\">&#x25CF;</span>"
@@ -102,15 +120,16 @@ while IFS= read -r repo_json; do
   fi
 
   # --- Results link (ft-eval / sequence-classify — once runs/ dir exists, created by /kfp-deploy) ---
-  if [[ "$type" == "ft-eval" || "$type" == "sequence-classify" ]] && \
-     GH_TOKEN="$ADMIN_TOKEN" gh api "repos/${ORG}/${name}/contents/runs" &>/dev/null; then
+  if [[ "$type" == "ft-eval" || "$type" == "sequence-classify" ]] \
+    && GH_TOKEN="$ADMIN_TOKEN" gh api "repos/${ORG}/${name}/contents/runs" &>/dev/null; then
     results_html="<a href=\"https://github.com/${ORG}/${name}/blob/main/runs/RUNS.md\" target=\"_blank\" class=\"results-link\">&#x1F4CA; Runs</a>"
   else
     results_html="<span class=\"serving-none\">—</span>"
   fi
 
   # --- JupyterLab direct link — port depends on host (DGX=8888, AGX=8887) ---
-  jl_port=8888; [[ "$host" == "agx" ]] && jl_port=8887
+  jl_port=8888
+  [[ "$host" == "agx" ]] && jl_port=8887
   jl_path="git-miramar-labs-org/projects/${name}/notebook.ipynb"
   jl_url="http://localhost:${jl_port}/lab/tree/${jl_path}"
   jl_html="<a href=\"${jl_url}\" class=\"jl-link\" title=\"${jl_url}\">&#x1F9EA; Open</a>"
@@ -188,20 +207,20 @@ GKE_GPU_TYPE=$(read_org_var "GKE_GPU_TYPE")
 GKE_NODE_COUNT=$(read_org_var "GKE_NODE_COUNT")
 GKE_MACHINE_TYPE=$(read_org_var "GKE_MACHINE_TYPE")
 
-[[ -z "$NIM_MODEL" ]]      && NIM_MODEL="none"
-[[ -z "$OLLAMA_MODEL" ]]   && OLLAMA_MODEL="none"
-[[ -z "$NIM_VRAM_GB" || "$NIM_VRAM_GB" == "null" ]]       && NIM_VRAM_GB="0"
+[[ -z "$NIM_MODEL" ]] && NIM_MODEL="none"
+[[ -z "$OLLAMA_MODEL" ]] && OLLAMA_MODEL="none"
+[[ -z "$NIM_VRAM_GB" || "$NIM_VRAM_GB" == "null" ]] && NIM_VRAM_GB="0"
 [[ -z "$OLLAMA_VRAM_GB" || "$OLLAMA_VRAM_GB" == "null" ]] && OLLAMA_VRAM_GB="0"
 [[ -z "$DGX_VRAM_USEABLE" || "$DGX_VRAM_USEABLE" == "null" ]] && DGX_VRAM_USEABLE="100"
-[[ -z "$AGX_OLLAMA_MODEL" ]]   && AGX_OLLAMA_MODEL="none"
+[[ -z "$AGX_OLLAMA_MODEL" ]] && AGX_OLLAMA_MODEL="none"
 [[ -z "$AGX_OLLAMA_VRAM_GB" || "$AGX_OLLAMA_VRAM_GB" == "null" ]] && AGX_OLLAMA_VRAM_GB="0"
 [[ -z "$AGX_VRAM_USEABLE" || "$AGX_VRAM_USEABLE" == "null" ]] && AGX_VRAM_USEABLE="40"
-[[ -z "$GCP_PROJECT_ID" ]]      && GCP_PROJECT_ID="miramar-platform"
-[[ -z "$GCP_REGION" ]]          && GCP_REGION="us-central1"
-[[ -z "$GAR_REPO" ]]            && GAR_REPO="apps"
-[[ -z "$GKE_CLUSTER_NAME" ]]    && GKE_CLUSTER_NAME="miramar-shared-gke"
-[[ -z "$GKE_ZONE" ]]            && GKE_ZONE="us-central1-b"
-[[ -z "$GKE_STATE_BUCKET" ]]    && GKE_STATE_BUCKET="miramar-platform-cluster-state"
+[[ -z "$GCP_PROJECT_ID" ]] && GCP_PROJECT_ID="miramar-platform"
+[[ -z "$GCP_REGION" ]] && GCP_REGION="us-central1"
+[[ -z "$GAR_REPO" ]] && GAR_REPO="apps"
+[[ -z "$GKE_CLUSTER_NAME" ]] && GKE_CLUSTER_NAME="miramar-shared-gke"
+[[ -z "$GKE_ZONE" ]] && GKE_ZONE="us-central1-b"
+[[ -z "$GKE_STATE_BUCKET" ]] && GKE_STATE_BUCKET="miramar-platform-cluster-state"
 [[ -z "$GKE_CLUSTER_ACTIVE" ]] && GKE_CLUSTER_ACTIVE="false"
 [[ -z "$GKE_GPU_POOL_ACTIVE" ]] && GKE_GPU_POOL_ACTIVE="false"
 [[ -z "$GKE_GPU_TYPE" || "$GKE_GPU_TYPE" == "none" ]] && GKE_GPU_TYPE=""
@@ -217,29 +236,29 @@ GKE_MACHINE_TYPE=$(read_org_var "GKE_MACHINE_TYPE")
 #     between the full model size and zero depending purely on refresh timing — noise, not
 #     signal. Reserved is the number that answers "can I deploy another model here?".
 # For actual live GPU state, use nvtop on the host.
-VRAM_USED_GB=$(( NIM_VRAM_GB + OLLAMA_VRAM_GB + DGX_VLLM_TOTAL_GB + DGX_TRITON_TOTAL_GB ))
-VRAM_AVAIL_GB=$(( DGX_VRAM_USEABLE - VRAM_USED_GB ))
-(( VRAM_AVAIL_GB < 0 )) && VRAM_AVAIL_GB=0
+VRAM_USED_GB=$((NIM_VRAM_GB + OLLAMA_VRAM_GB + DGX_VLLM_TOTAL_GB + DGX_TRITON_TOTAL_GB))
+VRAM_AVAIL_GB=$((DGX_VRAM_USEABLE - VRAM_USED_GB))
+((VRAM_AVAIL_GB < 0)) && VRAM_AVAIL_GB=0
 
-AGX_VRAM_USED_GB=$(( AGX_OLLAMA_VRAM_GB ))
-AGX_VRAM_AVAIL_GB=$(( AGX_VRAM_USEABLE - AGX_VRAM_USED_GB ))
-(( AGX_VRAM_AVAIL_GB < 0 )) && AGX_VRAM_AVAIL_GB=0
+AGX_VRAM_USED_GB=$((AGX_OLLAMA_VRAM_GB))
+AGX_VRAM_AVAIL_GB=$((AGX_VRAM_USEABLE - AGX_VRAM_USED_GB))
+((AGX_VRAM_AVAIL_GB < 0)) && AGX_VRAM_AVAIL_GB=0
 
 NIM_SHORT="${NIM_MODEL##*/}"
-NIM_PILL=$( [[ "$NIM_MODEL" != "none" ]] \
+NIM_PILL=$([[ "$NIM_MODEL" != "none" ]] \
   && echo "<span class=\"ps-active\">${NIM_SHORT}</span>" \
-  || echo "<span class=\"ps-inactive\">inactive</span>" )
-OLLAMA_PILL=$( [[ "$DGX_OLLAMA_ACTIVE" == "true" && "$OLLAMA_MODEL" != "none" ]] \
+  || echo "<span class=\"ps-inactive\">inactive</span>")
+OLLAMA_PILL=$([[ "$DGX_OLLAMA_ACTIVE" == "true" && "$OLLAMA_MODEL" != "none" ]] \
   && echo "<span class=\"ps-active\">${OLLAMA_MODEL}</span>" \
-  || echo "<span class=\"ps-inactive\">inactive</span>" )
+  || echo "<span class=\"ps-inactive\">inactive</span>")
 VRAM_AVAIL_CLASS="ps-value"
-(( VRAM_AVAIL_GB < 20 )) && VRAM_AVAIL_CLASS="ps-value ps-warn"
+((VRAM_AVAIL_GB < 20)) && VRAM_AVAIL_CLASS="ps-value ps-warn"
 
-AGX_OLLAMA_PILL=$( [[ "$AGX_OLLAMA_ACTIVE" == "true" && "$AGX_OLLAMA_MODEL" != "none" ]] \
+AGX_OLLAMA_PILL=$([[ "$AGX_OLLAMA_ACTIVE" == "true" && "$AGX_OLLAMA_MODEL" != "none" ]] \
   && echo "<span class=\"ps-active\">${AGX_OLLAMA_MODEL}</span>" \
-  || echo "<span class=\"ps-inactive\">inactive</span>" )
+  || echo "<span class=\"ps-inactive\">inactive</span>")
 AGX_VRAM_AVAIL_CLASS="ps-value"
-(( AGX_VRAM_AVAIL_GB < 10 )) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
+((AGX_VRAM_AVAIL_GB < 10)) && AGX_VRAM_AVAIL_CLASS="ps-value ps-warn"
 
 GAR_URL="https://console.cloud.google.com/artifacts/docker/${GCP_PROJECT_ID}/${GCP_REGION}/${GAR_REPO}"
 MODEL_BUCKET="miramar-platform-ft-adapters"
@@ -284,16 +303,18 @@ GKE_NSIGHT_BADGE=$([ "$GKE_NSIGHT_OPERATOR_ACTIVE" = "true" ] && echo '<span cla
 
 DGX_OPENWEBUI_BADGE=$([ "$DGX_OPENWEBUI_ACTIVE" = "true" ] && echo '<a href="http://localhost:8084" class="ps-active">ACTIVE</a>' || echo '<span class="ps-inactive">INACTIVE</span>')
 GKE_OPENWEBUI_BADGE=$([ "$GKE_OPENWEBUI_ACTIVE" = "true" ] && echo '<span class="ps-active">ACTIVE</span>' || echo '<span class="ps-inactive">INACTIVE</span>')
-OPENWEBUI_API_CLASS="ps-value"; [[ -z "$DGX_OPENWEBUI_API_URL" ]] && OPENWEBUI_API_CLASS="ps-value ps-none"
+OPENWEBUI_API_CLASS="ps-value"
+[[ -z "$DGX_OPENWEBUI_API_URL" ]] && OPENWEBUI_API_CLASS="ps-value ps-none"
 [[ -n "$DGX_OPENWEBUI_API_URL" ]] \
   && OPENWEBUI_API_DISPLAY=$(echo "$DGX_OPENWEBUI_API_URL" | sed 's|http://[^.]*\.\([^.]*\)\..*|\1|') \
   || OPENWEBUI_API_DISPLAY="ollama (default)"
-AGX_OPENWEBUI_API_CLASS="ps-value"; [[ -z "$AGX_OPENWEBUI_API_URL" ]] && AGX_OPENWEBUI_API_CLASS="ps-value ps-none"
+AGX_OPENWEBUI_API_CLASS="ps-value"
+[[ -z "$AGX_OPENWEBUI_API_URL" ]] && AGX_OPENWEBUI_API_CLASS="ps-value ps-none"
 [[ -n "$AGX_OPENWEBUI_API_URL" ]] \
   && AGX_OPENWEBUI_API_DISPLAY=$(echo "$AGX_OPENWEBUI_API_URL" | sed 's|http://[^.]*\.\([^.]*\)\..*|\1|') \
   || AGX_OPENWEBUI_API_DISPLAY="ollama (default)"
 
-cat > "$OUTPUT" <<HTMLEOF
+cat >"$OUTPUT" <<HTMLEOF
 <!DOCTYPE html>
 <html lang="en">
 <head>

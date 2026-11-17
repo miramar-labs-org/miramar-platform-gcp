@@ -13,8 +13,18 @@ die() {
 }
 
 # Toggle xtrace around noisy assignments so verbose mode doesn't show $'...\n...' blobs
-_xtrace_push() { __XTRACE_WAS_ON=0; case "$-" in *x*) __XTRACE_WAS_ON=1; set +x ;; esac; }
-_xtrace_pop()  { (( ${__XTRACE_WAS_ON:-0} )) && set -x; unset __XTRACE_WAS_ON; }
+_xtrace_push() {
+  __XTRACE_WAS_ON=0
+  case "$-" in *x*)
+    __XTRACE_WAS_ON=1
+    set +x
+    ;;
+  esac
+}
+_xtrace_pop() {
+  ((${__XTRACE_WAS_ON:-0})) && set -x
+  unset __XTRACE_WAS_ON
+}
 
 # Kubernetes namespace for NIM pods; inherits from parent script or defaults to "default"
 NAMESPACE="${NAMESPACE:-nemo-microservices}"
@@ -57,7 +67,7 @@ deploy_nim() {
   http="${body##*$'\n'}"
   body="${body%$'\n'*}"
 
-  if [[ ! "$http" =~ ^[0-9]+$ ]] || (( http < 200 || http >= 300 )); then
+  if [[ ! "$http" =~ ^[0-9]+$ ]] || ((http < 200 || http >= 300)); then
     err "NIM deploy request failed (HTTP ${http:-unknown}). Response:"
     printf '%s\n' "${body:-<empty>}" >&2
     die "Failed to submit NIM deployment request for $nim_name."
@@ -159,7 +169,7 @@ wait_for_nim() {
 
     local current_time
     current_time=$(date +%s)
-    if (( current_time >= end_time )); then
+    if ((current_time >= end_time)); then
       err "Timeout waiting for $nim_name NIM to reach READY state after 5 hours."
       warn "Gathering final diagnostics for $nim_name pods (if any exist)..."
       local final_pods=()

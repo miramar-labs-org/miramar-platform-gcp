@@ -19,12 +19,27 @@ GRANT_SA=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --bucket)   BUCKET="$2";   shift 2 ;;
-    --project)  PROJECT="$2";  shift 2 ;;
-    --location) LOCATION="$2"; shift 2 ;;
-    --grant-sa) GRANT_SA="$2"; shift 2 ;;
-    -h|--help)  usage ;;
-    *) echo "Unknown option: $1"; usage ;;
+    --bucket)
+      BUCKET="$2"
+      shift 2
+      ;;
+    --project)
+      PROJECT="$2"
+      shift 2
+      ;;
+    --location)
+      LOCATION="$2"
+      shift 2
+      ;;
+    --grant-sa)
+      GRANT_SA="$2"
+      shift 2
+      ;;
+    -h | --help) usage ;;
+    *)
+      echo "Unknown option: $1"
+      usage
+      ;;
   esac
 done
 

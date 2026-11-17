@@ -2,7 +2,10 @@
 set -euo pipefail
 
 log() { printf "\n==> %s\n" "$*"; }
-die() { printf "\nERROR: %s\n" "$*" >&2; exit 1; }
+die() {
+  printf "\nERROR: %s\n" "$*" >&2
+  exit 1
+}
 
 need() { command -v "$1" >/dev/null 2>&1; }
 
@@ -29,8 +32,14 @@ fi
 
 ARCH="$(uname -m)"
 case "$ARCH" in
-  aarch64|arm64) ZIP_NAME="ngccli_arm64.zip"; DEFAULT_VER="4.5.2" ;;
-  x86_64|amd64)  ZIP_NAME="ngccli_linux.zip"; DEFAULT_VER="3.41.3" ;;
+  aarch64 | arm64)
+    ZIP_NAME="ngccli_arm64.zip"
+    DEFAULT_VER="4.5.2"
+    ;;
+  x86_64 | amd64)
+    ZIP_NAME="ngccli_linux.zip"
+    DEFAULT_VER="3.41.3"
+    ;;
   *) die "Unsupported architecture: $ARCH (expected arm64/aarch64 or x86_64/amd64)" ;;
 esac
 

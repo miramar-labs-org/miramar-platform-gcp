@@ -14,9 +14,9 @@ if [[ ("$MODEL" == "true" || "$MODEL" == "false") && -z "${2:-}" ]]; then
   MODEL=""
 fi
 
-log()  { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
+log() { printf "\033[1;32m[INFO]\033[0m %b\n" "$*"; }
 warn() { printf "\033[1;33m[WARN]\033[0m %b\n" "$*"; }
-err()  { printf "\033[1;31m[ERROR]\033[0m %b\n" "$*" >&2; }
+err() { printf "\033[1;31m[ERROR]\033[0m %b\n" "$*" >&2; }
 
 # --- Check Ollama is reachable ---
 if ! curl -sf --connect-timeout 5 --max-time 10 \
@@ -44,7 +44,7 @@ if ! curl -sf --connect-timeout 10 --max-time 120 \
   -X POST http://localhost:11434/api/generate \
   -H "Content-Type: application/json" \
   -d "{\"model\":\"${MODEL}\",\"prompt\":\"\",\"keep_alive\":0}" \
-  > /dev/null; then
+  >/dev/null; then
   err "Unload request failed for model: $MODEL"
   exit 1
 fi

@@ -134,8 +134,10 @@ format_delta() {
     return
   fi
   d=$((cur - prev))
-  if [ "$d" -gt 0 ]; then sign="+$d"
-  elif [ "$d" -lt 0 ]; then sign="$d"
+  if [ "$d" -gt 0 ]; then
+    sign="+$d"
+  elif [ "$d" -lt 0 ]; then
+    sign="$d"
   else sign="—"; fi
   printf '%s: *%s* (%s)' "$label" "$cur" "$sign"
 }

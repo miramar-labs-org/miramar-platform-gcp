@@ -7,9 +7,14 @@ SVC="${SVC:-postgres}"
 DEPLOY="${DEPLOY:-postgres}"
 # -----------------------------------------------
 
-GREEN=$'\033[1;32m'; RED=$'\033[1;31m'; RESET=$'\033[0m'
+GREEN=$'\033[1;32m'
+RED=$'\033[1;31m'
+RESET=$'\033[0m'
 
-need() { command -v "$1" >/dev/null 2>&1 || { echo "${RED}Missing: $1${RESET}" >&2; exit 2; }; }
+need() { command -v "$1" >/dev/null 2>&1 || {
+  echo "${RED}Missing: $1${RESET}" >&2
+  exit 2
+}; }
 need kubectl
 
 main() {
@@ -22,7 +27,7 @@ main() {
     echo "${GREEN}PASS${RESET}  Deployment ${DEPLOY}: rollout complete"
   else
     echo "${RED}FAIL${RESET}  Deployment ${DEPLOY}: not ready"
-    failures=$((failures+1))
+    failures=$((failures + 1))
   fi
 
   # Service resolves -- i.e. the Service actually selects the ready pod
@@ -32,11 +37,11 @@ main() {
       echo "${GREEN}PASS${RESET}  Service ${SVC}: has endpoint(s) (${endpoints})"
     else
       echo "${RED}FAIL${RESET}  Service ${SVC}: no endpoints (pod not selected/ready)"
-      failures=$((failures+1))
+      failures=$((failures + 1))
     fi
   else
     echo "${RED}FAIL${RESET}  Service ${SVC}: not found in ns '${NS}'"
-    failures=$((failures+1))
+    failures=$((failures + 1))
   fi
 
   # pg_isready -- a protocol-level check, not HTTP, so this runs inside the pod itself rather than
@@ -45,7 +50,7 @@ main() {
     echo "${GREEN}PASS${RESET}  pg_isready: accepting connections"
   else
     echo "${RED}FAIL${RESET}  pg_isready: not accepting connections"
-    failures=$((failures+1))
+    failures=$((failures + 1))
   fi
 
   echo

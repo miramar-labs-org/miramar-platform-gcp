@@ -11,9 +11,14 @@ PF_START_TIMEOUT="${PF_START_TIMEOUT:-10}"
 CURL_TIMEOUT="${CURL_TIMEOUT:-5}"
 # -----------------------------------------------
 
-GREEN=$'\033[1;32m'; RED=$'\033[1;31m'; RESET=$'\033[0m'
+GREEN=$'\033[1;32m'
+RED=$'\033[1;31m'
+RESET=$'\033[0m'
 
-need() { command -v "$1" >/dev/null 2>&1 || { echo "${RED}Missing: $1${RESET}" >&2; exit 2; }; }
+need() { command -v "$1" >/dev/null 2>&1 || {
+  echo "${RED}Missing: $1${RESET}" >&2
+  exit 2
+}; }
 need kubectl
 need curl
 
@@ -27,7 +32,7 @@ PY
 wait_pf_ready() {
   local logfile="$1" local_port="$2"
   local end=$((SECONDS + PF_START_TIMEOUT))
-  while (( SECONDS < end )); do
+  while ((SECONDS < end)); do
     grep -q "Forwarding from 127.0.0.1:${local_port}" "$logfile" 2>/dev/null && return 0
     sleep 0.2
   done
@@ -35,7 +40,8 @@ wait_pf_ready() {
 }
 
 with_port_forward() {
-  local svc="$1" svc_port="$2" fn="$3"; shift 3
+  local svc="$1" svc_port="$2" fn="$3"
+  shift 3
   local local_port logfile pid rc
   local_port="$(find_free_port)"
   logfile="/tmp/pf-kfp-${svc}.log"
@@ -47,13 +53,15 @@ with_port_forward() {
     kill "$pid" >/dev/null 2>&1 || true
     return 1
   fi
-  "$fn" "$local_port" "$@"; rc=$?
+  "$fn" "$local_port" "$@"
+  rc=$?
   kill "$pid" >/dev/null 2>&1 || true
   return $rc
 }
 
 probe_http() {
-  local name="$1" svc="$2" svc_port="$3"; shift 3
+  local name="$1" svc="$2" svc_port="$3"
+  shift 3
   local paths=("$@")
   if ! kubectl -n "$NS" get svc "$svc" >/dev/null 2>&1; then
     echo "${RED}FAIL${RESET}  ${name}: service '${svc}' not found in ns '${NS}'"
@@ -63,7 +71,8 @@ probe_http() {
 }
 
 _probe_inner() {
-  local local_port="$1" name="$2" svc="$3" svc_port="$4"; shift 4
+  local local_port="$1" name="$2" svc="$3" svc_port="$4"
+  shift 4
   local base="http://127.0.0.1:${local_port}"
   for path in "$@"; do
     if body="$(curl --silent --fail --max-time "$CURL_TIMEOUT" "${base}${path}" 2>/dev/null)"; then
@@ -81,12 +90,12 @@ main() {
   echo
   local failures=0
 
-  probe_http "KFP UI"         "$SVC_UI"  "$PORT_UI"  "/" \
-    || failures=$((failures+1))
+  probe_http "KFP UI" "$SVC_UI" "$PORT_UI" "/" \
+    || failures=$((failures + 1))
 
   probe_http "KFP API server" "$SVC_API" "$PORT_API" \
     "/apis/v2beta1/healthz" "/healthz" "/" \
-    || failures=$((failures+1))
+    || failures=$((failures + 1))
 
   echo
   if [[ "$failures" -eq 0 ]]; then

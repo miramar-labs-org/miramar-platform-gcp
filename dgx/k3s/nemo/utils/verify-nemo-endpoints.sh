@@ -7,8 +7,8 @@ NS="${NS:-nemo-microservices}"
 SVC_EVALUATOR="${SVC_EVALUATOR:-nemo-evaluator}"
 SVC_CUSTOMIZER="${SVC_CUSTOMIZER:-nemo-customizer}"
 SVC_ENTITY_STORE="${SVC_ENTITY_STORE:-nemo-entity-store}"
-SVC_DATASTORE="${SVC_DATASTORE:-nemo-postgresql}"     # postgres svc
-SVC_NIM_INFER="${SVC_NIM_INFER:-nemo-nim-proxy}"     # or nimservice svc name
+SVC_DATASTORE="${SVC_DATASTORE:-nemo-postgresql}" # postgres svc
+SVC_NIM_INFER="${SVC_NIM_INFER:-nemo-nim-proxy}"  # or nimservice svc name
 
 # Set to a number OR "auto" (auto picks first port on the service)
 PORT_HTTP_EVALUATOR="${PORT_HTTP_EVALUATOR:-auto}"
@@ -18,14 +18,20 @@ PORT_HTTP_NIM="${PORT_HTTP_NIM:-auto}"
 PORT_TCP_DATASTORE="${PORT_TCP_DATASTORE:-5432}"
 
 HTTP_PATHS=("/health" "/v1/health" "/v1/health/ready" "/readyz" "/livez")
-SKIP_PSQL="${SKIP_PSQL:-1}"              # default: just TCP connect
+SKIP_PSQL="${SKIP_PSQL:-1}" # default: just TCP connect
 PF_START_TIMEOUT="${PF_START_TIMEOUT:-10}"
 CURL_TIMEOUT="${CURL_TIMEOUT:-3}"
 # ------------------------------------------------------
 
-GREEN=$'\033[1;32m'; RED=$'\033[1;31m'; YELLOW=$'\033[1;33m'; RESET=$'\033[0m'
+GREEN=$'\033[1;32m'
+RED=$'\033[1;31m'
+YELLOW=$'\033[1;33m'
+RESET=$'\033[0m'
 
-need() { command -v "$1" >/dev/null 2>&1 || { echo "${RED}Missing: $1${RESET}" >&2; exit 2; }; }
+need() { command -v "$1" >/dev/null 2>&1 || {
+  echo "${RED}Missing: $1${RESET}" >&2
+  exit 2
+}; }
 need kubectl
 need curl
 
@@ -57,7 +63,7 @@ resolve_port() {
 wait_pf_ready() {
   local logfile="$1" local_port="$2"
   local end=$((SECONDS + PF_START_TIMEOUT))
-  while (( SECONDS < end )); do
+  while ((SECONDS < end)); do
     if grep -q "Forwarding from 127.0.0.1:${local_port}" "$logfile" 2>/dev/null; then
       return 0
     fi
@@ -193,11 +199,11 @@ main() {
 
   local failures=0
 
-  probe_http "Evaluator"     "$SVC_EVALUATOR"     "$PORT_HTTP_EVALUATOR" || failures=$((failures+1))
-  probe_http "Customizer"    "$SVC_CUSTOMIZER"    "$PORT_HTTP_CUSTOMIZER" || failures=$((failures+1))
-  probe_http "Entity Store"  "$SVC_ENTITY_STORE"  "$PORT_HTTP_ENTITY_STORE" || failures=$((failures+1))
-  probe_http "NIM Inference" "$SVC_NIM_INFER"      "$PORT_HTTP_NIM" || failures=$((failures+1))
-  probe_postgres "Datastore" "$SVC_DATASTORE"     "$PORT_TCP_DATASTORE" || failures=$((failures+1))
+  probe_http "Evaluator" "$SVC_EVALUATOR" "$PORT_HTTP_EVALUATOR" || failures=$((failures + 1))
+  probe_http "Customizer" "$SVC_CUSTOMIZER" "$PORT_HTTP_CUSTOMIZER" || failures=$((failures + 1))
+  probe_http "Entity Store" "$SVC_ENTITY_STORE" "$PORT_HTTP_ENTITY_STORE" || failures=$((failures + 1))
+  probe_http "NIM Inference" "$SVC_NIM_INFER" "$PORT_HTTP_NIM" || failures=$((failures + 1))
+  probe_postgres "Datastore" "$SVC_DATASTORE" "$PORT_TCP_DATASTORE" || failures=$((failures + 1))
 
   echo
   if [[ "$failures" -eq 0 ]]; then
