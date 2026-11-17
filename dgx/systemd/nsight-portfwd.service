@@ -29,8 +29,8 @@ done'
 # the EXIT trap kills the survivor so Restart=on-failure brings the pair back cleanly.
 ExecStart=/usr/bin/bash -lc '\
 trap "kill 0" EXIT INT TERM; \
-/usr/local/bin/kubectl -n nsight-operator port-forward svc/nsight-operator-gateway 8889:8888 --address 0.0.0.0 & \
-/usr/local/bin/kubectl -n nsight-operator port-forward svc/nsight-operator-coordinator 13001:80 --address 0.0.0.0 & \
+/usr/local/bin/kubectl -n nsight-operator port-forward svc/nsight-operator-gateway 8889:8888 --address 127.0.0.1 & \
+/usr/local/bin/kubectl -n nsight-operator port-forward svc/nsight-operator-coordinator 13001:80 --address 127.0.0.1 & \
 wait -n; \
 exit 1'
 Restart=on-failure

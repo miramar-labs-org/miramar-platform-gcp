@@ -21,7 +21,7 @@ echo "Timed out waiting for ready endpoints for svc/ml-pipeline-ui"; \
 /usr/local/bin/kubectl -n kubeflow get endpoints ml-pipeline-ui -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl -n kubeflow port-forward svc/ml-pipeline-ui 8080:80 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n kubeflow port-forward svc/ml-pipeline-ui 8080:80 --address 127.0.0.1
 Restart=on-failure
 RestartSec=3
 

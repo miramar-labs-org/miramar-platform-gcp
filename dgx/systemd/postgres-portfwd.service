@@ -21,7 +21,7 @@ echo "Timed out waiting for ready endpoints for svc/postgres"; \
 /usr/local/bin/kubectl -n postgres-system get endpoints postgres -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl -n postgres-system port-forward svc/postgres 5432:5432 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n postgres-system port-forward svc/postgres 5432:5432 --address 127.0.0.1
 Restart=on-failure
 RestartSec=3
 

@@ -21,7 +21,7 @@ echo "Timed out waiting for ready endpoints for svc/qdrant"; \
 /usr/local/bin/kubectl -n qdrant-system get endpoints qdrant -o wide || true; \
 exit 1'
 
-ExecStart=/usr/local/bin/kubectl -n qdrant-system port-forward svc/qdrant 6333:6333 6334:6334 --address 0.0.0.0
+ExecStart=/usr/local/bin/kubectl -n qdrant-system port-forward svc/qdrant 6333:6333 6334:6334 --address 127.0.0.1
 Restart=on-failure
 RestartSec=3
 

@@ -20,9 +20,8 @@ AGX Orin runs the identical set of services — see [../../agx/systemd/README.md
 
 k3s itself runs as a system-level service (`sudo systemctl start k3s` / `sudo systemctl stop k3s`) — not a user unit. The port-forward services above start after k3s is ready.
 
-`dashboard.service` and `mlflow-portfwd.service` bind to `127.0.0.1` only; the port-forward
-services (`mlflow-portfwd`, `kubeflow-portfwd`, `nemo-portfwd`, `qdrant-portfwd`, `postgres-portfwd`) bind to `0.0.0.0` so the runner container can
-reach them. Access from a laptop via SSH tunnel:
+All port-forward services bind to `127.0.0.1` only (Nov 2026 hardening): the runner
+container uses `--network host`, so loopback is enough, and nothing is exposed to the LAN/tailnet. Access from a laptop via SSH tunnel:
 
 ```sh
 ssh -L 8001:localhost:8001 \
