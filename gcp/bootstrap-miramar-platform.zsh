@@ -41,9 +41,14 @@ GHA_CLUSTER_SA_NAME="gke-cluster-ops"
 
 GITHUB_OWNER="miramar-labs-org"
 
-PROJECT_NAMES=(
-  "mlops-torch-triton-gke-pipeline"
-)
+# Per-project deploy SAs (e.g. a serving repo that deploys to GKE). Each is WIF-bound to
+# ITS OWN repo only (need-to-know) and set as that repo's GCP_SERVICE_ACCOUNT secret.
+# (mlops-torch-triton-gke-pipeline removed 2026-11-17: repo deleted, SA deleted.)
+PROJECT_NAMES=()
+
+# The platform repo — the ONLY repo the cluster-ops SA (container.admin/storage.admin) trusts.
+# Project repos never bind to it: add them to PROJECT_NAMES for their own deploy SA.
+PLATFORM_REPO="miramar-platform-gcp"
 
 PER_NAMESPACE_SERVICE_ACCOUNTS="true"
 
@@ -343,16 +348,22 @@ ensure_wif_pool
 ensure_wif_provider
 
 WIF_PROVIDER_RESOURCE="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/providers/${WIF_PROVIDER_ID}"
-WIF_PRINCIPAL_SET="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/attribute.repository_owner/${GITHUB_OWNER}"
+# Need-to-know: principals are per repository, never the whole org (Nov 2026 incident).
+wif_principal_for_repo() {
+  print -r -- "principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL_ID}/attribute.repository/${GITHUB_OWNER}/$1"
+}
+WIF_PRINCIPAL_SET="$(wif_principal_for_repo "$PLATFORM_REPO")"
 
 log "WIF provider resource: ${WIF_PROVIDER_RESOURCE}"
-log "WIF principal set: ${WIF_PRINCIPAL_SET}"
+log "WIF principal set (platform): ${WIF_PRINCIPAL_SET}"
 
 typeset -A APP_TO_SA
 
 if [[ "$PER_NAMESPACE_SERVICE_ACCOUNTS" == "false" ]]; then
   SHARED_SA_EMAIL="$(ensure_service_account "github-deploy" "GitHub deploy shared")"
-  add_service_account_iam_binding "$SHARED_SA_EMAIL" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
+  for APP in "${PROJECT_NAMES[@]}"; do
+    add_service_account_iam_binding "$SHARED_SA_EMAIL" "$(wif_principal_for_repo "$APP")" "roles/iam.workloadIdentityUser"
+  done
   add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SHARED_SA_EMAIL}" "roles/container.clusterViewer"
   add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SHARED_SA_EMAIL}" "roles/iam.serviceAccountUser"
 fi
@@ -362,7 +373,7 @@ for APP in "${PROJECT_NAMES[@]}"; do
     SA_NAME="$(sanitize_sa_name "github-deploy-${APP}")"
     SA_EMAIL="$(ensure_service_account "$SA_NAME" "GitHub deploy for ${APP}")"
 
-    add_service_account_iam_binding "$SA_EMAIL" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
+    add_service_account_iam_binding "$SA_EMAIL" "$(wif_principal_for_repo "$APP")" "roles/iam.workloadIdentityUser"
     add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SA_EMAIL}" "roles/container.clusterViewer"
     add_project_iam_binding "$PROJECT_ID" "serviceAccount:${SA_EMAIL}" "roles/iam.serviceAccountUser"
   else
@@ -378,6 +389,26 @@ GHA_CLUSTER_SA="${CLUSTER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 ensure_service_account "$CLUSTER_SA_NAME" "GKE cluster operations"
 add_service_account_iam_binding "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET" "roles/iam.workloadIdentityUser"
+# Reconcile: each SA's workloadIdentityUser members must be EXACTLY its declared repo
+# principal. Anything else (the pre-Nov-2026 org-wide attribute.repository_owner principal,
+# other repos, hand-added grants) is revoked so re-runs never leave stale trust behind.
+reconcile_wif_members() {  # sa_email expected_member
+  local sa="$1" want="$2" m
+  for m in $(gcloud --quiet iam service-accounts get-iam-policy "$sa" --project "$PROJECT_ID" \
+      --flatten="bindings[].members" --filter="bindings.role=roles/iam.workloadIdentityUser" \
+      --format="value(bindings.members)"); do
+    [[ "$m" == "$want" ]] && continue
+    log "Revoking stale WIF member on ${sa}: ${m}"
+    gcloud --quiet iam service-accounts remove-iam-policy-binding "$sa" --project "$PROJECT_ID" \
+      --role=roles/iam.workloadIdentityUser --member="$m" >/dev/null
+  done
+}
+reconcile_wif_members "$GHA_CLUSTER_SA" "$WIF_PRINCIPAL_SET"
+if [[ "$PER_NAMESPACE_SERVICE_ACCOUNTS" == "true" ]]; then
+  for APP in "${PROJECT_NAMES[@]}"; do
+    reconcile_wif_members "${APP_TO_SA[$APP]}" "$(wif_principal_for_repo "$APP")"
+  done
+fi
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/container.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/storage.admin"
 add_project_iam_binding "$PROJECT_ID" "serviceAccount:${GHA_CLUSTER_SA}" "roles/artifactregistry.admin"

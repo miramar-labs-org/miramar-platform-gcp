@@ -47,14 +47,24 @@ Expected provider condition:
 attribute.repository_owner=='miramar-labs-org'
 ```
 
-Expected service account principal:
+Expected service account principals — **one per repository, never the whole org**
+(need-to-know, Nov 2026 incident). The provider condition above is only a coarse gate;
+the service account binding is what decides which repos can act as it:
 
 ```text
-principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org
+principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository/miramar-labs-org/miramar-platform-gcp
 ```
 
-If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, verify the
-service account IAM binding matches the current GitHub org exactly.
+Project repos **never** bind to `gh-gke-cluster-ops` (it holds `container.admin` +
+`storage.admin`). A serving repo that deploys to GCP gets its own `github-deploy-*` SA: add
+the repo to `PROJECT_NAMES` in `gcp/bootstrap-miramar-platform.zsh` and re-run it — the SA is
+WIF-bound to that one repo — then set it as the repo's `GCP_SERVICE_ACCOUNT` secret (Create
+Project prints the steps as a notice). Remove the repo from `PROJECT_NAMES` and delete the SA
+when the project is deleted. Bootstrap also revokes the legacy org-wide
+`attribute.repository_owner` principal if it finds one.
+
+If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, check that the calling
+repo has its own `attribute.repository/...` binding on the service account.
 
 ## Storage
 

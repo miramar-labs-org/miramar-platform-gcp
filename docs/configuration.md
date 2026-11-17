@@ -136,9 +136,15 @@ k3s/GKE for private GHCR images; an App token would expire after an hour. Its or
 visibility must include `miramar-platform-gcp` (a public repo), or platform workflows and
 Create Project read it as empty.
 
-**Serving repos** are public, so org secrets don't reach them. Create Project copies
-`SERVING_APP_CLIENT_ID`, `SERVING_APP_KEY` and `MIRAMAR_ORG_GHCR_PAT` into each new
-`serving-*` repo as repo secrets. Serving deploy/undeploy mint `miramar-serving-app` tokens
+**Project repos** never see org secrets: every org secret is scoped (`visibility: selected`)
+to only the repos whose workflows reference it — no org-wide secrets (need-to-know). Create
+Project copies into each new repo, as repo secrets, exactly the secrets its template's
+workflows reference (`secrets.X` under `templates/new-project-<type>/.github`) — e.g. a
+`serving-vllm` repo gets `SERVING_APP_*`, `MIRAMAR_ORG_GHCR_PAT`, `HF_TOKEN`, `WIF_PROVIDER`
+(`GCP_SERVICE_ACCOUNT` is never copied — each repo gets its own deploy SA, see `docs/gcp.md`); a `serving-trt-fp8` repo gets no GHCR PAT or HF token. A referenced
+secret that isn't available (e.g. a deleted org secret) produces a warning with the
+`gh secret set` command to run. Rotating a credential means re-setting it in every project
+repo holding a copy. Serving deploy/undeploy mint `miramar-serving-app` tokens
 from them; image pushes use `GITHUB_TOKEN` (`packages: write`). The `miramar-serving-app` key
 lives in every (public) serving repo, so the App is deliberately narrow — no contents or
 administration access, and installed only on the platform repo and serving repos. A leaked

@@ -198,32 +198,56 @@ jobs:
             -X POST "repos/miramar-labs-org/${PROJECT_NAME}/actions/variables" \
             -f name="PROJECT_HOST" -f value="${HOST}"
 
-      # Serving deploys mint miramar-serving-app App tokens (platform workflow dispatch, repo +
-      # org variables) and create the k3s GHCR pull secret. Serving repos are public and org
-      # secrets don't reach them, so each serving repo gets its own copies. SERVING_APP_* are
-      # `provision` environment secrets. Rotating any credential means re-setting it in every
-      # serving repo. The App is installed on selected repos only: an App token can't add a
-      # repo to an installation, so the owner does that (command in the notice below).
-      - name: Copy serving secrets
-        if: startsWith(inputs.project_type, 'serving-')
+      # Need-to-know secrets: org secrets are scoped to selected repos and never reach a new
+      # project repo, so the new repo gets repo-secret copies of exactly the secrets its
+      # template's workflows reference (`secrets.X` under templates/new-project-<type>/.github),
+      # and nothing else. Values come from this repo's scoped org secrets, repo secrets, and
+      # `provision` environment secrets. Rotating a credential means re-setting it in every
+      # project repo that holds a copy.
+      # Serving repos also need two owner-only grants an App token can't make (notices below):
+      # miramar-serving-app installation, and a per-repo GCP WIF binding.
+      - name: Copy project secrets (need-to-know)
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
           GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
           SERVING_APP_CLIENT_ID: ${{ secrets.SERVING_APP_CLIENT_ID }}
           SERVING_APP_KEY: ${{ secrets.SERVING_APP_KEY }}
           MIRAMAR_ORG_GHCR_PAT: ${{ secrets.MIRAMAR_ORG_GHCR_PAT }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
         run: |
           set -euo pipefail
-          for name in SERVING_APP_CLIENT_ID SERVING_APP_KEY MIRAMAR_ORG_GHCR_PAT; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::${name} is not readable from this repo (org secret visibility?)"
-              exit 1
+          TDIR="${GITHUB_WORKSPACE}/templates/new-project-${PROJECT_TYPE}/.github"
+          needed=$(grep -rhoE 'secrets\.[A-Z0-9_]+' "${TDIR}" 2>/dev/null \
+                   | sed 's/^secrets\.//' | sort -u | grep -vx GITHUB_TOKEN || true)
+          if [[ -z "${needed}" ]]; then
+            echo "Template references no secrets; nothing to copy."
+            exit 0
+          fi
+          missing=()
+          for name in ${needed}; do
+            [[ "${name}" == GCP_SERVICE_ACCOUNT ]] && continue   # per-project SA, notice below
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("${name}")
+              continue
             fi
             printf '%s' "${!name}" | GH_TOKEN="${GH_APP_TOKEN}" gh secret set "${name}" \
               --repo "miramar-labs-org/${PROJECT_NAME}"
             echo "Set ${name}"
           done
-          echo "::notice::Add ${PROJECT_NAME} to the miramar-serving-app App installation before deploying: gh api -X PUT /user/installations/\$(gh api orgs/miramar-labs-org/installations -q '.installations[]|select(.app_slug==\"miramar-serving-app\").id')/repositories/\$(gh api repos/miramar-labs-org/${PROJECT_NAME} -q .id)"
+          for name in "${missing[@]}"; do
+            echo "::warning::${name} is referenced by the ${PROJECT_TYPE} template but not available to this workflow (deleted org secret, or not mapped in this step's env). Set it on the project repo before deploying: gh secret set ${name} -R miramar-labs-org/${PROJECT_NAME}"
+          done
+          if [[ "${PROJECT_TYPE}" == serving-* ]]; then
+            echo "::notice::Add ${PROJECT_NAME} to the miramar-serving-app App installation before deploying: gh api -X PUT /user/installations/\$(gh api orgs/miramar-labs-org/installations -q '.installations[]|select(.app_slug==\"miramar-serving-app\").id')/repositories/\$(gh api repos/miramar-labs-org/${PROJECT_NAME} -q .id)"
+          fi
+          # GCP_SERVICE_ACCOUNT is deliberately NOT copied: this repo's value is the platform's
+          # cluster-ops SA (container.admin + storage.admin), which project repos must never use.
+          if grep -qx 'GCP_SERVICE_ACCOUNT' <<<"${needed}"; then
+            echo "::notice::${PROJECT_NAME} deploys to GCP with its OWN least-privilege SA: add '${PROJECT_NAME}' to PROJECT_NAMES in gcp/bootstrap-miramar-platform.zsh, re-run it (creates a github-deploy-* SA WIF-bound to this repo only; name truncated to 30 chars), then: gh secret set GCP_SERVICE_ACCOUNT -R miramar-labs-org/${PROJECT_NAME} --body <that SA email>"
+          fi
 
       - name: Initialise repository with template
         env:
