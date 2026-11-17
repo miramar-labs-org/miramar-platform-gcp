@@ -60,5 +60,5 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 ## Secrets required
 
 - `secrets.NGC_API_KEY` — NGC API key for pulling from nvcr.io (org-level secret)
-- `secrets.AUTOMATION_APP_CLIENT_ID` / `secrets.AUTOMATION_APP_KEY` — mint a 1-hour `miramar-automation` App token (repo variables, platform workflow dispatch); copied into this repo by Create Project
+- `secrets.SERVING_APP_CLIENT_ID` / `secrets.SERVING_APP_KEY` — mint a 1-hour `miramar-serving` App token (repo variables, platform workflow dispatch); copied into this repo by Create Project
 - `secrets.WIF_PROVIDER` / `secrets.GCP_SERVICE_ACCOUNT` — GKE auth (GKE target only)
