@@ -51,9 +51,14 @@ jobs:
         run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Set up SSH
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
-          chmod 600 /tmp/k_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -t 21600 -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Read OpenWebUI API URL
@@ -92,28 +97,28 @@ jobs:
 
       - name: Stop existing port-forward service (frees port for restart)
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'systemctl --user stop openwebui-portfwd.service 2>/dev/null || true'
 
       - name: Check port 8084 availability
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'ss -tlnp | grep -q ":8084 " && echo "ERROR: port 8084 is in use by another process" && exit 1 || echo "Port 8084 is free"'
 
       - name: Install port-forward service on host
         run: |
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             dgx/systemd/openwebui-portfwd.service \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}:~/.config/systemd/user/openwebui-portfwd.service"
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'systemctl --user daemon-reload && systemctl --user enable --now openwebui-portfwd.service'
 
       - name: Verify port-forward service
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'systemctl --user is-active openwebui-portfwd.service'
 
@@ -126,9 +131,9 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="DGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/k_key
+        run: ssh-agent -k >/dev/null 2>&1 || true
 
       - name: Summary
         if: always()
@@ -169,9 +174,14 @@ jobs:
         run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Set up SSH
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
-          chmod 600 /tmp/k_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -t 21600 -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${{ vars.AGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Read OpenWebUI API URL
@@ -210,28 +220,28 @@ jobs:
 
       - name: Stop existing port-forward service (frees port for restart)
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
             'systemctl --user stop openwebui-portfwd.service 2>/dev/null || true'
 
       - name: Check port 8084 availability
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
             'ss -tlnp | grep -q ":8084 " && echo "ERROR: port 8084 is in use by another process" && exit 1 || echo "Port 8084 is free"'
 
       - name: Install port-forward service on host
         run: |
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             dgx/systemd/openwebui-portfwd.service \
             "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}:~/.config/systemd/user/openwebui-portfwd.service"
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
             'systemctl --user daemon-reload && systemctl --user enable --now openwebui-portfwd.service'
 
       - name: Verify port-forward service
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
             'systemctl --user is-active openwebui-portfwd.service'
 
@@ -244,9 +254,9 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="AGX_OPENWEBUI_ACTIVE" -f value="true" -f visibility="all"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/k_key
+        run: ssh-agent -k >/dev/null 2>&1 || true
 
       - name: Summary
         if: always()

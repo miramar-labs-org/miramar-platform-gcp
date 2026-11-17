@@ -51,14 +51,19 @@ jobs:
         run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Set up SSH
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
-          chmod 600 /tmp/k_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -t 21600 -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Stop port-forward service
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.DGX_HOST_USER }}@${{ vars.DGX_HOST_IP }}" \
             'systemctl --user disable --now openwebui-portfwd.service 2>/dev/null || true'
 
@@ -76,9 +81,9 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="DGX_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/k_key
+        run: ssh-agent -k >/dev/null 2>&1 || true
 
       - name: Summary
         if: always()
@@ -112,14 +117,19 @@ jobs:
         run: echo "KUBECONFIG=${HOME}/.kube/config" >> "${GITHUB_ENV}"
 
       - name: Set up SSH
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
-          chmod 600 /tmp/k_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -t 21600 -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${{ vars.AGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Stop port-forward service
         run: |
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${{ vars.AGX_HOST_USER }}@${{ vars.AGX_HOST_IP }}" \
             'systemctl --user disable --now openwebui-portfwd.service 2>/dev/null || true'
 
@@ -137,9 +147,9 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="AGX_OPENWEBUI_ACTIVE" -f value="false" -f visibility="all"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/k_key
+        run: ssh-agent -k >/dev/null 2>&1 || true
 
       - name: Summary
         if: always()

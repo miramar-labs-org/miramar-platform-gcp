@@ -95,15 +95,20 @@ jobs:
           fi
 
       - name: Set up SSH key
+        env:
+          HOST_SSH_KEY: ${{ secrets.HOST_SSH_KEY }}
         run: |
-          echo "${{ secrets.HOST_SSH_KEY }}" > /tmp/k_key
-          chmod 600 /tmp/k_key
+          # Key lives only in ssh-agent memory: never written to disk, never
+          # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -t 21600 -
+          { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${HOST_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Copy kubeconfig from host
         run: |
           mkdir -p ~/.kube
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}:/home/${HOST_USER}/.kube/config" ~/.kube/config
           echo "KUBECONFIG=${HOME}/.kube/config" >> "$GITHUB_ENV"
 
@@ -139,7 +144,7 @@ jobs:
 
           # rmdir succeeds only on an empty directory, so none of these can destroy data.
           # A non-empty dir is left in place and reported.
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
+          ssh -o StrictHostKeyChecking=no "${HOST_USER}@${HOST_IP}" "
             for d in '/home/${HOST_USER}/shared/nsight/otlp-data' \
                      '/home/${HOST_USER}/.local/share/nsight-operator/otlp-data' \
                      '/home/${HOST_USER}/.local/share/nsight-operator'; do
@@ -191,7 +196,7 @@ jobs:
         # exported and verified, and it simply contains no GPU records. Catch it here
         # instead of three steps into an interpretation session.
         run: |
-          ADMIN_ONLY=$(ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ADMIN_ONLY=$(ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             "awk '/RmProfilingAdminOnly/ {print \$2}' /proc/driver/nvidia/params" 2>/dev/null || echo "")
 
@@ -376,15 +381,15 @@ jobs:
         # REST API (13001). ~/bin/nsight-export-report talks to :13001; the :8889
         # SPA endpoint does not expose the REST API.
         run: |
-          scp -i /tmp/k_key -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no \
             dgx/systemd/nsight-portfwd.service \
             "${HOST_USER}@${HOST_IP}:~/.config/systemd/user/nsight-portfwd.service"
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             'systemctl --user daemon-reload && systemctl --user enable nsight-portfwd.service && systemctl --user restart nsight-portfwd.service'
           # Give the pair a moment to bind, then verify the coordinator REST API is
           # reachable (JSON), not the SPA fallback.
-          ssh -i /tmp/k_key -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no \
             "${HOST_USER}@${HOST_IP}" \
             'for i in $(seq 1 20); do curl -fsS localhost:13001/api/v1/sessions/ | head -c 1 | grep -q "[[{]" && { echo "coordinator REST API OK on :13001"; exit 0; }; sleep 2; done; echo "WARNING: coordinator REST API not confirmed on :13001"; systemctl --user status nsight-portfwd.service --no-pager || true'
 
@@ -399,9 +404,9 @@ jobs:
           || gh api --method POST "/orgs/miramar-labs-org/actions/variables" \
             -f name="${var}" -f value="true" -f visibility="all"
 
-      - name: Cleanup SSH key
+      - name: Stop SSH agent
         if: always()
-        run: rm -f /tmp/k_key
+        run: ssh-agent -k >/dev/null 2>&1 || true
 
       - name: Summary
         if: always()
