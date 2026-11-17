@@ -57,7 +57,7 @@ jobs:
           # Key lives only in ssh-agent memory: never written to disk, never
           # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
           eval "$(ssh-agent -s)" >/dev/null
-          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -t 21600 -
           { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${{ vars.DGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
@@ -123,7 +123,7 @@ jobs:
           # Key lives only in ssh-agent memory: never written to disk, never
           # interpolated into the step script. Agent persists for later steps via GITHUB_ENV.
           eval "$(ssh-agent -s)" >/dev/null
-          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -
+          printf '%s\n' "$HOST_SSH_KEY" | ssh-add -q -t 21600 -
           { echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"; echo "SSH_AGENT_PID=$SSH_AGENT_PID"; } >> "$GITHUB_ENV"
           ssh-keyscan -H "${{ vars.AGX_HOST_IP }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
