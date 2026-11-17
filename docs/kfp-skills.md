@@ -60,8 +60,9 @@ wandb:
   entity: ""              # W&B team/org (leave blank for personal account)
 ```
 
-`WANDB_API_KEY` is already injected into KFP pods from the `mlabs-api-keys` K8s secret — no
-additional setup required. When enabled:
+`WANDB_API_KEY` is opt-in: create the `WANDB_API_KEY` org secret (visibility selected,
+`--repos miramar-platform-gcp`) and re-run **Kubeflow Deploy** so it lands in the
+`mlabs-api-keys` K8s secret (mounted optional, so it is harmless when absent). When enabled:
 
 - **`fine_tune`** — calls `wandb.init()` before training and logs step metrics (loss, grad_norm,
   lr, token accuracy) via `report_to=["mlflow", "wandb"]` in `SFTConfig`. Calls `wandb.finish()`

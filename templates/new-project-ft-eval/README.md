@@ -104,7 +104,7 @@ wandb:
   entity: ""   # leave blank for personal account
 ```
 
-When enabled, `fine_tune` logs step-level metrics (loss, grad_norm, lr, token accuracy) to W&B alongside MLflow via `report_to: ["mlflow", "wandb"]`. Requires `WANDB_API_KEY` in the `mlabs-api-keys` K8s secret (already provisioned by the platform). Full details: [docs/kfp-skills.md — Weights & Biases](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/kfp-skills.md#weights--biases).
+When enabled, `fine_tune` logs step-level metrics (loss, grad_norm, lr, token accuracy) to W&B alongside MLflow via `report_to: ["mlflow", "wandb"]`. Requires the `WANDB_API_KEY` org secret (visibility selected, scoped to miramar-platform-gcp) + a Kubeflow Deploy re-run to sync it into `mlabs-api-keys`. Full details: [docs/kfp-skills.md — Weights & Biases](https://github.com/miramar-labs-org/miramar-platform-gcp/blob/main/docs/kfp-skills.md#weights--biases).
 
 ### Slack notifications
 

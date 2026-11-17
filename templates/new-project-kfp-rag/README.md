@@ -129,7 +129,7 @@ Collections persist between pipeline runs — only the most recent ingest's data
 Enable tracing to LangSmith for distributed trace inspection of the RAG chain:
 
 1. Set `langsmith.enabled: true` and `langsmith.project: "{{PROJECT_NAME}}"` in `config.yaml`
-2. Add `LANGCHAIN_API_KEY` to the `mlabs-api-keys` K8s secret (already provisioned by the platform)
+2. Create the `LANGCHAIN_API_KEY` org secret (visibility selected, scoped to miramar-platform-gcp) and re-run **Kubeflow Deploy** to sync it into `mlabs-api-keys`
 
 ---
 

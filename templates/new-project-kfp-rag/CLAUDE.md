@@ -125,7 +125,7 @@ langsmith:
   project: "{{PROJECT_NAME}}"
 ```
 
-The `LANGCHAIN_API_KEY` must be in the `mlabs-api-keys` K8s secret (already provisioned by the platform).
+`LANGCHAIN_API_KEY` is opt-in: create the `LANGCHAIN_API_KEY` org secret (visibility selected, scoped to miramar-platform-gcp) and re-run Kubeflow Deploy to sync it into `mlabs-api-keys`. It is mounted `optional=True`.
 When enabled, `generation_eval` should wrap its LLM calls with LangChain's `ChatOpenAI` + `LangChainTracer`
 to emit traces to LangSmith.
 
@@ -134,7 +134,7 @@ to emit traces to LangSmith.
 - **All imports must be inside the function body** — each component runs in its own container
 - `packages_to_install` on `@dsl.component` is the only way to add dependencies to a component
 - All components are CPU-only — do NOT call `.set_accelerator_type("nvidia.com/gpu")`
-- Secret env vars (`OPENAI_API_KEY`, `HF_TOKEN`, `LANGCHAIN_API_KEY`) are injected from the `mlabs-api-keys` K8s secret via `k8s_ext.use_secret_as_env` in the pipeline cell
+- Secret env vars (`HF_TOKEN`, optional `LANGCHAIN_API_KEY`) are injected from the `mlabs-api-keys` K8s secret via `k8s_ext.use_secret_as_env` in the pipeline cell
 - PVC `hf-model-cache` is mounted at `/root/.cache/huggingface`; RAG inputs live at `/root/.cache/huggingface/rag-input/{{PROJECT_NAME}}/`
 
 ## Compile check

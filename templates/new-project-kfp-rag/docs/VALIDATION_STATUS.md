@@ -42,7 +42,7 @@ See `WORKBOOK.md` for implementation order.
 - `deployment_gate` — threshold checking for recall, faithfulness, relevancy, citation, safety
 - `purge_kfp_mlflow.py`
 - PVC mount: `hf-model-cache` at `/root/.cache/huggingface`
-- Secret injection: `mlabs-api-keys` (OPENAI_API_KEY, HF_TOKEN, LANGCHAIN_API_KEY)
+- Secret injection: `mlabs-api-keys` (HF_TOKEN, optional LANGCHAIN_API_KEY)
 
 ### Project-specific
 - `config.yaml` — to be configured (llm.base_url, thresholds)

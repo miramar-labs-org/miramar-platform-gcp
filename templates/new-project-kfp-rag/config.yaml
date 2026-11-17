@@ -58,4 +58,4 @@ judge:
 
 langsmith:
   enabled: false
-  project: ""    # LangSmith project name (set langsmith.enabled: true + add LANGCHAIN_API_KEY to mlabs-api-keys secret)
+  project: ""    # LangSmith project name (set langsmith.enabled: true + set LANGCHAIN_API_KEY org secret + re-run Kubeflow Deploy)
