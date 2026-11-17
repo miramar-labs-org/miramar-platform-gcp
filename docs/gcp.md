@@ -47,14 +47,20 @@ Expected provider condition:
 attribute.repository_owner=='miramar-labs-org'
 ```
 
-Expected service account principal:
+Expected service account principals — **one per repository, never the whole org**
+(need-to-know, Nov 2026 incident). The provider condition above is only a coarse gate;
+the service account binding is what decides which repos can act as it:
 
 ```text
-principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository_owner/miramar-labs-org
+principalSet://iam.googleapis.com/projects/808481995423/locations/global/workloadIdentityPools/github-actions/attribute.repository/miramar-labs-org/miramar-platform-gcp
 ```
 
-If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, verify the
-service account IAM binding matches the current GitHub org exactly.
+Each serving project repo that deploys to GCP gets its own binding, added by the owner after
+Create Project (the run prints the exact `gcloud iam service-accounts add-iam-policy-binding`
+command as a notice). Remove the binding when the project is deleted.
+
+If WIF auth fails with `iam.serviceAccounts.getAccessToken` denied, check that the calling
+repo has its own `attribute.repository/...` binding on the service account.
 
 ## Storage
 
