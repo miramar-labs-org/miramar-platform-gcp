@@ -7,6 +7,9 @@ name: List Blog Posts
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   list:
     runs-on: [self-hosted, dgx]

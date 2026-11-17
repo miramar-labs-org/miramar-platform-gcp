@@ -30,6 +30,9 @@ on:
           - agx
           - wsl2
 
+permissions:
+  contents: read
+
 jobs:
   unprovision:
     runs-on: ${{ inputs.runner || 'dgx' }}

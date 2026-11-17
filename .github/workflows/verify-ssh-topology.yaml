@@ -40,6 +40,9 @@ on:
       HOST_SSH_KEY:
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   # ── From spark ──────────────────────────────────────────────────────────
   # spark → orin
